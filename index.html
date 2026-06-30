@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.341";
+                content: "Ver.1.342";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -757,7 +757,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.341</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.342</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1560,7 +1560,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.340
+ * ぴよ氏の冒険 v1.342
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1770,6 +1770,8 @@ var specialCutinImg = new Image();
 specialCutinImg.src = 'images/special_cutin.png';
 var eyesImg = new Image();             // 来るぞ感の両目アップ
 eyesImg.src = 'images/eyes_closeup.png';
+var sobaSceneImg = new Image();        // たちぐいそば購入時のフルスクリーン演出（先読みで初回もカクつかない）
+sobaSceneImg.src = 'images/soba_shop_scene.png';
 
 var loginBonusPending = null; // { day, amount } or null
 
@@ -1924,6 +1926,56 @@ function showLoginBonusPopup() {
     }
     okBtn.addEventListener('touchend', function(e) { e.preventDefault(); closePopup(); });
     okBtn.addEventListener('click', closePopup);
+}
+
+// ─── たちぐいそば購入時のフルスクリーン演出（約2秒で自動クローズ・タップでスキップ） ───
+var sobaSceneActive = false;
+function showSobaScene() {
+    if (sobaSceneActive) return;
+    sobaSceneActive = true;
+
+    var overlay = document.createElement('div');
+    overlay.id = 'sobaScene';
+    overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh;' +
+        'background:rgba(20,8,2,0.92); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);' +
+        'display:flex; justify-content:center; align-items:center;' +
+        'z-index:99999; -webkit-tap-highlight-color:transparent; cursor:pointer;' +
+        'opacity:0; transition:opacity 0.25s ease-out;';
+
+    var img = document.createElement('img');
+    img.src = 'images/soba_shop_scene.png';
+    img.alt = '';
+    img.style.cssText = 'max-width:100vw; max-height:100vh; width:auto; height:auto;' +
+        'object-fit:contain; image-rendering:pixelated;' +
+        'box-shadow:0 0 40px rgba(0,0,0,0.6);' +
+        'transform:scale(0.92); transition:transform 0.3s cubic-bezier(0.18,0.9,0.3,1.25);';
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+
+    // フェードイン＋軽いポップ
+    requestAnimationFrame(function() {
+        overlay.style.opacity = '1';
+        img.style.transform = 'scale(1)';
+    });
+
+    var closed = false;
+    var autoTimer = setTimeout(closeScene, 2000); // 約2秒で自動クローズ
+    var canSkip = false;
+    setTimeout(function() { canSkip = true; }, 250); // 購入タップの誤爆で即閉じしないようガード
+
+    function closeScene() {
+        if (closed) return;
+        closed = true;
+        clearTimeout(autoTimer);
+        overlay.style.opacity = '0';
+        setTimeout(function() {
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            sobaSceneActive = false;
+        }, 250);
+    }
+    function onTap(e) { if (e) e.preventDefault(); if (canSkip) closeScene(); }
+    overlay.addEventListener('touchend', onTap);
+    overlay.addEventListener('click', onTap);
 }
 
 // ─── ゲーム設定 (localStorage永続化) ───

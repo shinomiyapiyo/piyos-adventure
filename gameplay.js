@@ -719,6 +719,7 @@ function buyStageItem(itemId) {
     gameState.score -= item.price;
     shopState.purchaseCounts[itemId] = bought + 1;
     if (!item.stockItem) item.effect();
+    if (item.id === 'heal' && typeof showSobaScene === 'function') showSobaScene(); // たちぐいそば：フルスクリーン演出
     if (soundManager) soundManager.playItem();
     setKeeperText('shop_keeper_buy_ok');
     setShopBg(getSuccessShopBg(), 1500);
