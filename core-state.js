@@ -284,8 +284,8 @@ function handleDebugTap() {
             gameState.rankScore = 50000;
         } else {
             gameState.lives = 5;
-            gameState.score = 0;
-            gameState.rankScore = 0;
+            // お金(score)はお店の動作チェックのため保持する（0にしない）
+            gameState.rankScore = 0; // ランキング用スコアだけは水増しデバッグ値を残さず0に戻す
         }
         // ポーズタイトルに状態表示
         var titleEl = document.getElementById('pauseTitle');
