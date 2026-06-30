@@ -37,6 +37,136 @@ function checkShopTrigger() {
     }
 }
 
+// ── 土管ボーナス部屋 ──
+// ショップ手前の安全地帯に土管を1ラウンド1回出す。土管の上で下スワイプ→1画面の隠し部屋へ。
+// 部屋では死なず、ハート/コイン/販売アイテム/ゴールデンエッグを拾って出口土管から本編へ戻る。
+function checkPipeTrigger() {
+    if (bossState.active || bossState.bossTriggered || pipeRoomState.active) return;
+    var bossDistance = BOSS_TRIGGER_DISTANCE * gameRound;
+    // 安全地帯に入ったら、ショップ建物(-100m)より手前のランダムな平地に土管を1回だけ配置
+    if (!pipeRoomState.placed && gameState.distance >= bossDistance - SHOP_SAFE_ZONE_START) {
+        pipeRoomState.placed = true;
+        var pipeDistM = (bossDistance - SHOP_SAFE_ZONE_START + 20) + Math.random() * 80; // 安全地帯内・ショップより手前
+        pipeRoomState.x = pipeDistM * 10; // m→px
+        platforms.push({ x: pipeRoomState.x, y: GROUND_Y - PIPE_H, width: PIPE_W, height: PIPE_H, type: 'pipe' });
+    }
+}
+
+function enterPipeRoom() {
+    if (pipeRoomState.active) return;
+    pipeRoomState.active = true;
+    pipeRoomState.visited = true;
+    pipeRoomState.savedGameSpeed = gameState.gameSpeed;
+    gameState.gameSpeed = 0;
+    // 入室前のプレイヤー状態を退避（退室時に復元）
+    pipeRoomState.savedPlayer = { x: player.x, y: player.y, velX: player.velX, velY: player.velY, onGround: player.onGround, facing: player.facing };
+    // 入力リセット（暴発防止）
+    gameState.input.down = false; gameState.input.up = false;
+    gameState.input.left = false; gameState.input.right = false;
+    gameState.input.jump = false; gameState.input.jumpPressed = false;
+    gameState.downSwipeActive = false; gameState.downSwipeTimer = 0;
+    // 以後 player.x/y は画面座標として扱う（部屋は固定カメラ）。入口（画面左）に立たせる
+    player.x = PIPE_ROOM_LEFT; player.y = PIPE_ROOM_FLOOR_Y - player.height;
+    player.velX = 0; player.velY = 0; player.onGround = true; player.facing = 'right';
+    initPipeRoom();
+    if (soundManager) soundManager.playBGM('bonus');
+}
+
+function exitPipeRoom() {
+    if (!pipeRoomState.active) return;
+    pipeRoomState.active = false;
+    bonusRoomItems.length = 0;
+    // プレイヤー状態を復元（本編は同じ位置から再開）
+    var sp = pipeRoomState.savedPlayer;
+    if (sp) { player.x = sp.x; player.y = sp.y; player.velX = sp.velX; player.velY = sp.velY; player.onGround = sp.onGround; player.facing = sp.facing; }
+    pipeRoomState.savedPlayer = null;
+    gameState.gameSpeed = pipeRoomState.savedGameSpeed || gameState.gameSpeed;
+    gameState.input.down = false; gameState.input.up = false;
+    gameState.input.left = false; gameState.input.right = false;
+    gameState.input.jump = false; gameState.input.jumpPressed = false;
+    playStageBGM(); // 本編BGMに復帰
+}
+
+// 出口（横）土管の左端X（口）。GAME_WIDTHは画面比で可変なので実行時に算出する。
+function pipeRoomExitX() { return GAME_WIDTH - SIDE_PIPE_W - 24; }
+
+// 部屋の報酬生成: ハート1+低確率2 / コイン10 / 販売アイテム1（満杯なら無）/ ゴールデンエッグ1/20
+function initPipeRoom() {
+    bonusRoomItems.length = 0;
+    var floorY = PIPE_ROOM_FLOOR_Y;
+    var rightLimit = pipeRoomExitX() - 30; // 報酬は出口（横）土管に重ねない
+    var span = rightLimit - PIPE_ROOM_LEFT;
+    // コイン10枚: 床のすぐ上を横一列（歩いて取れる）
+    var n = 10, x0 = PIPE_ROOM_LEFT + 60, x1 = rightLimit - 20;
+    for (var i = 0; i < n; i++) {
+        var cx = x0 + (x1 - x0) * (i / (n - 1));
+        bonusRoomItems.push({ type: 'coin', x: cx, y: floorY - 72, width: 32, height: 32, collected: false });
+    }
+    var posL = PIPE_ROOM_LEFT + span * 0.3, posC = PIPE_ROOM_LEFT + span * 0.5, posR = PIPE_ROOM_LEFT + span * 0.7;
+    // ハート: 1個確定＋低確率(12%)で2個目（ジャンプで取る高さ）
+    bonusRoomItems.push({ type: 'heart', x: posL, y: floorY - 150, width: 36, height: 36, collected: false, floatOffset: Math.random() * Math.PI * 2, animFrame: 0 });
+    if (Math.random() < 0.12) {
+        bonusRoomItems.push({ type: 'heart', x: posR, y: floorY - 150, width: 36, height: 36, collected: false, floatOffset: Math.random() * Math.PI * 2, animFrame: 0 });
+    }
+    // 販売アイテム（≤5000）: ストックに空きがある時だけ1個ランダム
+    if (stockState.items.length < stockState.maxSlots) {
+        var pool = ['barrier', 'lemon_special', 'full_charge'];
+        var id = pool[Math.floor(Math.random() * pool.length)];
+        bonusRoomItems.push({ type: 'shopitem', itemId: id, x: posC, y: floorY - 152, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
+    }
+    // ゴールデンエッグ: 1/20
+    if (Math.random() < 0.05) {
+        bonusRoomItems.push({ type: 'golden_egg', x: posC, y: floorY - 215, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
+    }
+}
+
+// 部屋の毎フレーム更新（簡易物理・死なない）
+function updatePipeRoom() {
+    var accel = 1.2, fric = 0.85;
+    if (gameState.input.left) { player.velX = Math.max(player.velX - accel, -MOVE_SPEED); player.facing = 'left'; }
+    else if (gameState.input.right) { player.velX = Math.min(player.velX + accel, MOVE_SPEED); player.facing = 'right'; }
+    else { player.velX *= fric; }
+    // ジャンプ
+    if (gameState.input.jump && !gameState.input.jumpPressed && player.onGround) {
+        player.velY = JUMP_FORCE; player.onGround = false; gameState.input.jumpPressed = true;
+        if (soundManager) soundManager.playJump();
+    }
+    if (!gameState.input.jump) gameState.input.jumpPressed = false;
+    // 重力＋移動
+    player.velY += GRAVITY; if (player.velY > 15) player.velY = 15;
+    player.x += player.velX; player.y += player.velY;
+    // 床着地（固定床・死なない）
+    if (player.y + player.height >= PIPE_ROOM_FLOOR_Y) {
+        player.y = PIPE_ROOM_FLOOR_Y - player.height; player.velY = 0; player.onGround = true;
+    } else {
+        player.onGround = false;
+    }
+    // 左クランプ
+    if (player.x < PIPE_ROOM_LEFT) { player.x = PIPE_ROOM_LEFT; if (player.velX < 0) player.velX = 0; }
+    // 右へ歩いて出口（横）土管の口に入ったら退室＝地上ステージへ戻る
+    if (player.x + player.width >= pipeRoomExitX() + 14) { exitPipeRoom(); return; }
+    player.animFrame++;
+    // 報酬取得
+    for (var i = 0; i < bonusRoomItems.length; i++) {
+        var it = bonusRoomItems[i];
+        if (it.collected || !aabb(player, it)) continue;
+        if (it.type === 'coin') {
+            it.collected = true; gainScore(150); if (soundManager) soundManager.playCoin();
+        } else if (it.type === 'heart') {
+            it.collected = true;
+            if (gameState.lives < 10) gameState.lives++; else gainScore(1000);
+            spawnLifeUpEffect(it.x + it.width / 2, it.y);
+            if (soundManager) soundManager.playItem();
+        } else if (it.type === 'shopitem') {
+            if (addToStock(it.itemId)) { it.collected = true; if (soundManager) soundManager.playItem(); }
+        } else if (it.type === 'golden_egg') {
+            it.collected = true; collectGoldenEgg(false);
+            spawnLifeUpEffect(it.x + it.width / 2, it.y);
+            if (soundManager) soundManager.playItem();
+        }
+    }
+}
+
 function openStageShop() {
     shopState.active = true;
     shopState.visited = true;
@@ -346,7 +476,8 @@ function renderSellItem(stockIndex) {
 }
 
 function updateStageShopUI() {
-    document.getElementById('stageShopScore').innerHTML = _ic('icon_money.png', 'ui-icon-sm') + ' ' + gameState.score + t('currency_unit');
+    document.getElementById('stageShopScore').innerHTML = _ic('icon_money.png', 'ui-icon-sm') + ' ' + gameState.score + t('currency_unit') +
+        ' <span style="margin-left:10px; white-space:nowrap;">🥚 ' + (gameSettings.goldenEggs || 0) + '</span>';
     var livesEl = document.getElementById('stageShopLives');
     if (livesEl) livesEl.innerHTML = _ic('icon_lives.png', 'ui-icon-sm') + ' ' + gameState.lives;
     var container = document.getElementById('stageShopItems');
@@ -1314,6 +1445,9 @@ function updateBoss() {
             shopState.deposited = false;
             shopState.buildingPlaced = false;
             shopState.buildingX = 0;
+            pipeRoomState.visited = false;
+            pipeRoomState.placed = false;
+            pipeRoomState.x = 0;
         }
         return;
     }
@@ -1938,7 +2072,7 @@ function buildResultCard() {
 
 // シェア: Web Share API（画像＋テキスト）→ テキストのみ → X intent の順でフォールバック。
 function shareResult() {
-    var url = 'https://shinomiyapiyo.github.io/games/piyo-adventure/';
+    var url = 'https://shinomiyapiyo.github.io/piyos-adventure/';
     var text = t('share_text', { distance: finalGameStats.distance, score: finalGameStats.score });
     buildResultCard().then(function(blob) {
         var file = null;

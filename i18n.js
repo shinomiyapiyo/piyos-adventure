@@ -199,6 +199,7 @@ ja: {
     terms_url: 'https://nullpoworks.pages.dev/terms-piyo-adventure.html',
     // ── ステージショップ ──
     shop_swipe_up: '↑スワイプで入店',
+    pipe_room_exit: '→ でる',
     shop_stage_title: 'ショップ',
     shop_buy: '購入',
     shop_sold_out: '売切',
@@ -499,6 +500,7 @@ en: {
     terms_url: 'https://nullpoworks.pages.dev/terms-piyo-adventure-en.html',
     // ── Stage Shop ──
     shop_swipe_up: 'Swipe up to enter',
+    pipe_room_exit: 'EXIT →',
     shop_stage_title: 'Shop',
     shop_buy: 'Buy',
     shop_sold_out: 'Sold',

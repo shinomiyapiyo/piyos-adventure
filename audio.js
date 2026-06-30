@@ -21,6 +21,7 @@ class SoundManager {
         this.rankingBGM  = this._createBGM('sounds/ranking.mp3',  0.6);
         this.bossBGM     = this._createBGM('sounds/boss.mp3',     0.6);
         this.shopBGM     = this._createBGM('sounds/shop.mp3',     0.5);
+        this.bonusBGM    = this._createBGM('sounds/bonus.mp3',    0.5);
         this.winBGM      = new Audio('sounds/win.mp3');
         this.winBGM.loop = false;
         this.winBGM.volume = 0.7;
@@ -240,7 +241,7 @@ class SoundManager {
     }
 
     stopAllBGM() {
-        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.winBGM];
+        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.bonusBGM, this.winBGM];
         for (var i = 0; i < bgms.length; i++) {
             if (bgms[i]) { bgms[i].pause(); bgms[i].currentTime = 0; }
         }

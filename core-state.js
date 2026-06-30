@@ -109,6 +109,7 @@ function isScreenVisible(id) {
 // 配列の順序＝優先順位（例: ショップ中はショップの退店処理が最優先）。
 // 画面を追加したらここに1エントリ追加すること（popstateハンドラの変更は不要）。
 var BACK_HANDLERS = [
+    { isOpen: function() { return pipeRoomState.active; }, onBack: function() { exitPipeRoom(); } },
     { isOpen: function() { return shopState.active; }, onBack: function() { closeStageShop(); } },
     { isOpen: function() { var el = document.getElementById('storeScreen'); return !!el && el.style.display !== 'none'; },
       onBack: function() { hideStore(); } },
@@ -149,6 +150,7 @@ var gameState = {
     hasRecordedHighScore: false,
     missionCountedDistance: 0, missionCountedKills: 0, missionPlayCounted: false,
     coinsCollected: 0, bossKills: 0, specialUses: 0,
+    goldenEggFieldSpawned: false,  // 2500m日次エッグをこのランで出したか（per-run）
     missionCountedCoins: 0, missionCountedBoss: 0, missionCountedSpecial: 0,
     specialGauge: 0, specialMoveLevel: 0, specialCutinTimer: 0, specialCutinActive: false
 };
@@ -177,6 +179,23 @@ var bossState = {
 var SHOP_SAFE_ZONE_START = 250; // ボス出現の250m前から安全地帯
 var SHOP_BUILDING_OFFSET = 100; // ボス出現の100m前にショップ建物
 var SHOP_SAFE_ZONE_SPEED = 1.5; // 安全地帯のスクロール速度
+
+// ─── 土管ボーナス部屋 ───
+var PIPE_W = 72, PIPE_H = 66;                       // 入口（縦）土管のサイズ(px)。本編フィールドにもこの縦土管を置く
+var SIDE_PIPE_W = 140, SIDE_PIPE_H = 74;            // 出口（横）土管のサイズ(px・口は左向き)
+var PIPE_ROOM_FLOOR_Y    = GAME_HEIGHT - 64;        // 部屋の床上端（画面座標）
+var PIPE_ROOM_LEFT       = 110;                     // プレイヤー移動の左端（画面座標）
+var PIPE_ROOM_ENTRY_X    = 44;                      // 入口（縦）土管の左X（画面左・描画用）
+// 出口（横）土管の左端Xは実行時 GAME_WIDTH から算出（pipeRoomExitX）。GAME_WIDTHは画面比で可変なため定数化しない
+var pipeRoomState = {
+    active: false,       // 部屋に入っているか（ループ/描画の分岐に使う単一の真実）
+    visited: false,      // このラウンドで入室済みか（1ラウンド1回）
+    placed: false,       // 土管をフィールドに配置済みか
+    x: 0,                // フィールドの土管ワールドX
+    savedGameSpeed: 0,   // 復帰用スクロール速度
+    savedPlayer: null    // 入室前のプレイヤー状態スナップショット
+};
+var bonusRoomItems = []; // 部屋内の報酬エンティティ配列
 
 var shopState = {
     active: false,

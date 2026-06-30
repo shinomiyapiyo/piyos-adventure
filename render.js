@@ -1140,8 +1140,21 @@ function drawFlyingEnemy(e) {
     e.animFrame++;
 }
 
+function drawGoldenEggSprite(x, y, w, h) {
+    if (!goldenEggImg.complete || !goldenEggImg.naturalWidth) return;
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,215,0,0.9)';
+    ctx.shadowBlur = 12 + Math.sin(gameState.time * 0.15) * 4;  // ふわっと発光
+    ctx.drawImage(goldenEggImg, x, y, w, h);
+    ctx.restore();
+}
+
 function drawPowerUp(pu) {
     if (pu.collected) return;
+    if (pu.type === 'golden_egg') {
+        drawGoldenEggSprite(pu.x, pu.y + Math.sin(gameState.time * 0.1 + pu.floatOffset) * 3, pu.width, pu.height);
+        return;
+    }
     // 消滅直前の点滅（残り2秒=120f: 速い点滅）
     if (pu.lifetime !== undefined && pu.lifetime <= 120) {
         var blinkRate = pu.lifetime <= 60 ? 4 : 8; // 最後1秒はさらに速く
@@ -1402,9 +1415,68 @@ var PU_HUD_DEFS = [
     { key: 'puMagnet', max: 600, labelKey: 'hud_magnet', color1: '#aa44ff', color2: '#cc88ff', text: '#ddaaff', bg: 'rgba(50,15,70,0.85)', border: '#cc66ff' }
 ];
 
+// 土管部屋: ドロップした販売アイテム（アイコン画像）を描く
+function drawRoomShopItem(it) {
+    var img = roomItemImg[it.itemId];
+    var fy = it.y + Math.sin(gameState.time * 0.1 + (it.floatOffset || 0)) * 3;
+    if (img && img.complete && img.naturalWidth) {
+        ctx.drawImage(img, it.x, fy, it.width, it.height);
+    } else {
+        ctx.fillStyle = '#88ccff'; ctx.fillRect(it.x, fy, it.width, it.height);
+    }
+}
+
+// 土管ボーナス部屋の描画（固定カメラ・画面座標）
+function drawPipeRoom() {
+    gameState.time++; // 本編render末尾の time 加算を肩代わり（早期returnのため）
+    var tm = Date.now() / 50;
+    // 背景: FC地下風のダーク
+    var g = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+    g.addColorStop(0, '#0a0820'); g.addColorStop(1, '#1a1230');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    // 背景の薄い格子（レンガ感）
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+    for (var bx = 0; bx <= GAME_WIDTH; bx += 48) { ctx.beginPath(); ctx.moveTo(bx, 0); ctx.lineTo(bx, PIPE_ROOM_FLOOR_Y); ctx.stroke(); }
+    for (var by = 0; by < PIPE_ROOM_FLOOR_Y; by += 32) { ctx.beginPath(); ctx.moveTo(0, by); ctx.lineTo(GAME_WIDTH, by); ctx.stroke(); }
+    // 床（レンガ）
+    ctx.fillStyle = '#3a2a18'; ctx.fillRect(0, PIPE_ROOM_FLOOR_Y, GAME_WIDTH, GAME_HEIGHT - PIPE_ROOM_FLOOR_Y);
+    ctx.fillStyle = '#241a10';
+    for (var fx = 0; fx < GAME_WIDTH; fx += 40) ctx.fillRect(fx + 2, PIPE_ROOM_FLOOR_Y + 5, 36, 6);
+    var exitX = pipeRoomExitX();
+    // 入口（縦）土管：画面左（ここから降りてきた）
+    if (pipeImg.complete && pipeImg.naturalWidth) {
+        ctx.drawImage(pipeImg, PIPE_ROOM_ENTRY_X, PIPE_ROOM_FLOOR_Y - PIPE_H, PIPE_W, PIPE_H);
+    }
+    // 出口（横）土管：画面右（口が左向き＝右へ歩いて入ると地上へ戻る）
+    if (pipeSideImg.complete && pipeSideImg.naturalWidth) {
+        ctx.drawImage(pipeSideImg, exitX, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H, SIDE_PIPE_W, SIDE_PIPE_H);
+    }
+    // 出口ヒント（→ でる）
+    ctx.save();
+    ctx.fillStyle = '#ffe066';
+    ctx.font = 'bold 15px DotGothic16, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(t('pipe_room_exit'), exitX + SIDE_PIPE_W / 2, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H - 10 + Math.sin(gameState.time * 0.1) * 3);
+    ctx.restore();
+    // 報酬
+    for (var i = 0; i < bonusRoomItems.length; i++) {
+        var it = bonusRoomItems[i];
+        if (it.collected) continue;
+        if (it.type === 'coin') drawCoin(it, tm);
+        else if (it.type === 'heart') drawPowerUp(it);
+        else if (it.type === 'golden_egg') drawGoldenEggSprite(it.x, it.y + Math.sin(gameState.time * 0.1 + (it.floatOffset || 0)) * 3, it.width, it.height);
+        else if (it.type === 'shopitem') drawRoomShopItem(it);
+    }
+    // プレイヤー
+    if (gameState.gameStarted) drawPlayer(player.x, player.y);
+}
+
 function render() {
     // nearest-neighbor拡大でドット絵くっきり
     ctx.imageSmoothingEnabled = false;
+
+    // 土管ボーナス部屋中は専用画面を描いて終了（本編ワールドは描かない）
+    if (pipeRoomState.active) { drawPipeRoom(); return; }
 
     // 画面シェイク適用
     var shaking = screenShake.timer > 0;

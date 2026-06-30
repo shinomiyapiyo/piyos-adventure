@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.344";
+                content: "Ver.1.345";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -757,7 +757,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.344</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.345</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1560,7 +1560,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.344
+ * ぴよ氏の冒険 v1.345
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1772,6 +1772,17 @@ var eyesImg = new Image();             // 来るぞ感の両目アップ
 eyesImg.src = 'images/eyes_closeup.png';
 var sobaSceneImg = new Image();        // たちぐいそば購入時のフルスクリーン演出（先読みで初回もカクつかない）
 sobaSceneImg.src = 'images/soba_shop_scene.png';
+var pipeImg = new Image();             // 入口（縦）土管
+pipeImg.src = 'images/item_pipe.png';
+var pipeSideImg = new Image();         // 出口（横）土管（口は左向き）
+pipeSideImg.src = 'images/item_pipe_side.png';
+var goldenEggImg = new Image();        // ゴールデンエッグ（レア通貨）
+goldenEggImg.src = 'images/item_golden_egg.png';
+// 土管部屋でドロップする販売アイテム（≤5000円）のアイコン（canvas描画用）
+var roomItemImg = { barrier: new Image(), lemon_special: new Image(), full_charge: new Image() };
+roomItemImg.barrier.src = 'images/icon_barrier.png';
+roomItemImg.lemon_special.src = 'images/icon_lemon_special.png';
+roomItemImg.full_charge.src = 'images/icon_full_charge.png';
 
 var loginBonusPending = null; // { day, amount } or null
 
@@ -1993,7 +2004,10 @@ var gameSettings = {
     purchased: {},         // { productId: true } 買い切り商品
     loginPassExpiry: 0,    // ログボ強化パスの有効期限(timestamp)
     ownedSkins: [],        // 所持スキン一覧
-    activeSkin: ''         // 装備中スキン
+    activeSkin: '',        // 装備中スキン
+    goldenEggs: 0,                // ゴールデンエッグ所持数（レア通貨）
+    lastGoldenEggDate: '',        // 最後に2500m日次エッグを取得した日付
+    lastGoldenEggTimestamp: 0     // 時計巻き戻しガード用
 };
 (function loadSettings() {
     try {
@@ -2045,6 +2059,10 @@ var gameSettings = {
             if (typeof parsed.loginPassExpiry === 'number') gameSettings.loginPassExpiry = parsed.loginPassExpiry;
             if (Array.isArray(parsed.ownedSkins)) gameSettings.ownedSkins = parsed.ownedSkins;
             if (typeof parsed.activeSkin === 'string') gameSettings.activeSkin = parsed.activeSkin;
+            // ── ゴールデンエッグ（レア通貨） ──
+            if (typeof parsed.goldenEggs === 'number') gameSettings.goldenEggs = parsed.goldenEggs;
+            if (typeof parsed.lastGoldenEggDate === 'string') gameSettings.lastGoldenEggDate = parsed.lastGoldenEggDate;
+            if (typeof parsed.lastGoldenEggTimestamp === 'number') gameSettings.lastGoldenEggTimestamp = parsed.lastGoldenEggTimestamp;
             if (typeof parsed.tutorialSeen === 'boolean') gameSettings.tutorialSeen = parsed.tutorialSeen;
             // adFree復元: 購入済みなら常にtrue
             if (gameSettings.purchased['ad_free'] || gameSettings.purchased['starter_pack']) gameSettings.adFree = true;
@@ -2053,6 +2071,23 @@ var gameSettings = {
 })();
 function saveSettings() {
     try { localStorage.setItem('piyo_settings', JSON.stringify(gameSettings)); } catch (_) {}
+}
+
+// ── ゴールデンエッグ（レア通貨）: 2500m日次ドロップの可否判定＆取得 ──
+function canDropGoldenEggToday() {
+    var now = Date.now();
+    var today = getDateString();
+    if (gameSettings.lastGoldenEggDate === today) return false;            // 今日はもう取得済み
+    if (gameSettings.lastGoldenEggTimestamp && now < gameSettings.lastGoldenEggTimestamp) return false; // 時計巻き戻しガード
+    return true;
+}
+function collectGoldenEgg(isDaily) {
+    gameSettings.goldenEggs = (gameSettings.goldenEggs || 0) + 1;
+    if (isDaily) {                                                         // 2500m日次エッグのみ日付を確定（部屋1/20は無制限）
+        gameSettings.lastGoldenEggDate = getDateString();
+        gameSettings.lastGoldenEggTimestamp = Date.now();
+    }
+    saveSettings();
 }
 
 
@@ -3002,6 +3037,10 @@ function resetGame() {
     gameState.missionCountedKills = 0;
     gameState.missionPlayCounted = false;
     gameState.coinsCollected = 0;
+    gameState.goldenEggFieldSpawned = false;
+    pipeRoomState.active = false; pipeRoomState.visited = false;
+    pipeRoomState.placed = false; pipeRoomState.x = 0; pipeRoomState.savedPlayer = null;
+    bonusRoomItems.length = 0;
     gameState.bossKills = 0;
     gameState.specialUses = 0;
     gameState.missionCountedCoins = 0;
@@ -3667,6 +3706,16 @@ function manageObjects() {
     cullByX(powerUps, lb, rb, false);
     cullByX(bullets, lb, rb, false);
 
+    // ゴールデンエッグ: 2500m を最初に超えたら 1日1回フィールドに出す（取得で日付確定）
+    if (!gameState.goldenEggFieldSpawned && gameState.distance >= 2500 && canDropGoldenEggToday()) {
+        gameState.goldenEggFieldSpawned = true;
+        powerUps.push({
+            x: gameState.camera.x + GAME_WIDTH * 0.7, y: 240,
+            width: 40, height: 40, type: 'golden_egg', dailyEgg: true,
+            collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2
+        });
+    }
+
     // ボス戦中は通常スポーン停止
     if (bossState.active && bossState.phase >= 2) return;
 
@@ -3716,6 +3765,17 @@ function isOnPlatform() {
         if (player.x + player.width > p.x && player.x < p.x + p.width && Math.abs(pb - p.y) <= 5) return true;
     }
     return false;
+}
+
+// 足が乗っているプラットフォームを返す（土管判定用）。乗っていなければ null。
+function findPlatformUnder() {
+    if (!player.onGround) return null;
+    var pb = player.y + player.height;
+    for (var i = 0; i < platforms.length; i++) {
+        var p = platforms[i];
+        if (player.x + player.width > p.x && player.x < p.x + p.width && Math.abs(pb - p.y) <= 5) return p;
+    }
+    return null;
 }
 
 // ─── スピードアップ ───
@@ -4535,6 +4595,9 @@ function updatePowerUps() {
             gameState.bulletFireTimer = 0;
         } else if (pu.type === 'magnet') {
             gameState.puMagnet = PU_DURATION.magnet * (gameState.magnetDurMult || 1);
+        } else if (pu.type === 'golden_egg') {
+            collectGoldenEgg(!!pu.dailyEgg);
+            spawnLifeUpEffect(pu.x + pu.width / 2, pu.y);
         }
     }
 }

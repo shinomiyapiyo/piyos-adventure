@@ -26,11 +26,14 @@ function gameLoop(timestamp) {
 
     while (accumulator >= FIXED_DT) {
         if (gameState.gameStarted && !gameState.gamePaused) {
-            if (gameState.specialCutinTimer > 0) {
+            if (pipeRoomState.active) {
+                updatePipeRoom(); // 土管ボーナス部屋中は世界を止め、部屋だけ更新
+            } else if (gameState.specialCutinTimer > 0) {
                 updateSpecialCutin(); // 必殺技カットイン中は世界を止め演出だけ進める
             } else {
             updateGameSpeed();
             checkShopTrigger();
+            checkPipeTrigger();
             checkBossTrigger();
             updateBoss();
             updateBiome();
@@ -191,6 +194,17 @@ function bindTapDelegate(container, attrName, handler) {
         var dy = touch.clientY - moveStartY;
         var dt = Date.now() - moveStartTime;
         if (dy > 15 && dt < 500) {
+            // 土管ボーナス部屋中は下スワイプ無効（出口は右の横土管に歩いて入る）
+            if (pipeRoomState.active) { moveSwiped = true; return; }
+            // 土管の上で下スワイプ → 入室（通常のすり抜けにはしない）
+            var pf = findPlatformUnder();
+            if (pf && pf.type === 'pipe') {
+                moveSwiped = true;
+                enterPipeRoom();
+                gameState.input.left = false; gameState.input.right = false;
+                highlightControl(null);
+                return;
+            }
             if (isOnPlatform()) {
                 moveSwiped = true;
                 gameState.input.down = true;
