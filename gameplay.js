@@ -40,20 +40,51 @@ function checkShopTrigger() {
 // ── 土管ボーナス部屋 ──
 // ショップ手前の安全地帯に土管を1ラウンド1回出す。土管の上で下スワイプ→1画面の隠し部屋へ。
 // 部屋では死なず、ハート/コイン/販売アイテム/ゴールデンエッグを拾って出口土管から本編へ戻る。
+// このラウンドの土管目標距離を抽選（ステージ開始〜安全地帯手前の通常エリア内のランダム）
+function pickPipeTargetDist() {
+    pipeRoomState.targetRound = gameRound;
+    pipeRoomState.placed = false;
+    pipeRoomState.visited = false;
+    pipeRoomState.x = 0;
+    var roundStart = BOSS_TRIGGER_DISTANCE * (gameRound - 1);
+    var safeStart  = BOSS_TRIGGER_DISTANCE * gameRound - SHOP_SAFE_ZONE_START;
+    var lo = roundStart + 150, hi = safeStart - 150;
+    pipeRoomState.targetDist = (hi > lo) ? (lo + Math.random() * (hi - lo)) : 0;
+}
+
+// 平地（穴でも高台でもない GROUND_Y の地面）か判定
+function isFlatGroundAt(worldX) {
+    for (var i = 0; i < terrain.length; i++) {
+        var t = terrain[i];
+        if (t.type === 'hole' || t.width <= 0 || t.y !== GROUND_Y) continue;
+        if (worldX >= t.x && worldX <= t.x + t.width) return true;
+    }
+    return false;
+}
+function pipeFootprintFlat(x, w) {
+    return isFlatGroundAt(x + 4) && isFlatGroundAt(x + w / 2) && isFlatGroundAt(x + w - 4);
+}
+
 function checkPipeTrigger() {
     if (bossState.active || bossState.bossTriggered || pipeRoomState.active) return;
-    var bossDistance = BOSS_TRIGGER_DISTANCE * gameRound;
-    // 安全地帯に入ったら、ショップ建物(-100m)より手前のランダムな平地に土管を1回だけ配置
-    if (!pipeRoomState.placed && gameState.distance >= bossDistance - SHOP_SAFE_ZONE_START) {
+    // ラウンドが変わったら、このラウンドの目標距離を新規抽選（1ラウンド1回）
+    if (pipeRoomState.targetRound !== gameRound) pickPipeTargetDist();
+    if (pipeRoomState.placed || pipeRoomState.targetDist <= 0) return;
+    if (gameState.distance < pipeRoomState.targetDist) return;
+    // 安全地帯に入ってしまったら今ラウンドは見送り（手前の平地に置けなかった）
+    var safeStart = BOSS_TRIGGER_DISTANCE * gameRound - SHOP_SAFE_ZONE_START;
+    if (gameState.distance >= safeStart) { pipeRoomState.placed = true; return; }
+    // 目標距離を過ぎたら、画面右外の平地が見つかり次第そこに配置（スクロールで自然に入ってくる）
+    var spawnX = gameState.camera.x + GAME_WIDTH + 20;
+    if (pipeFootprintFlat(spawnX, PIPE_W)) {
         pipeRoomState.placed = true;
-        var pipeDistM = (bossDistance - SHOP_SAFE_ZONE_START + 20) + Math.random() * 80; // 安全地帯内・ショップより手前
-        pipeRoomState.x = pipeDistM * 10; // m→px
-        platforms.push({ x: pipeRoomState.x, y: GROUND_Y - PIPE_H, width: PIPE_W, height: PIPE_H, type: 'pipe' });
+        pipeRoomState.x = spawnX;
+        platforms.push({ x: spawnX, y: GROUND_Y - PIPE_H, width: PIPE_W, height: PIPE_H, type: 'pipe' });
     }
 }
 
 function enterPipeRoom() {
-    if (pipeRoomState.active) return;
+    if (pipeRoomState.active || pipeRoomState.visited) return; // 入室中・このラウンド入室済みは弾く（再入室防止）
     pipeRoomState.active = true;
     pipeRoomState.visited = true;
     pipeRoomState.savedGameSpeed = gameState.gameSpeed;

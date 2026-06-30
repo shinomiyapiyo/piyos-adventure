@@ -1025,6 +1025,20 @@ function drawTerrain(t) {
 }
 
 function drawPlatform(p) {
+    // 土管ボーナス部屋の入口（縦土管）: 専用スプライトで描く＋上に下向き矢印（乗って下スワイプ＝もぐる、の示唆）
+    if (p.type === 'pipe') {
+        if (pipeImg.complete && pipeImg.naturalWidth) {
+            ctx.drawImage(pipeImg, p.x, p.y, p.width, p.height);
+        } else {
+            ctx.fillStyle = '#3cb043'; ctx.fillRect(p.x, p.y, p.width, p.height);
+        }
+        var ax = p.x + p.width / 2, ay = p.y - 14 + Math.sin(gameState.time * 0.12) * 3;
+        ctx.fillStyle = 'rgba(255,224,102,0.9)';
+        ctx.beginPath();
+        ctx.moveTo(ax, ay + 7); ctx.lineTo(ax - 6, ay - 2); ctx.lineTo(ax + 6, ay - 2);
+        ctx.closePath(); ctx.fill();
+        return;
+    }
     var pBiome = getBiomeIndex(gameState.distance);
     var tileName;
     if (p.type === 'cloud') {
