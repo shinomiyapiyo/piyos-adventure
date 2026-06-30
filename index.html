@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.343";
+                content: "Ver.1.344";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -757,7 +757,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.343</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.344</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1560,7 +1560,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.343
+ * ぴよ氏の冒険 v1.344
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1928,7 +1928,7 @@ function showLoginBonusPopup() {
     okBtn.addEventListener('click', closePopup);
 }
 
-// ─── たちぐいそば購入時のフルスクリーン演出（約2秒で自動クローズ・タップでスキップ） ───
+// ─── たちぐいそば購入時のフルスクリーン演出（約1.2秒で自動クローズ・タップでスキップ） ───
 var sobaSceneActive = false;
 function showSobaScene() {
     if (sobaSceneActive) return;
@@ -1959,7 +1959,7 @@ function showSobaScene() {
     });
 
     var closed = false;
-    var autoTimer = setTimeout(closeScene, 2000); // 約2秒で自動クローズ
+    var autoTimer = setTimeout(closeScene, 1200); // 約1.2秒で自動クローズ
     var canSkip = false;
     setTimeout(function() { canSkip = true; }, 250); // 購入タップの誤爆で即閉じしないようガード
 
