@@ -1,0 +1,13 @@
+{
+  "name": "piyo-boss2-imagegen",
+  "private": true,
+  "type": "module",
+  "description": "Gemini (Nano Banana 2) で空中ボスのスプライトを生成する開発用ツール。ゲーム本体には同梱しない。",
+  "scripts": {
+    "gen": "node generate-boss2.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "sharp": "^0.33.0"
+  }
+}

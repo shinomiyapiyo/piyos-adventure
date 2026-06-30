@@ -1,0 +1,1905 @@
+// ============================================================
+// render.js — 描画レイヤー（index.html から分離 / Ver.1.332, Step1）
+// 内容: drawPlayerAura・各種エフェクト描画・EFFECT_RENDERERS・Canvas HUDヘルパー・
+//       ショップ建物描画・地面焼き付けキャッシュ・render()・updateUI()
+// 依存: gameState/player/ctx/canvas/spriteManager 等のグローバルを実行時参照（index.html本体で定義）。
+//       読み込み順は index.html 本体スクリプトの後（全グローバル定義後に評価される）。
+// ============================================================
+// ─── 描画 ───
+
+function drawPlayerAura(x, y, t) {
+    var cx = x + player.width / 2, cy = y + player.height / 2;
+    var pw = player.width, ph = player.height;
+
+    if (gameState.puShield > 0) {
+        // ─── シールド: 青い魔法陣オーラ ───
+        var sr = Math.max(pw, ph) * 0.7;
+        var pulse = 0.85 + Math.sin(t * 0.12) * 0.15;
+        var r = sr * pulse;
+
+        // 外側グロー
+        var glow = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r * 1.3);
+        glow.addColorStop(0, 'rgba(65,105,225,0)');
+        glow.addColorStop(0.6, 'rgba(65,105,225,0.08)');
+        glow.addColorStop(0.85, 'rgba(100,149,237,0.2)');
+        glow.addColorStop(1, 'rgba(65,105,225,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(cx, cy, r * 1.3, 0, Math.PI * 2); ctx.fill();
+
+        // メインシールド円
+        ctx.strokeStyle = 'rgba(100,149,237,' + (0.5 + Math.sin(t * 0.15) * 0.2) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+
+        // 内側の回転リング
+        ctx.strokeStyle = 'rgba(135,206,250,0.35)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.85, t * 0.05, t * 0.05 + Math.PI * 1.2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.85, t * 0.05 + Math.PI, t * 0.05 + Math.PI * 2.2);
+        ctx.stroke();
+
+        // 回転パーティクル (小さな光の粒)
+        for (var si = 0; si < 6; si++) {
+            var sa = t * 0.04 + si * Math.PI / 3;
+            var sd = r * (0.9 + Math.sin(t * 0.1 + si * 2) * 0.15);
+            var sx = cx + Math.cos(sa) * sd;
+            var sy = cy + Math.sin(sa) * sd;
+            var ss = 2 + Math.sin(t * 0.2 + si) * 1;
+            var salpha = 0.4 + Math.sin(t * 0.15 + si * 1.5) * 0.3;
+            ctx.fillStyle = 'rgba(200,220,255,' + salpha + ')';
+            ctx.beginPath(); ctx.arc(sx, sy, ss, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // 六角形の紋章 (ゆっくり回転)
+        ctx.strokeStyle = 'rgba(100,149,237,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (var hi = 0; hi < 6; hi++) {
+            var ha = t * 0.02 + hi * Math.PI / 3;
+            var hx = cx + Math.cos(ha) * r * 0.6;
+            var hy = cy + Math.sin(ha) * r * 0.6;
+            if (hi === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath(); ctx.stroke();
+    }
+
+    if (gameState.puLemon > 0) {
+        // ─── ジャンプ強化: 緑の上昇オーラ + 風柱 + スパーク + 渦巻き ───
+        var lr = Math.max(pw, ph) * 0.75;
+        var lPulse = 0.85 + Math.sin(t * 0.12) * 0.15;
+
+        // 大きな上昇グロー (緑〜黄色)
+        var lGlow = ctx.createRadialGradient(cx, cy + 8, 0, cx, cy - 10, lr * 1.4 * lPulse);
+        lGlow.addColorStop(0, 'rgba(120,255,80,0.22)');
+        lGlow.addColorStop(0.4, 'rgba(180,255,60,0.12)');
+        lGlow.addColorStop(0.8, 'rgba(255,255,100,0.05)');
+        lGlow.addColorStop(1, 'rgba(255,255,0,0)');
+        ctx.fillStyle = lGlow;
+        ctx.beginPath(); ctx.arc(cx, cy, lr * 1.4 * lPulse, 0, Math.PI * 2); ctx.fill();
+
+        // 風柱エフェクト (プレイヤーの下から上へ伸びる半透明の柱)
+        var pillarW = pw * 0.7;
+        var pillarH = ph * 1.8;
+        var pillarY = y - pillarH * 0.3;
+        var pillarGrad = ctx.createLinearGradient(cx, y + ph, cx, pillarY);
+        pillarGrad.addColorStop(0, 'rgba(100,255,100,0.18)');
+        pillarGrad.addColorStop(0.5, 'rgba(150,255,80,' + (0.08 + Math.sin(t * 0.1) * 0.04) + ')');
+        pillarGrad.addColorStop(1, 'rgba(200,255,100,0)');
+        ctx.fillStyle = pillarGrad;
+        ctx.fillRect(cx - pillarW / 2, pillarY, pillarW, pillarH);
+
+        // 上昇する風パーティクル (増量 + 大きめ)
+        for (var li = 0; li < 14; li++) {
+            var lt = (t * 3.5 + li * 37) % 140;
+            var spread = pw * 0.55;
+            var lx = cx - spread + ((li * 11.7) % (spread * 2));
+            lx += Math.sin(t * 0.08 + li * 2.1) * 6;
+            var ly = cy + ph * 0.5 - lt * 1.0;
+            var lAlpha = lt < 25 ? lt / 25 : lt > 100 ? (140 - lt) / 40 : 1;
+            lAlpha *= 0.65;
+            var lSize = 2.0 + Math.sin(li + t * 0.12) * 1.2;
+            // 緑〜黄色のグラデーションパーティクル
+            var lc = li % 3 === 0 ? '120,255,80' : li % 3 === 1 ? '180,255,60' : '255,240,100';
+            ctx.fillStyle = 'rgba(' + lc + ',' + lAlpha + ')';
+            ctx.beginPath(); ctx.arc(lx, ly, lSize, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // 渦巻きリング (プレイヤー周りを回転)
+        ctx.strokeStyle = 'rgba(100,255,120,' + (0.25 + Math.sin(t * 0.1) * 0.1) + ')';
+        ctx.lineWidth = 1.5;
+        var vr1 = lr * 0.75;
+        ctx.beginPath();
+        ctx.arc(cx, cy, vr1, t * 0.06, t * 0.06 + Math.PI * 1.0);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(180,255,80,' + (0.2 + Math.sin(t * 0.14 + 1) * 0.1) + ')';
+        ctx.beginPath();
+        ctx.arc(cx, cy, vr1 * 0.85, -t * 0.04, -t * 0.04 + Math.PI * 0.8);
+        ctx.stroke();
+
+        // 回転スパークル (足元 + 周囲)
+        for (var fi = 0; fi < 8; fi++) {
+            var fa = t * 0.07 + fi * Math.PI / 4;
+            var fd = pw * 0.35 + Math.sin(t * 0.1 + fi) * 8;
+            var fx = cx + Math.cos(fa) * fd;
+            var fy = y + ph - 4 + Math.sin(t * 0.18 + fi * 3) * 6;
+            var fAlpha = 0.4 + Math.sin(t * 0.15 + fi * 2) * 0.25;
+            ctx.fillStyle = 'rgba(120,255,80,' + fAlpha + ')';
+            ctx.beginPath(); ctx.arc(fx, fy, 2.5, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // 上方向に飛ぶスター
+        for (var sti = 0; sti < 5; sti++) {
+            var stTime = (t * 2.5 + sti * 60) % 150;
+            var stx = cx - pw * 0.3 + ((sti * 19.3) % (pw * 0.6));
+            stx += Math.sin(t * 0.06 + sti * 3) * 4;
+            var sty = y + ph * 0.3 - stTime * 0.7;
+            var stAlpha = stTime < 20 ? stTime / 20 : stTime > 110 ? (150 - stTime) / 40 : 1;
+            stAlpha *= 0.6;
+            if (stAlpha > 0.02) {
+                var stSize = 3 + Math.sin(sti * 2 + t * 0.15) * 1;
+                drawStar(stx, sty, stSize, stSize * 0.4, 4, 'rgba(200,255,100,' + stAlpha + ')');
+            }
+        }
+    }
+
+    if (gameState.puEnergy > 0) {
+        // ─── エネルギー弾: 赤〜オレンジの炎オーラ ───
+        var er = Math.max(pw, ph) * 0.7;
+        var ePulse = 0.85 + Math.sin(t * 0.15) * 0.15;
+
+        // 外側グロー (赤〜オレンジ)
+        var eGlow = ctx.createRadialGradient(cx, cy, er * 0.2, cx, cy, er * 1.3 * ePulse);
+        eGlow.addColorStop(0, 'rgba(255,100,0,0.18)');
+        eGlow.addColorStop(0.4, 'rgba(255,60,20,0.1)');
+        eGlow.addColorStop(0.75, 'rgba(255,140,40,0.06)');
+        eGlow.addColorStop(1, 'rgba(255,80,0,0)');
+        ctx.fillStyle = eGlow;
+        ctx.beginPath(); ctx.arc(cx, cy, er * 1.3 * ePulse, 0, Math.PI * 2); ctx.fill();
+
+        // 内側のエネルギーリング (回転)
+        ctx.strokeStyle = 'rgba(255,120,30,' + (0.45 + Math.sin(t * 0.12) * 0.2) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, er * 0.8, t * 0.08, t * 0.08 + Math.PI * 1.1);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,80,20,' + (0.35 + Math.sin(t * 0.16 + 1) * 0.15) + ')';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, er * 0.65, -t * 0.06, -t * 0.06 + Math.PI * 0.9);
+        ctx.stroke();
+
+        // 炎パーティクル (上昇)
+        for (var ei = 0; ei < 12; ei++) {
+            var et = (t * 3 + ei * 30) % 120;
+            var eSpread = pw * 0.5;
+            var ex = cx - eSpread + ((ei * 13.3) % (eSpread * 2));
+            ex += Math.sin(t * 0.1 + ei * 1.7) * 5;
+            var ey = cy + ph * 0.3 - et * 0.8;
+            var eAlpha = et < 20 ? et / 20 : et > 85 ? (120 - et) / 35 : 1;
+            eAlpha *= 0.6;
+            var eSize = 2.0 + Math.sin(ei + t * 0.14) * 1.0;
+            var ec = ei % 3 === 0 ? '255,100,20' : ei % 3 === 1 ? '255,160,40' : '255,200,80';
+            ctx.fillStyle = 'rgba(' + ec + ',' + eAlpha + ')';
+            ctx.beginPath(); ctx.arc(ex, ey, eSize, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // 回転スパーク (周囲を回転)
+        for (var esi = 0; esi < 6; esi++) {
+            var esa = t * 0.09 + esi * Math.PI / 3;
+            var esd = er * (0.85 + Math.sin(t * 0.12 + esi * 2) * 0.15);
+            var esx = cx + Math.cos(esa) * esd;
+            var esy = cy + Math.sin(esa) * esd;
+            var ess = 2.5 + Math.sin(t * 0.2 + esi) * 1;
+            var esAlpha = 0.5 + Math.sin(t * 0.18 + esi * 1.5) * 0.3;
+            ctx.fillStyle = 'rgba(255,150,50,' + esAlpha + ')';
+            ctx.beginPath(); ctx.arc(esx, esy, ess, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // 十字エネルギー紋章 (ゆっくり回転)
+        ctx.strokeStyle = 'rgba(255,120,40,0.25)';
+        ctx.lineWidth = 1.5;
+        for (var eci = 0; eci < 4; eci++) {
+            var eca = t * 0.03 + eci * Math.PI / 2;
+            var ecx1 = cx + Math.cos(eca) * er * 0.3;
+            var ecy1 = cy + Math.sin(eca) * er * 0.3;
+            var ecx2 = cx + Math.cos(eca) * er * 0.7;
+            var ecy2 = cy + Math.sin(eca) * er * 0.7;
+            ctx.beginPath(); ctx.moveTo(ecx1, ecy1); ctx.lineTo(ecx2, ecy2); ctx.stroke();
+        }
+    }
+
+    if (gameState.puMagnet > 0) {
+        // ─── マグネット: 紫の磁場オーラ ───
+        var mr = Math.max(pw, ph) * 0.75;
+        var mPulse = 0.85 + Math.sin(t * 0.12) * 0.15;
+
+        // 外側グロー (紫〜マゼンタ)
+        var mGlow = ctx.createRadialGradient(cx, cy, mr * 0.2, cx, cy, mr * 1.3 * mPulse);
+        mGlow.addColorStop(0, 'rgba(180,60,255,0.15)');
+        mGlow.addColorStop(0.4, 'rgba(140,40,220,0.1)');
+        mGlow.addColorStop(0.75, 'rgba(200,80,255,0.05)');
+        mGlow.addColorStop(1, 'rgba(160,40,255,0)');
+        ctx.fillStyle = mGlow;
+        ctx.beginPath(); ctx.arc(cx, cy, mr * 1.3 * mPulse, 0, Math.PI * 2); ctx.fill();
+
+        // 楕円軌道リング (磁力線を表現)
+        ctx.save();
+        ctx.translate(cx, cy);
+        for (var mi = 0; mi < 3; mi++) {
+            var mAngle = t * 0.04 + mi * Math.PI * 2 / 3;
+            ctx.save();
+            ctx.rotate(mAngle);
+            ctx.scale(1, 0.4);
+            ctx.strokeStyle = 'rgba(180,100,255,' + (0.3 + Math.sin(t * 0.1 + mi * 2) * 0.15) + ')';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, mr * 0.9, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+        ctx.restore();
+
+        // 引き寄せパーティクル (外側から内側へ収束)
+        for (var mpi = 0; mpi < 10; mpi++) {
+            var mpt = (t * 2.5 + mpi * 40) % 120;
+            var mpAngle = mpi * Math.PI * 2 / 10 + t * 0.03;
+            var mpDist = mr * 1.2 * (1 - mpt / 120); // 外から内へ
+            var mpx = cx + Math.cos(mpAngle) * mpDist;
+            var mpy = cy + Math.sin(mpAngle) * mpDist;
+            var mpAlpha = mpt < 15 ? mpt / 15 : mpt > 90 ? (120 - mpt) / 30 : 1;
+            mpAlpha *= 0.55;
+            var mpSize = 1.5 + (mpt / 120) * 2; // 内側ほど大きく
+            var mpc = mpi % 3 === 0 ? '200,100,255' : mpi % 3 === 1 ? '255,80,200' : '140,80,255';
+            ctx.fillStyle = 'rgba(' + mpc + ',' + mpAlpha + ')';
+            ctx.beginPath(); ctx.arc(mpx, mpy, mpSize, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // 回転するN/S極マーク (小さな赤青ドット)
+        for (var msi = 0; msi < 4; msi++) {
+            var msa = t * 0.06 + msi * Math.PI / 2;
+            var msd = mr * 0.7;
+            var msx = cx + Math.cos(msa) * msd;
+            var msy = cy + Math.sin(msa) * msd;
+            var msAlpha = 0.4 + Math.sin(t * 0.15 + msi * 2) * 0.2;
+            ctx.fillStyle = msi % 2 === 0
+                ? 'rgba(255,50,80,' + msAlpha + ')'
+                : 'rgba(60,100,255,' + msAlpha + ')';
+            ctx.beginPath(); ctx.arc(msx, msy, 2.5, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+}
+
+function drawInvincibleEffect(x, y, t) {
+    // ─── 被ダメ無敵: 金色の残像 + 点滅 ───
+    var cx = x + player.width / 2, cy = y + player.height / 2;
+    var r = Math.max(player.width, player.height) * 0.55;
+    var pulse = 0.8 + Math.sin(t * 0.25) * 0.2;
+
+    // 金色グロー
+    var glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * pulse);
+    glow.addColorStop(0, 'rgba(255,215,0,0.12)');
+    glow.addColorStop(0.7, 'rgba(255,215,0,0.06)');
+    glow.addColorStop(1, 'rgba(255,215,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(cx, cy, r * pulse, 0, Math.PI * 2); ctx.fill();
+
+    // 散る星パーティクル
+    for (var i = 0; i < 5; i++) {
+        var st = (t * 2 + i * 31) % 80;
+        var sa = (i * 1.3 + t * 0.06);
+        var sd = r * 0.3 + st * 0.4;
+        var sx = cx + Math.cos(sa) * sd;
+        var sy = cy + Math.sin(sa) * sd - st * 0.3;
+        var sAlpha = st < 15 ? st / 15 : (80 - st) / 65;
+        sAlpha *= 0.6;
+        if (sAlpha > 0) {
+            ctx.fillStyle = 'rgba(255,223,100,' + sAlpha + ')';
+            // 星形
+            drawStar(sx, sy, 2.5, 1, 4, 'rgba(255,223,100,' + sAlpha + ')');
+        }
+    }
+}
+
+function drawStar(cx, cy, outerR, innerR, points, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (var i = 0; i < points * 2; i++) {
+        var a = i * Math.PI / points - Math.PI / 2;
+        var r = i % 2 === 0 ? outerR : innerR;
+        if (i === 0) ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        else ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    }
+    ctx.closePath(); ctx.fill();
+}
+
+// ─── フロートエフェクトシステム ───
+function spawnDamageEffect(worldX, worldY) {
+    // -1 テキスト浮上
+    floatEffects.push({
+        type: 'damage_text',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 70,
+        offsetY: 0
+    });
+    // 赤パーティクル散布
+    for (var i = 0; i < 8; i++) {
+        var angle = (i / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        var speed = 1.5 + Math.random() * 2.5;
+        floatEffects.push({
+            type: 'damage_particle',
+            worldX: worldX, worldY: worldY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 2,
+            timer: 0, duration: 30 + Math.floor(Math.random() * 15),
+            size: 2.5 + Math.random() * 3
+        });
+    }
+}
+
+function spawnRevivalEffect(worldX, worldY, textKey) {
+    // 復活テキスト浮上
+    floatEffects.push({
+        type: 'revival_text',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 90,
+        offsetY: 0, textKey: textKey
+    });
+    // 金色パーティクル散布
+    for (var i = 0; i < 12; i++) {
+        var angle = (i / 12) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        var speed = 2 + Math.random() * 3;
+        floatEffects.push({
+            type: 'revival_particle',
+            worldX: worldX, worldY: worldY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 3,
+            timer: 0, duration: 40 + Math.floor(Math.random() * 20),
+            size: 2 + Math.random() * 3
+        });
+    }
+}
+
+function spawnExplosionEffect(worldX, worldY) {
+    // 爆発リング (2重)
+    floatEffects.push({
+        type: 'explosion_ring',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 45
+    });
+    // 炎パーティクル散布
+    for (var i = 0; i < 12; i++) {
+        var angle = (i / 12) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+        var speed = 2.5 + Math.random() * 3.5;
+        floatEffects.push({
+            type: 'explosion_particle',
+            worldX: worldX, worldY: worldY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 2.0,
+            timer: 0, duration: 45 + Math.floor(Math.random() * 25),
+            size: 3.5 + Math.random() * 4,
+            hue: Math.floor(Math.random() * 40) + 15 // オレンジ〜黄色
+        });
+    }
+    // フラッシュ (白い閃光)
+    floatEffects.push({
+        type: 'explosion_flash',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 18
+    });
+}
+
+function spawnComboEffect(worldX, worldY, count, score) {
+    floatEffects.push({
+        type: 'combo_text',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 75,
+        offsetY: 0,
+        comboCount: count,
+        comboScore: score
+    });
+    // スパーク数: コンボ数に応じて増加（6→最大18）
+    var sparkCount = Math.min(6 + count * 2, 18);
+    var sparkSpeed = 2 + Math.min(count * 0.3, 2);
+    for (var i = 0; i < sparkCount; i++) {
+        var angle = (i / sparkCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        var speed = sparkSpeed + Math.random() * 2;
+        // コンボ数で色相変化: 金(40)→橙(25)→赤(0)
+        var hue = Math.max(0, 40 - count * 3);
+        floatEffects.push({
+            type: 'combo_spark',
+            worldX: worldX, worldY: worldY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 2,
+            timer: 0, duration: 35 + Math.floor(Math.random() * 15),
+            size: 2 + Math.random() * 2.5,
+            hue: hue + Math.floor(Math.random() * 10)
+        });
+    }
+    // コンボリング（3コンボ以上）
+    if (count >= 3) {
+        floatEffects.push({
+            type: 'combo_ring',
+            worldX: worldX, worldY: worldY,
+            timer: 0, duration: 30,
+            comboCount: count
+        });
+    }
+}
+
+function spawnLifeUpEffect(worldX, worldY) {
+    // テキスト浮上エフェクト
+    floatEffects.push({
+        type: 'lifeup_text',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 90,
+        offsetY: 0
+    });
+    // ハート型パーティクル散布
+    for (var i = 0; i < 12; i++) {
+        var angle = (i / 12) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        var speed = 1.5 + Math.random() * 2.5;
+        floatEffects.push({
+            type: 'heart_particle',
+            worldX: worldX, worldY: worldY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 2.0,
+            timer: 0, duration: 50 + Math.floor(Math.random() * 30),
+            size: 3 + Math.random() * 4,
+            hue: Math.floor(Math.random() * 40) + 330 // ピンク〜赤
+        });
+    }
+    // リング拡大エフェクト
+    floatEffects.push({
+        type: 'lifeup_ring',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 40
+    });
+}
+
+// ─── エフェクト描画関数テーブル ───
+// key: floatEffectsのtype / 値: 描画関数(ef, wx, progress)
+// 新しいエフェクトを追加するときはここに1エントリ追加するだけでよい
+var EFFECT_RENDERERS = {
+    lifeup_text: function(ef, wx, progress) {
+            // テキスト浮上 + フェードアウト + スケール
+            ef.offsetY += 1.2;
+            var alpha = progress < 0.7 ? 1 : (1 - progress) / 0.3;
+            var scale = progress < 0.15 ? 0.5 + progress / 0.15 * 0.5 : 1.0;
+            var sy = ef.worldY - ef.offsetY;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.translate(wx, sy);
+            ctx.scale(scale, scale);
+            // 外側グロー
+            ctx.shadowColor = 'rgba(255,80,120,0.8)';
+            ctx.shadowBlur = 14;
+            ctx.font = "bold 22px 'M PLUS Rounded 1c', sans-serif";
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(t('hud_lifeup'), 0, 0);
+            ctx.shadowBlur = 0;
+            // ハートアイコン (テキスト両側)
+            ctx.fillStyle = 'rgba(255,70,100,' + alpha + ')';
+            drawHeart(ctx, -62, -2, 10);
+            ctx.fillStyle = 'rgba(255,70,100,' + alpha + ')';
+            drawHeart(ctx, 52, -2, 10);
+            ctx.restore();
+        },
+    damage_text: function(ef, wx, progress) {
+            // -1 テキスト浮上 + 赤グロー
+            ef.offsetY += 1.0;
+            var da = progress < 0.6 ? 1 : (1 - progress) / 0.4;
+            var ds = progress < 0.1 ? 0.5 + progress / 0.1 * 0.8 : (progress < 0.2 ? 1.3 - (progress - 0.1) / 0.1 * 0.3 : 1.0);
+            var dy = ef.worldY - ef.offsetY;
+            ctx.save();
+            ctx.globalAlpha = da;
+            ctx.translate(wx, dy);
+            ctx.scale(ds, ds);
+            ctx.shadowColor = 'rgba(255,0,0,0.9)';
+            ctx.shadowBlur = 12;
+            ctx.font = "bold 20px 'M PLUS Rounded 1c', sans-serif";
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#ff3333';
+            ctx.fillText('-1', 0, 0);
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        },
+    damage_particle: function(ef, wx, progress) {
+            ef.worldX += ef.vx;
+            ef.worldY += ef.vy;
+            ef.vy += 0.07;
+            ef.vx *= 0.97;
+            var dpA = progress < 0.2 ? progress / 0.2 : (1 - progress) / 0.8;
+            dpA *= 0.85;
+            ctx.save();
+            ctx.globalAlpha = dpA;
+            ctx.fillStyle = 'rgba(255,' + Math.floor(30 + Math.random() * 40) + ',30,1)';
+            ctx.beginPath();
+            ctx.arc(ef.worldX, ef.worldY, ef.size * (1 - progress * 0.5), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        },
+    // ── 復活テキスト ──
+    revival_text: function(ef, wx, progress) {
+            ef.offsetY += 0.8;
+            var ra = progress < 0.7 ? 1 : (1 - progress) / 0.3;
+            var rs = progress < 0.1 ? 0.5 + progress / 0.1 * 0.8 : (progress < 0.25 ? 1.3 - (progress - 0.1) / 0.15 * 0.3 : 1.0);
+            var ry = ef.worldY - ef.offsetY;
+            ctx.save();
+            ctx.globalAlpha = ra;
+            ctx.translate(wx, ry);
+            ctx.scale(rs, rs);
+            ctx.shadowColor = 'rgba(255,215,0,0.9)';
+            ctx.shadowBlur = 16;
+            ctx.font = "bold 22px 'M PLUS Rounded 1c', sans-serif";
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText(t(ef.textKey), 0, 0);
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        },
+    // ── 復活パーティクル（金色） ──
+    revival_particle: function(ef, wx, progress) {
+            ef.worldX += ef.vx;
+            ef.worldY += ef.vy;
+            ef.vy += 0.05;
+            ef.vx *= 0.97;
+            var rpA = progress < 0.2 ? progress / 0.2 : (1 - progress) / 0.8;
+            rpA *= 0.9;
+            ctx.save();
+            ctx.globalAlpha = rpA;
+            ctx.shadowColor = 'rgba(255,215,0,0.6)';
+            ctx.shadowBlur = 6;
+            ctx.fillStyle = 'rgba(255,' + (200 + Math.floor(Math.random() * 55)) + ',0,1)';
+            ctx.beginPath();
+            ctx.arc(ef.worldX, ef.worldY, ef.size * (1 - progress * 0.4), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        },
+    heart_particle: function(ef, wx, progress) {
+            ef.worldX += ef.vx;
+            ef.worldY += ef.vy;
+            ef.vy += 0.06; // 軽い重力
+            var pa = progress < 0.3 ? progress / 0.3 : (1 - progress) / 0.7;
+            pa *= 0.85;
+            ctx.save();
+            ctx.globalAlpha = pa;
+            var hsl = 'hsl(' + ef.hue + ',100%,65%)';
+            ctx.fillStyle = hsl;
+            drawHeart(ctx, ef.worldX, ef.worldY, ef.size);
+            ctx.restore();
+        },
+    explosion_ring: function(ef, wx, progress) {
+            var erAlpha = 1 - progress;
+            var erR1 = 8 + progress * 55;
+            ctx.save();
+            ctx.globalAlpha = erAlpha * 0.9;
+            ctx.strokeStyle = '#ff8800';
+            ctx.lineWidth = 4 * (1 - progress);
+            ctx.beginPath();
+            ctx.arc(wx, ef.worldY, erR1, 0, Math.PI * 2);
+            ctx.stroke();
+            if (progress > 0.1) {
+                var erP2 = (progress - 0.1) / 0.9;
+                ctx.globalAlpha = (1 - erP2) * 0.6;
+                ctx.lineWidth = 3 * (1 - erP2);
+                ctx.strokeStyle = '#ffcc44';
+                ctx.beginPath();
+                ctx.arc(wx, ef.worldY, 5 + erP2 * 42, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        },
+    explosion_particle: function(ef, wx, progress) {
+            ef.worldX += ef.vx;
+            ef.worldY += ef.vy;
+            ef.vy += 0.08;
+            ef.vx *= 0.97;
+            var epA = progress < 0.2 ? progress / 0.2 : (1 - progress) / 0.8;
+            epA *= 0.9;
+            ctx.save();
+            ctx.globalAlpha = epA;
+            ctx.shadowColor = 'hsl(' + ef.hue + ',100%,60%)';
+            ctx.shadowBlur = 6;
+            ctx.fillStyle = 'hsl(' + ef.hue + ',100%,60%)';
+            ctx.beginPath();
+            ctx.arc(ef.worldX, ef.worldY, ef.size * (1 - progress * 0.5), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        },
+    explosion_flash: function(ef, wx, progress) {
+            var efA = 1 - progress;
+            var efR = 8 + progress * 20;
+            ctx.save();
+            ctx.globalAlpha = efA * 0.6;
+            var efGrad = ctx.createRadialGradient(wx, ef.worldY, 0, wx, ef.worldY, efR);
+            efGrad.addColorStop(0, 'rgba(255,255,220,1)');
+            efGrad.addColorStop(0.4, 'rgba(255,200,80,0.5)');
+            efGrad.addColorStop(1, 'rgba(255,120,20,0)');
+            ctx.fillStyle = efGrad;
+            ctx.beginPath();
+            ctx.arc(wx, ef.worldY, efR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        },
+    lifeup_ring: function(ef, wx, progress) {
+            var rAlpha = 1 - progress;
+            var rRadius = 10 + progress * 60;
+            ctx.save();
+            ctx.globalAlpha = rAlpha * 0.6;
+            ctx.strokeStyle = '#ff6090';
+            ctx.lineWidth = 3 * (1 - progress);
+            ctx.beginPath();
+            ctx.arc(wx, ef.worldY, rRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            // 2つ目のリング（遅延）
+            if (progress > 0.15) {
+                var p2 = (progress - 0.15) / 0.85;
+                ctx.globalAlpha = (1 - p2) * 0.4;
+                ctx.lineWidth = 2 * (1 - p2);
+                ctx.strokeStyle = '#ffaacc';
+                ctx.beginPath();
+                ctx.arc(wx, ef.worldY, 8 + p2 * 50, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        },
+    combo_text: function(ef, wx, progress) {
+            ef.offsetY += 1.5;
+            var ctAlpha = progress < 0.7 ? 1 : (1 - progress) / 0.3;
+            var ctScale = progress < 0.1 ? 0.5 + progress / 0.1 * 0.5 : 1.0;
+            // 高コンボでスケールをさらにポップさせる
+            if (ef.comboCount >= 5) ctScale *= 1 + Math.sin(ef.timer * 0.4) * 0.08;
+            var ctShake = ef.comboCount >= 5 ? Math.sin(ef.timer * 0.8) * (1 + ef.comboCount * 0.3) : 0;
+            var ctY = ef.worldY - ef.offsetY;
+            // 色エスカレーション: 金→橙→赤
+            var ctHue = Math.max(0, 45 - ef.comboCount * 3);
+            var ctColor = 'hsl(' + ctHue + ',100%,60%)';
+            var ctGlow = 'hsla(' + ctHue + ',100%,50%,0.8)';
+            ctx.save();
+            ctx.globalAlpha = ctAlpha;
+            ctx.translate(wx + ctShake, ctY);
+            ctx.scale(ctScale, ctScale);
+            ctx.shadowColor = ctGlow;
+            ctx.shadowBlur = 12 + ef.comboCount;
+            ctx.font = "bold " + Math.min(16 + ef.comboCount * 2, 36) + "px 'M PLUS Rounded 1c', sans-serif";
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = ctColor;
+            // マイルストーンテキスト
+            var comboLabel = ef.comboCount + ' COMBO!';
+            if (ef.comboCount >= 15) comboLabel = ef.comboCount + ' COMBO! INSANE!';
+            else if (ef.comboCount >= 10) comboLabel = ef.comboCount + ' COMBO! AMAZING!';
+            else if (ef.comboCount >= 5) comboLabel = ef.comboCount + ' COMBO! GREAT!';
+            ctx.fillText(comboLabel, 0, 0);
+            ctx.shadowBlur = 0;
+            ctx.font = "bold 12px 'DotGothic16', monospace";
+            ctx.fillStyle = '#fff';
+            ctx.fillText('+' + ef.comboScore, 0, 18);
+            ctx.restore();
+        },
+    combo_spark: function(ef, wx, progress) {
+            ef.worldX += ef.vx;
+            ef.worldY += ef.vy;
+            ef.vy += 0.06;
+            var csA = progress < 0.3 ? progress / 0.3 : (1 - progress) / 0.7;
+            csA *= 0.8;
+            var csHue = ef.hue !== undefined ? ef.hue : (40 + Math.floor(ef.size * 8));
+            ctx.save();
+            ctx.globalAlpha = csA;
+            ctx.fillStyle = 'hsl(' + csHue + ',100%,60%)';
+            ctx.beginPath();
+            ctx.arc(ef.worldX, ef.worldY, ef.size * (1 - progress * 0.4), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        },
+    // コンボリングエフェクト
+    combo_ring: function(ef, wx, progress) {
+            var crRadius = 10 + progress * (30 + ef.comboCount * 5);
+            var crAlpha = (1 - progress) * 0.6;
+            var crHue = Math.max(0, 45 - ef.comboCount * 3);
+            ctx.save();
+            ctx.globalAlpha = crAlpha;
+            ctx.strokeStyle = 'hsl(' + crHue + ',100%,60%)';
+            ctx.lineWidth = 2.5 * (1 - progress);
+            ctx.beginPath();
+            ctx.arc(wx, ef.worldY, crRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            // 二重リング（高コンボ時）
+            if (ef.comboCount >= 7) {
+                ctx.globalAlpha = crAlpha * 0.5;
+                ctx.strokeStyle = 'hsl(' + (crHue + 15) + ',100%,70%)';
+                ctx.lineWidth = 1.5 * (1 - progress);
+                ctx.beginPath();
+                ctx.arc(wx, ef.worldY, crRadius * 0.7, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        },
+    // ボス撃破テキスト（ワールド座標系）
+    boss_defeated_text: function(ef, wx, progress) {
+            ef.offsetY += 0.5;
+            var bdAlpha = progress < 0.8 ? 1 : (1 - progress) / 0.2;
+            var bdScale = 1 + Math.sin(ef.timer * 0.1) * 0.05;
+            ctx.save();
+            ctx.globalAlpha = bdAlpha;
+            ctx.translate(wx, ef.worldY - ef.offsetY);
+            ctx.scale(bdScale, bdScale);
+            ctx.font = "bold 36px 'M PLUS Rounded 1c', sans-serif";
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#ffd700';
+            ctx.shadowColor = 'rgba(255,215,0,0.8)'; ctx.shadowBlur = 10;
+            ctx.fillText(t('boss_defeated'), 0, 0);
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        },
+    // ボスジャンプ着地衝撃波
+    boss_shockwave: function(ef, wx, progress) {
+            var swRadius = progress * 120;
+            var swAlpha = (1 - progress) * 0.5;
+            ctx.save();
+            ctx.globalAlpha = swAlpha;
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = 3 * (1 - progress);
+            ctx.beginPath();
+            ctx.ellipse(wx, ef.worldY, swRadius, swRadius * 0.3, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        },
+    // スコアテキスト（汎用、ボス撃破時も使用）
+    score_text: function(ef, wx, progress) {
+            ef.offsetY += 0.8;
+            var stAlpha = progress < 0.7 ? 1 : (1 - progress) / 0.3;
+            ctx.save();
+            ctx.globalAlpha = stAlpha;
+            ctx.font = "bold 22px 'DotGothic16', monospace";
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#ffee00';
+            ctx.shadowColor = 'rgba(255,200,0,0.6)'; ctx.shadowBlur = 8;
+            ctx.fillText('+' + ef.score, wx, ef.worldY - ef.offsetY);
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+};
+
+function drawFloatEffects() {
+    for (var i = floatEffects.length - 1; i >= 0; i--) {
+        var ef = floatEffects[i];
+        ef.timer++;
+        if (ef.timer > ef.duration) { floatEffects.splice(i, 1); continue; }
+        var renderer = EFFECT_RENDERERS[ef.type];
+        if (renderer) renderer(ef, ef.worldX, ef.timer / ef.duration);
+    }
+}
+
+function drawHeart(c, cx, cy, size) {
+    var s = size / 10;
+    c.beginPath();
+    c.moveTo(cx, cy + s * 3);
+    c.bezierCurveTo(cx, cy - s * 2, cx - s * 10, cy - s * 2, cx - s * 10, cy + s * 2);
+    c.bezierCurveTo(cx - s * 10, cy + s * 6, cx, cy + s * 10, cx, cy + s * 12);
+    c.bezierCurveTo(cx, cy + s * 10, cx + s * 10, cy + s * 6, cx + s * 10, cy + s * 2);
+    c.bezierCurveTo(cx + s * 10, cy - s * 2, cx, cy - s * 2, cx, cy + s * 3);
+    c.closePath();
+    c.fill();
+}
+
+// ─── Canvas HUD リッチ描画ヘルパー ───
+function drawRoundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
+function drawHudPanel(x, y, w, h, bgColor1, bgColor2, accentColor, glowColor) {
+    ctx.save();
+    // Glow shadow
+    if (glowColor) {
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+    }
+    // Rounded rect gradient background
+    var grad = ctx.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, bgColor1);
+    grad.addColorStop(1, bgColor2);
+    ctx.fillStyle = grad;
+    drawRoundRect(x, y, w, h, 10);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Border
+    ctx.strokeStyle = accentColor || 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Top accent line
+    if (accentColor) {
+        var ag = ctx.createLinearGradient(x + 10, y, x + w - 10, y);
+        ag.addColorStop(0, 'transparent');
+        ag.addColorStop(0.3, accentColor);
+        ag.addColorStop(0.7, accentColor);
+        ag.addColorStop(1, 'transparent');
+        ctx.strokeStyle = ag;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + 10, y + 1);
+        ctx.lineTo(x + w - 10, y + 1);
+        ctx.stroke();
+    }
+    // Inner highlight
+    var hl = ctx.createLinearGradient(x, y, x, y + h * 0.4);
+    hl.addColorStop(0, 'rgba(255,255,255,0.12)');
+    hl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hl;
+    drawRoundRect(x + 1, y + 1, w - 2, h * 0.4, 9);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawProgressBar(x, y, w, h, ratio, color1, color2, bgColor) {
+    ctx.save();
+    // Background
+    ctx.fillStyle = bgColor || 'rgba(0,0,0,0.4)';
+    drawRoundRect(x, y, w, h, h / 2);
+    ctx.fill();
+    // Fill
+    if (ratio > 0) {
+        var fw = Math.max(h, w * ratio);
+        var fg = ctx.createLinearGradient(x, y, x + fw, y);
+        fg.addColorStop(0, color1);
+        fg.addColorStop(1, color2);
+        ctx.fillStyle = fg;
+        drawRoundRect(x, y, fw, h, h / 2);
+        ctx.fill();
+        // Shine
+        var sg = ctx.createLinearGradient(x, y, x, y + h * 0.5);
+        sg.addColorStop(0, 'rgba(255,255,255,0.35)');
+        sg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = sg;
+        drawRoundRect(x + 1, y + 1, fw - 2, h * 0.5, h / 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawPlayer(x, y) {
+    ctx.save();
+    var gt = gameState.time;
+
+    // 被ダメ無敵: 赤点滅→金点滅
+    if (gameState.isInvincible) {
+        var blink = Math.sin(gt * 0.5) * 0.35 + 0.65;
+        ctx.globalAlpha = blink;
+        if (damageFlashTimer > 0) {
+            // 被弾直後: 赤く点滅
+            ctx.globalAlpha = Math.sin(gt * 1.2) > 0 ? 0.9 : 0.2;
+        }
+        drawInvincibleEffect(x, y, gt);
+    }
+
+    // パワーアップオーラ (スプライトの後ろに描画)
+    if (gameState.puLemon > 0 || gameState.puShield > 0 || gameState.puEnergy > 0 || gameState.puMagnet > 0) {
+        drawPlayerAura(x, y, gt);
+    }
+
+    var walk = gameState.input.left || gameState.input.right;
+    var flipH = player.facing === 'left';
+    var spriteName, frameIdx;
+
+    var pose;
+    if (!player.onGround && player.velY < 0) {
+        pose = 'jump'; frameIdx = 0;
+    } else if (!player.onGround && player.velY > 0) {
+        pose = 'fall'; frameIdx = 0;
+    } else if (walk) {
+        pose = 'walk'; frameIdx = Math.floor(player.animFrame / 8) % 4;
+    } else {
+        pose = 'idle'; frameIdx = 0;
+    }
+    // 装備中スキンでスプライト解決（デフォルト=player_*、メイド服=skin_maid_*）
+    // 【一時措置】SKIN_FEATURE_ENABLED が false の間は、activeSkin が maid でも
+    // 未完成スキンを出さないよう必ずデフォルト見た目で描画する。
+    spriteName = ((SKIN_FEATURE_ENABLED && gameSettings.activeSkin === 'maid') ? 'skin_maid_' : 'player_') + pose;
+
+    spriteManager.draw(ctx, spriteName, frameIdx, x, y, player.width, player.height, flipH);
+    player.animFrame++;
+    ctx.restore();
+}
+
+// ─── ショップ建物描画 ───
+// ショップ建物画像のプリロード
+var shopBuildingImg = new Image();
+shopBuildingImg.src = 'images/shop.png';
+
+function drawShopBuilding() {
+    if (!shopState.buildingPlaced) return;
+    var screenX = shopState.buildingX - gameState.camera.x;
+    if (screenX < -200 || screenX > GAME_WIDTH + 200) return; // 画面外チェック
+
+    // shop.png（700x508）を180x131に縮小して地面に配置
+    var bw = 180, bh = 131;
+    var bx = shopState.buildingX, by = GROUND_Y - bh; // ワールド座標（ctx.translate適用済み）
+
+    ctx.save();
+    if (shopBuildingImg.complete && shopBuildingImg.naturalWidth > 0) {
+        ctx.imageSmoothingEnabled = false; // ピクセルアート感を保持
+        ctx.drawImage(shopBuildingImg, bx, by, bw, bh);
+    }
+
+    // 入店プロンプト（未訪問 & ドア近く）
+    if (!shopState.visited && !shopState.active) {
+        var playerCX = player.x + player.width / 2;
+        var doorCX = shopState.buildingX + bw / 2;
+        if (Math.abs(playerCX - doorCX) < 80 && player.onGround) {
+            var bounce = Math.sin(gameState.time * 0.08) * 3;
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px DotGothic16, monospace';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(0,0,0,0.9)';
+            ctx.shadowBlur = 4;
+            ctx.fillText(t('shop_swipe_up'), bx + bw / 2, by - 8 + bounce);
+            ctx.shadowBlur = 0;
+        }
+    }
+    // 訪問済み表示
+    if (shopState.visited && !shopState.active) {
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#aaa';
+        ctx.font = 'bold 9px DotGothic16, monospace';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.9)';
+        ctx.shadowBlur = 3;
+        ctx.fillText('CLOSED', bx + bw / 2, by - 4);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+}
+
+// ─── 地面タイルの焼き付けキャッシュ ───
+// 地面は毎フレーム34pxタイルを敷き詰めて描画していた（1ブロック約12枚 × 画面内十数ブロック
+// ＝毎フレーム約170 drawImage）。(type, 列数, 土の行数) が同じブロックは描画結果が完全に同一なので、
+// 初回だけオフスクリーンcanvasへ焼き付け、以降は完成画像を1枚blitするだけにする。
+// → 地面のdrawImage回数を約9割削減。見た目は1ピクセルも変わらない。
+// 高台(elev)は連続ランダム高さだが、キーを (type,列,行) にするため行数は離散＝キャッシュは数件で頭打ち。
+var terrainCache = {};
+
+function getTerrainCache(type, width, height) {
+    var TILE = 34, GRASS_OFFSET = 5;
+    // 元のdrawTerrainと同一条件で列数・土の行数を算出（高さが連続値でも行数は離散になる）
+    var cols = 0;
+    for (var xx = 0; xx < width; xx += TILE) cols++;
+    var rows = 0;
+    for (var yy = TILE; yy < height + GRASS_OFFSET; yy += TILE) rows++;
+
+    var key = type + '_' + cols + '_' + rows;
+    if (terrainCache[key]) return terrainCache[key];
+
+    var topTile;
+    switch (type) {
+        case 'elevated':           topTile = 'terrain_elevated_top'; break;
+        case 'quicksand':          topTile = 'terrain_quicksand'; break;
+        case 'quicksand_elevated': topTile = 'terrain_quicksand'; break;
+        case 'ice':                topTile = 'terrain_ice'; break;
+        case 'ice_elevated':       topTile = 'terrain_ice'; break;
+        default:                   topTile = 'terrain_grass_top'; break;
+    }
+
+    var cv = document.createElement('canvas');
+    cv.width = cols * TILE;
+    cv.height = (rows + 1) * TILE; // 上段1行 + 土rows行
+    var cc = cv.getContext('2d');
+    cc.imageSmoothingEnabled = false; // 元描画と同じニアレストネイバー
+
+    // 上段（草/氷/流砂/高台）: localY = 0
+    for (var lx = 0; lx < width; lx += TILE) {
+        spriteManager.draw(cc, topTile, 0, lx, 0, TILE, TILE, false);
+    }
+    // 土: localY = TILE, 2*TILE, ...（元ループと同じ行数）
+    for (var ly = TILE, r = 0; r < rows; ly += TILE, r++) {
+        for (var lx2 = 0; lx2 < width; lx2 += TILE) {
+            spriteManager.draw(cc, 'terrain_dirt', 0, lx2, ly, TILE, TILE, false);
+        }
+    }
+
+    terrainCache[key] = cv;
+    return cv;
+}
+
+function drawTerrain(t) {
+    if (t.type === 'hole') return;
+    // 焼き付け済みの地面画像を1枚blitするだけ（原点 = 元コードの (t.x, t.y - GRASS_OFFSET)）
+    ctx.drawImage(getTerrainCache(t.type, t.width, t.height), t.x, t.y - 5);
+}
+
+function drawPlatform(p) {
+    var pBiome = getBiomeIndex(gameState.distance);
+    var tileName;
+    if (p.type === 'cloud') {
+        // 雲足場: バイオーム別カラー（砂漠=茶, 冬=グレー）
+        tileName = pBiome === 1 ? 'platform_cloud_desert' : pBiome === 2 ? 'platform_cloud_ice' : 'platform_cloud';
+    } else {
+        // floating_ground: バイオームに応じたタイル
+        tileName = pBiome === 1 ? 'terrain_quicksand' : pBiome === 2 ? 'terrain_ice' : 'platform_ground';
+    }
+    var TILE = 34;
+
+    // 消える足場: 点滅エフェクト
+    if (p.special === 'disappearing' && p.disappearTimer >= 0) {
+        var prog = p.disappearTimer / p.disappearDuration;
+        var blinkSpeed = 4 + prog * 16; // 進行に伴い高速化
+        ctx.globalAlpha = 0.3 + 0.7 * Math.abs(Math.sin(gameState.time * 0.1 * blinkSpeed));
+        if (prog > 0.7) ctx.globalAlpha *= (1 - prog) / 0.3; // 最後はフェードアウト
+    }
+
+    var PLAT_OFFSET = p.type === 'cloud' ? 10 : 5; // 雲は上部透明が大きいため多めに補正
+    for (var tx = p.x; tx < p.x + p.width; tx += TILE) {
+        spriteManager.draw(ctx, tileName, 0, tx, p.y - PLAT_OFFSET, TILE, p.height + PLAT_OFFSET, false);
+    }
+
+    // 消える足場のalpha復元
+    if (p.special === 'disappearing' && p.disappearTimer >= 0) {
+        ctx.globalAlpha = 1;
+    }
+
+    // 移動足場: 上下矢印インジケーター
+    if (p.special === 'moving') {
+        var arrowX = p.x + p.width / 2;
+        var arrowBounce = Math.sin(gameState.time * 0.1) * 3;
+        ctx.fillStyle = 'rgba(255,220,60,0.7)';
+        // 上矢印
+        ctx.beginPath();
+        ctx.moveTo(arrowX, p.y - 8 + arrowBounce);
+        ctx.lineTo(arrowX - 5, p.y - 3 + arrowBounce);
+        ctx.lineTo(arrowX + 5, p.y - 3 + arrowBounce);
+        ctx.closePath(); ctx.fill();
+        // 下矢印
+        ctx.beginPath();
+        ctx.moveTo(arrowX, p.y + p.height + 8 - arrowBounce);
+        ctx.lineTo(arrowX - 5, p.y + p.height + 3 - arrowBounce);
+        ctx.lineTo(arrowX + 5, p.y + p.height + 3 - arrowBounce);
+        ctx.closePath(); ctx.fill();
+    }
+
+    // バネ足場: コイルバネ表示
+    if (p.special === 'spring') {
+        var springCx = p.x + p.width / 2;
+        var springTop = p.y - 2;
+        var compress = p.springAnim > 0 ? (p.springAnim / 15) * 6 : 0;
+
+        // バネのコイル (3本の横線 + カラーバー)
+        ctx.strokeStyle = '#ff6644';
+        ctx.lineWidth = 2.5;
+        for (var si = 0; si < 3; si++) {
+            var sy = springTop - 4 - si * (4 - compress);
+            var sw = 14 - si * 2;
+            ctx.beginPath();
+            ctx.moveTo(springCx - sw, sy);
+            ctx.lineTo(springCx + sw, sy);
+            ctx.stroke();
+        }
+
+        // 上端のプレート
+        ctx.fillStyle = '#ff4422';
+        ctx.fillRect(springCx - 16, springTop - 16 + compress, 32, 4);
+
+        // 発光エフェクト (着地時)
+        if (p.springAnim > 0) {
+            var sAlpha = p.springAnim / 15;
+            ctx.fillStyle = 'rgba(255,100,50,' + (sAlpha * 0.4) + ')';
+            ctx.beginPath();
+            ctx.arc(springCx, springTop - 8, 20 + (15 - p.springAnim) * 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+}
+
+function drawCoin(c, time) {
+    if (c.collected) return;
+    var frameIdx = Math.floor(time / 8) % 4;
+    spriteManager.draw(ctx, 'coin_spin', frameIdx, c.x, c.y, c.width, c.height, false);
+}
+
+function drawEnemy(e) {
+    var bounce = Math.sin(e.animFrame / 3);
+    var cy = e.y + bounce;
+    var frameIdx = Math.floor(e.animFrame / 8) % 4;
+    var spriteName;
+
+    switch (e.type) {
+        case 'golden_chick': spriteName = 'golden_chick_walk'; break;
+        case 'mama_chick':   spriteName = 'mama_chick_walk'; break;
+        default:             spriteName = 'chick_walk'; break;
+    }
+
+    var flipH = (e.velX > 0); // 右移動中なら反転して右向きに
+    spriteManager.draw(ctx, spriteName, frameIdx, e.x, cy, e.width, e.height, flipH);
+    e.animFrame++;
+}
+
+function drawFlyingEnemy(e) {
+    e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
+    var bounce = Math.sin(e.animFrame / 2) * 0.5;
+    var cy = e.y + bounce;
+    var frameIdx = Math.floor(e.animFrame / 5) % 4;
+
+    var flipH = (e.velX < 0); // 左移動中なら反転して左向きに
+    spriteManager.draw(ctx, 'flying_chick_fly', frameIdx, e.x, cy, e.width, e.height, flipH);
+    e.animFrame++;
+}
+
+function drawPowerUp(pu) {
+    if (pu.collected) return;
+    // 消滅直前の点滅（残り2秒=120f: 速い点滅）
+    if (pu.lifetime !== undefined && pu.lifetime <= 120) {
+        var blinkRate = pu.lifetime <= 60 ? 4 : 8; // 最後1秒はさらに速く
+        if (Math.floor(pu.lifetime / blinkRate) % 2 === 0) return; // 点滅で非表示フレーム
+    }
+    var fy = pu.y + Math.sin(gameState.time * 0.1 + pu.floatOffset) * 3;
+    var spriteName;
+
+    switch (pu.type) {
+        case 'lemon_can': spriteName = 'powerup_lemon'; break;
+        case 'shield':    spriteName = 'powerup_shield'; break;
+        case 'heart':     spriteName = 'powerup_heart'; break;
+        case 'energy':    spriteName = 'powerup_energy'; break;
+        case 'magnet':    spriteName = 'powerup_magnet'; break;
+        default: return;
+    }
+
+    // 消えかけ半透明（残り3秒以下で徐々に薄く）
+    if (pu.lifetime !== undefined && pu.lifetime <= 180) {
+        ctx.globalAlpha = Math.max(0.3, pu.lifetime / 180);
+    }
+    spriteManager.draw(ctx, spriteName, 0, pu.x, fy, pu.width, pu.height, false);
+    if (pu.lifetime !== undefined && pu.lifetime <= 180) {
+        ctx.globalAlpha = 1;
+    }
+    pu.animFrame++;
+}
+
+function drawBullet(b) {
+    ctx.save();
+    // 発光エフェクト
+    ctx.shadowColor = '#ff6600';
+    ctx.shadowBlur = 12;
+    spriteManager.draw(ctx, 'bullet_energy', 0, b.x, b.y, b.width, b.height, b.dir < 0);
+    ctx.restore();
+}
+
+function drawBoss(b) {
+    ctx.save();
+    var isHawk = b.kind === 'hawk';
+    var flipH = b.facing === 'right';
+    var bounce = Math.sin(b.animFrame * 0.08) * 3;
+    var drawY = b.y + bounce;
+    // 影（空中ボスは高度演出のため薄く小さめ・常に真下の地面に出す）
+    ctx.fillStyle = isHawk ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(b.x + b.width / 2, GROUND_Y + 2, b.width * (isHawk ? 0.26 : 0.4), isHawk ? 6 : 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 踏み無敵時の点滅 + 怒り時の赤点滅
+    if (b.stompCooldown > 0 && Math.floor(b.animFrame / 3) % 2 === 0) {
+        ctx.globalAlpha = 0.35;
+    } else if (b.isAngry && Math.floor(b.animFrame / 4) % 2 === 0) {
+        ctx.globalAlpha = 0.7;
+    }
+    // ボス本体スプライト（kindでシート切替: 地上=boss_rooster / 空中=boss_hawk）
+    spriteManager.draw(ctx, isHawk ? 'boss_hawk' : 'boss_rooster', b.spriteFrame, b.x, drawY, b.width, b.height, flipH);
+    // 怒り赤オーバーレイ（楕円放射グラデーション）
+    if (b.isAngry) {
+        var acx = b.x + b.width / 2;
+        var acy = drawY + b.height * 0.45;
+        var arx = b.width * 0.55;
+        var ary = b.height * 0.48;
+        ctx.globalAlpha = 0.25 + Math.sin(b.animFrame * 0.3) * 0.15;
+        var agrd = ctx.createRadialGradient(acx, acy, arx * 0.1, acx, acy, arx);
+        agrd.addColorStop(0, 'rgba(255,50,0,0.7)');
+        agrd.addColorStop(0.6, 'rgba(255,0,0,0.3)');
+        agrd.addColorStop(1, 'rgba(255,0,0,0)');
+        ctx.fillStyle = agrd;
+        ctx.beginPath();
+        ctx.ellipse(acx, acy, arx, ary, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    // 空中ボス: ダイブ予兆（落下地点を警告して「横に避ける」を促す）
+    if (isHawk && b.hawkMode === 'charge') {
+        var hx = b.x + b.width / 2;
+        var pulse = 0.35 + Math.sin(b.animFrame * 0.4) * 0.25;
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = '#ff3030';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.moveTo(hx, drawY + b.height * 0.6);
+        ctx.lineTo(hx, GROUND_Y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = Math.min(1, pulse + 0.3);
+        ctx.fillStyle = '#ff3030';
+        ctx.beginPath();
+        ctx.moveTo(hx - 12, GROUND_Y - 2);
+        ctx.lineTo(hx + 12, GROUND_Y - 2);
+        ctx.lineTo(hx, GROUND_Y + 12);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+    // 閃光チャージエフェクト（白い光がボスに集まる）
+    if (b.isCharging) {
+        var ccx = b.x + b.width / 2;
+        var ccy = drawY + b.height * 0.4;
+        var chargeProgress = 1 - (b.chargeTimer / 50); // 0→1
+        var glowSize = 40 + chargeProgress * 80;
+        // 外側の白い光輪
+        ctx.globalAlpha = 0.3 + chargeProgress * 0.5;
+        var cgrd = ctx.createRadialGradient(ccx, ccy, 5, ccx, ccy, glowSize);
+        cgrd.addColorStop(0, 'rgba(255,255,200,0.9)');
+        cgrd.addColorStop(0.4, 'rgba(255,255,100,0.5)');
+        cgrd.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = cgrd;
+        ctx.beginPath();
+        ctx.arc(ccx, ccy, glowSize, 0, Math.PI * 2);
+        ctx.fill();
+        // 収束する光線パーティクル
+        ctx.globalAlpha = 0.6 + chargeProgress * 0.4;
+        for (var ci = 0; ci < 8; ci++) {
+            var cAngle = (ci / 8) * Math.PI * 2 + b.animFrame * 0.15;
+            var cDist = (1 - chargeProgress) * 80 + 15;
+            var cpx = ccx + Math.cos(cAngle) * cDist;
+            var cpy = ccy + Math.sin(cAngle) * cDist;
+            ctx.fillStyle = '#ffffcc';
+            ctx.beginPath();
+            ctx.arc(cpx, cpy, 2 + chargeProgress * 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // 「！」警告マーク
+        if (chargeProgress > 0.3) {
+            ctx.globalAlpha = Math.min(1, (chargeProgress - 0.3) * 2);
+            ctx.font = "bold 28px 'M PLUS Rounded 1c', sans-serif";
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ff0000';
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 10;
+            ctx.fillText('！', ccx, drawY - 15);
+            ctx.shadowBlur = 0;
+        }
+    }
+    ctx.restore();
+}
+
+function drawEggProjectiles() {
+    for (var i = 0; i < bossState.eggs.length; i++) {
+        var egg = bossState.eggs[i];
+        ctx.save();
+        if (egg.isFlame) {
+            // 闇の炎弾
+            var fx = egg.x + egg.width / 2;
+            var fy = egg.y + egg.height / 2;
+            var flicker = Math.sin(egg.timer * 0.5) * 2;
+            // 外側の闇オーラ
+            var grd = ctx.createRadialGradient(fx, fy, 2, fx, fy, 14 + flicker);
+            grd.addColorStop(0, 'rgba(180,60,255,0.9)');
+            grd.addColorStop(0.5, 'rgba(80,0,160,0.6)');
+            grd.addColorStop(1, 'rgba(30,0,50,0)');
+            ctx.fillStyle = grd;
+            ctx.beginPath();
+            ctx.arc(fx, fy, 14 + flicker, 0, Math.PI * 2);
+            ctx.fill();
+            // 内側の炎コア
+            ctx.fillStyle = '#cc44ff';
+            ctx.beginPath();
+            ctx.arc(fx, fy, 5 + flicker * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            // 白い中心
+            ctx.fillStyle = 'rgba(255,200,255,0.8)';
+            ctx.beginPath();
+            ctx.arc(fx, fy, 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (egg.isFeather) {
+            // 羽根弾（進行方向へ向けた暗紫のダート＋赤い先端）
+            var fex = egg.x + egg.width / 2, fey = egg.y + egg.height / 2;
+            ctx.translate(fex, fey);
+            ctx.rotate(Math.atan2(egg.velY, egg.velX));
+            ctx.fillStyle = '#2a1840';
+            ctx.beginPath();
+            ctx.moveTo(9, 0); ctx.lineTo(-7, 4); ctx.lineTo(-4, 0); ctx.lineTo(-7, -4);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#c0344e';
+            ctx.beginPath();
+            ctx.moveTo(9, 0); ctx.lineTo(2, 2); ctx.lineTo(2, -2);
+            ctx.closePath(); ctx.fill();
+        } else {
+            // 通常の卵弾
+            ctx.fillStyle = '#ffe8c0';
+            ctx.strokeStyle = '#c0a060';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(egg.x + egg.width / 2, egg.y + egg.height / 2,
+                        egg.width / 2, egg.height / 2, 0, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+            ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            ctx.beginPath();
+            ctx.ellipse(egg.x + egg.width * 0.35, egg.y + egg.height * 0.3,
+                        3, 4, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+}
+
+// 背景グラデーションのキャッシュ
+var bgCache = null;
+// ボス戦専用背景の空色（暗紫〜暗赤のグラデーション）
+var BOSS_SKY = ['#0a0018', '#120028', '#1a0030', '#200020', '#180010'];
+
+function getBgCache() {
+    if (bgCache) return bgCache;
+    bgCache = document.createElement('canvas');
+    bgCache.width = GAME_WIDTH;
+    bgCache.height = GAME_HEIGHT;
+    var bc = bgCache.getContext('2d');
+    var grad = bc.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+
+    var sky;
+    if (bossState.active && bossState.phase >= 2) {
+        // ボス戦専用背景
+        sky = BOSS_SKY;
+    } else if (biomeState.transition > 0 && biomeState.transition < 1) {
+        // バイオーム対応: 遷移中は前後のグラデーションを補間
+        var prevSky = BIOME_CONFIGS[biomeState.previous].sky;
+        var nextSky = BIOME_CONFIGS[biomeState.current].sky;
+        sky = [];
+        for (var si = 0; si < 5; si++) {
+            sky.push(lerpColor(prevSky[si], nextSky[si], biomeState.transition));
+        }
+    } else {
+        sky = BIOME_CONFIGS[biomeState.current].sky;
+    }
+
+    grad.addColorStop(0,    sky[0]);
+    grad.addColorStop(0.25, sky[1]);
+    grad.addColorStop(0.5,  sky[2]);
+    grad.addColorStop(0.75, sky[3]);
+    grad.addColorStop(1,    sky[4]);
+    bc.fillStyle = grad;
+    bc.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    return bgCache;
+}
+
+// DOM参照キャッシュ
+var uiElements = {};
+function cacheUIElements() {
+    uiElements.distance = document.getElementById('distance');
+    uiElements.score = document.getElementById('score');
+    uiElements.lives = document.getElementById('lives');
+    uiElements.enemyKills = document.getElementById('enemyKills');
+    uiElements.speedLevel = document.getElementById('speedLevel');
+    uiElements.speedPercent = document.getElementById('speedPercent');
+    uiElements.nextSpeedUp = document.getElementById('nextSpeedUp');
+    uiElements.reviveIndicator = document.getElementById('reviveIndicator');
+}
+var prevUI = {};
+
+// B-2: パワーアップHUDの定義は毎フレーム作り直すとGC負荷になるため、静的データはここで1度だけ確保する。
+// 可変分（残り時間=gameState[key]、ラベル=t(labelKey)）は render 内で都度参照する。
+var PU_HUD_DEFS = [
+    { key: 'puLemon',  max: 300, labelKey: 'hud_jump',   color1: '#44dd44', color2: '#88ff88', text: '#aaffaa', bg: 'rgba(20,60,20,0.85)', border: '#66ff66' },
+    { key: 'puShield', max: 300, labelKey: 'hud_shield', color1: '#4488ff', color2: '#88bbff', text: '#aaccff', bg: 'rgba(20,20,70,0.85)', border: '#66aaff' },
+    { key: 'puEnergy', max: 480, labelKey: 'hud_energy', color1: '#ff6622', color2: '#ffaa44', text: '#ffcc88', bg: 'rgba(70,25,10,0.85)', border: '#ff8844' },
+    { key: 'puMagnet', max: 600, labelKey: 'hud_magnet', color1: '#aa44ff', color2: '#cc88ff', text: '#ddaaff', bg: 'rgba(50,15,70,0.85)', border: '#cc66ff' }
+];
+
+function render() {
+    // nearest-neighbor拡大でドット絵くっきり
+    ctx.imageSmoothingEnabled = false;
+
+    // 画面シェイク適用
+    var shaking = screenShake.timer > 0;
+    if (shaking) {
+        screenShake.timer--;
+        var shakeDecay = screenShake.timer / 12;
+        ctx.save();
+        ctx.translate(
+            (Math.random() - 0.5) * screenShake.intensity * shakeDecay * 2,
+            (Math.random() - 0.5) * screenShake.intensity * shakeDecay * 2
+        );
+    }
+
+    // 背景グラデーション（キャッシュから描画）
+    ctx.drawImage(getBgCache(), 0, 0);
+
+    // バイオーム: 現在のコンフィグ取得
+    var curBiome = BIOME_CONFIGS[biomeState.current];
+    var biMtnAlpha = curBiome.mountainAlpha;
+    var biTreeAlpha = curBiome.treeAlpha;
+    if (biomeState.transition > 0 && biomeState.transition < 1) {
+        var prevBiome = BIOME_CONFIGS[biomeState.previous];
+        biMtnAlpha = prevBiome.mountainAlpha + (curBiome.mountainAlpha - prevBiome.mountainAlpha) * biomeState.transition;
+        biTreeAlpha = prevBiome.treeAlpha + (curBiome.treeAlpha - prevBiome.treeAlpha) * biomeState.transition;
+    }
+
+    // 夜バイオーム: 星エフェクト (背景の上、パララックスの前に描画)
+    if (biomeState.current === 3 || (biomeState.transition > 0 && (biomeState.current === 3 || biomeState.previous === 3))) {
+        var starAlpha = biomeState.current === 3 ? (biomeState.transition > 0 ? biomeState.transition : 1) : (1 - biomeState.transition);
+        for (var sti = 0; sti < biomeState.stars.length; sti++) {
+            var star = biomeState.stars[sti];
+            var twinkle = 0.4 + 0.6 * Math.abs(Math.sin(gameState.time * 0.05 + star.twinkleOffset));
+            ctx.globalAlpha = starAlpha * twinkle;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    // パララックス: 遠景山 (0.15x速度)
+    var mountainDispW = 160, mountainDispH = 100;
+    var mountainY = GAME_HEIGHT - mountainDispH - 74;
+    ctx.globalAlpha = biMtnAlpha;
+    for (var mi = 0; mi < 8; mi++) {
+        var mx = (mi * mountainDispW - gameState.camera.x * 0.15) % (mountainDispW * 8);
+        if (mx < -mountainDispW) mx += mountainDispW * 8;
+        if (mx > GAME_WIDTH) continue; // B-3: 画面外(右)はスキップ
+        spriteManager.draw(ctx, 'bg_mountain', 0, mx, mountainY, mountainDispW, mountainDispH, false);
+    }
+    ctx.globalAlpha = 1.0;
+
+    // パララックス: 中景木 (0.25x速度)
+    var treeDispW = 64, treeDispH = 96;
+    var treeY = GAME_HEIGHT - treeDispH - 45;
+    ctx.globalAlpha = biTreeAlpha;
+    for (var ti = 0; ti < 12; ti++) {
+        var treeX = (ti * treeDispW * 2.5 - gameState.camera.x * 0.25) % (treeDispW * 30);
+        if (treeX < -treeDispW) treeX += treeDispW * 30;
+        if (treeX > GAME_WIDTH) continue; // B-3: 画面外(右)はスキップ（木は12本中〜5本が画面外）
+        spriteManager.draw(ctx, 'bg_trees', 0, treeX, treeY, treeDispW, treeDispH, false);
+    }
+    ctx.globalAlpha = 1.0;
+
+    // 背景雲 (夜は半透明に)
+    var cloudAlpha = (biomeState.current === 3) ? 0.25 : 1;
+    var cloudDispW = 80, cloudDispH = 40;
+    ctx.globalAlpha = cloudAlpha;
+    for (var i = 0; i < 10; i++) {
+        var cx = (i * 280 - gameState.camera.x * 0.3 + gameState.time * 0.2) % (GAME_WIDTH + 200);
+        if (cx < -cloudDispW) cx += GAME_WIDTH + 200;
+        if (cx > GAME_WIDTH) continue; // B-3: 画面外(右)はスキップ
+        var cy = 30 + Math.sin(i * 0.7 + gameState.time * 0.01) * 40;
+        spriteManager.draw(ctx, 'bg_cloud', 0, cx, cy, cloudDispW, cloudDispH, false);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.save();
+    ctx.translate(-gameState.camera.x, 0);
+
+    var camL = gameState.camera.x - 100, camR = gameState.camera.x + GAME_WIDTH + 100;
+    var j;
+
+    for (j = 0; j < terrain.length; j++) {
+        var tr = terrain[j];
+        if (tr.x + tr.width > camL && tr.x < camR) drawTerrain(tr);
+    }
+    drawShopBuilding(); // ショップ建物（地形の上、足場の下）
+    for (j = 0; j < platforms.length; j++) {
+        var p = platforms[j];
+        if (p.x + p.width > camL && p.x < camR) drawPlatform(p);
+    }
+
+    var time = Date.now() / 50;
+    for (j = 0; j < coins.length; j++) {
+        if (!coins[j].collected && coins[j].x > camL && coins[j].x < camR) drawCoin(coins[j], time);
+    }
+    for (j = 0; j < enemies.length; j++) {
+        if (enemies[j].x > camL && enemies[j].x < camR) drawEnemy(enemies[j]);
+    }
+    for (j = 0; j < flyingEnemies.length; j++) {
+        if (flyingEnemies[j].x > camL && flyingEnemies[j].x < camR) drawFlyingEnemy(flyingEnemies[j]);
+    }
+    for (j = 0; j < powerUps.length; j++) {
+        if (!powerUps[j].collected && powerUps[j].x > camL && powerUps[j].x < camR) drawPowerUp(powerUps[j]);
+    }
+    for (j = 0; j < bullets.length; j++) {
+        if (bullets[j].x > camL && bullets[j].x < camR) drawBullet(bullets[j]);
+    }
+
+    // ボス描画 (ワールド座標系)
+    if (bossState.boss && bossState.phase >= 2 && bossState.phase <= 4) drawBoss(bossState.boss);
+    if (bossState.eggs.length > 0) drawEggProjectiles();
+
+    if (gameState.gameStarted) drawPlayer(player.x, player.y);
+
+    // フロートエフェクト描画 (カメラtranslate適用済み)
+    if (floatEffects.length > 0) drawFloatEffects();
+
+    ctx.restore();
+
+    // ボス戦 or 夜バイオーム: 暗いオーバーレイ
+    if (bossState.active && bossState.phase >= 2) {
+        // ボス戦専用オーバーレイ（暗紫）
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = 'rgba(10,0,30,1)';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        ctx.globalAlpha = 1;
+        // ランダム稲妻フラッシュ（低確率で一瞬明るくなる）
+        if (Math.random() < 0.006) {
+            ctx.globalAlpha = 0.08 + Math.random() * 0.07;
+            ctx.fillStyle = '#8040c0';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            ctx.globalAlpha = 1;
+        }
+    } else {
+      var nightOverlay = BIOME_CONFIGS[3].overlay;
+      var isNightInvolved = biomeState.current === 3 || biomeState.previous === 3;
+      if (isNightInvolved && nightOverlay) {
+        var overlayAlpha;
+        if (biomeState.transition > 0 && biomeState.transition < 1) {
+            overlayAlpha = biomeState.current === 3 ? biomeState.transition : (1 - biomeState.transition);
+        } else {
+            overlayAlpha = biomeState.current === 3 ? 1 : 0;
+        }
+        if (overlayAlpha > 0.01) {
+            ctx.globalAlpha = overlayAlpha;
+            ctx.fillStyle = nightOverlay;
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    // ─── 天候パーティクル描画 ───
+    if (weatherParticles.length > 0) drawWeatherParticles();
+
+    // ─── ダメージ赤フラッシュ ───
+    if (damageFlashTimer > 0) {
+        damageFlashTimer--;
+        var dfAlpha = damageFlashTimer / 20 * 0.45;
+        ctx.fillStyle = 'rgba(255,0,0,' + dfAlpha + ')';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
+
+    // ─── 復活ゴールドフラッシュ ───
+    if (gameState.revivalFlashTimer > 0) {
+        gameState.revivalFlashTimer--;
+        var rvAlpha = gameState.revivalFlashTimer / 90 * 0.35;
+        ctx.fillStyle = 'rgba(255,215,0,' + rvAlpha + ')';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
+
+    // ─── コンボマイルストーンフラッシュ ───
+    if (comboFlashTimer > 0) {
+        comboFlashTimer--;
+        var cfAlpha = comboFlashTimer / 15 * 0.25;
+        ctx.fillStyle = 'rgba(255,200,0,' + cfAlpha + ')';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
+
+    // 画面シェイク復元（HUDはシェイクしない）
+    if (shaking) ctx.restore();
+
+    // ─── HUDオーバーレイ (複数パワーアップ対応) ───
+    // ぴよフラッシュゲージ(#specialMoveUI: 上部中央 top:8px・高さ~38px)の表示中は、
+    // 上部中央のcanvas HUD(無敵/コンボ/スピードアップ通知)を下げて視覚的な重なりを防ぐ
+    var hudTopOffset = (gameState.specialMoveLevel > 0) ? 36 : 0;
+    var puBarY = 75;
+    for (var pi = 0; pi < PU_HUD_DEFS.length; pi++) {
+        var pu = PU_HUD_DEFS[pi];
+        var puTimer = gameState[pu.key]; // B-2: 残り時間は都度参照（配列・オブジェクトの毎フレーム再生成を廃止）
+        if (puTimer <= 0) continue;
+        var puX = GAME_WIDTH - 215;
+        var puRt = Math.ceil(puTimer / 60);
+        var puMax = (pu.key === 'puMagnet') ? pu.max * (gameState.magnetDurMult || 1) : pu.max;
+        var puRatio = puTimer / puMax;
+        // Compact bar background
+        ctx.fillStyle = pu.bg;
+        ctx.strokeStyle = pu.border;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(puX, puBarY, 200, 22, 4);
+        ctx.fill(); ctx.stroke();
+        // Label
+        ctx.font = "bold 11px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = pu.text;
+        ctx.fillText(t(pu.labelKey), puX + 6, puBarY + 11);
+        // Timer
+        ctx.font = "bold 10px 'DotGothic16', monospace";
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'right';
+        ctx.fillText(puRt + t('hud_sec'), puX + 196, puBarY + 11);
+        // Mini progress bar
+        ctx.textAlign = 'left';
+        var barX = puX + 70, barW = 90, barH = 6, barY = puBarY + 8;
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 2); ctx.fill();
+        var grad = ctx.createLinearGradient(barX, 0, barX + barW * puRatio, 0);
+        grad.addColorStop(0, pu.color1); grad.addColorStop(1, pu.color2);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.roundRect(barX, barY, barW * puRatio, barH, 2); ctx.fill();
+        puBarY += 24;
+    }
+
+    if (gameState.isInvincible) {
+        var ri = Math.ceil(gameState.invincibleTimer / 60);
+        var iRatio = gameState.invincibleTimer / INVINCIBLE_FRAMES;
+        var ix = GAME_WIDTH / 2 - 110, iy = 14 + hudTopOffset;
+        // Gold panel
+        drawHudPanel(ix, iy, 220, 52, 'rgba(80,60,10,0.9)', 'rgba(50,35,5,0.92)', '#ffd700', 'rgba(255,215,0,0.4)');
+        // Star icon shimmer
+        var starPulse = 0.7 + 0.3 * Math.sin(gameState.time * 0.2);
+        ctx.fillStyle = 'rgba(255,215,0,' + starPulse + ')';
+        drawStar(ix + 18, iy + 17, 7, 3, 5, 'rgba(255,223,100,' + starPulse + ')');
+        // Text
+        ctx.font = "bold 15px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffeebb';
+        ctx.shadowColor = 'rgba(255,215,0,0.6)'; ctx.shadowBlur = 6;
+        ctx.fillText(t('hud_invincible') + ri + t('hud_sec'), ix + 120, iy + 17);
+        ctx.shadowBlur = 0;
+        // Progress bar
+        drawProgressBar(ix + 12, iy + 33, 196, 8, iRatio, '#ffc800', '#ffee66');
+    }
+
+    // ボスHPバー
+    if (bossState.active && bossState.boss && bossState.phase >= 3 && bossState.phase <= 4) {
+        var bossB = bossState.boss;
+        var bossMaxHp = bossState.maxHp || BOSS_MAX_HP;
+        var bhpRatio = Math.max(0, bossB.hp / bossMaxHp);
+        var bHpW = 300, bHpH = 32;
+        var bHpX = GAME_WIDTH / 2 - bHpW / 2;
+        var bHpY = GAME_HEIGHT - 48;
+        drawHudPanel(bHpX, bHpY, bHpW, bHpH,
+            'rgba(60,10,10,0.9)', 'rgba(40,5,5,0.95)', '#ff4444', 'rgba(255,50,50,0.3)');
+        ctx.font = "bold 11px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffcccc';
+        ctx.fillText('BOSS', bHpX + 40, bHpY + 10);
+        // HPテキスト
+        ctx.fillStyle = '#ff8888';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.ceil(bossB.hp) + '/' + bossMaxHp, bHpX + bHpW - 12, bHpY + 10);
+        ctx.textAlign = 'left';
+        // HPバー
+        drawProgressBar(bHpX + 16, bHpY + 19, bHpW - 32, 8, bhpRatio, '#ff2222', '#ff6666');
+    }
+
+    // コンボHUD（色エスカレーション＋強化パルス）
+    if (gameState.comboCount >= 2) {
+        var comboY = (gameState.isInvincible ? 72 : 14) + hudTopOffset;
+        var comboAlpha = gameState.comboTimer / COMBO_TIMEOUT;
+        var cc = gameState.comboCount;
+        // パルス強度: コンボ数に応じて増加
+        var pulseAmp = Math.min(0.05 + cc * 0.01, 0.15);
+        var comboPulse = 1 + Math.sin(gameState.time * 0.3) * pulseAmp;
+        // 色エスカレーション: 金→橙→赤
+        var hudHue = Math.max(0, 45 - cc * 3);
+        var hudR = hudHue <= 20 ? 255 : Math.floor(200 + (45 - hudHue));
+        var hudG = Math.floor(150 * (hudHue / 45));
+        var hudBorder = 'hsl(' + hudHue + ',100%,50%)';
+        var hudGlow = 'hsla(' + hudHue + ',100%,50%,0.3)';
+        var hudBg = 'rgba(' + Math.floor(80 - cc) + ',' + Math.floor(Math.max(10, 60 - cc * 4)) + ',10,0.85)';
+        ctx.save();
+        ctx.globalAlpha = Math.max(0.4, comboAlpha);
+        var comboX = GAME_WIDTH / 2 - 90;
+        drawHudPanel(comboX, comboY, 180, 42, hudBg, 'rgba(50,35,5,0.9)', hudBorder, hudGlow);
+        ctx.font = "bold " + Math.floor(18 * comboPulse) + "px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'hsl(' + hudHue + ',100%,65%)';
+        ctx.shadowColor = 'hsla(' + hudHue + ',100%,50%,0.7)';
+        ctx.shadowBlur = 8 + cc;
+        var hudLabel = cc + ' COMBO';
+        if (cc >= 15) hudLabel = cc + ' COMBO INSANE';
+        else if (cc >= 10) hudLabel = cc + ' COMBO AMAZING';
+        else if (cc >= 5) hudLabel = cc + ' COMBO GREAT';
+        ctx.fillText(hudLabel, GAME_WIDTH / 2, comboY + 22);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+
+    // ─── デバッグモード表示 ───
+    // デバッグボタン表示切り替え（DOM版）
+    var bossBtn = document.getElementById('debugBossBtn');
+    if (bossBtn) {
+        bossBtn.style.display = (debugMode && !bossState.active && gameState.gameStarted && !gameState.gamePaused) ? 'block' : 'none';
+    }
+    var shopWarpBtn = document.getElementById('debugShopBtn');
+    if (shopWarpBtn) {
+        shopWarpBtn.style.display = (debugMode && !bossState.active && !shopState.active && gameState.gameStarted && !gameState.gamePaused) ? 'block' : 'none';
+    }
+    if (debugMode) {
+        var dbX = 8, dbY = GAME_HEIGHT - 28;
+        ctx.save();
+        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameState.time * 0.15);
+        ctx.fillStyle = 'rgba(255,50,50,0.75)';
+        ctx.beginPath(); ctx.roundRect(dbX, dbY, 110, 22, 4); ctx.fill();
+        ctx.font = "bold 12px 'DotGothic16', monospace";
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('DEBUG MODE', dbX + 6, dbY + 11);
+        ctx.restore();
+    }
+
+    if (gameState.speedUpNotification) {
+        var a = Math.min(1.0, gameState.speedUpNotificationTimer / 30);
+        var sp = Math.min(MAX_SPEED_PERCENT, 100 + (gameState.speedLevel - 1) * 20);
+        ctx.save();
+        ctx.globalAlpha = a;
+        var sx2 = GAME_WIDTH / 2 - 150, sy2 = 68 + hudTopOffset;
+        drawHudPanel(sx2, sy2, 300, 52, 'rgba(100,20,60,0.9)', 'rgba(60,10,35,0.92)', '#ff69b4', 'rgba(255,100,180,0.4)');
+        // Rocket + text
+        ctx.font = "bold 18px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.shadowColor = 'rgba(255,100,180,0.7)'; ctx.shadowBlur = 8;
+        ctx.fillText(t('hud_speedup') + gameState.speedLevel + ' (' + sp + '%)', GAME_WIDTH / 2, sy2 + 27);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+
+    if (gameState.gamePaused) {
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        // Pause panel
+        var pw = 320, ph = 100;
+        var ppx = (GAME_WIDTH - pw) / 2, ppy = (GAME_HEIGHT - ph) / 2 - 20;
+        drawHudPanel(ppx, ppy, pw, ph, 'rgba(30,30,60,0.95)', 'rgba(15,15,40,0.98)', '#8888ff', 'rgba(100,100,255,0.3)');
+        // Text
+        ctx.font = "bold 36px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.shadowColor = 'rgba(150,150,255,0.6)'; ctx.shadowBlur = 10;
+        ctx.fillText(t('hud_pause'), GAME_WIDTH / 2, ppy + ph / 2);
+        ctx.shadowBlur = 0;
+    }
+
+    // ─── ボス閃光攻撃エフェクト ───
+    if (bossState.active && bossState.flashAttackTimer > 0) {
+        var fProgress = 1 - bossState.flashAttackTimer / 30; // 0→1
+        ctx.save();
+        if (fProgress < 0.15) {
+            // 最初の瞬間：画面全体が白くフラッシュ
+            var flashAlpha = (1 - fProgress / 0.15) * 0.85;
+            ctx.fillStyle = 'rgba(255,255,240,' + flashAlpha + ')';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        }
+        // 地面レベルを走る閃光ビーム
+        if (fProgress < 0.7) {
+            var beamAlpha = fProgress < 0.1 ? fProgress / 0.1 : (0.7 - fProgress) / 0.6;
+            beamAlpha = Math.max(0, beamAlpha) * 0.8;
+            var beamY = GROUND_Y - 35;
+            var beamH = 70;
+            // メインビーム（黄白い光）
+            var bgrd = ctx.createLinearGradient(0, beamY - beamH / 2, 0, beamY + beamH / 2);
+            bgrd.addColorStop(0, 'rgba(255,255,200,0)');
+            bgrd.addColorStop(0.3, 'rgba(255,255,150,' + beamAlpha * 0.6 + ')');
+            bgrd.addColorStop(0.5, 'rgba(255,255,255,' + beamAlpha + ')');
+            bgrd.addColorStop(0.7, 'rgba(255,255,150,' + beamAlpha * 0.6 + ')');
+            bgrd.addColorStop(1, 'rgba(255,255,200,0)');
+            ctx.fillStyle = bgrd;
+            ctx.fillRect(0, beamY - beamH / 2, GAME_WIDTH, beamH);
+            // ビーム中心の輝線
+            ctx.globalAlpha = beamAlpha;
+            ctx.strokeStyle = '#ffffee';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#ffffaa';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.moveTo(0, beamY);
+            ctx.lineTo(GAME_WIDTH, beamY);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            // 光の粒子が飛び散る
+            for (var fi = 0; fi < 6; fi++) {
+                var fpx = Math.random() * GAME_WIDTH;
+                var fpy = beamY - beamH / 2 + Math.random() * beamH;
+                ctx.fillStyle = 'rgba(255,255,200,' + (beamAlpha * 0.7) + ')';
+                ctx.beginPath();
+                ctx.arc(fpx, fpy, 1.5 + Math.random() * 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
+
+    // ─── ボス WARNING オーバーレイ ───
+    if (bossState.active && bossState.phase === 1) {
+        var wAlpha = 0.3 + Math.sin(bossState.warningTimer * 0.2) * 0.2;
+        ctx.fillStyle = 'rgba(255,0,0,' + wAlpha + ')';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        var textScale = 1 + Math.sin(bossState.warningTimer * 0.15) * 0.1;
+        ctx.save();
+        ctx.translate(GAME_WIDTH / 2, GAME_HEIGHT / 2);
+        ctx.scale(textScale, textScale);
+        ctx.font = "bold 48px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ff0000';
+        ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 20;
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+        ctx.strokeText(t('boss_warning'), 0, 0);
+        ctx.fillText(t('boss_warning'), 0, 0);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+
+    // ─── ボス撃破テキスト ───
+    if (bossState.active && bossState.phase === 4 && bossState.defeatedTimer >= 90) {
+        var dAlpha = Math.min(1, (bossState.defeatedTimer - 90) / 30);
+        ctx.save();
+        ctx.globalAlpha = dAlpha;
+        ctx.font = "bold 42px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffd700';
+        ctx.shadowColor = 'rgba(255,215,0,0.8)'; ctx.shadowBlur = 15;
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+        ctx.strokeText(t('boss_defeated'), GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20);
+        ctx.fillText(t('boss_defeated'), GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+
+    // ─── ラウンドテキスト ───
+    if (bossState.active && bossState.phase === 5) {
+        var rAlpha = Math.min(1, bossState.roundTextTimer / 60);
+        ctx.save();
+        ctx.globalAlpha = rAlpha;
+        ctx.font = "bold 50px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(100,100,255,0.8)'; ctx.shadowBlur = 15;
+        ctx.fillText(t('boss_round') + (gameRound + 1), GAME_WIDTH / 2, GAME_HEIGHT / 2);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+
+    drawSpecialCutin();
+    gameState.time++;
+}
+
+function updateUI() {
+    if (!uiElements.distance) cacheUIElements();
+    updateSpecialMoveUI();
+    var pct  = Math.min(MAX_SPEED_PERCENT, 100 + (gameState.speedLevel - 1) * 20);
+    var next = Math.max(0, gameState.speedLevel * SPEED_UP_INTERVAL - gameState.distance);
+    // 差分更新: 値が変わった時だけDOMを更新
+    if (prevUI.distance !== gameState.distance) { uiElements.distance.textContent = gameState.distance; prevUI.distance = gameState.distance; }
+    if (prevUI.score !== gameState.score) { uiElements.score.textContent = gameState.score; prevUI.score = gameState.score; }
+    if (prevUI.lives !== gameState.lives) { uiElements.lives.textContent = gameState.lives; prevUI.lives = gameState.lives; }
+    if (prevUI.enemyKills !== gameState.enemyKills) { uiElements.enemyKills.textContent = gameState.enemyKills; prevUI.enemyKills = gameState.enemyKills; }
+    if (prevUI.speedLevel !== gameState.speedLevel) { uiElements.speedLevel.textContent = gameState.speedLevel; prevUI.speedLevel = gameState.speedLevel; }
+    if (prevUI.pct !== pct) { uiElements.speedPercent.textContent = pct; prevUI.pct = pct; }
+    if (prevUI.next !== next) { uiElements.nextSpeedUp.textContent = next; prevUI.next = next; }
+    // 復活の羽 残り回数表示
+    var revEl = uiElements.reviveIndicator;
+    if (revEl) {
+        // ストック内の復活薬の数もカウント
+        var potionCount = 0;
+        for (var ri = 0; ri < stockState.items.length; ri++) {
+            if (stockState.items[ri].id === 'revive_potion') potionCount++;
+        }
+        var totalRevives = gameState.revivesLeft + potionCount;
+        if (totalRevives > 0 && prevUI.revives !== totalRevives) {
+            var featherStr = '';
+            for (var fi = 0; fi < gameState.revivesLeft; fi++) featherStr += '\u{1FAB6}';
+            for (var pi = 0; pi < potionCount; pi++) featherStr += '\u{1F48A}';
+            revEl.textContent = featherStr;
+            revEl.style.display = 'inline';
+            prevUI.revives = totalRevives;
+        } else if (totalRevives === 0 && prevUI.revives !== 0) {
+            revEl.style.display = 'none';
+            prevUI.revives = 0;
+        }
+    }
+}
