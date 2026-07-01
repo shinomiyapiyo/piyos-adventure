@@ -1461,10 +1461,7 @@ function drawPipeRoom() {
     ctx.fillStyle = '#241a10';
     for (var fx = 0; fx < GAME_WIDTH; fx += 40) ctx.fillRect(fx + 2, PIPE_ROOM_FLOOR_Y + 5, 36, 6);
     var exitX = pipeRoomExitX();
-    // 入口（縦）土管：画面左（ここから降りてきた）
-    if (pipeImg.complete && pipeImg.naturalWidth) {
-        ctx.drawImage(pipeImg, PIPE_ROOM_ENTRY_X, PIPE_ROOM_FLOOR_Y - PIPE_H, PIPE_W, PIPE_H);
-    }
+    // 入口の縦土管は無し（入場は左上からの落下）。出口（横）土管のみ描く。
     // 出口（横）土管：画面右（口が左向き＝右へ歩いて入ると地上へ戻る）
     if (pipeSideImg.complete && pipeSideImg.naturalWidth) {
         ctx.drawImage(pipeSideImg, exitX, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H, SIDE_PIPE_W, SIDE_PIPE_H);
@@ -1760,7 +1757,7 @@ function render() {
         // HPテキスト
         ctx.fillStyle = '#ff8888';
         ctx.textAlign = 'right';
-        ctx.fillText(Math.ceil(bossB.hp) + '/' + bossMaxHp, bHpX + bHpW - 12, bHpY + 10);
+        ctx.fillText(Math.ceil(bossB.hp * 10) + '/' + (bossMaxHp * 10), bHpX + bHpW - 12, bHpY + 10); // 表示は×10（実HPは不変・1未満ダメージを見やすく）
         ctx.textAlign = 'left';
         // HPバー
         drawProgressBar(bHpX + 16, bHpY + 19, bHpW - 32, 8, bhpRatio, '#ff2222', '#ff6666');

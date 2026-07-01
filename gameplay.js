@@ -96,9 +96,9 @@ function enterPipeRoom() {
     gameState.input.left = false; gameState.input.right = false;
     gameState.input.jump = false; gameState.input.jumpPressed = false;
     gameState.downSwipeActive = false; gameState.downSwipeTimer = 0;
-    // 以後 player.x/y は画面座標として扱う（部屋は固定カメラ）。入口（画面左）に立たせる
-    player.x = PIPE_ROOM_LEFT; player.y = PIPE_ROOM_FLOOR_Y - player.height;
-    player.velX = 0; player.velY = 0; player.onGround = true; player.facing = 'right';
+    // 以後 player.x/y は画面座標として扱う（部屋は固定カメラ）。左上から落下して入場
+    player.x = PIPE_ROOM_LEFT; player.y = -player.height - 20;
+    player.velX = 0; player.velY = 0; player.onGround = false; player.facing = 'right';
     initPipeRoom();
     if (soundManager) soundManager.playBGM('bonus');
 }
