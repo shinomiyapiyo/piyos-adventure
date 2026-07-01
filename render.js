@@ -1528,6 +1528,15 @@ function drawPipeRoom() {
     ctx.textAlign = 'center';
     ctx.fillText(t('pipe_room_exit'), exitX + SIDE_PIPE_W / 2, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H - 10 + Math.sin(gameState.time * 0.1) * 3);
     ctx.restore();
+    // 退室ゲージ（口で右を押し続けている間だけ表示・満タンで退室）
+    if (pipeRoomState.exitHold > 0) {
+        var gp = Math.min(pipeRoomState.exitHold / PIPE_EXIT_HOLD_FRAMES, 1);
+        var gw = 92, gh = 10, gx = exitX + SIDE_PIPE_W / 2 - gw / 2, gy = PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H - 34;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(gx - 2, gy - 2, gw + 4, gh + 4);
+        ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(gx, gy, gw, gh);
+        ctx.fillStyle = '#7CFC5A'; ctx.fillRect(gx, gy, gw * gp, gh);
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1; ctx.strokeRect(gx + 0.5, gy + 0.5, gw, gh);
+    }
     // 報酬
     for (var i = 0; i < bonusRoomItems.length; i++) {
         var it = bonusRoomItems[i];

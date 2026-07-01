@@ -87,6 +87,7 @@ function enterPipeRoom() {
     if (pipeRoomState.active || pipeRoomState.visited) return; // 入室中・このラウンド入室済みは弾く（再入室防止）
     pipeRoomState.active = true;
     pipeRoomState.visited = true;
+    pipeRoomState.exitHold = 0; // 退室ゲージを初期化
     pipeRoomState.savedGameSpeed = gameState.gameSpeed;
     gameState.gameSpeed = 0;
     // 入室前のプレイヤー状態を退避（退室時に復元）
@@ -174,20 +175,26 @@ function updatePipeRoom() {
     }
     // 左壁（見える壁）で止める：壁の内側でプレイヤーが停止する
     if (player.x < PIPE_ROOM_WALL_W) { player.x = PIPE_ROOM_WALL_W; if (player.velX < 0) player.velX = 0; }
-    // 出口（横）土管：上に乗れる／床で口に達し右押し継続で退室。土管の胴体がある高さだけ壁になり、上空は素通り（＝右壁で止まる）
+    // 出口（横）土管：上に乗れる／床で口に接触し右を一定時間押し続けたら退室。土管の胴体がある高さだけ壁になり、上空は素通り（＝右壁で止まる）
     var exX = pipeRoomExitX(), exTop = PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H;
+    var exitCharging = false;
     if (player.x + player.width > exX) {
         var feetY = player.y + player.height, prevFeet = feetY - player.velY;
-        if (player.velY >= 0 && prevFeet <= exTop + 4) {
-            player.y = exTop - player.height; player.velY = 0; player.onGround = true; // 土管の上面に着地（上に乗れる）
+        if (player.velY >= 0 && prevFeet <= exTop + 4 && feetY >= exTop) {
+            player.y = exTop - player.height; player.velY = 0; player.onGround = true; // 土管の上面に着地（足が上面に達した時だけ＝空中でワープしない）
         } else if (feetY >= PIPE_ROOM_FLOOR_Y - 2) {
-            if (gameState.input.right) { exitPipeRoom(); return; } // 床＋口＋右押し継続 → 退室
-            player.x = exX - player.width; if (player.velX > 0) player.velX = 0; // 押していなければ口の手前で停止
+            player.x = exX - player.width; if (player.velX > 0) player.velX = 0; // 口の手前で停止（左から接触）
+            if (gameState.input.right) { // 右を押し続けている間だけゲージを溜め、一定時間(≒0.7秒)で退室（誤操作防止）
+                exitCharging = true;
+                pipeRoomState.exitHold++;
+                if (pipeRoomState.exitHold >= PIPE_EXIT_HOLD_FRAMES) { exitPipeRoom(); return; }
+            }
         } else if (feetY > exTop) {
             player.x = exX - player.width; if (player.velX > 0) player.velX = 0; // 土管の胴体（口）の高さで側面に衝突
         }
         // feetY <= exTop（土管より上の空間）は素通り → 下の右壁クランプでのみ止める
     }
+    if (!exitCharging) pipeRoomState.exitHold = 0; // 右を離した/口から離れた/上に乗った ら退室ゲージをリセット（継続押しを要求）
     // 右壁（見える壁）で止める：土管の上空でも必ずここで停止（見えない壁をなくす）
     var rightWallX = GAME_WIDTH - PIPE_ROOM_WALL_W;
     if (player.x + player.width > rightWallX) { player.x = rightWallX - player.width; if (player.velX > 0) player.velX = 0; }

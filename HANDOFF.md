@@ -1,11 +1,12 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.354**（2026-07-01）。リポジトリ: `piyos-adventure`（GitHub Pages, main 直 push で公開）。
+> 最終更新: **Ver.1.355**（2026-07-01）。リポジトリ: `piyos-adventure`（GitHub Pages, main 直 push で公開）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在の状態（重要）
-- **Ver.1.354 をコミット**（土管ボーナス部屋の見えない壁を撤去。左右に見えるレンガ壁を配置し、当たり判定を壁と一致。出口土管は右壁の内側に接地。core-state.js `PIPE_ROOM_WALL_W`, gameplay.js `updatePipeRoom`/`pipeRoomExitX`, render.js `drawPipeRoomWall`）。直近の push 済みは Ver.1.353。**push はユーザーが実行**。
+- **Ver.1.354 push 済み**: 土管ボーナス部屋の見えない壁を撤去。左右に見えるレンガ壁を配置し、当たり判定を壁と一致。出口土管は右壁の内側に接地（core-state.js `PIPE_ROOM_WALL_W`, gameplay.js `updatePipeRoom`/`pipeRoomExitX`, render.js `drawPipeRoomWall`）。
+- **Ver.1.355 をコミット**（土管部屋の追加修正・要 push）: ①出口土管の上でジャンプすると空中ワープするバグを修正（`updatePipeRoom` の上面着地条件に `feetY >= exTop` を追加＝足が上面に達した時だけ着地）。②退室が敏感すぎた問題を修正＝**口に接触して右を約0.7秒(`PIPE_EXIT_HOLD_FRAMES=42`)押し続けたら退室**（`pipeRoomState.exitHold` ゲージを render で表示）。**入室(下スワイプ)判定は甘めのまま**。**push はユーザーが実行**。
 - **push はユーザーが実行**する運用（Claude は変更を作り、`git add -A && git commit -m "…(Ver.X)" && git push` の手順を案内するだけ。勝手に push しない）。
 - 版数ルール: HTMLを1行でも変えたら Ver +0.001。表示版数は `index.html` の 82行(`content:"Ver.X"`)・760行付近(span)・1563行付近(コメント)の3箇所＋ `sw.js` の `CACHE_NAME` を必ず同期。回答末尾に現Verを記載。
 - 新規 js/画像/音声を追加したら `sw.js` の `STATIC_ASSETS` に登録（忘れるとオフラインで壊れる）。
