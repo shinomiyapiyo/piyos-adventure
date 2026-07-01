@@ -13,7 +13,7 @@ ja: {
     // スプラッシュ
     splash_warning: _ic('icon_warning.png') + ' 注意',
     splash_warning_detail: '本作品にはゲーム内での軽い接触表現が含まれます',
-    splash_credit1: 'Music by NullPo Works',
+    splash_credit1: '',
     splash_credit2: 'Created by NullPo Works',
     splash_tap: 'Please Tap',
     // タイトル
@@ -333,7 +333,7 @@ ja: {
 en: {
     splash_warning: _ic('icon_warning.png') + ' Notice',
     splash_warning_detail: 'This game contains mild contact expressions',
-    splash_credit1: 'Music by NullPo Works',
+    splash_credit1: '',
     splash_credit2: 'Created by NullPo Works',
     splash_tap: 'Please Tap',
     start_tap: '&gt; Tap to Start',

@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.352";
+                content: "Ver.1.353";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -700,7 +700,7 @@
                     onerror="this.style.display='none'">
                 <div style="color: rgba(255,255,255,0.6); font-size: 2.2vw; text-align: center; font-family: 'M PLUS Rounded 1c', sans-serif; line-height: 2;
                     letter-spacing: 0.1em;">
-                    Music by NullPo Works<br>Created by NullPo Works
+                    Created by NullPo Works
                 </div>
             </div>
             <div class="tap-text" style="color: #fff; font-size: 8vw; font-weight: 800; text-align: center; font-family: 'M PLUS Rounded 1c', sans-serif;
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.352</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.353</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1561,7 +1561,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.352
+ * ぴよ氏の冒険 v1.353
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2038,7 +2038,7 @@ var gameSettings = {
     tutorialSeen: false,   // 初回チュートリアルを表示済みか
     loginStreak: 0, lastLoginDate: '', pendingStockItems: [],
     lastLoginTimestamp: 0, loginBonusHistory: [],
-    dailyMissions: { date: '', plays: 0, distance: 0, kills: 0, claimed: [false, false, false], bonusClaimed: false, ts: 0 },
+    dailyMissions: { date: '', plays: 0, distance: 0, kills: 0, coins: 0, boss: 0, special: 0, claimed: [false, false, false], bonusClaimed: false, ts: 0 },
     achievementStats: { totalKills: 0, totalDistance: 0, totalPlays: 0, bestDistance: 0, ts: 0 }, // 実績用の生涯累計（リセットなし）
     achievements: { claimed: {} },  // 実績の受取済み（id別マップ）
     tshopAdCooldown: 0,    // タイトルショップ広告のクールダウン（timestamp, 永続化）
@@ -2081,6 +2081,12 @@ var gameSettings = {
                 if (Array.isArray(pdm.claimed)) gameSettings.dailyMissions.claimed = pdm.claimed;
                 if (typeof pdm.bonusClaimed === 'boolean') gameSettings.dailyMissions.bonusClaimed = pdm.bonusClaimed;
                 if (typeof pdm.ts === 'number') gameSettings.dailyMissions.ts = pdm.ts;
+                // ★ todayMissions と進捗カウンタも復元しないと、起動のたびに未生成扱いで
+                //   日替わりミッションが再生成＝claimed全リセットされ「何度でも受け取れる」バグになる。
+                if (Array.isArray(pdm.todayMissions)) gameSettings.dailyMissions.todayMissions = pdm.todayMissions;
+                if (typeof pdm.coins === 'number') gameSettings.dailyMissions.coins = pdm.coins;
+                if (typeof pdm.boss === 'number') gameSettings.dailyMissions.boss = pdm.boss;
+                if (typeof pdm.special === 'number') gameSettings.dailyMissions.special = pdm.special;
             }
             // ── 実績（生涯累計＋受取済み） ──
             if (parsed.achievementStats && typeof parsed.achievementStats === 'object') {
