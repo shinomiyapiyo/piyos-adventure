@@ -118,8 +118,8 @@ function exitPipeRoom() {
     playStageBGM(); // 本編BGMに復帰
 }
 
-// 出口（横）土管の左端X（口）。GAME_WIDTHは画面比で可変なので実行時に算出する。
-function pipeRoomExitX() { return GAME_WIDTH - SIDE_PIPE_W - 24; }
+// 出口（横）土管の左端X（口）。右壁に接して置く（飛び越えて右へ抜けられないように）。GAME_WIDTHは可変なので実行時算出。
+function pipeRoomExitX() { return GAME_WIDTH - SIDE_PIPE_W; }
 
 // 部屋の報酬生成: ハート1+低確率2 / コイン10 / 販売アイテム1（満杯なら無）/ ゴールデンエッグ1/20
 function initPipeRoom() {
@@ -174,8 +174,21 @@ function updatePipeRoom() {
     }
     // 左クランプ
     if (player.x < PIPE_ROOM_LEFT) { player.x = PIPE_ROOM_LEFT; if (player.velX < 0) player.velX = 0; }
-    // 右へ歩いて出口（横）土管の口に入ったら退室＝地上ステージへ戻る
-    if (player.x + player.width >= pipeRoomExitX() + 14) { exitPipeRoom(); return; }
+    // 出口（横）土管：上に乗れる／床に着地して口に達し右を押し続けている時だけ退室（飛び越え・空中素通りは不可）
+    var exX = pipeRoomExitX(), exTop = PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H;
+    if (player.x + player.width > exX) {
+        var feetY = player.y + player.height, prevFeet = feetY - player.velY;
+        if (player.velY >= 0 && prevFeet <= exTop + 4) {
+            player.y = exTop - player.height; player.velY = 0; player.onGround = true; // 土管の上面に着地（上に乗れる）
+        } else if (feetY >= PIPE_ROOM_FLOOR_Y - 2) {
+            if (gameState.input.right) { exitPipeRoom(); return; } // 床＋口＋右押し継続 → 退室
+            player.x = exX - player.width; if (player.velX > 0) player.velX = 0; // 押していなければ口の手前で停止
+        } else {
+            player.x = exX - player.width; if (player.velX > 0) player.velX = 0; // 空中で側面にぶつかったら壁として停止
+        }
+    }
+    // 右端クランプ（土管の上に乗って右へ行った時など、画面外へ出さない）
+    if (player.x + player.width > GAME_WIDTH) { player.x = GAME_WIDTH - player.width; if (player.velX > 0) player.velX = 0; }
     player.animFrame++;
     // 報酬取得
     for (var i = 0; i < bonusRoomItems.length; i++) {

@@ -1027,15 +1027,15 @@ function drawTerrain(t) {
 function drawPlatform(p) {
     // 土管ボーナス部屋の入口（縦土管）: 専用スプライトで描く＋上に下向き矢印（乗って下スワイプ＝もぐる、の示唆）
     if (p.type === 'pipe') {
-        // GROUND_Y(衝突面)は見た目の草面より少し上のため、下へ延ばして浮きを解消。
-        // 足場は地形より後に描画されるので、延長分は草に自然にめり込む。
-        var PIPE_SINK = 14;
+        // item_pipe.png は上13%/下10%が透明余白のため、素直に p.y へ描くと見える管が下がって
+        // プレイヤーが浮いて見える。見える管の上端を衝突上端(=足元)に、下端を地面に合わせるよう
+        // 上へ16pxずらし＋高さを+25して描く（余白ぶんを相殺）。足場は地形より後に描かれるので下は草に馴染む。
         if (pipeImg.complete && pipeImg.naturalWidth) {
-            ctx.drawImage(pipeImg, p.x, p.y, p.width, p.height + PIPE_SINK);
+            ctx.drawImage(pipeImg, p.x, p.y - 16, p.width, p.height + 25);
         } else {
-            ctx.fillStyle = '#3cb043'; ctx.fillRect(p.x, p.y, p.width, p.height + PIPE_SINK);
+            ctx.fillStyle = '#3cb043'; ctx.fillRect(p.x, p.y, p.width, p.height + 12);
         }
-        var ax = p.x + p.width / 2, ay = p.y - 14 + Math.sin(gameState.time * 0.12) * 3;
+        var ax = p.x + p.width / 2, ay = p.y - 30 + Math.sin(gameState.time * 0.12) * 3;
         ctx.fillStyle = 'rgba(255,224,102,0.9)';
         ctx.beginPath();
         ctx.moveTo(ax, ay + 7); ctx.lineTo(ax - 6, ay - 2); ctx.lineTo(ax + 6, ay - 2);
@@ -1793,7 +1793,7 @@ function render() {
         // HPテキスト
         ctx.fillStyle = '#ff8888';
         ctx.textAlign = 'right';
-        ctx.fillText(Math.ceil(bossB.hp * 10) + '/' + (bossMaxHp * 10), bHpX + bHpW - 12, bHpY + 10); // 表示は×10（実HPは不変・1未満ダメージを見やすく）
+        ctx.fillText(Math.max(0, Math.ceil(bossB.hp * 10)) + '/' + (bossMaxHp * 10), bHpX + bHpW - 12, bHpY + 10); // 表示は×10（実HPは不変・1未満ダメージを見やすく）。撃破時マイナスにならないよう0でクランプ
         ctx.textAlign = 'left';
         // HPバー
         drawProgressBar(bHpX + 16, bHpY + 19, bHpW - 32, 8, bhpRatio, '#ff2222', '#ff6666');
