@@ -1,14 +1,15 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.357**（2026-07-01）。リポジトリ: `piyos-adventure`（GitHub Pages, main 直 push で公開）。
+> 最終更新: **Ver.1.358**（2026-07-01）。リポジトリ: `piyos-adventure`（GitHub Pages, main 直 push で公開）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在の状態（重要）
 - **Ver.1.354 push 済み**: 土管ボーナス部屋の見えない壁を撤去。左右に見えるレンガ壁を配置し、当たり判定を壁と一致。出口土管は右壁の内側に接地（core-state.js `PIPE_ROOM_WALL_W`, gameplay.js `updatePipeRoom`/`pipeRoomExitX`, render.js `drawPipeRoomWall`）。
 - **Ver.1.355 push 済み**（土管部屋の追加修正）: ①出口土管の上でジャンプすると空中ワープするバグを修正（`updatePipeRoom` の上面着地条件に `feetY >= exTop` を追加＝足が上面に達した時だけ着地）。②退室が敏感すぎた問題を修正＝**口に接触して右を約0.7秒(`PIPE_EXIT_HOLD_FRAMES=42`)押し続けたら退室**（`pipeRoomState.exitHold` ゲージを render で表示）。**入室(下スワイプ)判定は甘めのまま**。
 - **Ver.1.356 push 済み**（実績報酬の一部を貯金→🥚化）: 各カテゴリ最上位の実績をゴールデンエッグ報酬に変更（kills_10000/dist_200000=🥚5個, plays_200/best_5000=🥚3個。`ACHIEVEMENTS` に `reward:0`＋`eggReward`）。`claimAchievement` で `goldenEggs` 加算＋`showEggRewardToast`、実績行・画面ヘッダーに🥚表示、`ach_hint` 文言更新。下位〜中位は貯金のまま・dist_5000 はメイド服のまま。**エッグの使い道（交換所）は未実装**なので貯まる一方な点は据置。
-- **Ver.1.357 をコミット**（旧URL案内を強化・要 push）: `?from=old`（旧URLリダイレクト）検出時の案内を、×で閉じられる上部バナー → **閉じるボタン無しの全画面ブロック**に変更（`showUrlChangeNotice`, z=2147483647, 背後へのタップ遮断）。文言も見出し＋3手順＋警告に刷新（i18n `urlmoved_title/lead/step1〜3/warn`。旧 `urlmoved_notice` は廃止）。**`?from=old` はURLに残す**＝リロードでもすり抜け不可。localStorageの閉じた記録も廃止。**正規の新PWA（manifest start_url＝クエリ無し）には出ない**ので誤ブロックなし。※旧URLの「installed PWA」勢はこの新コードが届かない（旧デプロイ側の対応が別途必要）。
+- **Ver.1.357 push 済み**（旧URL案内を強化）: `?from=old`（旧URLリダイレクト）検出時の案内を、×で閉じられる上部バナー → **閉じるボタン無しの全画面ブロック**に変更（`showUrlChangeNotice`, z=2147483647, 背後へのタップ遮断）。文言も見出し＋3手順＋警告に刷新（i18n `urlmoved_title/lead/step1〜3/warn`。旧 `urlmoved_notice` は廃止）。**`?from=old` はURLに残す**＝リロードでもすり抜け不可。localStorageの閉じた記録も廃止。**正規の新PWA（manifest start_url＝クエリ無し）には出ない**ので誤ブロックなし。※旧URLの「installed PWA」勢はこの新コードが届かない（旧デプロイ側の対応が別途必要）。
+- **Ver.1.358 をコミット**（雲ブロック固着バグ修正・要 push）: `recentlyDropped`（下スワイプ貫通フラグ）の解除条件が index.html:3879「60px落下」1つだけで、貫通後に**高台/低い雲へ着地して60px落ちきれないとフラグが固着**→以後 `if(recentlyDropped)continue`(4047) で**全ての雲に乗れなくなる**（Ultracode多角調査＋敵対検証で確定・確度高。地形着地はフラグ不問なので「地面は歩けるが雲だけ無形化」の非対称症状）。修正: 3879 に「着地で解除(`player.onGround && player.y+height>dropFromY+8`)」を追加＋保険で `resetGame`/`resetPlayerPosition`/`enterPipeRoom(gameplay.js:99)` でフラグをリセット。実機で固着再現→修正後は解除を確認・通常すり抜け/60px則は不変。ユーザーのヒント（点滅雲でない/一度降りたのが鍵）と厳密一致。残タスク候補: すり抜け条件(4039)に真上・落下中ガード追加（副次経路つぶし・任意）。
 - **push はユーザーが実行**する運用（Claude は変更を作り、`git add -A && git commit -m "…(Ver.X)" && git push` の手順を案内するだけ。勝手に push しない）。
 - 版数ルール: HTMLを1行でも変えたら Ver +0.001。表示版数は `index.html` の 82行(`content:"Ver.X"`)・760行付近(span)・1563行付近(コメント)の3箇所＋ `sw.js` の `CACHE_NAME` を必ず同期。回答末尾に現Verを記載。
 - 新規 js/画像/音声を追加したら `sw.js` の `STATIC_ASSETS` に登録（忘れるとオフラインで壊れる）。
@@ -30,7 +31,7 @@
 - **「Music by NullPo Works」クレジット削除（1.353）**: 音楽はSuno生成のため。スプラッシュは "Created by NullPo Works" のみに（index.html:703＋i18n `splash_credit1`）。
 
 ## 未対応 / TODO
-- **雲ブロックにたまに乗れないバグ**（intermittent・未修正・発動条件不確定）: 有力原因 = 下スワイプ直後の `recentlyDropped` 状態が約0.5秒（60px落下まで）**すべての足場の着地判定を無効化**する（＋消える足場/バネ足場の仕様）。提案 = 「今まさに抜けている足場だけ無効化」。**コア移動処理なのでリグレッション検証＋ユーザー承認が必要**（未着手）。次回起きたら「その雲が点滅していたか／直前に下スワイプしたか」を確認してもらうと確定できる。
+- ✅ **雲ブロックにたまに乗れないバグ → Ver.1.358 で修正済み**（原因＝`recentlyDropped` フラグ固着。詳細は上記 1.358）。任意の追加対策として すり抜け条件(index.html:4039)の真上・落下中ガード強化が残っている（副次経路・未着手）。
 - **ゴールデンエッグ交換所（使い道）未実装**（現状は貯まる一方）。
 - 任意: 土管部屋の入場時「BONUS!」文字演出。
 - 任意: `manifest.json` の `id:"/index.html"`（origin直下）で旧新PWA識別が衝突しうる点。

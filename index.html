@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.357";
+                content: "Ver.1.358";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.357</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.358</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1561,7 +1561,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.357
+ * ぴよ氏の冒険 v1.358
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3084,6 +3084,8 @@ function resetGame() {
     gameState.speedUpNotificationTimer = 0;
     gameState.downSwipeTimer = 0;
     gameState.downSwipeActive = false;
+    gameState.recentlyDropped = false;   // すり抜けフラグの残留を防ぐ（固着バグ保険）
+    gameState.dropFromY = 0;
     gameState.isRespawning = false;
     gameState.enemyKills = 0;
     gameState.comboCount = 0;
@@ -3875,8 +3877,11 @@ function updatePlayer() {
         if (gameState.invincibleTimer <= 0) gameState.isInvincible = false;
     }
 
-    // 降下クールダウン
-    if (gameState.recentlyDropped && player.y > gameState.dropFromY + 60) {
+    // 降下クールダウン: 「60px落下」または「どこかに着地（前フレームで接地）」したら解除。
+    // 60px則だけだと、貫通後に高台/低い雲へ着地して60px落ちきれない時にフラグが固着し、
+    // 以後 index.html の platform衝突(if recentlyDropped continue) で全ての雲に乗れなくなるバグを防ぐ。
+    if (gameState.recentlyDropped && (player.y > gameState.dropFromY + 60 ||
+        (player.onGround && player.y + player.height > gameState.dropFromY + 8))) {
         gameState.recentlyDropped = false;
     }
 
@@ -4753,6 +4758,7 @@ function resetPlayerPosition() {
 
     player.x = found ? gx : safeX;
     player.y = -50; player.velX = 0; player.velY = 0;
+    gameState.recentlyDropped = false; gameState.dropFromY = 0; // 落下死/リスポーンでフラグ残留を防ぐ
     gameState.isRespawning = true;
     gameState.camera.x = Math.max(100, gameState.camera.x - 200);
 }
