@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.355";
+                content: "Ver.1.356";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.355</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.356</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1561,7 +1561,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.355
+ * ぴよ氏の冒険 v1.356
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2346,16 +2346,16 @@ function closeMissionScreen() {
 var ACHIEVEMENTS = [
     { id: 'kills_100',   stat: 'totalKills',    target: 100,    reward: 3000,  nameKey: 'ach_kills_100',   iconImg: 'images/icon_kills.png' },
     { id: 'kills_1000',  stat: 'totalKills',    target: 1000,   reward: 8000,  nameKey: 'ach_kills_1000',  iconImg: 'images/icon_kills.png' },
-    { id: 'kills_10000', stat: 'totalKills',    target: 10000,  reward: 30000, nameKey: 'ach_kills_10000', iconImg: 'images/icon_kills.png' },
+    { id: 'kills_10000', stat: 'totalKills',    target: 10000,  reward: 0, eggReward: 5, nameKey: 'ach_kills_10000', iconImg: 'images/icon_kills.png' },
     { id: 'dist_5000',   stat: 'totalDistance', target: 5000,   reward: 0,     nameKey: 'ach_dist_5000',   iconImg: 'images/icon_distance.png', skinReward: 'maid', skinPreview: 'images/skin_maid_idle.png' },
     { id: 'dist_50000',  stat: 'totalDistance', target: 50000,  reward: 8000,  nameKey: 'ach_dist_50000',  iconImg: 'images/icon_distance.png' },
-    { id: 'dist_200000', stat: 'totalDistance', target: 200000, reward: 30000, nameKey: 'ach_dist_200000', iconImg: 'images/icon_distance.png' },
+    { id: 'dist_200000', stat: 'totalDistance', target: 200000, reward: 0, eggReward: 5, nameKey: 'ach_dist_200000', iconImg: 'images/icon_distance.png' },
     { id: 'plays_10',    stat: 'totalPlays',    target: 10,     reward: 2000,  nameKey: 'ach_plays_10',    iconImg: 'images/icon_play.png' },
     { id: 'plays_50',    stat: 'totalPlays',    target: 50,     reward: 5000,  nameKey: 'ach_plays_50',    iconImg: 'images/icon_play.png' },
-    { id: 'plays_200',   stat: 'totalPlays',    target: 200,    reward: 20000, nameKey: 'ach_plays_200',   iconImg: 'images/icon_play.png' },
+    { id: 'plays_200',   stat: 'totalPlays',    target: 200,    reward: 0, eggReward: 3, nameKey: 'ach_plays_200',   iconImg: 'images/icon_play.png' },
     { id: 'best_1000',   stat: 'bestDistance',  target: 1000,   reward: 3000,  nameKey: 'ach_best_1000',   iconImg: 'images/icon_progress.png' },
     { id: 'best_3000',   stat: 'bestDistance',  target: 3000,   reward: 8000,  nameKey: 'ach_best_3000',   iconImg: 'images/icon_progress.png' },
-    { id: 'best_5000',   stat: 'bestDistance',  target: 5000,   reward: 20000, nameKey: 'ach_best_5000',   iconImg: 'images/icon_progress.png' }
+    { id: 'best_5000',   stat: 'bestDistance',  target: 5000,   reward: 0, eggReward: 3, nameKey: 'ach_best_5000',   iconImg: 'images/icon_progress.png' }
 ];
 
 function achStatValue(stat) { return (gameSettings.achievementStats && gameSettings.achievementStats[stat]) || 0; }
@@ -2378,6 +2378,7 @@ function claimAchievement(id) {
     if (!gameSettings.achievements.claimed) gameSettings.achievements.claimed = {};
     gameSettings.achievements.claimed[id] = true;
     gameSettings.savings += a.reward;
+    if (a.eggReward) gameSettings.goldenEggs = (gameSettings.goldenEggs || 0) + a.eggReward; // ゴールデンエッグ報酬
     if (a.skinReward) {   // スキン報酬付き実績: スキンを解放
         if (!gameSettings.ownedSkins) gameSettings.ownedSkins = [];
         if (gameSettings.ownedSkins.indexOf(a.skinReward) === -1) gameSettings.ownedSkins.push(a.skinReward);
@@ -2385,6 +2386,7 @@ function claimAchievement(id) {
     saveSettings();
     if (soundManager) soundManager.playCoin();
     if (a.skinReward) showSkinUnlockToast();
+    if (a.eggReward) showEggRewardToast(a.eggReward);
     renderAchievements();
     updateAchievementBadge();
 }
@@ -2393,6 +2395,18 @@ function showSkinUnlockToast() {
     d.textContent = '🎀 ' + t('skin_unlocked_toast');
     d.style.cssText = 'position:fixed; left:50%; top:14%; transform:translateX(-50%); z-index:10000;' +
         'background:linear-gradient(180deg,#ff7ec7,#ff1493); color:#fff; font-weight:800;' +
+        "font-family:'M PLUS Rounded 1c',sans-serif; padding:10px 18px; border-radius:12px;" +
+        'box-shadow:0 4px 16px rgba(0,0,0,0.45); font-size:clamp(13px,2.6vw,18px); pointer-events:none;' +
+        'opacity:0; transition:opacity 0.3s;';
+    document.body.appendChild(d);
+    requestAnimationFrame(function() { d.style.opacity = '1'; });
+    setTimeout(function() { d.style.opacity = '0'; setTimeout(function() { if (d.parentNode) d.parentNode.removeChild(d); }, 400); }, 2200);
+}
+function showEggRewardToast(n) {
+    var d = document.createElement('div');
+    d.innerHTML = '<img src="images/item_golden_egg.png" width="22" height="22" style="image-rendering:pixelated; vertical-align:middle;"> ×' + n + ' ' + t('egg_reward_toast');
+    d.style.cssText = 'position:fixed; left:50%; top:14%; transform:translateX(-50%); z-index:10000;' +
+        'background:linear-gradient(180deg,#ffe07a,#ffb400); color:#5a3d00; font-weight:800;' +
         "font-family:'M PLUS Rounded 1c',sans-serif; padding:10px 18px; border-radius:12px;" +
         'box-shadow:0 4px 16px rgba(0,0,0,0.45); font-size:clamp(13px,2.6vw,18px); pointer-events:none;' +
         'opacity:0; transition:opacity 0.3s;';
@@ -2414,6 +2428,7 @@ function renderAchievementRow(a) {
     // 報酬内容（金額＋きせかえ）。全状態で「何がもらえる/もらった」を表示する。
     var rewardHtml = '';
     if (a.reward > 0) rewardHtml = '+' + a.reward.toLocaleString() + t('currency_unit');
+    if (a.eggReward) rewardHtml += (rewardHtml ? ' ' : '') + '<img src="images/item_golden_egg.png" width="14" height="14" style="image-rendering:pixelated; vertical-align:middle;"> ×' + a.eggReward;
     if (a.skinReward) rewardHtml += (rewardHtml ? ' ' : '') + '<img src="' + a.skinPreview + '" width="14" height="14" style="image-rendering:pixelated; vertical-align:middle; border-radius:3px;"> ' + t('skin_reward_badge');
     var rewardSpan = '<div style="color:#ffd700; font-weight:800; font-size:clamp(9px,1.9vw,13px); white-space:nowrap;">' + rewardHtml + '</div>';
     var stateHtml;
@@ -2443,7 +2458,8 @@ function renderAchievements() {
     var titleEl = document.getElementById('achievementTitle');
     if (titleEl) titleEl.innerHTML = _ic('icon_celebrate.png') + ' ' + t('ach_title');
     var savEl = document.getElementById('achievementSavings');
-    if (savEl) savEl.innerHTML = _ic('icon_bank.png', 'ui-icon-sm') + ' ' + gameSettings.savings.toLocaleString() + t('currency_unit');
+    if (savEl) savEl.innerHTML = _ic('icon_bank.png', 'ui-icon-sm') + ' ' + gameSettings.savings.toLocaleString() + t('currency_unit') +
+        '　' + _ic('item_golden_egg.png', 'ui-icon-sm') + ' ' + (gameSettings.goldenEggs || 0);
     var hintEl = document.getElementById('achievementHint');
     if (hintEl) hintEl.textContent = t('ach_hint');
     var listEl = document.getElementById('achievementList');
