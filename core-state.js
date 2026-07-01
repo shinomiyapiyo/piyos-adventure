@@ -198,6 +198,7 @@ var pipeRoomState = {
     targetRound: 0       // targetDist を算出したラウンド（ラウンド変化検出用）
 };
 var bonusRoomItems = []; // 部屋内の報酬エンティティ配列
+var pipeConfetti = [];   // 土管ボーナス部屋の背景（ジャックポット風）の紙吹雪
 
 var shopState = {
     active: false,

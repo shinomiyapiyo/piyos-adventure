@@ -1444,18 +1444,54 @@ function drawRoomShopItem(it) {
     }
 }
 
+// 土管ボーナス部屋の背景：紙吹雪（ジャックポット感）。アイテムより奥に描く。
+var PIPE_CONFETTI_COLORS = ['#ff5a7a', '#4fd1e5', '#ffd34d', '#7ee081', '#c98cff'];
+function updateAndDrawPipeConfetti() {
+    if (pipeConfetti.length === 0) {
+        for (var i = 0; i < 34; i++) {
+            pipeConfetti.push({
+                x: Math.random() * GAME_WIDTH, y: Math.random() * PIPE_ROOM_FLOOR_Y,
+                vy: 0.6 + Math.random() * 1.1, sway: Math.random() * Math.PI * 2,
+                swaySpd: 0.02 + Math.random() * 0.03, size: 4 + Math.random() * 4,
+                rot: Math.random() * Math.PI, vrot: (Math.random() - 0.5) * 0.2,
+                color: PIPE_CONFETTI_COLORS[i % PIPE_CONFETTI_COLORS.length]
+            });
+        }
+    }
+    for (var j = 0; j < pipeConfetti.length; j++) {
+        var c = pipeConfetti[j];
+        c.y += c.vy; c.sway += c.swaySpd; c.rot += c.vrot; c.x += Math.sin(c.sway) * 0.6;
+        if (c.y > PIPE_ROOM_FLOOR_Y + 8) { c.y = -8; c.x = Math.random() * GAME_WIDTH; }
+        ctx.save();
+        ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+        ctx.fillStyle = c.color;
+        ctx.fillRect(-c.size / 2, -c.size / 2, c.size, c.size * 1.4);
+        ctx.restore();
+    }
+}
+
 // 土管ボーナス部屋の描画（固定カメラ・画面座標）
 function drawPipeRoom() {
     gameState.time++; // 本編render末尾の time 加算を肩代わり（早期returnのため）
     var tm = Date.now() / 50;
-    // 背景: FC地下風のダーク
-    var g = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-    g.addColorStop(0, '#0a0820'); g.addColorStop(1, '#1a1230');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    // 背景の薄い格子（レンガ感）
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
-    for (var bx = 0; bx <= GAME_WIDTH; bx += 48) { ctx.beginPath(); ctx.moveTo(bx, 0); ctx.lineTo(bx, PIPE_ROOM_FLOOR_Y); ctx.stroke(); }
-    for (var by = 0; by < PIPE_ROOM_FLOOR_Y; by += 32) { ctx.beginPath(); ctx.moveTo(0, by); ctx.lineTo(GAME_WIDTH, by); ctx.stroke(); }
+    // 背景: ジャックポット風（深ティール地＋ゆっくり回転する放射光＋紙吹雪）
+    var bg = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+    bg.addColorStop(0, '#103038'); bg.addColorStop(1, '#0a1f26');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    // 回転放射光（低コントラストでアイテムの視認性を保つ）
+    var scx = GAME_WIDTH / 2, scy = PIPE_ROOM_FLOOR_Y * 0.45;
+    var rayR = GAME_WIDTH + GAME_HEIGHT, rayN = 16, rayStep = Math.PI * 2 / rayN, rayRot = gameState.time * 0.004;
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    for (var ri = 0; ri < rayN; ri++) {
+        var a0 = rayRot + ri * rayStep, a1 = a0 + rayStep * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(scx, scy);
+        ctx.lineTo(scx + Math.cos(a0) * rayR, scy + Math.sin(a0) * rayR);
+        ctx.lineTo(scx + Math.cos(a1) * rayR, scy + Math.sin(a1) * rayR);
+        ctx.closePath(); ctx.fill();
+    }
+    // 紙吹雪（背景装飾・アイテムより奥）
+    updateAndDrawPipeConfetti();
     // 床（レンガ）
     ctx.fillStyle = '#3a2a18'; ctx.fillRect(0, PIPE_ROOM_FLOOR_Y, GAME_WIDTH, GAME_HEIGHT - PIPE_ROOM_FLOOR_Y);
     ctx.fillStyle = '#241a10';
