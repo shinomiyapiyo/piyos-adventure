@@ -33,6 +33,10 @@
 
 - ユーザー（shinomiyapiyo）は git 操作に詳しくないので、必要な手順は具体的に分かりやすく案内する
 - push / merge などリモートに影響する操作は Claude が勝手に実行せず、ユーザーが確認・実行する。Claude はコマンドと手順を案内する役割
+- **push の案内は必ず「1ブロック（1回の実行）」にする。** 実行後に「更新できたか（origin/main と一致）」と「今のバージョン」が必ず出るよう、下記の定型ブロックで案内する（`git push` が失敗したら `&&` で止まり、成功と誤表示しない）:
+    ```bash
+    cd /Users/veriquest/dev/piyos-adventure && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ 更新成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 更新バージョン: $(grep -oE 'Ver\.[0-9]+\.[0-9]+' index.html | head -1)" && echo "📝 コミット: $(git log -1 --pretty='%h %s')"
+    ```
 - git の結果（log / status / ls-remote）を実際に確認してから報告する。「成功したはず」で報告しない
 - ツールの出力が想定と違っても、環境やサンドボックスのせいだと決めつけない。まず自分のコマンドや前提を疑う
 
