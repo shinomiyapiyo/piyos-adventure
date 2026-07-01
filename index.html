@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.358";
+                content: "Ver.1.359";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.358</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.359</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1561,7 +1561,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.358
+ * ぴよ氏の冒険 v1.359
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -4041,7 +4041,9 @@ function updatePlayer() {
 
         if (!aabb(player, p)) continue;
 
-        if (gameState.input.down && gameState.downSwipeActive && player.y < p.y) {
+        // すり抜けは「足がほぼ足場の上端＝真上に乗っていて・落下/静止中(velY>=0)」の時だけ発火。
+        // player.height > 足場高 のため、旧条件 player.y<p.y だと横入り/上昇でも真になり誤すり抜け→recentlyDropped固着の副次経路になっていた。
+        if (gameState.input.down && gameState.downSwipeActive && player.velY >= 0 && player.y + player.height <= p.y + 8) {
             gameState.input.down = false;
             gameState.downSwipeActive = false;
             gameState.downSwipeTimer = 0;

@@ -1,4 +1,4 @@
-var CACHE_NAME = 'piyo-adventure-v1.358';
+var CACHE_NAME = 'piyo-adventure-v1.359';
 var STATIC_ASSETS = [
     './',
     './index.html',
