@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.348";
+                content: "Ver.1.349";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -672,6 +672,7 @@
         <div id="ui" style="display: none;">
             <div><img src="images/icon_distance.png" class="ui-icon"> <span id="distance">0</span>m</div>
             <div><img src="images/icon_money.png" class="ui-icon"> <span id="score">0</span></div>
+            <div><img src="images/item_golden_egg.png" class="ui-icon"> <span id="goldenEggCount">0</span></div>
             <div><img src="images/icon_lives.png" class="ui-icon"> <span id="lives">5</span> <span id="reviveIndicator" style="display:none; color:#ffd700;"></span></div>
             <div><img src="images/icon_kills.png" class="ui-icon"> <span id="enemyKills">0</span><span data-i18n="hud_kills_suffix">体撃破</span></div>
             <div><img src="images/icon_level.png" class="ui-icon"> <span data-i18n="hud_level_prefix">レベル</span><span id="speedLevel">1</span> (<span id="speedPercent">100</span>%)</div>
@@ -757,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.348</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.349</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1560,7 +1561,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.348
+ * ぴよ氏の冒険 v1.349
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3752,7 +3753,7 @@ function manageObjects() {
     if (!gameState.goldenEggFieldSpawned && gameState.distance >= 2500 && canDropGoldenEggToday()) {
         gameState.goldenEggFieldSpawned = true;
         powerUps.push({
-            x: gameState.camera.x + GAME_WIDTH * 0.7, y: 240,
+            x: gameState.camera.x + GAME_WIDTH + 60, y: 240,  // 画面外(右)から出してスクロールで入れる（急な出現で反応できない対策）
             width: 40, height: 40, type: 'golden_egg', dailyEgg: true,
             collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2
         });

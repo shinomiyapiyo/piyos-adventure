@@ -1420,6 +1420,7 @@ function cacheUIElements() {
     uiElements.speedPercent = document.getElementById('speedPercent');
     uiElements.nextSpeedUp = document.getElementById('nextSpeedUp');
     uiElements.reviveIndicator = document.getElementById('reviveIndicator');
+    uiElements.goldenEggCount = document.getElementById('goldenEggCount');
 }
 var prevUI = {};
 
@@ -1965,6 +1966,7 @@ function updateUI() {
     // 差分更新: 値が変わった時だけDOMを更新
     if (prevUI.distance !== gameState.distance) { uiElements.distance.textContent = gameState.distance; prevUI.distance = gameState.distance; }
     if (prevUI.score !== gameState.score) { uiElements.score.textContent = gameState.score; prevUI.score = gameState.score; }
+    if (uiElements.goldenEggCount && prevUI.eggs !== gameSettings.goldenEggs) { uiElements.goldenEggCount.textContent = (gameSettings.goldenEggs || 0); prevUI.eggs = gameSettings.goldenEggs; }
     if (prevUI.lives !== gameState.lives) { uiElements.lives.textContent = gameState.lives; prevUI.lives = gameState.lives; }
     if (prevUI.enemyKills !== gameState.enemyKills) { uiElements.enemyKills.textContent = gameState.enemyKills; prevUI.enemyKills = gameState.enemyKills; }
     if (prevUI.speedLevel !== gameState.speedLevel) { uiElements.speedLevel.textContent = gameState.speedLevel; prevUI.speedLevel = gameState.speedLevel; }
