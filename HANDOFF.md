@@ -1,39 +1,47 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
-> **最初に `CLAUDE.md`（プロジェクトルール）と、ユーザーの自動メモリ `MEMORY.md` を読むこと。** 本書はその次。
-> 最終更新時点: 公開版 **Ver.1.340**（2026-06-29）。作業ディレクトリ: `games/piyo-adventure/`。
+> 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
+> 最終更新: **Ver.1.354**（2026-07-01）。リポジトリ: `piyos-adventure`（GitHub Pages, main 直 push で公開）。
+> 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
-## 最重要メモリ（必読・要点）
-- **[[respond-in-japanese]]**: 応答も**思考(thinking)も日本語**で書く。
-- **[[trust-ingame-diagnosis]]**: ユーザーは実機プレイで確認済み。**過剰調査せず診断を信頼して即修正**。⚠**スプライトの「向き」は静止画でなく『ゲーム内描画＋対象スキン装備＋ユーザー目視』で判定**（メイド服fallで2度誤った教訓。直すときは `sharp().flop()`）。
-- **[[piyo-release-audit]]**: リリースのブロッカー（Capacitor/広告・課金stub/プライバシー）、収益のpay-to-win矛盾、**index.html分割の方針・鉄則・進捗**。
-- **[[piyo-dev-notes]]**: 検証(headless Chrome CDP)・ship(gh merge flow)・通貨モデル・画像生成。
-- [[improvement-roadmap]] / [[polish-backlog]] / [[veo-motion-sprite-workflow]] / [[known-bugs]] / [[gemini-key-interactive-shell]]。
+## 現在の状態（重要）
+- **Ver.1.354 をコミット**（土管ボーナス部屋の見えない壁を撤去。左右に見えるレンガ壁を配置し、当たり判定を壁と一致。出口土管は右壁の内側に接地。core-state.js `PIPE_ROOM_WALL_W`, gameplay.js `updatePipeRoom`/`pipeRoomExitX`, render.js `drawPipeRoomWall`）。直近の push 済みは Ver.1.353。**push はユーザーが実行**。
+- **push はユーザーが実行**する運用（Claude は変更を作り、`git add -A && git commit -m "…(Ver.X)" && git push` の手順を案内するだけ。勝手に push しない）。
+- 版数ルール: HTMLを1行でも変えたら Ver +0.001。表示版数は `index.html` の 82行(`content:"Ver.X"`)・760行付近(span)・1563行付近(コメント)の3箇所＋ `sw.js` の `CACHE_NAME` を必ず同期。回答末尾に現Verを記載。
+- 新規 js/画像/音声を追加したら `sw.js` の `STATIC_ASSETS` に登録（忘れるとオフラインで壊れる）。
 
-## このセッションで完了したこと（Ver.1.328〜1.340）
-- **メイド服スキン 全ポーズ完成**: idle立ち絵は**ユーザー生成の正面立ち絵を採用**(1.328, `tools/idle-from-image.mjs`)。fallの向きを右向きに是正(1.337)。
-- **小修正(1.331)**: 消音バグ(`audio.js` playItem/playCoin に soundEnabledガード)＋オンボ文言「画面の右はしをタップ」。
-- **index.html 分割 Step1〜5 完了(1.332〜1.336)**: `render.js`/`monetization.js`/`gameplay.js`/`core-state.js`/`bootstrap.js` に分離。**9485行→4542行(48%)**。読み込み順=sprites→i18n→audio→[inline:スプライト生成]→monetization→[inline:progression]→core-state→[inline:world/entities]→gameplay→render→bootstrap。**Step6(残りインライン約3000行の分割)はユーザー判断で保留**。
-- **リザルト共有(1.338)**: ゲームオーバーに「📤シェア」。`shareResult()`/`buildResultCard()`(gameplay.js)＝リザルトカード画像をWeb Share API/X intentで共有。
-- **実績/デイリー 表示改善(1.339)**: うけとる!/受取ずみでも報酬内容を縦表示。`dist_5000`(合計5000m)報酬を**メイド服のみ**(貯金0)。タイトル「ミッション」→「**デイリー**」改名。
-- **デイリー日替わり化(1.340)**: `MISSION_POOL`6種(あそぶ/距離/撃破/コイン取得/ボス撃破/必殺技使用)から日付決定論シード`pickDailyMissions`で**3種＋目標値を日替わり**選定→`dm.todayMissions`。新type集計(gameStateに coins/boss/special カウンタ＋record差分)。
+## このセッションで実装したこと（Ver.1.342〜1.353）
+- **たちぐいそば購入で `soba_shop_scene.png` を全画面演出**（約1.2秒・タップでスキップ, 1.342/1.344）。
+- **デバッグOFFで所持金(score)を保持**（お店の動作確認用。rankScoreは0のまま, 1.343）。
+- **土管ボーナス部屋（大型機能, 1.345〜1.352）**
+  - 本編の**通常エリア（ステージ開始〜安全地帯手前）の平地にランダムで1ラウンド1回**、縦土管を配置。土管に乗って**下スワイプで入室**。
+  - 部屋は**左上から落下して入場**・**死なない**。報酬 = ハート1(+約12%で2個目) / コイン10 / 販売アイテム(≤5000: barrier/lemon_special/full_charge)1個(ストック満杯なら無) / **ゴールデンエッグ 1/20**。
+  - **退室 = 床に着地して右の横土管（口が左向き）の口に達し、右を押し続けている時だけ**（飛び越え・空中素通り不可）。横土管の**上には乗れる**。
+  - 背景は**ジャックポット風（ゆっくり回転する放射光＋紙吹雪）**。BGM = `sounds/bonus.mp3`（Suno生成・タグ全除去済み。audio.js の `bonusBGM`）。
+  - コード: core-state.js(`pipeRoomState`/`bonusRoomItems`/`pipeConfetti`/`PIPE_*`/`SIDE_PIPE_*`), gameplay.js(`checkPipeTrigger`/`pickPipeTargetDist`/`isFlatGroundAt`/`enterPipeRoom`/`exitPipeRoom`/`initPipeRoom`/`updatePipeRoom`/`pipeRoomExitX`), render.js(`drawPipeRoom`/`drawRoomShopItem`/`updateAndDrawPipeConfetti`/`drawGoldenEggSprite`＋`drawPlatform`の`pipe`分岐), index.html(各Image先読み/`findPlatformUnder`/manageObjects内のエッグ出現/HUD🥚), bootstrap.js(gameLoopのpipeRoom分岐/handleSwipeDownの入室/checkPipeTrigger呼び出し)。
+  - 注意: **`GAME_WIDTH` は画面比で可変**（例820→974）。部屋の右側レイアウトは実行時 `pipeRoomExitX()` で算出。`images/item_pipe.png` は**上13%/下10%が透明余白**のため drawPlatform で上へ16px・高さ+25して描画補正（`item_pipe_side.png` は余白なし）。
+- **ゴールデンエッグ（永久通貨, 1.345/1.349）**: `gameSettings.goldenEggs` に永続化（**減算・リセットなし**）。入手 = 土管部屋1/20 ＋ 本編2500mで1日1回（画面外右からスクロール出現）。ショップヘッダ＋HUD左メニューに🥚数を表示。**使い道（交換所）は未実装**。
+- **URL移行対応（1.345/1.348）**: 共有URLを新アドレスに修正。旧→新リダイレクトに `?from=old` 付与（公式サイト `shinomiyapiyo.github.io` 側リポジトリ側で対応済み）。新サイトで検出→「ホーム画面に追加し直して」バナー（`showUrlChangeNotice`, i18n `urlmoved_notice`, ×で閉じ・localStorageで再表示なし）。詳細は自動メモリ `piyo-url-migration`。
+- **ボスHP表示を×10**（実HPは不変・1未満ダメージを見やすく・撃破時0クランプ, 1.350/1.352, render.js:1763付近）。
+- **デイリーミッション再受取バグ修正（1.353）**: `loadSettings` が `dailyMissions.todayMissions`(＋coins/boss/special) を復元していなかったため、起動毎に「未生成」判定でミッション再生成＝`claimed`全リセットされ**何度でも受け取れた**。復元追加で解決（再起動・アップデート後も受取済みを保持）。
+- **「Music by NullPo Works」クレジット削除（1.353）**: 音楽はSuno生成のため。スプラッシュは "Created by NullPo Works" のみに（index.html:703＋i18n `splash_credit1`）。
 
-## 現在のファイル構成
-- `index.html`(約4542行: HTML＋CSS＋インラインJS3ブロック)
-- js: `sprites.js`/`i18n.js`/`audio.js`/`core-state.js`/`monetization.js`/`gameplay.js`/`render.js`/`bootstrap.js`
-- 全て `<script src>`・グローバルスコープ・ビルドツール無し。
+## 未対応 / TODO
+- **雲ブロックにたまに乗れないバグ**（intermittent・未修正・発動条件不確定）: 有力原因 = 下スワイプ直後の `recentlyDropped` 状態が約0.5秒（60px落下まで）**すべての足場の着地判定を無効化**する（＋消える足場/バネ足場の仕様）。提案 = 「今まさに抜けている足場だけ無効化」。**コア移動処理なのでリグレッション検証＋ユーザー承認が必要**（未着手）。次回起きたら「その雲が点滅していたか／直前に下スワイプしたか」を確認してもらうと確定できる。
+- **ゴールデンエッグ交換所（使い道）未実装**（現状は貯まる一方）。
+- 任意: 土管部屋の入場時「BONUS!」文字演出。
+- 任意: `manifest.json` の `id:"/index.html"`（origin直下）で旧新PWA識別が衝突しうる点。
+- バックログ（忍者アバター＝課金/新ボス/図鑑/チャレンジ走行等）は自動メモリ `piyo-gameplay-backlog`。**課金は後回し**方針 = `piyo-monetization-deferral`（審査時は課金なし・ネイティブリリース後に追加）。
 
-## 次の候補（ユーザー提示済み・未着手）
-- **⑤ 新ボス追加**（中工数, 既存ボス枠流用）
-- **データ引き継ぎ機能**（設定にセーブのエクスポート/インポート。機種変更で進捗全消失を防ぐ＝課金/リリース前に必須・Ultracode指摘）
-- **ネイティブ化（Capacitor＋AdMob, iOS優先）**（リリース本線・大仕事。広告/課金/ATTの前提）
-- **収益設計の見直し**（貯金パック=pay-to-win→コスメ課金へ）／**必殺技の民主化**（無課金お試し）
-- index.html 分割 **Step6**（残りインラインの分割・任意・保留）
+## 検証手順（このプロジェクト固有）
+- Claude Preview を使用: 一時的に `.claude/launch.json`（python3 -m http.server 8123）を作成→検証後に削除（`.claude/settings.local.json` は消さない）。**横向き（例844×390）にしないと「画面を横向きにしてください」ゲートが出る**。
+- **SWキャッシュ注意**: コード変更後は preview で serviceWorker unregister ＋ caches 全削除してリロードしないと旧コードが出る。
+- 起動: `gameSettings.tutorialSeen=true; loginBonusPending=null; startApp(); startGame();`。土管部屋は `enterPipeRoom()`。ボス/雲などは gameState を直接いじって再現。
+- **非同期ループ対策**: 静止画が欲しい時は操作直後に `gameState.gamePaused=true`（`gameSpeed=0` 単独では `updateGameSpeed` に上書きされ止まらない）。JSの `node --check` で外部jsの構文確認、index.htmlのインラインJSは preview でコンソールエラー0＋関数定義を確認。
 
-## 作業手順（このプロジェクト固有）
-- **HTMLを1行でも変えたら Ver +0.001**: `index.html` の `content:"Ver.X"`(≈82行) ＋ 版数span(≈760行) ＋ 冒頭コメント `* ぴよ氏の冒険 vX`(grepで行特定) ＋ `sw.js` の `CACHE_NAME` を同期。**回答末尾に現在Verを必ず記載**。
-- 新規js/画像を追加したら `sw.js` の `STATIC_ASSETS` に登録。
-- **git は Claude が代行**(ユーザーはGit不慣れ・確認不要): `git checkout -b claude/xxx` → add → commit(末尾に Co-Authored-By: Claude) → push → `gh pr create` → `gh pr merge --merge --delete-branch` → main pull。committer name警告は無害。リポジトリ=`shinomiyapiyo.github.io`(GitHub Pages, mainマージで公開)。※コマンドは**リポジトリルート**で(cwdがサブだとpath二重エラー)。
-- **検証**: `scratchpad/*verify.mjs`(headless Chrome CDP)が雛形。`python3 -m http.server`＋`--headless=new --user-data-dir=空tmp`(キャッシュ無し)。版数・コンソールエラー0・実描画スクショを確認。起動手順=splash `startApp()`→ログボ`#loginBonusPopup`の受取ボタン→`gameSettings.tutorialSeen=true`→`startGame()`。スキン確認は `gameSettings.ownedSkins=['maid'],activeSkin='maid'` 注入。実機操作(タッチ/共有シート)はユーザー確認に委ねる。
-- 大きめの新機能は **EnterPlanMode→計画→ExitPlanMode承認→実装** の流れが好評。
-- API key(OPENAI/GEMINI)は `.zshrc`。画像/動画生成は `zsh -ic` 経由。
+## 素材生成（OpenAI優先・クレジット都合）
+- `zsh -ic 'cd /Users/veriquest/dev/piyos-adventure/tools && node generate-pipe-egg-openai.mjs [--only=pipe,egg,sidepipe]'`。`OPENAI_API_KEY`/`GEMINI_API_KEY` は `.zshrc`。sharp は `tools/node_modules`。
+- 規格: 透過PNG・ピクセルアート。**透明余白に注意**（描画位置の補正が要る場合あり＝item_pipe.pngの例）。BGM等の外部生成物はタグ/メタデータを除去してから使う（Suno等）。
+
+## 素材ライセンス
+- OtoLogic（CC BY 4.0）を使う場合はクレジット表記が必要（例: 効果音素材：OtoLogic（https://otologic.jp）/ CC BY 4.0）。※現在のBGM/SEはSuno生成中心。

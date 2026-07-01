@@ -1470,6 +1470,22 @@ function updateAndDrawPipeConfetti() {
     }
 }
 
+// 部屋の左右の壁（見える壁）を1枚描く。isLeft=左壁か。プレイヤーはこの壁の内側で止まる
+function drawPipeRoomWall(x, w, isLeft) {
+    var H = PIPE_ROOM_FLOOR_Y; // 天井（画面上端）〜床上端までの縦長の壁
+    ctx.fillStyle = '#4a3826'; // 石レンガ本体
+    ctx.fillRect(x, 0, w, H);
+    ctx.fillStyle = '#2a1d11'; // 目地（レンガの継ぎ目）
+    for (var by = 0, row = 0; by < H; by += 20, row++) {
+        ctx.fillRect(x, by, w, 2);                             // 横目地
+        ctx.fillRect(x + ((row % 2) ? w * 0.5 : 0), by, 2, 20); // 縦目地（1段おきに互い違い）
+    }
+    ctx.fillStyle = 'rgba(255,228,190,0.12)'; // 内側の縁を明るく（立体感で壁と分かる）
+    ctx.fillRect(isLeft ? x + w - 3 : x, 0, 3, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';       // 外側（画面端）の縁を暗く
+    ctx.fillRect(isLeft ? x : x + w - 3, 0, 3, H);
+}
+
 // 土管ボーナス部屋の描画（固定カメラ・画面座標）
 function drawPipeRoom() {
     gameState.time++; // 本編render末尾の time 加算を肩代わり（早期returnのため）
@@ -1496,6 +1512,9 @@ function drawPipeRoom() {
     ctx.fillStyle = '#3a2a18'; ctx.fillRect(0, PIPE_ROOM_FLOOR_Y, GAME_WIDTH, GAME_HEIGHT - PIPE_ROOM_FLOOR_Y);
     ctx.fillStyle = '#241a10';
     for (var fx = 0; fx < GAME_WIDTH; fx += 40) ctx.fillRect(fx + 2, PIPE_ROOM_FLOOR_Y + 5, 36, 6);
+    // 左右の壁（見える壁）: プレイヤーはここで止まる（見えない壁をなくす）
+    drawPipeRoomWall(0, PIPE_ROOM_WALL_W, true);
+    drawPipeRoomWall(GAME_WIDTH - PIPE_ROOM_WALL_W, PIPE_ROOM_WALL_W, false);
     var exitX = pipeRoomExitX();
     // 入口の縦土管は無し（入場は左上からの落下）。出口（横）土管のみ描く。
     // 出口（横）土管：画面右（口が左向き＝右へ歩いて入ると地上へ戻る）

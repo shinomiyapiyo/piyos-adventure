@@ -184,7 +184,8 @@ var SHOP_SAFE_ZONE_SPEED = 1.5; // 安全地帯のスクロール速度
 var PIPE_W = 72, PIPE_H = 66;                       // 入口（縦）土管のサイズ(px)。本編フィールドにもこの縦土管を置く
 var SIDE_PIPE_W = 140, SIDE_PIPE_H = 74;            // 出口（横）土管のサイズ(px・口は左向き)
 var PIPE_ROOM_FLOOR_Y    = GAME_HEIGHT - 64;        // 部屋の床上端（画面座標）
-var PIPE_ROOM_LEFT       = 110;                     // プレイヤー移動の左端（画面座標）
+var PIPE_ROOM_LEFT       = 110;                     // プレイヤーの入場落下X＆報酬配置の起点（画面座標）
+var PIPE_ROOM_WALL_W     = 48;                      // 左右の壁（見える壁）の厚み(px)。プレイヤーはこの壁の内側で止まる（見えない壁をなくす）
 var PIPE_ROOM_ENTRY_X    = 44;                      // 入口（縦）土管の左X（画面左・描画用）
 // 出口（横）土管の左端Xは実行時 GAME_WIDTH から算出（pipeRoomExitX）。GAME_WIDTHは画面比で可変なため定数化しない
 var pipeRoomState = {
