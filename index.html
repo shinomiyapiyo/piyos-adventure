@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.346";
+                content: "Ver.1.348";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -757,7 +757,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.346</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.348</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1560,7 +1560,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.346
+ * ぴよ氏の冒険 v1.348
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1987,6 +1987,47 @@ function showSobaScene() {
     function onTap(e) { if (e) e.preventDefault(); if (canSkip) closeScene(); }
     overlay.addEventListener('touchend', onTap);
     overlay.addEventListener('click', onTap);
+}
+
+// ─── URL移行案内バナー ───
+// 旧URL→新URLのリダイレクトで ?from=old が付いて来た利用者に、PWA/ブックマークの入れ直しを案内。
+// ×で閉じたら以後は再表示しない（localStorage）。表示後は from=old をURLから除去。
+function showUrlChangeNotice() {
+    var fromOld = false, params = null;
+    try { params = new URLSearchParams(location.search); fromOld = params.get('from') === 'old'; }
+    catch (_) { fromOld = location.search.indexOf('from=old') !== -1; }
+    if (!fromOld) return;
+    // URLから from=old を除去（表示有無に関わらず・アドレスバー/リロードに残さない・他クエリ/ハッシュは保持）
+    try {
+        if (params) { params.delete('from'); var qs = params.toString();
+            history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash); }
+    } catch (_) {}
+    // 既に×で閉じた人には再表示しない
+    try { if (localStorage.getItem('piyo_urlmoved_dismissed')) return; } catch (_) {}
+
+    var bar = document.createElement('div');
+    bar.id = 'urlMovedBanner';
+    bar.style.cssText = 'position:fixed; top:0; left:0; width:100%; z-index:100000; box-sizing:border-box;' +
+        'background:linear-gradient(180deg,#2a1550,#160a2e); color:#fff;' +
+        'border-bottom:2px solid rgba(255,215,0,0.55); box-shadow:0 2px 14px rgba(0,0,0,0.55);' +
+        "padding:10px 42px 10px 14px; font-family:'M PLUS Rounded 1c',sans-serif;" +
+        'font-size:clamp(11px,2.4vw,15px); line-height:1.5; text-align:center; text-shadow:0 1px 3px rgba(0,0,0,0.6);';
+    bar.textContent = t('urlmoved_notice');
+
+    var close = document.createElement('button');
+    close.textContent = '✕';
+    close.style.cssText = 'position:absolute; top:6px; right:8px; width:30px; height:30px;' +
+        'background:rgba(255,255,255,0.18); color:#fff; border:none; border-radius:7px;' +
+        'font-size:16px; line-height:1; cursor:pointer; -webkit-tap-highlight-color:transparent;';
+    function dismiss(e) {
+        if (e) e.preventDefault();
+        try { localStorage.setItem('piyo_urlmoved_dismissed', '1'); } catch (_) {}
+        if (bar.parentNode) bar.parentNode.removeChild(bar);
+    }
+    close.addEventListener('touchend', dismiss);
+    close.addEventListener('click', dismiss);
+    bar.appendChild(close);
+    document.body.appendChild(bar);
 }
 
 // ─── ゲーム設定 (localStorage永続化) ───

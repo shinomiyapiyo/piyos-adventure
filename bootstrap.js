@@ -631,6 +631,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         try {
             initialize();
+            if (typeof showUrlChangeNotice === 'function') showUrlChangeNotice(); // 旧URLからの遷移(?from=old)なら再インストール案内
             checkOrientation();
             setTimeout(function() { window.scrollTo(0, 1); }, 100);
 

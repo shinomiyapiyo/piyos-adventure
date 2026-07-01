@@ -1027,10 +1027,13 @@ function drawTerrain(t) {
 function drawPlatform(p) {
     // 土管ボーナス部屋の入口（縦土管）: 専用スプライトで描く＋上に下向き矢印（乗って下スワイプ＝もぐる、の示唆）
     if (p.type === 'pipe') {
+        // GROUND_Y(衝突面)は見た目の草面より少し上のため、下へ延ばして浮きを解消。
+        // 足場は地形より後に描画されるので、延長分は草に自然にめり込む。
+        var PIPE_SINK = 14;
         if (pipeImg.complete && pipeImg.naturalWidth) {
-            ctx.drawImage(pipeImg, p.x, p.y, p.width, p.height);
+            ctx.drawImage(pipeImg, p.x, p.y, p.width, p.height + PIPE_SINK);
         } else {
-            ctx.fillStyle = '#3cb043'; ctx.fillRect(p.x, p.y, p.width, p.height);
+            ctx.fillStyle = '#3cb043'; ctx.fillRect(p.x, p.y, p.width, p.height + PIPE_SINK);
         }
         var ax = p.x + p.width / 2, ay = p.y - 14 + Math.sin(gameState.time * 0.12) * 3;
         ctx.fillStyle = 'rgba(255,224,102,0.9)';

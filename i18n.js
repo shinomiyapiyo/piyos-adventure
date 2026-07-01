@@ -200,6 +200,7 @@ ja: {
     // ── ステージショップ ──
     shop_swipe_up: '↑スワイプで入店',
     pipe_room_exit: '→ でる',
+    urlmoved_notice: '⚠ ゲームのURLが新しくなりました。ブックマークや「ホーム画面に追加」したアプリをお使いの方は、お手数ですが新しいURLで登録し直してください（古いままだと更新が届きません）。',
     shop_stage_title: 'ショップ',
     shop_buy: '購入',
     shop_sold_out: '売切',
@@ -501,6 +502,7 @@ en: {
     // ── Stage Shop ──
     shop_swipe_up: 'Swipe up to enter',
     pipe_room_exit: 'EXIT →',
+    urlmoved_notice: '⚠ The game has moved to a new URL. If you use a bookmark or a home-screen app, please re-add it from this new URL (the old one will not receive updates).',
     shop_stage_title: 'Shop',
     shop_buy: 'Buy',
     shop_sold_out: 'Sold',
