@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.365";
+                content: "Ver.1.366";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.365</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.366</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -928,6 +928,26 @@
                         background: linear-gradient(180deg, #44bb77, #228855);
                         color: #fff; transition: background 0.15s ease;
                         -webkit-tap-highlight-color: transparent;">▶</button>
+                </div>
+
+                <!-- データ引き継ぎ（機種変更/ブラウザ変更時のセーブ移行） -->
+                <div style="display: flex; justify-content: space-between; align-items: center;
+                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_transfer" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;">データ引き継ぎ</span>
+                    <div style="display: flex; gap: 6px;">
+                        <button onclick="showTransferExport()" data-i18n="transfer_export_btn" style="
+                            min-width: 60px; min-height: 36px; padding: 6px 12px; border-radius: 18px; border: none;
+                            font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                            font-family: 'M PLUS Rounded 1c', sans-serif;
+                            background: linear-gradient(180deg, #4488dd, #2255aa);
+                            color: #fff; -webkit-tap-highlight-color: transparent;">発行</button>
+                        <button onclick="showTransferImport()" data-i18n="transfer_import_btn" style="
+                            min-width: 60px; min-height: 36px; padding: 6px 12px; border-radius: 18px; border: none;
+                            font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                            font-family: 'M PLUS Rounded 1c', sans-serif;
+                            background: linear-gradient(180deg, #44bb77, #228855);
+                            color: #fff; -webkit-tap-highlight-color: transparent;">入力</button>
+                    </div>
                 </div>
 
                 <!-- プライバシーポリシー & 利用規約 -->
@@ -1561,7 +1581,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.365
+ * ぴよ氏の冒険 v1.366
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2127,6 +2147,144 @@ var gameSettings = {
 })();
 function saveSettings() {
     try { localStorage.setItem('piyo_settings', JSON.stringify(gameSettings)); } catch (_) {}
+}
+
+// ─── データ引き継ぎ（機種変更対策: セーブをコード化してコピー/貼り付けで移行） ───
+// 形式: PIYO1.<base64(UTF-8 JSON {v,t,d})>.<checksum8>
+// チェックサムは「コピー欠け・貼り付けミス」検出用（チート対策ではない。セーブは元々ローカルにある）。
+// 取り込みは localStorage に生書き→リロードで、既存 loadSettings のフィールド検証をそのまま通す。
+function transferChecksum(s) {
+    var h = 5381;
+    for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+    return ('0000000' + h.toString(16)).slice(-8);
+}
+function buildTransferCode() {
+    saveSettings(); // 最新状態を反映してから発行
+    var payload = { v: gameSettings.dataVersion || 2, t: Date.now(), d: gameSettings };
+    var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    return 'PIYO1.' + b64 + '.' + transferChecksum(b64);
+}
+function parseTransferCode(code) {
+    var parts = String(code || '').replace(/\s+/g, '').split('.'); // コピーで混ざる改行/空白は除去
+    if (parts.length !== 3 || parts[0] !== 'PIYO1') return null;
+    if (transferChecksum(parts[1]) !== parts[2].toLowerCase()) return null;
+    try {
+        var payload = JSON.parse(decodeURIComponent(escape(atob(parts[1]))));
+        if (!payload || typeof payload.d !== 'object' || payload.d === null) return null;
+        return payload;
+    } catch (_) { return null; }
+}
+
+// 引き継ぎ用の共通オーバーレイ（設定画面 z9999 の上に出す）
+function buildTransferOverlay(titleText, descText) {
+    var ov = document.createElement('div');
+    ov.className = 'transferOverlay';
+    ov.style.cssText = 'position:fixed; inset:0; z-index:20000; display:flex; align-items:center; justify-content:center;' +
+        'background:rgba(0,0,0,0.75); padding:16px; box-sizing:border-box; -webkit-tap-highlight-color:transparent;';
+    var card = document.createElement('div');
+    card.style.cssText = 'width:100%; max-width:460px; box-sizing:border-box; color:#fff;' +
+        "font-family:'M PLUS Rounded 1c',sans-serif;" +
+        'background:linear-gradient(180deg, rgba(15,5,30,0.97), rgba(5,0,15,0.98));' +
+        'border:2px solid rgba(255,215,0,0.5); border-radius:14px; padding:14px 16px;' +
+        'box-shadow:0 8px 30px rgba(0,0,0,0.6);';
+    card.innerHTML =
+        '<div style="color:#ffd700; font-weight:800; font-size:clamp(13px,3vw,18px); text-align:center; margin-bottom:8px;">' + escapeHtml(titleText) + '</div>' +
+        '<div style="font-size:clamp(10px,2.3vw,13px); line-height:1.6; color:rgba(255,255,255,0.85); margin-bottom:10px;">' + escapeHtml(descText) + '</div>';
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+    return { overlay: ov, card: card };
+}
+function transferBtnStyle(bg) {
+    return 'min-height:40px; padding:8px 16px; border-radius:20px; border:none; cursor:pointer;' +
+        "font-family:'M PLUS Rounded 1c',sans-serif; font-weight:800; font-size:clamp(11px,2.4vw,14px);" +
+        'color:#fff; background:' + bg + '; -webkit-tap-highlight-color:transparent;';
+}
+
+// 発行: コードを表示してコピーしてもらう
+function showTransferExport() {
+    if (document.querySelector('.transferOverlay')) return;
+    var ui = buildTransferOverlay(t('transfer_export_title'), t('transfer_export_desc'));
+    var code = buildTransferCode();
+    var ta = document.createElement('textarea');
+    ta.value = code;
+    ta.readOnly = true;
+    ta.rows = 5;
+    ta.style.cssText = 'width:100%; box-sizing:border-box; resize:none; border-radius:8px; padding:8px;' +
+        'font-family:monospace; font-size:11px; word-break:break-all;' +
+        'background:rgba(255,255,255,0.08); color:#cfe8ff; border:1px solid rgba(255,255,255,0.25);';
+    ui.card.appendChild(ta);
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; justify-content:center; margin-top:10px;';
+    var copyBtn = document.createElement('button');
+    copyBtn.textContent = t('transfer_copy');
+    copyBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#4488dd,#2255aa)');
+    copyBtn.onclick = function() {
+        function ok() { copyBtn.textContent = t('transfer_copied'); if (soundManager) soundManager.playCoin(); }
+        function fallback() { ta.focus(); ta.select(); try { document.execCommand('copy'); ok(); } catch (_) {} }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(code).then(ok, fallback);
+        } else fallback();
+    };
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = t('transfer_close');
+    closeBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#888,#555)');
+    closeBtn.onclick = function() { ui.overlay.remove(); };
+    row.appendChild(copyBtn); row.appendChild(closeBtn);
+    ui.card.appendChild(row);
+    if (soundManager) soundManager.playConfirmSelect();
+}
+
+// 入力: コードを貼り付けて上書き取り込み（2度押し確認）
+function showTransferImport() {
+    if (document.querySelector('.transferOverlay')) return;
+    var ui = buildTransferOverlay(t('transfer_import_title'), t('transfer_import_desc'));
+    var ta = document.createElement('textarea');
+    ta.rows = 5;
+    ta.placeholder = 'PIYO1.....';
+    ta.style.cssText = 'width:100%; box-sizing:border-box; resize:none; border-radius:8px; padding:8px;' +
+        'font-family:monospace; font-size:11px; word-break:break-all;' +
+        'background:rgba(255,255,255,0.08); color:#cfe8ff; border:1px solid rgba(255,255,255,0.25);';
+    ui.card.appendChild(ta);
+    var msg = document.createElement('div');
+    msg.style.cssText = 'min-height:18px; font-size:clamp(10px,2.2vw,12px); line-height:1.5; margin-top:8px; text-align:center; color:#ffb4b4; font-weight:700;';
+    ui.card.appendChild(msg);
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; justify-content:center; margin-top:8px;';
+    var runBtn = document.createElement('button');
+    runBtn.textContent = t('transfer_import_run');
+    runBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#44bb77,#228855)');
+    var armed = false; // 2度押し確認（1回目=警告表示、2回目=実行）
+    runBtn.onclick = function() {
+        var payload = parseTransferCode(ta.value);
+        if (!payload) {
+            armed = false;
+            msg.textContent = t('transfer_import_bad');
+            if (soundManager) soundManager.playDamage();
+            return;
+        }
+        if (!armed) {
+            armed = true;
+            msg.textContent = t('transfer_import_confirm');
+            if (soundManager) soundManager.playCursorMove();
+            return;
+        }
+        try { localStorage.setItem('piyo_settings', JSON.stringify(payload.d)); } catch (_) {
+            msg.textContent = t('transfer_import_bad');
+            return;
+        }
+        msg.style.color = '#8ee7a0';
+        msg.textContent = t('transfer_import_done');
+        if (soundManager) soundManager.playItem();
+        setTimeout(function() { location.reload(); }, 900); // リロードで loadSettings の検証を通して反映
+    };
+    ta.oninput = function() { armed = false; msg.textContent = ''; msg.style.color = '#ffb4b4'; };
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = t('transfer_close');
+    closeBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#888,#555)');
+    closeBtn.onclick = function() { ui.overlay.remove(); };
+    row.appendChild(runBtn); row.appendChild(closeBtn);
+    ui.card.appendChild(row);
+    if (soundManager) soundManager.playConfirmSelect();
 }
 
 // ── ゴールデンエッグ（レア通貨）: 2500m日次ドロップの可否判定＆取得 ──
