@@ -46,6 +46,25 @@ var IMAGE_SPRITES = {
         'images/enemy_chick_walk_3.png',
         'images/enemy_chick_walk_4.png'
     ], flip: true },
+    // バイオーム連動の雑魚見た目（chick と同じ行動/判定・砂漠=うずら/雪山=シマエナガ/夜=ふくろう）
+    quail_walk:        { files: [
+        'images/enemy_quail_walk_1.png',
+        'images/enemy_quail_walk_2.png',
+        'images/enemy_quail_walk_3.png',
+        'images/enemy_quail_walk_4.png'
+    ], flip: true },
+    enaga_walk:        { files: [
+        'images/enemy_enaga_walk_1.png',
+        'images/enemy_enaga_walk_2.png',
+        'images/enemy_enaga_walk_3.png',
+        'images/enemy_enaga_walk_4.png'
+    ], flip: true },
+    owl_walk:          { files: [
+        'images/enemy_owl_walk_1.png',
+        'images/enemy_owl_walk_2.png',
+        'images/enemy_owl_walk_3.png',
+        'images/enemy_owl_walk_4.png'
+    ], flip: true },
     golden_chick_walk: { files: [
         'images/enemy_golden_chick_walk_1.png',
         'images/enemy_golden_chick_walk_2.png',

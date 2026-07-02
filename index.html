@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.366";
+                content: "Ver.1.367";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.366</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.367</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1581,7 +1581,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.366
+ * ぴよ氏の冒険 v1.367
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3874,6 +3874,17 @@ function spawnCoin() {
     };
 }
 
+// バイオーム連動の雑魚見た目（行動/判定/出現率は不変・スポーン時に確定し以後変わらない）
+// 草原=ひよこ / 砂漠=うずらのヒナ / 雪山=シマエナガ / 夜=ふくろうのヒナ
+function biomeChickSprite() {
+    switch (getBiomeIndex(gameState.distance)) {
+        case 1:  return 'quail_walk';
+        case 2:  return 'enaga_walk';
+        case 3:  return 'owl_walk';
+        default: return 'chick_walk';
+    }
+}
+
 function spawnEnemy() {
     var types = ['chick', 'chick', 'golden_chick', 'mama_chick'];
     var t = types[Math.floor(Math.random() * types.length)];
@@ -3887,7 +3898,8 @@ function spawnEnemy() {
     return {
         x: gameState.camera.x + GAME_WIDTH + Math.random() * 200,
         y: GROUND_Y - h, width: w, height: h, velX: -s, type: t,
-        animFrame: Math.floor(Math.random() * 100)
+        animFrame: Math.floor(Math.random() * 100),
+        walkSprite: t === 'chick' ? biomeChickSprite() : null // 基本ひよこのみバイオーム見た目
     };
 }
 

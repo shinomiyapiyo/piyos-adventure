@@ -2052,7 +2052,8 @@ function spawnBossChick(boss) {
         width: 42, height: 38,
         velX: dir * 1.5,
         type: 'chick',
-        animFrame: Math.floor(Math.random() * 100)
+        animFrame: Math.floor(Math.random() * 100),
+        walkSprite: biomeChickSprite() // バイオーム見た目（行動は不変）
     });
 }
 
@@ -2066,7 +2067,8 @@ function spawnEdgeEnemy() {
         width: 42, height: 38,
         velX: dir * (1.2 + Math.random() * 0.8),
         type: 'chick',
-        animFrame: Math.floor(Math.random() * 100)
+        animFrame: Math.floor(Math.random() * 100),
+        walkSprite: biomeChickSprite() // バイオーム見た目（行動は不変）
     });
 }
 

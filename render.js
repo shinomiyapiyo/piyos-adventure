@@ -1171,7 +1171,7 @@ function drawEnemy(e) {
     switch (e.type) {
         case 'golden_chick': spriteName = 'golden_chick_walk'; break;
         case 'mama_chick':   spriteName = 'mama_chick_walk'; break;
-        default:             spriteName = 'chick_walk'; break;
+        default:             spriteName = e.walkSprite || 'chick_walk'; break; // バイオーム見た目（スポーン時に確定）
     }
 
     var flipH = (e.velX > 0); // 右移動中なら反転して右向きに
