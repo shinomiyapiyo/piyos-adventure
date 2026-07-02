@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.362";
+                content: "Ver.1.363";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.362</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.363</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1561,7 +1561,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.362
+ * ぴよ氏の冒険 v1.363
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1942,7 +1942,7 @@ function showLoginBonusPopup() {
 
 // ─── たちぐいそば購入時のフルスクリーン演出（約1.2秒で自動クローズ・タップでスキップ） ───
 var sobaSceneActive = false;
-function showSobaScene() {
+function showSobaScene(healedLives) {
     if (sobaSceneActive) return;
     sobaSceneActive = true;
 
@@ -1962,6 +1962,19 @@ function showSobaScene() {
         'box-shadow:0 0 40px rgba(0,0,0,0.6);' +
         'transform:scale(0.92); transition:transform 0.3s cubic-bezier(0.18,0.9,0.3,1.25);';
     overlay.appendChild(img);
+    // 回復量テキスト（演出がHUDを覆いハート増加が見えないため、ここで「何が起きたか」を明示する）
+    if (healedLives > 0) {
+        var txt = document.createElement('div');
+        txt.textContent = '❤ ' + t('soba_heal_text', { n: healedLives });
+        txt.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%) scale(0.8);' +
+            "font-family:'M PLUS Rounded 1c',sans-serif; font-weight:800; color:#fff;" +
+            'font-size:clamp(16px,4vw,26px); text-shadow:0 2px 8px rgba(0,0,0,0.9), 0 0 14px rgba(255,80,80,0.55);' +
+            'background:rgba(20,8,2,0.55); padding:6px 18px; border-radius:12px; border:1px solid rgba(255,255,255,0.25);' +
+            'opacity:0; transition:opacity 0.3s ease-out 0.25s, transform 0.3s cubic-bezier(0.18,0.9,0.3,1.25) 0.25s;' +
+            'pointer-events:none; white-space:nowrap;';
+        overlay.appendChild(txt);
+        requestAnimationFrame(function() { txt.style.opacity = '1'; txt.style.transform = 'translateX(-50%) scale(1)'; });
+    }
     document.body.appendChild(overlay);
 
     // フェードイン＋軽いポップ
@@ -1971,7 +1984,7 @@ function showSobaScene() {
     });
 
     var closed = false;
-    var autoTimer = setTimeout(closeScene, 1200); // 約1.2秒で自動クローズ
+    var autoTimer = setTimeout(closeScene, 1500); // 自動クローズ（テキストを読む分わずかに延長: 1.2s→1.5s）
     var canSkip = false;
     setTimeout(function() { canSkip = true; }, 250); // 購入タップの誤爆で即閉じしないようガード
 

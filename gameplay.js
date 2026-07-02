@@ -903,8 +903,9 @@ function buyStageItem(itemId) {
     }
     gameState.score -= item.price;
     shopState.purchaseCounts[itemId] = bought + 1;
+    var livesBefore = gameState.lives;
     if (!item.stockItem) item.effect();
-    if (item.id === 'heal' && typeof showSobaScene === 'function') showSobaScene(); // たちぐいそば：フルスクリーン演出
+    if (item.id === 'heal' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore); // たちぐいそば：フルスクリーン演出＋実回復量の表示
     if (soundManager) soundManager.playItem();
     setKeeperText('shop_keeper_buy_ok');
     setShopBg(getSuccessShopBg(), 1500);

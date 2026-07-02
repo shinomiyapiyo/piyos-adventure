@@ -1,7 +1,7 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.362**（2026-07-03）。リポジトリ: `piyos-adventure`（GitHub Pages, main 直 push で公開）。
+> 最終更新: **Ver.1.363**（2026-07-03）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在の状態（重要）
@@ -13,7 +13,8 @@
 - **Ver.1.359 push 済み**（雲修正の仕上げ）: すり抜け条件(index.html:4044 旧4039)を `player.y<p.y` → **`player.velY>=0 && player.y+player.height<=p.y+8`**（真上に乗っていて落下/静止中のみ発火）に厳格化。主修正(1.358)と合わせ雲バグは主・副とも解消。
 - **Ver.1.360 をコミット**（エッグこうかん＋着ぐるみスキン・要 push）: ①**エッグ限定スキン「でんきネズミきぐるみ」**を追加（`images/skin_kigurumi_*.png` 7枚。生成= `tools/generate-kigurumi-candidates.mjs`(3案出し)→B案採用→`tools/generate-skin-kigurumi-openai.mjs`(全ポーズ生成＋player_*のbboxへ自動整列)。**IP安全＝丸耳/ジグザグ型ほっぺ/コイル+雷玉尻尾/縞なし・ピカチュウ象徴意匠は全コマ回避**。fallは右向きでflip不要）。②**タイトルショップ内に「エッグこうかん」セクション**（`EGG_SHOP_ITEMS` in core-state.js、🥚30で着ぐるみ交換。gameplay.js `selectEggShopItem`/`confirmEggBuy`/`renderEggShopItem`、確認ダイアログは既存tshopフローに `egg:` プレフィックスで相乗り。ヘッダーに🥚残高表示）。③render.js:914 のスプライト解決を `'maid'` ハードコード→ `'skin_'+activeSkin+'_'` に汎用化。SKINS に kigurumi 登録（`eggItem:true`・きせかえ画面にロックヒント）。i18n ja/en 追加。sw.js STATIC_ASSETS に7枚登録。実機検証済み（idle/walk/jump/fall描画・購入フロー・エッグ不足・二重購入防止・装備）。**Ver.1.360 は push 済み**。
 - **Ver.1.361 push 済み**: スキン表示名を「でんきネズミきぐるみ」→**「きぐるみ」**に変更（i18n `skin_kigurumi`。en=Kigurumi。説明文 `egg_item_kigurumi_desc` は「でんきネズミの〜」のまま据置）。
-- **Ver.1.362 をコミット**（コードレビュー(1.354〜1.361差分・8視点+検証)の指摘5件を修正・要 push）: ①render.js drawPlayer のスプライト解決に**未登録スキンIDフォールバック**（壊れたセーブ/登録漏れで透明プレイヤー化を防止。判定は `spriteManager.cache`。**⚠ `IMAGE_SPRITES` はロード完了後 index.html:1660 で null 解放されるため実行時参照禁止**＝初回実装でこれを踏み、SWキャッシュの旧コード混入と合わせて検証で捕捉→修正）②confirmEggBuy: **未対応typeは減算前に弾く**（新type追加の実装漏れでエッグだけ消える地雷を除去。i18n `tshop_keeper_egg_error` 追加。core-state.js にtype追加時の注意コメント）③previewTshopItem に `egg:` 分岐（PCのhoverプレビュー）④トースト共通化 `showRewardToast`（skin/egg両トーストを集約）⑤updateTitleShopUI の死にtypeofガード除去。全件実機検証済み（junkスキン→デフォルト表示・未対応type購入→減算なし・通常購入/プレビュー/トースト/エッグ枠 全部OK・エラー0）。レビュー詳細: 候補18→検証で6件生存（うち5件修正・tools重複は方針により見送り）。却下例=雲修正の「60px||着地」OR条件の誤読系・狭画面系。
+- **Ver.1.363 をコミット**（そば演出に回復量表示・要 push）: たちぐいそば購入の全画面演出（`showSobaScene`）に「❤ HPが {n} かいふく！」を追加（実回復量を表示＝残りHP9なら+1と正直に出る。演出がHUDを覆いハート増加が見えなかったフィードバック欠落の解消。i18n `soba_heal_text` ja/en、自動クローズ1.2s→1.5sに微延長、gameplay.js:906 で livesBefore 差分を渡す）。
+- **Ver.1.362 push＆公開済み**（コードレビュー(1.354〜1.361差分・8視点+検証)の指摘5件を修正）: ①render.js drawPlayer のスプライト解決に**未登録スキンIDフォールバック**（壊れたセーブ/登録漏れで透明プレイヤー化を防止。判定は `spriteManager.cache`。**⚠ `IMAGE_SPRITES` はロード完了後 index.html:1660 で null 解放されるため実行時参照禁止**＝初回実装でこれを踏み、SWキャッシュの旧コード混入と合わせて検証で捕捉→修正）②confirmEggBuy: **未対応typeは減算前に弾く**（新type追加の実装漏れでエッグだけ消える地雷を除去。i18n `tshop_keeper_egg_error` 追加。core-state.js にtype追加時の注意コメント）③previewTshopItem に `egg:` 分岐（PCのhoverプレビュー）④トースト共通化 `showRewardToast`（skin/egg両トーストを集約）⑤updateTitleShopUI の死にtypeofガード除去。全件実機検証済み（junkスキン→デフォルト表示・未対応type購入→減算なし・通常購入/プレビュー/トースト/エッグ枠 全部OK・エラー0）。レビュー詳細: 候補18→検証で6件生存（うち5件修正・tools重複は方針により見送り）。却下例=雲修正の「60px||着地」OR条件の誤読系・狭画面系。
 - **push はユーザーが実行**する運用（Claude は変更を作り、`git add -A && git commit -m "…(Ver.X)" && git push` の手順を案内するだけ。勝手に push しない）。
 - 版数ルール: HTMLを1行でも変えたら Ver +0.001。表示版数は `index.html` の 82行(`content:"Ver.X"`)・760行付近(span)・1563行付近(コメント)の3箇所＋ `sw.js` の `CACHE_NAME` を必ず同期。回答末尾に現Verを記載。
 - 新規 js/画像/音声を追加したら `sw.js` の `STATIC_ASSETS` に登録（忘れるとオフラインで壊れる）。
