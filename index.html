@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.363";
+                content: "Ver.1.364";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.363</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.364</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1561,7 +1561,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.363
+ * ぴよ氏の冒険 v1.364
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1962,10 +1962,11 @@ function showSobaScene(healedLives) {
         'box-shadow:0 0 40px rgba(0,0,0,0.6);' +
         'transform:scale(0.92); transition:transform 0.3s cubic-bezier(0.18,0.9,0.3,1.25);';
     overlay.appendChild(img);
-    // 回復量テキスト（演出がHUDを覆いハート増加が見えないため、ここで「何が起きたか」を明示する）
+    // 回復量テキスト（演出がHUDを覆いハート増加が見えないため、ここで「何が起きたか」を明示する）。
+    // 満タン到達時は数字でなく「まんたんに なった！」＝HP9で+1の時に損した感を出さないDQ風の言い回し
     if (healedLives > 0) {
         var txt = document.createElement('div');
-        txt.textContent = '❤ ' + t('soba_heal_text', { n: healedLives });
+        txt.textContent = '❤ ' + (gameState.lives >= 10 ? t('soba_heal_full') : t('soba_heal_text', { n: healedLives }));
         txt.style.cssText = 'position:absolute; left:50%; bottom:12%; transform:translateX(-50%) scale(0.8);' +
             "font-family:'M PLUS Rounded 1c',sans-serif; font-weight:800; color:#fff;" +
             'font-size:clamp(16px,4vw,26px); text-shadow:0 2px 8px rgba(0,0,0,0.9), 0 0 14px rgba(255,80,80,0.55);' +
