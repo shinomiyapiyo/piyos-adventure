@@ -1,0 +1,38 @@
+# GitHub Pages デプロイ（GitHub Actions 方式）
+# 経緯: 2026-07-02 に旧式(legacy/Jekyll)ビルダーが「Page build failed.」で恒常的に失敗し
+# 公開が止まったため、公式の Actions 方式に切り替え（ビルド不要の静的サイトをそのまま配信）。
+# main への push で自動デプロイ。手動実行は Actions タブの workflow_dispatch から。
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
