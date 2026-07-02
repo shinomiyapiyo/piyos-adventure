@@ -90,21 +90,34 @@ async function main() {
         const n = (await fs.readdir(framesDir)).filter(f => f.startsWith('f_')).length;
         console.log(`  ✓ ${n} コマ抽出`);
     }
-    // 基準: 既存ひよこ walk_1 の身長・足元ギャップに全コマを統一（ボブは動画由来の自然な揺れに任せる）
+    // 基準: 既存ひよこ walk_1 の身長・足元ギャップ
     const ref = await rawRGBA(await fs.readFile(path.join(IMAGES_DIR, 'enemy_chick_walk_1.png')));
     const rb = bboxA(ref);
     const refH = rb.h, refGap = (ref.height - 1) - rb.maxY;
     console.log(`基準(chick): charH=${refH} gapBottom=${refGap}`);
 
+    // 1パス: 全コマをキー処理してbboxを取り、【均一スケール】を算出。
+    // 従来の「全コマ同一身長化」はボブのたびサイズが脈動する不安定の原因だったため、
+    // 選定コマの中央値身長→refH の倍率1つで統一し、自然な上下動を保持する。
+    const prepared = [];
     for (let k = 0; k < FRAMES.length; k++) {
         const framePath = path.join(framesDir, `f_${String(FRAMES[k]).padStart(3, '0')}.png`);
         const keyed = await chromaKey(framePath);
         let keyedPng = await sharp(keyed.data, { raw: { width: keyed.width, height: keyed.height, channels: keyed.channels } }).png().toBuffer();
         if (FLOP) keyedPng = await sharp(keyedPng).flop().png().toBuffer(); // 左向き動画→右向きへ反転
-        const bb = bboxA(await rawRGBA(keyedPng));
-        let tH = Math.min(OUT - 2, refH), tW = Math.round(bb.w * tH / bb.h);
-        if (tW > OUT) { tW = OUT; tH = Math.round(bb.h * tW / bb.w); }
-        const content = await sharp(keyedPng)
+        prepared.push({ png: keyedPng, bb: bboxA(await rawRGBA(keyedPng)) });
+    }
+    const heights = prepared.map(p => p.bb.h).sort((a, b) => a - b);
+    const medianH = heights[(heights.length / 2) | 0];
+    const scale = Math.min(OUT - 2, refH) / medianH;
+    console.log(`均一スケール: ×${scale.toFixed(4)} (中央値身長${medianH}→${refH}px)`);
+
+    for (let k = 0; k < FRAMES.length; k++) {
+        const bb = prepared[k].bb;
+        let tW = Math.max(1, Math.round(bb.w * scale)), tH = Math.max(1, Math.round(bb.h * scale));
+        if (tW > OUT) tW = OUT;
+        if (tH > OUT) tH = OUT;
+        const content = await sharp(prepared[k].png)
             .extract({ left: bb.minX, top: bb.minY, width: bb.w, height: bb.h })
             .resize(tW, tH, { fit: 'fill', kernel: 'lanczos3' }).png().toBuffer();
         const left = Math.max(0, Math.round((OUT - tW) / 2));
