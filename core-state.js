@@ -290,6 +290,13 @@ var TITLE_SHOP_UPGRADES = [
       icon: '', iconImg: 'images/icon_revival_machine.png', maxLevel: 2, prices: [500000, 1000000], effectDesc: ['1回/ラン', '2回/ラン'], effectDescEn: ['1/run', '2/run'] }
 ];
 
+// ─── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ───
+// 方針: エッグは性能を売らない（コスメ＋非スコア実用のみ）。課金の目玉とは別レーン。
+var EGG_SHOP_ITEMS = [
+    { id: 'skin_kigurumi', type: 'skin', skinId: 'kigurumi', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc',
+      iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 30 }
+];
+
 // ─── デバッグモード ───
 var debugMode = false;
 var debugTapCount = 0;

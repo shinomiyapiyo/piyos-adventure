@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.359";
+                content: "Ver.1.360";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.359</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.360</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1561,7 +1561,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.359
+ * ぴよ氏の冒険 v1.360
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2484,7 +2484,8 @@ function closeAchievementScreen() {
 var SKIN_FEATURE_ENABLED = true;
 var SKINS = [
     { id: '',     nameKey: 'skin_default', preview: 'images/player_idle_v1.png' }, // デフォルト
-    { id: 'maid', nameKey: 'skin_maid',    preview: 'images/skin_maid_idle.png', unlockAch: 'dist_5000' }  // 実績「合計5,000m走る」で解放
+    { id: 'maid', nameKey: 'skin_maid',    preview: 'images/skin_maid_idle.png', unlockAch: 'dist_5000' },  // 実績「合計5,000m走る」で解放
+    { id: 'kigurumi', nameKey: 'skin_kigurumi', preview: 'images/skin_kigurumi_idle.png', eggItem: true }   // タイトルショップの「エッグこうかん」で解放
 ];
 function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
 function isSkinOwned(id) {
@@ -2517,6 +2518,7 @@ function renderSkinRow(s) {
     } else {
         stateHtml = '<span style="color:#ff9ed8; font-weight:800; font-size:clamp(9px,1.8vw,13px); white-space:nowrap;">🔒 ' + t('skin_locked') + '</span>';
         if (s.unlockAch) { var ac = achById(s.unlockAch); if (ac) condHtml = '<div style="color:rgba(255,255,255,0.6); font-size:clamp(8px,1.6vw,11px); margin-top:2px;">' + t('skin_unlock_prefix') + escapeHtml(t(ac.nameKey)) + t('skin_unlock_suffix') + '</div>'; }
+        else if (s.eggItem) { condHtml = '<div style="color:rgba(255,255,255,0.6); font-size:clamp(8px,1.6vw,11px); margin-top:2px;">' + escapeHtml(t('skin_unlock_egg')) + '</div>'; }
     }
     var dim = (!owned && !equipped) ? ' filter:grayscale(0.75); opacity:0.65;' : '';
     return '<div style="display:flex; align-items:center; gap:10px; background:rgba(0,0,40,0.55); border:1px solid ' + (equipped ? 'rgba(76,175,80,0.6)' : 'rgba(255,255,255,0.12)') + '; border-radius:10px; padding:6px 10px;">' +

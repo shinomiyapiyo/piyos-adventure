@@ -908,10 +908,10 @@ function drawPlayer(x, y) {
     } else {
         pose = 'idle'; frameIdx = 0;
     }
-    // 装備中スキンでスプライト解決（デフォルト=player_*、メイド服=skin_maid_*）
-    // 【一時措置】SKIN_FEATURE_ENABLED が false の間は、activeSkin が maid でも
+    // 装備中スキンでスプライト解決（デフォルト=player_*、スキン=skin_<id>_*。sprites.js に同名登録が必要）
+    // 【一時措置】SKIN_FEATURE_ENABLED が false の間は、activeSkin があっても
     // 未完成スキンを出さないよう必ずデフォルト見た目で描画する。
-    spriteName = ((SKIN_FEATURE_ENABLED && gameSettings.activeSkin === 'maid') ? 'skin_maid_' : 'player_') + pose;
+    spriteName = ((SKIN_FEATURE_ENABLED && gameSettings.activeSkin) ? 'skin_' + gameSettings.activeSkin + '_' : 'player_') + pose;
 
     spriteManager.draw(ctx, spriteName, frameIdx, x, y, player.width, player.height, flipH);
     player.animFrame++;

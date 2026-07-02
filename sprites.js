@@ -28,6 +28,17 @@ var IMAGE_SPRITES = {
     skin_maid_jump: { files: ['images/skin_maid_jump.png'] },
     skin_maid_fall: { files: ['images/skin_maid_fall.png'], flip: true },
 
+    // でんきネズミきぐるみスキン（エッグ交換限定・player_* と並びを揃える）
+    skin_kigurumi_idle: { files: ['images/skin_kigurumi_idle.png'] },
+    skin_kigurumi_walk: { files: [
+        'images/skin_kigurumi_walk_1.png',
+        'images/skin_kigurumi_walk_2.png',
+        'images/skin_kigurumi_walk_3.png',
+        'images/skin_kigurumi_walk_4.png'
+    ]},
+    skin_kigurumi_jump: { files: ['images/skin_kigurumi_jump.png'] },
+    skin_kigurumi_fall: { files: ['images/skin_kigurumi_fall.png'] },
+
     // 敵 (左向き固定 - 元画像が右向きのものだけflip:trueで反転)
     chick_walk:        { files: [
         'images/enemy_chick_walk_1.png',

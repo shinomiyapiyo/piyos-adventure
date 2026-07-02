@@ -972,6 +972,7 @@ function confirmTshopBuy() {
         return;
     }
     if (!tshopConfirmingItem) return;
+    if (tshopConfirmingItem.indexOf('egg:') === 0) { confirmEggBuy(tshopConfirmingItem.slice(4)); return; } // エッグこうかん確定
     var upgrade = TITLE_SHOP_UPGRADES.find(function(u) { return u.id === tshopConfirmingItem; });
     if (!upgrade) return;
     var currentLevel = (gameSettings.upgrades || {})[tshopConfirmingItem] || 0;
@@ -1011,6 +1012,7 @@ function cancelTshopBuy() {
 }
 
 function selectTshopItem(upgradeId) {
+    if (upgradeId && upgradeId.indexOf('egg:') === 0) { selectEggShopItem(upgradeId.slice(4)); return; } // エッグこうかん行
     var upgrade = TITLE_SHOP_UPGRADES.find(function(u) { return u.id === upgradeId; });
     if (!upgrade) return;
     // 確認ダイアログ表示中は無視
@@ -1057,6 +1059,61 @@ function selectTshopItem(upgradeId) {
         price: formatTshopPrice(price)
     });
     showTshopConfirm(true);
+    updateTitleShopUI();
+}
+
+// ── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ──
+function eggShopItemById(id) { return EGG_SHOP_ITEMS.find(function(i) { return i.id === id; }) || null; }
+function isEggItemOwned(item) {
+    return item.type === 'skin' && !!(gameSettings.ownedSkins && gameSettings.ownedSkins.indexOf(item.skinId) !== -1);
+}
+function selectEggShopItem(itemId) {
+    var item = eggShopItemById(itemId);
+    if (!item || tshopConfirmingItem) return;
+    var key = 'egg:' + itemId;
+    if (isEggItemOwned(item)) { // 交換済み: 案内だけ
+        if (soundManager) soundManager.playCursorMove();
+        tshopHighlightedItem = key;
+        setTshopKeeperText('tshop_keeper_egg_owned');
+        updateTitleShopUI();
+        return;
+    }
+    if (tshopHighlightedItem !== key) { // 1回目タップ: ハイライト＋説明
+        tshopHighlightedItem = key;
+        if (soundManager) soundManager.playCursorMove();
+        var el = document.getElementById('tshopKeeperText');
+        if (el) el.innerHTML = '<img src="' + item.iconImg + '" class="ui-icon"> ' + escapeHtml(t(item.nameKey)) + '\n' + escapeHtml(t(item.descKey));
+        updateTitleShopUI();
+        return;
+    }
+    // 2回目タップ: 交換確認
+    tshopConfirmingItem = key;
+    if (soundManager) soundManager.playConfirmSelect();
+    setTshopKeeperText('tshop_keeper_egg_confirm', { item: t(item.nameKey), price: item.eggPrice });
+    showTshopConfirm(true);
+    updateTitleShopUI();
+}
+function confirmEggBuy(itemId) {
+    var item = eggShopItemById(itemId);
+    if (!item) return;
+    if ((gameSettings.goldenEggs || 0) < item.eggPrice) { // エッグ不足
+        if (soundManager) soundManager.playDamage();
+        showTshopConfirm(false);
+        tshopConfirmingItem = null;
+        setTshopKeeperText('tshop_keeper_egg_poor');
+        updateTitleShopUI();
+        return;
+    }
+    gameSettings.goldenEggs -= item.eggPrice;
+    if (item.type === 'skin') {
+        if (!gameSettings.ownedSkins) gameSettings.ownedSkins = [];
+        if (gameSettings.ownedSkins.indexOf(item.skinId) === -1) gameSettings.ownedSkins.push(item.skinId);
+    }
+    saveSettings();
+    if (soundManager) soundManager.playItem();
+    showTshopConfirm(false);
+    tshopConfirmingItem = null;
+    setTshopKeeperText('tshop_keeper_egg_bought');
     updateTitleShopUI();
 }
 
@@ -1147,12 +1204,36 @@ function renderTitleShopItem(upgrade) {
     '</div>';
 }
 
+function renderEggShopItem(item) {
+    var owned = isEggItemOwned(item);
+    var key = 'egg:' + item.id;
+    var isHighlighted = (tshopHighlightedItem === key) || (tshopConfirmingItem === key);
+    var cursor = isHighlighted ? '>' : '　';
+    var priceHtml = owned
+        ? '<span style="color:#4CAF50;">' + escapeHtml(t('tshop_egg_owned')) + '</span>'
+        : '<img src="images/item_golden_egg.png" width="12" height="12" style="image-rendering:pixelated; vertical-align:-1px;"> ' + item.eggPrice;
+    return '<div data-tshop-id="' + key + '" class="shop-row shop-row-tshop' + (isHighlighted ? ' hl' : '') + '">' +
+        '<span class="shop-cursor">' + cursor + '</span>' +
+        '<img src="' + item.iconImg + '" width="18" height="18" class="shop-icon-img">' +
+        '<span class="shop-name" style="color:#fff;">' + escapeHtml(t(item.nameKey)) + '</span>' +
+        '<span class="shop-price" style="color:#ffd700;">' + priceHtml + '</span>' +
+    '</div>';
+}
+
 function updateTitleShopUI() {
-    document.getElementById('titleShopSavings').innerHTML = _ic('icon_bank.png', 'ui-icon-sm') + ' ' + t('tshop_savings_display', { amount: formatTshopPrice(gameSettings.savings) });
+    document.getElementById('titleShopSavings').innerHTML = _ic('icon_bank.png', 'ui-icon-sm') + ' ' + t('tshop_savings_display', { amount: formatTshopPrice(gameSettings.savings) }) +
+        '　' + _ic('item_golden_egg.png', 'ui-icon-sm') + ' ' + (gameSettings.goldenEggs || 0);
     var container = document.getElementById('titleShopList');
     var html = '';
     for (var i = 0; i < TITLE_SHOP_UPGRADES.length; i++) {
         html += renderTitleShopItem(TITLE_SHOP_UPGRADES[i]);
+    }
+    // エッグこうかんセクション（ゴールデンエッグ払い・コスメ等）
+    if (typeof EGG_SHOP_ITEMS !== 'undefined' && EGG_SHOP_ITEMS.length) {
+        html += '<div style="color:rgba(255,215,0,0.75); font-family:DotGothic16,monospace; font-size:clamp(8px,1.5vw,11px); text-align:center; padding:3px 0 1px;">─ ' + escapeHtml(t('tshop_egg_section')) + ' ─</div>';
+        for (var e = 0; e < EGG_SHOP_ITEMS.length; e++) {
+            html += renderEggShopItem(EGG_SHOP_ITEMS[e]);
+        }
     }
     container.innerHTML = html;
 }
