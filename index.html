@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.364";
+                content: "Ver.1.365";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.364</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.365</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1561,7 +1561,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.364
+ * ぴよ氏の冒険 v1.365
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3098,6 +3098,8 @@ function resetGame() {
     gameState.downSwipeActive = false;
     gameState.recentlyDropped = false;   // すり抜けフラグの残留を防ぐ（固着バグ保険）
     gameState.dropFromY = 0;
+    gameState.noDmgMark = 0;             // ノーダメ継続ボーナスを初期化
+    gameState.noDmgNext = NODMG_STEP;
     gameState.isRespawning = false;
     gameState.enemyKills = 0;
     gameState.comboCount = 0;
@@ -3829,6 +3831,11 @@ function aabbShrink(a, b, sx, sy) {
     return a.x + sx < b.x + b.width - sx && a.x + a.width - sx > b.x + sx &&
            a.y + sy < b.y + b.height && a.y + a.height > b.y;
 }
+// 全方向に r px ふくらませた重なり判定（ニアミス=「かすめた」検知用。上下どちらの回避も拾う）
+function aabbNear(a, b, r) {
+    return a.x < b.x + b.width + r && a.x + a.width > b.x - r &&
+           a.y < b.y + b.height + r && a.y + a.height > b.y - r;
+}
 
 function isOnPlatform() {
     if (!player.onGround) return false;
@@ -3920,6 +3927,15 @@ function updatePlayer() {
     // カメラ・距離
     gameState.camera.x += gameState.gameSpeed;
     gameState.distance = Math.floor(gameState.camera.x / 10);
+
+    // ノーダメージ継続ボーナス: 被弾せず NODMG_STEP(m) 走るごとに加点（被弾/落下でリセット）
+    // ※この関数内は後続の地形ループの「var t = terrain[i]」が i18n の t() を隠すため window.t で参照する
+    if (gameState.distance - gameState.noDmgMark >= gameState.noDmgNext) {
+        gainScore(NODMG_BONUS);
+        spawnBonusText(player.x + player.width / 2, player.y - 28, window.t('nodmg_label', { m: gameState.noDmgNext }), NODMG_BONUS);
+        if (soundManager) soundManager.playCoin();
+        gameState.noDmgNext += NODMG_STEP;
+    }
 
     // 必殺技ゲージ: 走った距離でも少しずつ加算（高速で敵を倒せなくても貯まる）。所持時のみ。
     if ((gameState.specialMoveLevel || 0) > 0 && gameState.specialGauge < 100) {
@@ -4301,6 +4317,21 @@ function updateSpecialMoveUI() {
     }
 }
 
+// ニアミス回避: 保護なしで敵の至近(NEAR_MISS_RANGE)をかすめ、当たらずに後方へ抜けたらボーナス（敵1体につき1回）
+function updateNearMiss(e) {
+    if (e.nearMissDone) return;
+    if (!e.nearMissArmed) {
+        if (!isPlayerProtected() && aabbNear(player, e, NEAR_MISS_RANGE)) e.nearMissArmed = true;
+        return;
+    }
+    if (e.x + e.width < player.x && !isPlayerProtected()) { // 完全に後方へ抜けた＝回避成立
+        e.nearMissDone = true;
+        gainScore(NEAR_MISS_BONUS);
+        spawnBonusText(player.x + player.width / 2, player.y - 12, t('near_miss_label'), NEAR_MISS_BONUS);
+        if (soundManager) soundManager.playCoin();
+    }
+}
+
 function updateEnemies() {
     var i, e, stomped;
 
@@ -4312,7 +4343,7 @@ function updateEnemies() {
         // 踏みつけ判定 (横広め) とダメージ判定 (横狭め) を分離
         var stompHit = aabbShrink(player, e, 4, 12);
         var bodyHit  = aabbShrink(player, e, 14, 12);
-        if (!stompHit && !bodyHit) continue;
+        if (!stompHit && !bodyHit) { updateNearMiss(e); continue; }
 
         if (isPlayerProtected()) {
             killEnemy(enemies, i, e, 200);
@@ -4336,7 +4367,7 @@ function updateEnemies() {
 
         var stompHitF = aabbShrink(player, e, 4, 12);
         var bodyHitF  = aabbShrink(player, e, 14, 12);
-        if (!stompHitF && !bodyHitF) continue;
+        if (!stompHitF && !bodyHitF) { updateNearMiss(e); continue; }
 
         if (isPlayerProtected()) {
             killEnemy(flyingEnemies, i, e, 300);
@@ -4554,6 +4585,11 @@ function takeDamage() {
     gameState.isInvincible = true;
     gameState.invincibleTimer = INVINCIBLE_FRAMES;
     damageFlashTimer = 20; // 赤フラッシュ 20フレーム
+    // ノーダメ継続をリセット＋周囲敵のニアミス待機を解除（被弾直後の通過はノーリスクのため）
+    gameState.noDmgMark = gameState.distance;
+    gameState.noDmgNext = NODMG_STEP;
+    for (var ndi = 0; ndi < enemies.length; ndi++) enemies[ndi].nearMissArmed = false;
+    for (var ndj = 0; ndj < flyingEnemies.length; ndj++) flyingEnemies[ndj].nearMissArmed = false;
     // -1 フロートエフェクト
     spawnDamageEffect(player.x + player.width / 2, player.y);
     // 敵被弾: その場で点滅+無敵（位置リセットしない）
@@ -4570,6 +4606,9 @@ function fallDeath() {
     gameState.isInvincible = true;
     gameState.invincibleTimer = INVINCIBLE_FRAMES;
     damageFlashTimer = 20;
+    // ノーダメ継続をリセット（落下死もダメージ扱い）
+    gameState.noDmgMark = gameState.distance;
+    gameState.noDmgNext = NODMG_STEP;
     spawnDamageEffect(player.x + player.width / 2, player.y);
     resetPlayerPosition(); // 上から降ってくる
     if (!debugMode && gameState.lives <= 0) {

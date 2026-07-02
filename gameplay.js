@@ -88,6 +88,7 @@ function enterPipeRoom() {
     pipeRoomState.active = true;
     pipeRoomState.visited = true;
     pipeRoomState.exitHold = 0; // 退室ゲージを初期化
+    pipeRoomState.introTimer = 90; // 入場「BONUS!」演出（約1.5秒）
     pipeRoomState.savedGameSpeed = gameState.gameSpeed;
     gameState.gameSpeed = 0;
     // 入室前のプレイヤー状態を退避（退室時に復元）

@@ -391,6 +391,16 @@ function spawnExplosionEffect(worldX, worldY) {
     });
 }
 
+// 汎用ボーナステキスト（ニアミス/ノーダメ等）: ラベル＋加点をふわっと浮かせる（コンボの金系と区別する水色系）
+function spawnBonusText(worldX, worldY, label, score) {
+    floatEffects.push({
+        type: 'bonus_text',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 70,
+        label: label, score: score
+    });
+}
+
 function spawnComboEffect(worldX, worldY, count, score) {
     floatEffects.push({
         type: 'combo_text',
@@ -680,6 +690,26 @@ var EFFECT_RENDERERS = {
             ctx.font = "bold 12px 'DotGothic16', monospace";
             ctx.fillStyle = '#fff';
             ctx.fillText('+' + ef.comboScore, 0, 18);
+            ctx.restore();
+        },
+    bonus_text: function(ef, wx, progress) {
+            var btY = ef.worldY - progress * 34; // ゆっくり上昇
+            var btAlpha = progress < 0.15 ? progress / 0.15 : (progress > 0.75 ? (1 - progress) / 0.25 : 1);
+            var btScale = progress < 0.15 ? 0.6 + 0.4 * (progress / 0.15) : 1;
+            ctx.save();
+            ctx.globalAlpha = btAlpha;
+            ctx.translate(wx, btY);
+            ctx.scale(btScale, btScale);
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(90,220,255,0.85)';
+            ctx.shadowBlur = 10;
+            ctx.font = "bold 15px 'M PLUS Rounded 1c', sans-serif";
+            ctx.fillStyle = '#8ee7ff';
+            ctx.fillText(ef.label, 0, 0);
+            ctx.shadowBlur = 0;
+            ctx.font = "bold 12px 'DotGothic16', monospace";
+            ctx.fillStyle = '#fff';
+            ctx.fillText('+' + ef.score, 0, 16);
             ctx.restore();
         },
     combo_spark: function(ef, wx, progress) {
@@ -1551,6 +1581,29 @@ function drawPipeRoom() {
     }
     // プレイヤー
     if (gameState.gameStarted) drawPlayer(player.x, player.y);
+    // 入場演出「BONUS!」（約1.5秒: 大きく飛び出て→ゆらゆら→フェード）
+    if (pipeRoomState.introTimer > 0) {
+        pipeRoomState.introTimer--;
+        var bIn = 90 - pipeRoomState.introTimer;                      // 経過フレーム
+        var bScale = 1 + 1.2 * Math.max(0, 1 - bIn / 12);             // 最初の12Fで2.2→1にポップ
+        var bAlpha = pipeRoomState.introTimer < 20 ? pipeRoomState.introTimer / 20 : 1; // 最後の20Fでフェード
+        var bRot = Math.sin(bIn * 0.15) * 0.05;                       // ゆらゆら
+        ctx.save();
+        ctx.globalAlpha = bAlpha;
+        ctx.translate(GAME_WIDTH / 2, PIPE_ROOM_FLOOR_Y * 0.35);
+        ctx.rotate(bRot);
+        ctx.scale(bScale, bScale);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = "bold 56px 'M PLUS Rounded 1c', sans-serif";
+        ctx.shadowColor = 'rgba(255,200,40,0.9)';
+        ctx.shadowBlur = 24;
+        ctx.lineWidth = 8; ctx.strokeStyle = '#7a4a00';
+        ctx.strokeText('BONUS!', 0, 0);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffd84a';
+        ctx.fillText('BONUS!', 0, 0);
+        ctx.restore();
+    }
 }
 
 function render() {
