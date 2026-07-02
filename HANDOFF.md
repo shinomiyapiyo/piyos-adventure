@@ -41,6 +41,11 @@
 - 任意: `manifest.json` の `id:"/index.html"`（origin直下）で旧新PWA識別が衝突しうる点。
 - バックログ（忍者アバター＝課金/新ボス/図鑑/チャレンジ走行等）は自動メモリ `piyo-gameplay-backlog`。**課金は後回し**方針 = `piyo-monetization-deferral`（審査時は課金なし・ネイティブリリース後に追加）。
 
+## デプロイの注意（GitHub Pages）
+- **2026-07-02 障害**: Ver.1.360〜1.362 の push で Pages のビルド（legacy=Jekyll）が「Page build failed.」で即死し、**公開が 1.359 のまま止まった**（pushは成功・リポジトリは最新なのに公開されない）。ゲーム内アップデートボタンが反応しないのはこれが原因だった。
+- **対策: `.nojekyll` をリポジトリ直下に追加済み**（Jekyllを完全スキップして静的配信。このサイトにJekyllは不要）。以後この失敗クラスは起きないはず。
+- 公開状態の確認: `curl -s https://shinomiyapiyo.github.io/piyos-adventure/sw.js | head -1`（CACHE_NAMEが最新Verか）／ビルド状態: `gh api repos/shinomiyapiyo/piyos-adventure/pages/builds/latest --jq '{status, commit: .commit[0:7], error: .error.message}'`。
+
 ## 検証手順（このプロジェクト固有）
 - Claude Preview を使用: 一時的に `.claude/launch.json`（python3 -m http.server 8123）を作成→検証後に削除（`.claude/settings.local.json` は消さない）。**横向き（例844×390）にしないと「画面を横向きにしてください」ゲートが出る**。
 - **SWキャッシュ注意**: コード変更後は preview で serviceWorker unregister ＋ caches 全削除してリロードしないと旧コードが出る。
