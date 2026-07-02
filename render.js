@@ -911,7 +911,10 @@ function drawPlayer(x, y) {
     // 装備中スキンでスプライト解決（デフォルト=player_*、スキン=skin_<id>_*。sprites.js に同名登録が必要）
     // 【一時措置】SKIN_FEATURE_ENABLED が false の間は、activeSkin があっても
     // 未完成スキンを出さないよう必ずデフォルト見た目で描画する。
-    spriteName = ((SKIN_FEATURE_ENABLED && gameSettings.activeSkin) ? 'skin_' + gameSettings.activeSkin + '_' : 'player_') + pose;
+    // 未登録のスキンID（壊れたセーブ・sprites.js登録漏れ）はポーズ単位でデフォルトへフォールバック（透明プレイヤー防止）。
+    // 判定は spriteManager.cache（IMAGE_SPRITES はロード完了後に null 解放されるため使わない）
+    var skinKey = 'skin_' + gameSettings.activeSkin + '_' + pose;
+    spriteName = (SKIN_FEATURE_ENABLED && gameSettings.activeSkin && spriteManager.cache[skinKey]) ? skinKey : 'player_' + pose;
 
     spriteManager.draw(ctx, spriteName, frameIdx, x, y, player.width, player.height, flipH);
     player.animFrame++;

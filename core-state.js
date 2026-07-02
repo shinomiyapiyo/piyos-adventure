@@ -292,6 +292,8 @@ var TITLE_SHOP_UPGRADES = [
 
 // ─── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ───
 // 方針: エッグは性能を売らない（コスメ＋非スコア実用のみ）。課金の目玉とは別レーン。
+// ⚠ 新しい type を追加する時は gameplay.js の confirmEggBuy（付与）と isEggItemOwned（所持判定）に
+//   対応を追加すること。未対応 type は購入時に減算されず「まだこうかんできない」と断られる（安全側）。
 var EGG_SHOP_ITEMS = [
     { id: 'skin_kigurumi', type: 'skin', skinId: 'kigurumi', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc',
       iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 30 }

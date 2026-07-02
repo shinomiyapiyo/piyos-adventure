@@ -1104,11 +1104,18 @@ function confirmEggBuy(itemId) {
         updateTitleShopUI();
         return;
     }
-    gameSettings.goldenEggs -= item.eggPrice;
-    if (item.type === 'skin') {
-        if (!gameSettings.ownedSkins) gameSettings.ownedSkins = [];
-        if (gameSettings.ownedSkins.indexOf(item.skinId) === -1) gameSettings.ownedSkins.push(item.skinId);
+    // 付与処理が未実装の type は減算前に弾く（新type追加時の実装漏れでエッグだけ消えるのを防ぐ）
+    if (item.type !== 'skin') {
+        if (soundManager) soundManager.playDamage();
+        showTshopConfirm(false);
+        tshopConfirmingItem = null;
+        setTshopKeeperText('tshop_keeper_egg_error');
+        updateTitleShopUI();
+        return;
     }
+    gameSettings.goldenEggs -= item.eggPrice;
+    if (!gameSettings.ownedSkins) gameSettings.ownedSkins = [];
+    if (gameSettings.ownedSkins.indexOf(item.skinId) === -1) gameSettings.ownedSkins.push(item.skinId);
     saveSettings();
     if (soundManager) soundManager.playItem();
     showTshopConfirm(false);
@@ -1119,6 +1126,15 @@ function confirmEggBuy(itemId) {
 
 function previewTshopItem(upgradeId) {
     if (tshopConfirmingItem) return;
+    if (upgradeId && upgradeId.indexOf('egg:') === 0) { // エッグこうかん行の hover プレビュー
+        var eggItem = eggShopItemById(upgradeId.slice(4));
+        if (!eggItem) return;
+        tshopHighlightedItem = upgradeId;
+        var eggEl = document.getElementById('tshopKeeperText');
+        if (eggEl) eggEl.innerHTML = '<img src="' + eggItem.iconImg + '" class="ui-icon"> ' + escapeHtml(t(eggItem.nameKey)) + '\n' + escapeHtml(t(eggItem.descKey));
+        updateTitleShopUI();
+        return;
+    }
     var upgrade = TITLE_SHOP_UPGRADES.find(function(u) { return u.id === upgradeId; });
     if (!upgrade) return;
     tshopHighlightedItem = upgradeId;
@@ -1229,7 +1245,7 @@ function updateTitleShopUI() {
         html += renderTitleShopItem(TITLE_SHOP_UPGRADES[i]);
     }
     // エッグこうかんセクション（ゴールデンエッグ払い・コスメ等）
-    if (typeof EGG_SHOP_ITEMS !== 'undefined' && EGG_SHOP_ITEMS.length) {
+    if (EGG_SHOP_ITEMS.length) {
         html += '<div style="color:rgba(255,215,0,0.75); font-family:DotGothic16,monospace; font-size:clamp(8px,1.5vw,11px); text-align:center; padding:3px 0 1px;">─ ' + escapeHtml(t('tshop_egg_section')) + ' ─</div>';
         for (var e = 0; e < EGG_SHOP_ITEMS.length; e++) {
             html += renderEggShopItem(EGG_SHOP_ITEMS[e]);
