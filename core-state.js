@@ -324,9 +324,11 @@ function handleDebugTap() {
             gameState.lives = 99;
             gameState.score = 50000;
             gameState.rankScore = 50000;
+            gameSettings.goldenEggs = 50; // エッグこうかんの動作チェック用（永続保存に書く点に注意）
+            saveSettings();
         } else {
             gameState.lives = 5;
-            // お金(score)はお店の動作チェックのため保持する（0にしない）
+            // お金(score)とゴールデンエッグはお店/交換所の動作チェックのため保持する（0にしない）
             gameState.rankScore = 0; // ランキング用スコアだけは水増しデバッグ値を残さず0に戻す
         }
         // ポーズタイトルに状態表示
