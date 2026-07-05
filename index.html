@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.372";
+                content: "Ver.1.373";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.372</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.373</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1581,7 +1581,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.372
+ * ぴよ氏の冒険 v1.373
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -4770,7 +4770,12 @@ function takeDamage() {
 }
 
 function fallDeath() {
-    if (gameState.isInvincible) return;
+    // 無敵中／リスポーン中に画面外へ落ちたら、ライフを減らさず位置だけ即復帰させる。
+    // 従来は無敵だと early-return するだけで位置を戻さず、広告復活直後(約3秒無敵)に穴へ
+    // 落ちるとキャラが画面外へ落ち続けて見えなくなっていた（＝「広告を見て復活でキャラが
+    // 消える」不具合の原因）。無敵は落下ペナルティも免除する従来仕様を保ちつつ、必ず画面内へ
+    // 戻す（上空から落ち直す）ことで“消える”を解消する。
+    if (gameState.isInvincible || gameState.isRespawning) { resetPlayerPosition(); return; }
     if (!debugMode) gameState.lives--;
     if (soundManager) soundManager.playDamage();
     gameState.isInvincible = true;
