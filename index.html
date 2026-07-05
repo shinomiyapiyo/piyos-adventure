@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.373";
+                content: "Ver.1.374";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.373</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.374</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -926,6 +926,19 @@
                         font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
                         font-family: 'M PLUS Rounded 1c', sans-serif;
                         background: linear-gradient(180deg, #44bb77, #228855);
+                        color: #fff; transition: background 0.15s ease;
+                        -webkit-tap-highlight-color: transparent;">▶</button>
+                </div>
+
+                <!-- ずかん（図鑑） -->
+                <div style="display: flex; justify-content: space-between; align-items: center;
+                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_zukan" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;">ずかん</span>
+                    <button onclick="showZukanScreen()" style="
+                        min-width: 60px; min-height: 36px; padding: 6px 14px; border-radius: 18px; border: none;
+                        font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                        font-family: 'M PLUS Rounded 1c', sans-serif;
+                        background: linear-gradient(180deg, #d4a017, #9c7409);
                         color: #fff; transition: background 0.15s ease;
                         -webkit-tap-highlight-color: transparent;">▶</button>
                 </div>
@@ -1365,6 +1378,39 @@
             </div>
         </div>
 
+        <!-- ずかん（図鑑）画面 -->
+        <div id="zukanScreen" class="hidden" style="
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            box-sizing: border-box; z-index: 9999;
+            background: linear-gradient(160deg, #141428, #0a0a1a);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            padding: 10px calc(env(safe-area-inset-right,0px) + 12px) 10px calc(env(safe-area-inset-left,0px) + 12px);
+            overflow: hidden;">
+            <div style="width: min(96vw, 600px); max-height: 96vh; display: flex; flex-direction: column;
+                background: linear-gradient(160deg, rgba(25,25,55,0.98), rgba(12,12,30,0.98));
+                border: 2px solid rgba(255,215,0,0.5); border-radius: 14px;
+                box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,215,0,0.1);
+                padding: 9px 12px; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-bottom: 6px;">
+                    <div style="color:#ffd700; font-size:clamp(13px,3vw,20px); font-weight:800;
+                        font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4);"
+                        data-i18n="zukan_title">ずかん</div>
+                    <div style="flex:1;"></div>
+                    <div id="zukanProgressText" style="color:#ffd24a; font-size:clamp(10px,2vw,13px); font-weight:700; font-family:'M PLUS Rounded 1c',sans-serif;"></div>
+                </div>
+                <div style="height:6px; background:#2b2b44; border-radius:4px; overflow:hidden; flex-shrink:0; margin-bottom:8px;">
+                    <div id="zukanProgressBar" style="height:100%; width:0%; background:#ffd24a; transition:width 0.3s ease;"></div>
+                </div>
+                <div id="zukanTabs" style="display:flex; gap:5px; flex-shrink:0; margin-bottom:8px;"></div>
+                <div style="display:flex; gap:10px; flex:1 1 auto; min-height:0;">
+                    <div id="zukanGrid" style="flex:1.5; display:grid; grid-template-columns:repeat(auto-fill,minmax(80px,1fr)); grid-auto-rows:min-content; gap:6px; overflow-y:auto; -webkit-overflow-scrolling:touch; align-content:start; padding-right:2px;"></div>
+                    <div id="zukanDetail" style="flex:1; min-width:0; background:#191933; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 8px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow-y:auto;"></div>
+                </div>
+                <button class="game-button" onclick="closeZukanScreen()" data-i18n="btn_back" style="margin-top:8px; flex-shrink:0; min-height:38px; font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
+            </div>
+        </div>
+
         <!-- 課金ストア画面 -->
         <div id="storeScreen" style="
             position: fixed; top: 0; left: 0;
@@ -1581,7 +1627,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.373
+ * ぴよ氏の冒険 v1.374
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2077,7 +2123,8 @@ var gameSettings = {
     activeSkin: '',        // 装備中スキン
     goldenEggs: 0,                // ゴールデンエッグ所持数（レア通貨）
     lastGoldenEggDate: '',        // 最後に2500m日次エッグを取得した日付
-    lastGoldenEggTimestamp: 0     // 時計巻き戻しガード用
+    lastGoldenEggTimestamp: 0,    // 時計巻き戻しガード用
+    zukan: { seen: {}, kills: {} } // ずかん: seen[id]=1(発見済み) / kills[id]=撃破数(敵・ボスのみ)
 };
 (function loadSettings() {
     try {
@@ -2139,6 +2186,11 @@ var gameSettings = {
             if (typeof parsed.goldenEggs === 'number') gameSettings.goldenEggs = parsed.goldenEggs;
             if (typeof parsed.lastGoldenEggDate === 'string') gameSettings.lastGoldenEggDate = parsed.lastGoldenEggDate;
             if (typeof parsed.lastGoldenEggTimestamp === 'number') gameSettings.lastGoldenEggTimestamp = parsed.lastGoldenEggTimestamp;
+            // ── ずかん（発見・撃破数）──
+            if (parsed.zukan && typeof parsed.zukan === 'object') {
+                if (parsed.zukan.seen && typeof parsed.zukan.seen === 'object') gameSettings.zukan.seen = parsed.zukan.seen;
+                if (parsed.zukan.kills && typeof parsed.zukan.kills === 'object') gameSettings.zukan.kills = parsed.zukan.kills;
+            }
             if (typeof parsed.tutorialSeen === 'boolean') gameSettings.tutorialSeen = parsed.tutorialSeen;
             // adFree復元: 購入済みなら常にtrue
             if (gameSettings.purchased['ad_free'] || gameSettings.purchased['starter_pack']) gameSettings.adFree = true;
@@ -2296,6 +2348,7 @@ function canDropGoldenEggToday() {
     return true;
 }
 function collectGoldenEgg(isDaily) {
+    markZukanSeen('item:golden_egg'); // ずかん: ゴールデンエッグ発見（フィールド/日次/土管部屋の全経路を集約）
     gameSettings.goldenEggs = (gameSettings.goldenEggs || 0) + 1;
     if (isDaily) {                                                         // 2500m日次エッグのみ日付を確定（部屋1/20は無制限）
         gameSettings.lastGoldenEggDate = getDateString();
@@ -3069,6 +3122,7 @@ function retypeTerrainForBiome(biomeIdx) {
 
 function updateBiome() {
     var newIdx = getBiomeIndex(gameState.distance);
+    markZukanSeen('biome:' + ZUKAN_BIOME_NAMES[newIdx]); // ずかん: 今いるバイオームを発見（開始地=草原も毎フレーム記録・既発見なら無処理）
     // ボス戦直前・ボス戦中はバイオーム遷移を開始しない（草原に戻す必要なし）
     var bossDistance = BOSS_TRIGGER_DISTANCE * gameRound;
     var nearBoss = gameState.distance >= bossDistance - 200 || bossState.active || shopState.active;
@@ -3469,6 +3523,165 @@ function hideSettings() {
 function closeSettings() {
     hideSettings();
     history.back();
+}
+
+// ─── ずかん（図鑑）UI ───
+var zukanCurrentCat = 'enemy';
+var ZUKAN_CATS = [
+    { cat: 'enemy', labelKey: 'zukan_cat_enemy' },
+    { cat: 'item',  labelKey: 'zukan_cat_item' },
+    { cat: 'boss',  labelKey: 'zukan_cat_boss' },
+    { cat: 'biome', labelKey: 'zukan_cat_biome' }
+];
+function showZukanScreen() {
+    if (isInTransitionCooldown()) return;
+    markScreenTransition();
+    zukanCurrentCat = 'enemy';
+    showScreenEl('zukanScreen');
+    history.pushState({ screen: 'zukan' }, '');
+    renderZukan();
+    if (soundManager) soundManager.playConfirmSelect();
+}
+function hideZukanScreen() {
+    markScreenTransition();
+    hideScreenEl('zukanScreen');
+}
+function closeZukanScreen() {
+    hideZukanScreen();
+    history.back();
+}
+function selectZukanCat(cat) {
+    if (zukanCurrentCat === cat) return;
+    zukanCurrentCat = cat;
+    renderZukan();
+    if (soundManager) soundManager.playCursorMove();
+}
+// エントリのスプライトシート名（敵=sprite / ボス=boss_<kind>）
+function zukanSpriteName(entry) {
+    if (entry.sprite) return entry.sprite;
+    if (entry.cat === 'boss') return 'boss_' + entry.kind;
+    return null;
+}
+// サムネイルDOM（発見済み=実スプライト/アイコン/バイオーム色、未発見=グレーのシルエット）
+function zukanThumb(entry, seen, px) {
+    var spriteName = zukanSpriteName(entry);
+    var el;
+    if (spriteName && spriteManager.cache[spriteName] && spriteManager.cache[spriteName][0]) {
+        var frame = spriteManager.cache[spriteName][0];
+        el = document.createElement('canvas');
+        el.width = px; el.height = px;
+        var cx = el.getContext('2d');
+        cx.imageSmoothingEnabled = false;
+        var sc = Math.min(px / frame.w, px / frame.h) * 0.82;
+        var dw = frame.w * sc, dh = frame.h * sc;
+        cx.drawImage(frame.normal, (px - dw) / 2, (px - dh) / 2, dw, dh);
+        el.style.cssText = 'width:' + px + 'px; height:' + px + 'px; image-rendering:pixelated;';
+    } else if (entry.cat === 'biome') {
+        var idx = ZUKAN_BIOME_NAMES.indexOf(entry.id.split(':')[1]);
+        var sky = (typeof BIOME_CONFIGS !== 'undefined' && BIOME_CONFIGS[idx]) ? BIOME_CONFIGS[idx].sky : ['#888', '#333'];
+        el = document.createElement('div');
+        el.style.cssText = 'width:' + px + 'px; height:' + px + 'px; border-radius:8px; background:linear-gradient(160deg,' + sky[0] + ',' + sky[sky.length - 1] + ');';
+    } else if (entry.img) {
+        el = document.createElement('img');
+        el.src = entry.img;
+        el.style.cssText = 'width:' + px + 'px; height:' + px + 'px; object-fit:contain; image-rendering:pixelated;';
+    } else {
+        el = document.createElement('div');
+        el.style.cssText = 'width:' + px + 'px; height:' + px + 'px;';
+    }
+    if (!seen) el.style.filter = 'brightness(0) invert(0.42)'; // 黒→グレーのシルエット（暗い背景でも見える）
+    return el;
+}
+function renderZukan() {
+    var totAll = zukanProgress();
+    var ptext = document.getElementById('zukanProgressText');
+    if (ptext) ptext.textContent = totAll.seen + ' / ' + totAll.total + ' ' + t('zukan_complete');
+    var pbar = document.getElementById('zukanProgressBar');
+    if (pbar) pbar.style.width = (totAll.total ? Math.round(totAll.seen / totAll.total * 100) : 0) + '%';
+    // タブ（カテゴリ別進捗つき）
+    var tabsEl = document.getElementById('zukanTabs');
+    tabsEl.innerHTML = '';
+    for (var ti = 0; ti < ZUKAN_CATS.length; ti++) {
+        (function(c) {
+            var pr = zukanProgress(c.cat);
+            var active = (c.cat === zukanCurrentCat);
+            var tab = document.createElement('div');
+            tab.style.cssText = 'flex:1; text-align:center; font-size:clamp(10px,2.1vw,13px); font-weight:700; padding:7px 2px; border-radius:9px; cursor:pointer; font-family:\'M PLUS Rounded 1c\',sans-serif; -webkit-tap-highlight-color:transparent;' +
+                (active ? 'background:#ff4f8b; color:#4b1528;' : 'background:#2a2a45; color:#c7c7e0;');
+            tab.innerHTML = t(c.labelKey) + ' <span style="font-size:0.82em; opacity:0.85;">' + pr.seen + '/' + pr.total + '</span>';
+            tab.onclick = function() { selectZukanCat(c.cat); };
+            tabsEl.appendChild(tab);
+        })(ZUKAN_CATS[ti]);
+    }
+    // グリッド
+    var grid = document.getElementById('zukanGrid');
+    grid.innerHTML = '';
+    var firstId = null, firstSeenId = null;
+    for (var i = 0; i < ZUKAN_ENTRIES.length; i++) {
+        var entry = ZUKAN_ENTRIES[i];
+        if (entry.cat !== zukanCurrentCat) continue;
+        var seen = isZukanSeen(entry);
+        if (firstId === null) firstId = entry.id;
+        if (seen && firstSeenId === null) firstSeenId = entry.id;
+        var card = document.createElement('div');
+        card.style.cssText = 'background:' + (seen ? '#26264a' : '#191930') + '; border:1px solid rgba(255,255,255,' + (seen ? '0.09' : '0.04') + '); border-radius:11px; padding:6px 3px 5px; cursor:pointer; -webkit-tap-highlight-color:transparent; display:flex; flex-direction:column; align-items:center; gap:2px;';
+        var thumbWrap = document.createElement('div');
+        thumbWrap.style.cssText = 'width:44px; height:44px; display:flex; align-items:center; justify-content:center;';
+        thumbWrap.appendChild(zukanThumb(entry, seen, 44));
+        card.appendChild(thumbWrap);
+        var nm = document.createElement('div');
+        nm.style.cssText = 'color:' + (seen ? '#fff' : '#5b5b7a') + '; font-size:10px; line-height:1.15; font-family:\'M PLUS Rounded 1c\',sans-serif;';
+        nm.textContent = seen ? t(entry.nameKey) : t('zukan_undiscovered');
+        card.appendChild(nm);
+        if (seen && entry.kill) {
+            var kc = document.createElement('div');
+            kc.style.cssText = 'color:#ffcf5e; font-size:9px; font-family:\'M PLUS Rounded 1c\',sans-serif;';
+            kc.textContent = t('zukan_kills') + ' ' + (gameSettings.zukan.kills[entry.id] || 0);
+            card.appendChild(kc);
+        }
+        (function(id) { card.onclick = function() { selectZukanEntry(id); }; })(entry.id);
+        grid.appendChild(card);
+    }
+    selectZukanEntry(firstSeenId || firstId); // 既定は最初の発見済み（無ければ先頭）
+}
+function selectZukanEntry(id) {
+    var detail = document.getElementById('zukanDetail');
+    if (!detail) return;
+    detail.innerHTML = '';
+    if (!id) return;
+    var entry = null;
+    for (var i = 0; i < ZUKAN_ENTRIES.length; i++) { if (ZUKAN_ENTRIES[i].id === id) { entry = ZUKAN_ENTRIES[i]; break; } }
+    if (!entry) return;
+    var seen = isZukanSeen(entry);
+    var big = document.createElement('div');
+    big.style.cssText = 'width:54px; height:54px; display:flex; align-items:center; justify-content:center; margin:0 0 4px; flex-shrink:0;';
+    big.appendChild(zukanThumb(entry, seen, 54));
+    detail.appendChild(big);
+    if (!seen) {
+        var q = document.createElement('div');
+        q.style.cssText = 'color:#8a8ab0; font-size:15px; font-weight:800; font-family:\'M PLUS Rounded 1c\',sans-serif;';
+        q.textContent = t('zukan_undiscovered');
+        detail.appendChild(q);
+        var h = document.createElement('div');
+        h.style.cssText = 'color:#6a6a8a; font-size:11px; margin-top:8px; line-height:1.5; font-family:\'M PLUS Rounded 1c\',sans-serif;';
+        h.textContent = t('zukan_undiscovered_hint');
+        detail.appendChild(h);
+        return;
+    }
+    var nm = document.createElement('div');
+    nm.style.cssText = 'color:#fff; font-size:clamp(13px,2.6vw,16px); font-weight:700; font-family:\'M PLUS Rounded 1c\',sans-serif; flex-shrink:0;';
+    nm.textContent = t(entry.nameKey);
+    detail.appendChild(nm);
+    if (entry.kill) {
+        var kl = document.createElement('div');
+        kl.style.cssText = 'margin-top:4px; color:#b9b9d0; font-size:12px; font-family:\'M PLUS Rounded 1c\',sans-serif; flex-shrink:0;';
+        kl.innerHTML = t('zukan_kills') + ' <span style="color:#ffd24a; font-size:17px; font-weight:700;">' + (gameSettings.zukan.kills[entry.id] || 0) + '</span>';
+        detail.appendChild(kl);
+    }
+    var desc = document.createElement('div');
+    desc.style.cssText = 'color:#c3c3dc; font-size:11px; line-height:1.5; margin-top:7px; padding-top:7px; border-top:1px solid rgba(255,255,255,0.1); width:100%; box-sizing:border-box; font-family:\'M PLUS Rounded 1c\',sans-serif;';
+    desc.textContent = t(entry.descKey);
+    detail.appendChild(desc);
 }
 
 function showGuide() {
@@ -4327,6 +4540,7 @@ function registerKill(scoreValue, effectX, effectY) {
 
 // 敵撃破の共通処理（爆発エフェクト + 配列から除去 + スコア/コンボ加算 + 撃破音）
 function killEnemy(arr, index, e, score) {
+    zukanAddKill(enemyZukanId(e)); // ずかん: 撃破数を加算（＝発見）
     spawnExplosionEffect(e.x + e.width / 2, e.y + e.height / 2);
     arr.splice(index, 1);
     registerKill(score, e.x + e.width / 2, e.y);
@@ -4858,6 +5072,7 @@ function updateCoins() {
 
         if (aabb(player, c)) {
             c.collected = true;
+            markZukanSeen('item:coin'); // ずかん: コイン発見
             gameState.coinsCollected++;  // デイリーミッション(コイン取得)用
             gainScore(Math.floor(150 * (gameState.coinBonus || 1)));
             if (soundManager) soundManager.playCoin();
@@ -4871,6 +5086,7 @@ function updatePowerUps() {
         if (pu.collected || !aabb(player, pu)) continue;
 
         pu.collected = true;
+        markZukanSeen(ZUKAN_POWERUP_IDS[pu.type]); // ずかん: フィールドアイテム発見（golden_eggは collectGoldenEgg 側）
         gainScore(100);
         if (soundManager) soundManager.playItem();
 

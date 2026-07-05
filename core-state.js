@@ -117,6 +117,7 @@ var BACK_HANDLERS = [
     { isOpen: function() { return isScreenVisible('missionScreen'); }, onBack: function() { hideMissionScreen(); } },
     { isOpen: function() { return isScreenVisible('achievementScreen'); }, onBack: function() { hideAchievementScreen(); } },
     { isOpen: function() { return isScreenVisible('skinScreen'); }, onBack: function() { hideSkinScreen(); } },
+    { isOpen: function() { return isScreenVisible('zukanScreen'); }, onBack: function() { hideZukanScreen(); } },
     { isOpen: function() { return isScreenVisible('guideScreen'); }, onBack: function() { hideGuide(); } },
     { isOpen: function() { return isScreenVisible('tutorialScreen'); }, onBack: function() { tutorialCancel(); } },
     { isOpen: function() { return isScreenVisible('settingsScreen'); }, onBack: function() { hideSettings(); } },
@@ -306,6 +307,105 @@ var EGG_SHOP_ITEMS = [
     { id: 'skin_kigurumi', type: 'skin', skinId: 'kigurumi', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc',
       iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 30 }
 ];
+
+// ─── ずかん（図鑑）───────────────────────────────────────────────
+// 遭遇で自動登録するコレクション図鑑。gameSettings.zukan に保存（saveSettings/データ引き継ぎに自動同梱）。
+//   seen[id]=1 … 発見済み / kills[id]=撃破数（敵・ボスのみ）
+// entry: { id, cat:'enemy'|'boss'|'item'|'biome', nameKey, descKey,
+//          sprite:スプライトシート名 or img:PNGパス（UI描画用・Step2で使用）,
+//          kill:撃破数を持つ, seenIf:gs=>bool（購入/所持から発見を派生。フィールド遭遇しない永続アイテム用） }
+var ZUKAN_ENTRIES = [
+    // ── 敵（バイオーム別の見た目も別エントリ・全て撃破数つき）──
+    { id: 'enemy:chick_grass',  cat: 'enemy', nameKey: 'zukan_e_chick_grass',  descKey: 'zukan_e_chick_grass_d',  sprite: 'chick_walk',        kill: true },
+    { id: 'enemy:chick_desert', cat: 'enemy', nameKey: 'zukan_e_chick_desert', descKey: 'zukan_e_chick_desert_d', sprite: 'quail_walk',        kill: true },
+    { id: 'enemy:chick_snow',   cat: 'enemy', nameKey: 'zukan_e_chick_snow',   descKey: 'zukan_e_chick_snow_d',   sprite: 'enaga_walk',        kill: true },
+    { id: 'enemy:chick_night',  cat: 'enemy', nameKey: 'zukan_e_chick_night',  descKey: 'zukan_e_chick_night_d',  sprite: 'owl_walk',          kill: true },
+    { id: 'enemy:golden_chick', cat: 'enemy', nameKey: 'zukan_e_golden',       descKey: 'zukan_e_golden_d',       sprite: 'golden_chick_walk', kill: true },
+    { id: 'enemy:mama_chick',   cat: 'enemy', nameKey: 'zukan_e_mama',         descKey: 'zukan_e_mama_d',         sprite: 'mama_chick_walk',   kill: true },
+    { id: 'enemy:flying_chick', cat: 'enemy', nameKey: 'zukan_e_flying',       descKey: 'zukan_e_flying_d',       sprite: 'flying_chick_fly',  kill: true },
+    // ── ボス（撃破数つき）──
+    { id: 'boss:rooster', cat: 'boss', nameKey: 'zukan_b_rooster', descKey: 'zukan_b_rooster_d', kind: 'rooster', kill: true },
+    { id: 'boss:hawk',    cat: 'boss', nameKey: 'zukan_b_hawk',    descKey: 'zukan_b_hawk_d',    kind: 'hawk',    kill: true },
+    // ── アイテム：フィールドで拾う ──
+    { id: 'item:heart',      cat: 'item', nameKey: 'zukan_i_heart',  descKey: 'zukan_i_heart_d',  img: 'images/icon_lives.png' },
+    { id: 'item:coin',       cat: 'item', nameKey: 'zukan_i_coin',   descKey: 'zukan_i_coin_d',   img: 'images/icon_money.png' },
+    { id: 'item:lemon',      cat: 'item', nameKey: 'zukan_i_lemon',  descKey: 'zukan_i_lemon_d',  img: 'images/icon_lemon_special.png' },
+    { id: 'item:shield',     cat: 'item', nameKey: 'zukan_i_shield', descKey: 'zukan_i_shield_d', img: 'images/icon_barrier.png' },
+    { id: 'item:energy',     cat: 'item', nameKey: 'zukan_i_energy', descKey: 'zukan_i_energy_d', img: 'images/icon_full_charge.png' },
+    { id: 'item:magnet',     cat: 'item', nameKey: 'zukan_i_magnet', descKey: 'zukan_i_magnet_d', img: 'images/icon_magnet_boost.png' },
+    { id: 'item:golden_egg', cat: 'item', nameKey: 'zukan_i_egg',    descKey: 'zukan_i_egg_d',    img: 'images/item_golden_egg.png' },
+    // ── アイテム：ステージショップ（購入で発見・既存の説明文を流用）──
+    { id: 'item:heal',          cat: 'item', nameKey: 'shop_item_heal',       descKey: 'shop_item_heal_desc',       img: 'images/icon_heal.png' },
+    { id: 'item:heal_stock',    cat: 'item', nameKey: 'shop_item_heal_stock', descKey: 'shop_item_heal_stock_desc', img: 'images/icon_heal_stock.png' },
+    { id: 'item:barrier',       cat: 'item', nameKey: 'shop_item_barrier',    descKey: 'shop_item_barrier_desc',    img: 'images/icon_barrier.png' },
+    { id: 'item:lemon_special', cat: 'item', nameKey: 'shop_item_lemon',      descKey: 'shop_item_lemon_desc',      img: 'images/icon_lemon_special.png' },
+    { id: 'item:full_charge',   cat: 'item', nameKey: 'shop_item_fullcharge', descKey: 'shop_item_fullcharge_desc', img: 'images/icon_full_charge.png' },
+    { id: 'item:revive_potion', cat: 'item', nameKey: 'shop_item_revive',     descKey: 'shop_item_revive_desc',     img: 'images/icon_revive_potion.png' },
+    // ── アイテム：永続アップグレード（所持レベルから発見を派生・既存の説明文を流用）──
+    { id: 'item:coin_master',     cat: 'item', nameKey: 'tshop_coin_master',     descKey: 'tshop_coin_master_desc',     img: 'images/icon_coin_master.png',     seenIf: function(gs){ return ((gs.upgrades || {}).coin_master || 0) > 0; } },
+    { id: 'item:special_move',    cat: 'item', nameKey: 'tshop_special_move',    descKey: 'tshop_special_move_desc',    img: 'images/icon_special_move.png',    seenIf: function(gs){ return ((gs.upgrades || {}).special_move || 0) > 0; } },
+    { id: 'item:toughness',       cat: 'item', nameKey: 'tshop_toughness',       descKey: 'tshop_toughness_desc',       img: 'images/icon_toughness.png',       seenIf: function(gs){ return ((gs.upgrades || {}).toughness || 0) > 0; } },
+    { id: 'item:stock_expand',    cat: 'item', nameKey: 'tshop_stock_expand',    descKey: 'tshop_stock_expand_desc',    img: 'images/icon_stock_expand.png',    seenIf: function(gs){ return ((gs.upgrades || {}).stock_expand || 0) > 0; } },
+    { id: 'item:magnet_boost',    cat: 'item', nameKey: 'tshop_magnet_boost',    descKey: 'tshop_magnet_boost_desc',    img: 'images/icon_magnet_boost.png',    seenIf: function(gs){ return ((gs.upgrades || {}).magnet_boost || 0) > 0; } },
+    { id: 'item:combo_master',    cat: 'item', nameKey: 'tshop_combo_master',    descKey: 'tshop_combo_master_desc',    img: 'images/icon_combo_master.png',    seenIf: function(gs){ return ((gs.upgrades || {}).combo_master || 0) > 0; } },
+    { id: 'item:swift_feet',      cat: 'item', nameKey: 'tshop_swift_feet',      descKey: 'tshop_swift_feet_desc',      img: 'images/icon_swift_feet.png',      seenIf: function(gs){ return ((gs.upgrades || {}).swift_feet || 0) > 0; } },
+    { id: 'item:revival_feather', cat: 'item', nameKey: 'tshop_revival_feather', descKey: 'tshop_revival_feather_desc', img: 'images/icon_revival_machine.png', seenIf: function(gs){ return ((gs.upgrades || {}).revival_feather || 0) > 0; } },
+    // ── アイテム：きせかえ（所持から発見を派生）──
+    { id: 'item:skin_maid',     cat: 'item', nameKey: 'skin_maid',     descKey: 'zukan_i_skin_maid_d',   img: 'images/skin_maid_idle.png',     seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('maid') >= 0; } },
+    { id: 'item:skin_kigurumi', cat: 'item', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc', img: 'images/skin_kigurumi_idle.png', seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('kigurumi') >= 0; } },
+    // ── 背景（バイオーム）──
+    { id: 'biome:grassland', cat: 'biome', nameKey: 'zukan_bio_grass',  descKey: 'zukan_bio_grass_d' },
+    { id: 'biome:desert',    cat: 'biome', nameKey: 'zukan_bio_desert', descKey: 'zukan_bio_desert_d' },
+    { id: 'biome:snow',      cat: 'biome', nameKey: 'zukan_bio_snow',   descKey: 'zukan_bio_snow_d' },
+    { id: 'biome:night',     cat: 'biome', nameKey: 'zukan_bio_night',  descKey: 'zukan_bio_night_d' }
+];
+var ZUKAN_BIOME_NAMES = ['grassland', 'desert', 'snow', 'night']; // getBiomeIndex → biome:<name>
+var ZUKAN_POWERUP_IDS = { heart: 'item:heart', lemon_can: 'item:lemon', shield: 'item:shield', energy: 'item:energy', magnet: 'item:magnet' }; // powerUp.type → id（golden_eggは collectGoldenEgg 側で記録）
+
+// 発見を記録（初回のみ保存）。既発見なら何もしない＝スポーン/描画から毎フレーム呼んでも安い。
+function markZukanSeen(id) {
+    if (!id || !gameSettings.zukan) return;
+    if (gameSettings.zukan.seen[id]) return;
+    gameSettings.zukan.seen[id] = 1;
+    saveSettings();
+}
+// 撃破数を加算（＝発見）。保存は頻度を抑えるためここでは行わず gameOver でまとめて確定する。
+function zukanAddKill(id) {
+    if (!id || !gameSettings.zukan) return;
+    gameSettings.zukan.kills[id] = (gameSettings.zukan.kills[id] || 0) + 1;
+    if (!gameSettings.zukan.seen[id]) gameSettings.zukan.seen[id] = 1;
+}
+// 敵オブジェクト → ずかんID（typeと、基本ひよこはバイオーム見た目 walkSprite で分岐）
+function enemyZukanId(e) {
+    if (!e) return null;
+    if (e.type === 'golden_chick') return 'enemy:golden_chick';
+    if (e.type === 'mama_chick')   return 'enemy:mama_chick';
+    if (e.type === 'flying_chick') return 'enemy:flying_chick';
+    switch (e.walkSprite) {
+        case 'quail_walk': return 'enemy:chick_desert';
+        case 'enaga_walk': return 'enemy:chick_snow';
+        case 'owl_walk':   return 'enemy:chick_night';
+        default:           return 'enemy:chick_grass';
+    }
+}
+// エントリが発見済みか（seenマップ、または seenIf による所持派生）
+function isZukanSeen(entry) {
+    if (!entry || !gameSettings.zukan) return false;
+    if (gameSettings.zukan.seen[entry.id]) return true;
+    if (entry.seenIf) { try { return !!entry.seenIf(gameSettings); } catch (_) { return false; } }
+    return false;
+}
+// カテゴリ（省略時は全体）の進捗 {seen, total}
+function zukanProgress(cat) {
+    var seen = 0, total = 0;
+    for (var i = 0; i < ZUKAN_ENTRIES.length; i++) {
+        var en = ZUKAN_ENTRIES[i];
+        if (cat && en.cat !== cat) continue;
+        total++;
+        if (isZukanSeen(en)) seen++;
+    }
+    return { seen: seen, total: total };
+}
 
 // ─── デバッグモード ───
 var debugMode = false;

@@ -1163,6 +1163,7 @@ function drawCoin(c, time) {
 }
 
 function drawEnemy(e) {
+    markZukanSeen(enemyZukanId(e)); // ずかん: 画面に映った＝遭遇として発見登録（既発見なら無処理）
     var bounce = Math.sin(e.animFrame / 3);
     var cy = e.y + bounce;
     var frameIdx = Math.floor(e.animFrame / 8) % 4;
@@ -1180,6 +1181,7 @@ function drawEnemy(e) {
 }
 
 function drawFlyingEnemy(e) {
+    markZukanSeen('enemy:flying_chick'); // ずかん: 遭遇として発見登録
     e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
     var bounce = Math.sin(e.animFrame / 2) * 0.5;
     var cy = e.y + bounce;

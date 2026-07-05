@@ -213,7 +213,7 @@ function updatePipeRoom() {
             spawnLifeUpEffect(it.x + it.width / 2, it.y);
             if (soundManager) soundManager.playItem();
         } else if (it.type === 'shopitem') {
-            if (addToStock(it.itemId)) { it.collected = true; if (soundManager) soundManager.playItem(); }
+            if (addToStock(it.itemId)) { it.collected = true; markZukanSeen('item:' + it.itemId); if (soundManager) soundManager.playItem(); }
         } else if (it.type === 'golden_egg') {
             it.collected = true; collectGoldenEgg(false);
             spawnLifeUpEffect(it.x + it.width / 2, it.y);
@@ -904,6 +904,7 @@ function buyStageItem(itemId) {
     }
     gameState.score -= item.price;
     shopState.purchaseCounts[itemId] = bought + 1;
+    markZukanSeen('item:' + itemId); // ずかん: ショップ品を購入＝発見
     var livesBefore = gameState.lives;
     if (!item.stockItem) item.effect();
     if (item.id === 'heal' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore); // たちぐいそば：フルスクリーン演出＋実回復量の表示
@@ -1438,6 +1439,7 @@ function setupBossArena() {
     if (bossState.boss.kind === 'hawk') {
         bossState.boss.y = GROUND_Y - BOSS_HEIGHT - 80;
     }
+    markZukanSeen('boss:' + bossState.boss.kind); // ずかん: ボス遭遇（rooster/hawk）を発見
     bossState.phase = 2; // entering
     bossState.summonTimer = BOSS_SUMMON_INTERVAL;
     bossState.itemSpawnTimer = 480; // ボス戦アイテム初回出現まで8秒（ショップ導入で抑制）
@@ -1554,6 +1556,7 @@ function updateBoss() {
             gainScore(BOSS_DEFEAT_SCORE);
             gameState.enemyKills++; // ボス撃破を撃破数に加算
             gameState.bossKills++;  // デイリーミッション(ボス撃破)用
+            zukanAddKill('boss:' + b.kind); // ずかん: ボス撃破数を加算
             if (soundManager) soundManager.playBossFanfare();
             floatEffects.push({
                 type: 'boss_defeated_text',
@@ -2132,6 +2135,7 @@ function gameOver() {
     gameState.gameStarted = false;
     gameState.gamePaused = true;
     recordMissionProgress(); // デイリーミッション進捗を記録（広告復活でも二重計上しない）
+    if (typeof saveSettings === 'function') saveSettings(); // ずかん撃破数など今回ランの記録を確定保存
     if (soundManager) soundManager.playBGM('gameover');
 
     // 広告表示（インタースティシャル）
