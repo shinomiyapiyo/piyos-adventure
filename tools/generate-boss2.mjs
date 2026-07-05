@@ -63,12 +63,18 @@ const OUT_SIZE     = 128;
 // ── 画風の固定文言（全ポーズ共通） ───────────────────────────────────────────
 const STYLE_PREAMBLE = [
   'A single boss enemy character for a retro side-scrolling pixel-art game.',
-  'Subject: a menacing dark aerial bird boss — a giant hawk/eagle with sharp talons,',
-  'glowing eyes, and a sinister presence, matching the "dark giant chicken boss" art style',
-  'of the reference images (same painterly-pixel look, same lighting and color depth).',
-  'Color palette: dark purples, blacks, and deep crimson accents to fit a night/boss stage.',
+  'Subject: a GORGEOUS yet SINISTER giant dark crow / raven boss — the evil aerial counterpart of the',
+  'reference "dark flaming rooster boss". It must feel majestic, ornate and demonic, NOT an ordinary plain crow.',
+  'Signature look — MATCH the reference rooster boss exactly on these points:',
+  '- A swirling AURA OF DARK PURPLE / VIOLET FLAMES and shadow wisps rising off its wings, nape and long tail.',
+  '- GLOWING eyes with an eerie crimson/violet glow and a cruel, regal expression.',
+  '- Ornate elegant-but-evil plumage: long ragged trailing tail feathers, sharp layered wing feathers,',
+  '  deep-crimson accents and a subtle dark crest/crown — a gorgeous demonic bird of ill omen.',
+  'Same painterly-pixel rendering, outline weight, lighting and color depth as the reference images.',
+  'Color palette: dark purples and blacks, deep crimson accents, with bright violet flame highlights (night/boss stage).',
   'IMPORTANT REQUIREMENTS:',
   '- Character FACING LEFT.',
+  '- The dark purple flame aura and glowing eyes must be clearly present in EVERY pose.',
   '- Fully TRANSPARENT background (alpha), no scenery, no ground, no shadow baked in.',
   '- Single character only, centered, full body visible with margin around it.',
   '- Clean readable silhouette suitable for downscaling to 128x128 pixels.',
@@ -79,15 +85,15 @@ const STYLE_PREAMBLE = [
 // key は出力ファイル名 boss2_<key>.png に対応（HANDOFF.md §3 と一致させること）
 const POSES = [
   { key: 'idle',    anchor: true,
-    pose: 'POSE: hovering in place, wings spread wide and steady, calm but threatening. Neutral idle pose.' },
+    pose: 'POSE: hovering majestically in place, huge wings spread wide, long ornate tail trailing, dark violet flame aura curling off the feathers, calm but threatening. Neutral idle pose — this frame DEFINES the gorgeous demonic crow design.' },
   { key: 'flap',
-    pose: 'POSE: mid wing-flap, wings raised upward, gaining a little altitude. Used as the alternate hover frame.' },
+    pose: 'POSE: mid wing-flap, wings raised upward with violet flames trailing off the tips, gaining a little altitude. Alternate hover frame. Keep the exact same gorgeous flaming crow.' },
   { key: 'dive',
-    pose: 'POSE: diving attack, wings tucked back, body angled steeply downward, beak/talons leading, aggressive and fast.' },
+    pose: 'POSE: diving attack, wings tucked back, body angled steeply downward, beak and talons leading, violet flames streaming behind, aggressive and fast.' },
   { key: 'shoot',
-    pose: 'POSE: launching attack, wings flared forward, releasing sharp feather projectiles, dynamic offensive stance.' },
+    pose: 'POSE: launching attack, wings flared forward and wreathed in dark flame, releasing sharp glowing feather projectiles, dynamic offensive stance.' },
   { key: 'damaged',
-    pose: 'POSE: taking damage, recoiling backward, head thrown back, wings flailing, hurt expression.' },
+    pose: 'POSE: taking damage, recoiling backward, head thrown back, wings flailing, flame aura flickering, pained expression.' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
