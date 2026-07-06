@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.375";
+                content: "Ver.1.376";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.375</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.376</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1407,7 +1407,7 @@
                     <div id="zukanGrid" style="flex:1.5; display:grid; grid-template-columns:repeat(auto-fill,minmax(80px,1fr)); grid-auto-rows:min-content; gap:6px; overflow-y:auto; -webkit-overflow-scrolling:touch; align-content:start; padding-right:2px;"></div>
                     <div id="zukanDetail" style="flex:1; min-width:0; background:#191933; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 8px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow-y:auto;"></div>
                 </div>
-                <button class="game-button" onclick="closeZukanScreen()" data-i18n="btn_back" style="margin-top:8px; flex-shrink:0; min-height:38px; font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
+                <button class="game-button" id="zukanBackBtn" data-i18n="btn_back" style="margin-top:8px; flex-shrink:0; min-height:38px; font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
             </div>
         </div>
 
@@ -1627,7 +1627,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.375
+ * ぴよ氏の冒険 v1.376
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3533,9 +3533,22 @@ var ZUKAN_CATS = [
     { cat: 'boss',  labelKey: 'zukan_cat_boss' },
     { cat: 'biome', labelKey: 'zukan_cat_biome' }
 ];
+var _zukanBound = false;
+// タブ・カードは touchend 委譲でタップ判定（本編と同じ・onclickのiOS遅延/指ズレ無効化を回避）。
+// 委譲はコンテナに1回だけ張れば、再renderで中身が入れ替わっても効く。
+function ensureZukanTapBindings() {
+    if (_zukanBound) return;
+    if (typeof bindTapDelegate !== 'function') return; // bootstrap.js未ロード時は次回に持ち越し
+    _zukanBound = true;
+    bindTapDelegate(document.getElementById('zukanTabs'), 'data-zcat', selectZukanCat);
+    bindTapDelegate(document.getElementById('zukanGrid'), 'data-zid', selectZukanEntry);
+    var back = document.getElementById('zukanBackBtn');
+    if (back && typeof bindTapButton === 'function') bindTapButton(back, closeZukanScreen, { stopClickPropagation: true });
+}
 function showZukanScreen() {
     if (isInTransitionCooldown()) return;
     markScreenTransition();
+    ensureZukanTapBindings();
     zukanCurrentCat = 'enemy';
     showScreenEl('zukanScreen');
     history.pushState({ screen: 'zukan' }, '');
@@ -3609,7 +3622,7 @@ function renderZukan() {
             tab.style.cssText = 'flex:1; text-align:center; font-size:clamp(10px,2.1vw,13px); font-weight:700; padding:7px 2px; border-radius:9px; cursor:pointer; font-family:\'M PLUS Rounded 1c\',sans-serif; -webkit-tap-highlight-color:transparent;' +
                 (active ? 'background:#ff4f8b; color:#4b1528;' : 'background:#2a2a45; color:#c7c7e0;');
             tab.innerHTML = t(c.labelKey) + ' <span style="font-size:0.82em; opacity:0.85;">' + pr.seen + '/' + pr.total + '</span>';
-            tab.onclick = function() { selectZukanCat(c.cat); };
+            tab.setAttribute('data-zcat', c.cat); // touchend委譲でタップ（bindTapDelegate）
             tabsEl.appendChild(tab);
         })(ZUKAN_CATS[ti]);
     }
@@ -3639,7 +3652,7 @@ function renderZukan() {
             kc.textContent = t('zukan_kills') + ' ' + (gameSettings.zukan.kills[entry.id] || 0);
             card.appendChild(kc);
         }
-        (function(id) { card.onclick = function() { selectZukanEntry(id); }; })(entry.id);
+        card.setAttribute('data-zid', entry.id); // touchend委譲でタップ（bindTapDelegate）
         grid.appendChild(card);
     }
     selectZukanEntry(firstSeenId || firstId); // 既定は最初の発見済み（無ければ先頭）

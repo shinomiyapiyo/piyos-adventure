@@ -1,11 +1,12 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.375**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
+> 最終更新: **Ver.1.376**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在地サマリ（← 次セッションはまずここ / 2026-07-06）
-- **現在 Ver.1.375。1.373・1.374 は push＆公開済み（CDN=v1.374）。1.375（闇のカラス絵刷新）はコミット案内済み・ユーザーの push 待ち。** 1.375は画像変更なので**公開後10分待ってから**アップデート案内すること。作業ツリーは 1.375分（カラス5画像＋版数＋生成ツール＋本HANDOFF）が未コミット、`_raw`/`.claude`はgit無視。
+- **現在 Ver.1.376。1.373〜1.375 は push＆公開済み（CDN=v1.375）。1.376 はコミット案内済み・ユーザーの push 待ち。** 1.376は画像 `boss2_flap2.png` 追加なので**公開後10分待ってから**アップデート案内すること。`_raw`/`.claude`はgit無視。
+- **1.376の内容**: ①**図鑑のタッチ改善**（タブ/カード=`onclick`→`bindTapDelegate` touchend委譲、戻る=`bindTapButton`。`ensureZukanTapBindings`で1回だけバインド）。②**闇のカラスの羽ばたきに中間コマ追加**（2枚交互→中間 `boss2_flap2.png`=Veo f28 を frame5 に足し `HAWK_HOVER_CYCLE=[IDLE,FLAP2,FLAP,FLAP2]` に）。実機検証済み（touchend合成イベントでタブ/カード反応・ホバーが0→5→1→5で回る）。⚠実機ボス検証は `setupBossArena()` 後に `bossState.active=true` を手動セットしないと updateBoss が早期returnする。
 - **このセッションの成果**: ①**1.373 広告復活バグ修正**（`fallDeath`が無敵中early-returnで位置復帰せず、広告復活直後の3秒無敵中に穴へ落ちるとキャラが画面外へ落ち続け消えた→`if(isInvincible||isRespawning){resetPlayerPosition();return;}`）。②**1.374 ずかん（図鑑）実装**＝敵7/アイテム23/ボス2/背景4の全36種を遭遇で自動登録・敵とボスは撃破数・未発見はグレーのシルエット・設定画面から開く（保存=`gameSettings.zukan={seen,kills}`／カタログ＝core-state.js `ZUKAN_ENTRIES`・ヘルパー`markZukanSeen`/`zukanAddKill`/`enemyZukanId`/`isZukanSeen`/`zukanProgress`／UI＝index.html）。**ボス名も修正=闇のニワトリ(rooster)/闇のカラス(hawk)**（従来おんどり/タカを訂正・バトル中は名前非表示なので図鑑のみ）。③**1.375 闇のカラス（hawkボス）グラフィック刷新**＝ただの黒鳥→紫の炎オーラ・光る目の華麗で邪悪な魔鳥。idle立ち絵=OpenAI、動きコマ(flap/dive/shoot/damaged)=Veo動画1本から切り出し（新ツール `tools/veo-boss2.mjs`/`veo-boss2-frames.mjs`(緑or白背景クロマキー両対応=Veoが背景を緑↔白で揺らすため)/`veo-boss2-contact.mjs`）。**闇のニワトリ(boss_rooster=`boss_*.png`)はユーザー満足なので変更しない**。
 - **運用の要注意3点**（全部HANDOFF内に詳細あり）: ①Pagesデプロイが時々「try again later」で失敗→**再実行で通る**（`gh workflow run pages.yml`）。②**画像を差し替えた版はデプロイ完了から10分待って**アップデート案内（CDNの max-age=600 猶予・SWの cache:'reload' はブラウザキャッシュしか迂回しない）。③**スプライトの向きは必ずゲーム内描画＋目視で判定**（静止画で誤ると二重反転する）。
 - **次の候補**: 図鑑の新規発見「NEW!」演出・コンプ報酬(🥚)／雑魚v2=飛行ひよこのバイオーム差し替え／大型=Capacitorネイティブ化・忍者アバター（課金目玉）。エッグこうかんの品追加も保留中。

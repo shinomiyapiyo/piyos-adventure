@@ -1466,7 +1466,7 @@ function updateBoss() {
             // 空中ボス: 滞空高度を保ったまま右から飛んで入場（羽ばたき）
             b.x -= 3;
             b.animFrame++;
-            b.spriteFrame = (Math.floor(b.animFrame / 8) % 2 === 0) ? HAWK_FRAME_IDLE : HAWK_FRAME_FLAP;
+            b.spriteFrame = HAWK_HOVER_CYCLE[Math.floor(b.animFrame / 6) % HAWK_HOVER_CYCLE.length];
             if (b.x <= targetX) {
                 b.x = targetX;
                 b.y = GROUND_Y - BOSS_HEIGHT - 80;
@@ -1624,6 +1624,9 @@ var HAWK_FRAME_FLAP    = 1;
 var HAWK_FRAME_DIVE    = 2;
 var HAWK_FRAME_SHOOT   = 3;
 var HAWK_FRAME_DAMAGED = 4;
+var HAWK_FRAME_FLAP2   = 5; // 羽ばたきの中間コマ（翼が水平・idle↔flapの間）
+// ホバー/入場の羽ばたきサイクル: 広げ→中間→畳み→中間 の4ステップ3コマ（2枚交互だと動きが硬い対策）
+var HAWK_HOVER_CYCLE = [HAWK_FRAME_IDLE, HAWK_FRAME_FLAP2, HAWK_FRAME_FLAP, HAWK_FRAME_FLAP2];
 
 function updateBossAI(b) {
     if (b.kind === 'hawk') { updateBossAI_hawk(b); }
@@ -1705,7 +1708,7 @@ function updateBossAI_hawk(b) {
         var hoverSpeed = (phase === 3 ? 1.7 : phase === 2 ? 1.3 : 1.0) * angryMult;
         if (Math.abs(tx - b.x) > 1) b.x += Math.sign(tx - b.x) * Math.min(hoverSpeed, Math.abs(tx - b.x));
         b.facing = (b.x + b.width / 2 > player.x + player.width / 2) ? 'left' : 'right';
-        b.spriteFrame = (Math.floor(b.animFrame / 10) % 2 === 0) ? HAWK_FRAME_IDLE : HAWK_FRAME_FLAP;
+        b.spriteFrame = HAWK_HOVER_CYCLE[Math.floor(b.animFrame / 7) % HAWK_HOVER_CYCLE.length];
 
         b.attackTimer--;
         if (b.attackTimer <= 0) {

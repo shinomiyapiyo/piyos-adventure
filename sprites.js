@@ -111,7 +111,8 @@ var IMAGE_SPRITES = {
         'images/boss2_flap.png',
         'images/boss2_dive.png',
         'images/boss2_shoot.png',
-        'images/boss2_damaged.png'
+        'images/boss2_damaged.png',
+        'images/boss2_flap2.png'
     ] }
 };
 
