@@ -1,15 +1,22 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.381 まで push済／Ver.1.382 3体目ボス（闇のタマゴ）が未コミット**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
+> 最終更新: **Ver.1.382 まで push済／Ver.1.383 4体目ボス（闇の大蛇）が未コミット**（2026-07-07）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
-## 現在地サマリ（← 次セッションはまずここ / 2026-07-06）
+## 現在地サマリ（← 次セッションはまずここ / 2026-07-07）
 
-### ✅ 1.381まで push済／⏳ 3体目ボス「闇のタマゴ」（1.382）が未コミット
-- **1.373〜1.381 は commit＆push 済み**（origin/main=1.381コミット `0c9d500`）。1.380=図鑑仕上げ＋ニワトリ改名／1.381=ボス改修（HP緩やか化＋上限・カラスに登場回数連動の攻撃）。
-- **`git status` の未コミット＝Ver.1.382（3体目ボス）**: core-state.js / gameplay.js / render.js / sprites.js / i18n.js / index.html / sw.js ＋ 新規 `images/boss_egg_idle.png`・`tools/generate-boss-egg-openai.mjs`。**画像追加版なのでデプロイ後10分待ってアップデート案内**。**下の 1.382 push（Claudeがローカルcommit済→ユーザーは `git push` のみ）**。
-- **内容: 3体目ボス「闇のタマゴ」(kind='egg') = 装甲/弱点ボス**（ユーザー案B・"踏み放題"を崩す新鮮さ）。**硬い殻で通常の踏み/弾を弾く（ダメージ0）→ 転がり/叩きつけ/召喚の各攻撃後の「弱点露出(exposed)」中だけダメージが通る**タイミング勝負。**特殊技(ぴよフラッシュ)は殻を貫通**（トランプ）。転がりは**ジャンプで飛び越え**て回避（地上付近のみ被弾）、叩きつけは衝撃波を飛び越え。**登場回数連動**: 2回目〜(R6+)転がり高速化／3回目〜(R9+)壁ヒットで2連転がり。**出現ローテを3周に変更**（rooster R1,4,7／hawk R2,5,8／egg R3,6,9）＝それに合わせ **`bossEncounter()` を `Math.ceil(gameRound/3)` に修正**（カラス/ニワトリの解禁ラウンドもこれに追随＝2番目/3番目の登場で解禁は不変）。全メカニクス 実機検証済み（装甲弾き/露出ダメージ/特殊貫通/転がりジャンプ回避/叩きつけ衝撃波/回転描画/露出マゼンタ発光/HP上限）。
+### ✅ 1.382まで push済／⏳ 4体目ボス「闇の大蛇」（1.383）が未コミット
+- **1.373〜1.382 は commit＆push 済み**（origin/main=1.382コミット `dd68317`）。1.381=ボス改修／1.382=3体目ボス「闇のタマゴ」（装甲/弱点）。
+- **`git status` の未コミット＝Ver.1.383（4体目ボス）**: core-state.js / gameplay.js / render.js / sprites.js / i18n.js / index.html / sw.js ＋ 新規 `images/boss_snake_idle.png`・`tools/generate-boss-snake-openai.mjs`。**画像追加版なのでデプロイ後10分待つ**。**下の 1.383 push（Claudeがローカルcommit済→ユーザーは `git push` のみ）**。
+- **内容: 4体目ボス「闇の大蛇」(kind='snake') = "下から来る"ボス**（ユーザー案A・カラスの"上から"の対）。**地中に潜り→足元を危険ゾーンで予告→"下から"突き上げ→頂点で頭が露出(exposed)＝踏むチャンス→退避**の繰り返し。回避=**予告位置から横に離れる**。ほか **地這い(sweep)=ジャンプで飛び越え**／**毒吐き(spit・2回目〜)**。**登場回数連動**: 2回目〜(R8+)毒＆地這い高速化／3回目〜(R12+)突き上げ予告が短い。全メカニクス実機検証済み（潜行→予告→突き上げ被弾→頭露出踏み／地這いジャンプ回避／毒生成／地面クリップで生える描画＋危険ゾーン予告／HP上限）。
+- **⚠ ローテを配列化した**（重要・今後の新ボスが楽）: `var BOSS_KINDS = ['rooster','hawk','egg','snake']`（core-state.js）。setupBossArena の kind＝`BOSS_KINDS[(gameRound-1)%length]`、`bossEncounter()`＝`Math.ceil(gameRound/BOSS_KINDS.length)`。**新ボスは BOSS_KINDS 末尾に足すだけでローテ＆encounterが自動追随**（今回4体で /4 に。既存ボスの技解禁ラウンドは"N番目の登場"のまま不変）。
+
+### 4体目ボス「闇の大蛇」(1.383) 実装メモ
+- **スプライト**: 立ち絵1枚 `images/boss_snake_idle.png`（OpenAI・鎌首をもたげた縦構図のコブラ）。**動きは procedural**＝`b.headY`（頭の上端Y）で上下、drawBoss の snake分岐で **GROUND_Y より上だけクリップ描画＝地面から生えてくる演出**。生成=`tools/generate-boss-snake-openai.mjs`。sprites.js `boss_snake`・sw.js 登録。
+- **状態機械** `updateBossAI_snake`（gameplay.js）: `serpMode` = burrowed→telegraph（危険ゾーン予告）→strike（突き上げ）→**exposed**（頭が出て踏める）→retreat。ほか sweep（地這い）/spit（毒＝`spawnSnakeVenom`・isFlame流用）。当たり `updateBossCollision_snake`（strike中に頭の位置=被弾／sweep中の地上=被弾／exposed中に頭を踏む=ダメージ・接近は許す）。ボス状態フィールド: serpMode/serpTimer/strikeX/headY（＋exposed系はeggと共用）。
+- **zukan**: `boss:snake`（i18n `zukan_b_snake`/`_d` ja=闇の大蛇/en=Dark Serpent）。全種は 37→38。
+- **描画の要**: drawBoss 冒頭の影は kind==='snake' で「地面の穴＋telegraph時の危険ゾーン(赤塗り＋リング＋土煙)」に差し替え。怒りオーバーレイは snake が地上に頭を出している時だけ（`b.headY < GROUND_Y-20`）。
 
 ### 3体目ボス「闇のタマゴ」(1.382) 実装メモ
 - **スプライト**: 立ち絵1枚 `images/boss_egg_idle.png`（OpenAI・暗い装甲卵/光る紫の目とヒビ）。**動きは procedural**＝転がり=`b.rollAngle` で回転描画（render.js drawBoss の egg分岐）／弱点露出=マゼンタのグロー overlay。生成=`tools/generate-boss-egg-openai.mjs`。sprites.js `boss_egg`・sw.js 登録済み。
@@ -31,7 +38,7 @@
 - **i18n**: `egg_pouch`/`egg_pouch_desc`/`tshop_keeper_egg_pouch_max`/`egg_perma_no_revive`/`stock_full_savings`（ja/en）。
 - **素材**: `tools/generate-pouch-openai.mjs`（gpt-image-1・巾着袋/ひよこ紋章/金紐・96px透過）→ `images/item_pouch.png`。sw.js STATIC_ASSETS 登録済み。
 
-### ⏱ push（Ver.1.382 3体目ボス・画像追加版＝デプロイ後10分待つ）
+### ⏱ push（Ver.1.383 4体目ボス・画像追加版＝デプロイ後10分待つ）
 ※長い絵文字入り1行コマンドは貼り付けで崩れて `git commit` が実行されないことがある（1.380で発生）。**Claudeがローカルで `git commit` 作成→ユーザーは `git push` のみ**が確実。
 ```bash
 cd /Users/veriquest/dev/piyos-adventure && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ push成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 push版: $(git show HEAD:index.html | grep -oE 'Ver\.[0-9]+\.[0-9]+' | head -1)" && echo "📝 $(git log -1 --pretty='%h %s')"

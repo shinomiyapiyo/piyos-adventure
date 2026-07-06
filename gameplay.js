@@ -1603,8 +1603,8 @@ function setupBossArena() {
         spriteFrame: 0,
         spriteResetTimer: 0,
         stompCooldown: 0,
-        // ボス3種を3ラウンド周期で: rooster(地上万能)→hawk(空中ダイバー)→egg(装甲卵)
-        kind: ['rooster', 'hawk', 'egg'][(gameRound - 1) % 3],
+        // ボスを BOSS_KINDS の順で毎ラウンド循環（rooster→hawk→egg→snake→…）
+        kind: BOSS_KINDS[(gameRound - 1) % BOSS_KINDS.length],
         // 空中ボス(hawk)専用ステート
         hawkMode: 'hover',   // hover→charge→dive→stun→rise
         hawkBob: 0,          // 滞空の上下揺れ位相
@@ -1617,8 +1617,13 @@ function setupBossArena() {
         eggTimer: 0,         // 各モードの残り時間
         rollAngle: 0,        // 転がり回転角（描画用）
         rollDir: -1,         // 転がり方向
-        exposed: false,      // 弱点露出中（この間だけ踏み/弾でダメージが通る）
-        exposedTimer: 0
+        exposed: false,      // (egg/snake共用) 弱点/頭の露出中（この間だけ踏み/弾でダメージが通る）
+        exposedTimer: 0,
+        // 闇の大蛇(snake)専用ステート
+        serpMode: 'burrowed',// burrowed→telegraph→strike→exposed→retreat（時々 sweep/spit）
+        serpTimer: 0,
+        strikeX: 0,          // 突き上げ狙いのX
+        headY: 0             // 頭の上端Y（描画/当たり＝地面から生える）
     };
     // 空中ボスは地面より高い滞空高度から登場させる
     if (bossState.boss.kind === 'hawk') {
@@ -1659,6 +1664,15 @@ function updateBoss() {
                 b.attackTimer = 80;
                 bossState.phase = 3;
             }
+            return;
+        }
+        if (b.kind === 'snake') {
+            // 闇の大蛇: 地中から登場（歩き入場しない）。アリーナ中央に潜って即戦闘へ
+            b.x = gameState.camera.x + GAME_WIDTH * 0.5 - b.width / 2;
+            b.headY = GROUND_Y + b.height;  // 完全に地中（見えない）
+            b.y = b.headY;
+            b.serpMode = 'burrowed'; b.serpTimer = 55; b.exposed = false;
+            bossState.phase = 3;
             return;
         }
         if (b.kind === 'egg') {
@@ -1824,12 +1838,13 @@ var HAWK_HOVER_CYCLE = [6, 7, 8, 9, 5, 9, 8, 7];
 function updateBossAI(b) {
     if (b.kind === 'hawk') { updateBossAI_hawk(b); }
     else if (b.kind === 'egg') { updateBossAI_egg(b); }
+    else if (b.kind === 'snake') { updateBossAI_snake(b); }
     else { updateBossAI_mama(b); }
 }
 
-// そのボスの「何回目の登場か」。ボス3種を3ラウンド周期で回すので /3（rooster=R1,4,7 / hawk=R2,5,8 / egg=R3,6,9 → 各1,2,3…）。
+// そのボスの「何回目の登場か」。ボスは BOSS_KINDS.length 周期で循環するので /その周期（各ボスは自分の初登場を1として1,2,3…）。
 // ラウンド連動の攻撃解禁の共通基準。新ボスもこれで技をぶら下げる（bossEncounter()>=N）。
-function bossEncounter() { return Math.ceil(gameRound / 3); }
+function bossEncounter() { return Math.ceil(gameRound / BOSS_KINDS.length); }
 
 // ─────────────────────────────────────────────────────────────
 // 空中ボス(hawk)のAI: 滞空して左右に漂い、ダイブ爆撃と羽根弾で攻める。
@@ -2253,10 +2268,120 @@ function updateBossAI_egg(b) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// 闇の大蛇(snake)のAI: 地中に潜り、足元を予告してから"下から"突き上げる。頂点で頭が露出(exposed)＝踏むチャンス。
+// カラスの"上から"の対。回避は「予告位置から離れる（横移動）」＋地這いは「ジャンプで飛び越え」。攻撃はbossEncounter()で解禁。
+// headY=頭の上端Y（描画/当たり）。地中はGROUND_Y下（drawBossでGROUND_Yより上だけ描画＝生えてくる演出）。
+// ─────────────────────────────────────────────────────────────
+function updateBossAI_snake(b) {
+    var maxHp = bossState.maxHp || BOSS_MAX_HP;
+    var hpRatio = b.hp / maxHp;
+    var phase = hpRatio > 0.6 ? 1 : hpRatio > 0.3 ? 2 : 3;
+    var enc = bossEncounter();
+    var aL = bossState.arenaLeft, aR = bossState.arenaRight;
+    var APEX = GROUND_Y - 92;             // 突き上げ頂点（頭の上端Y）＝踏める高さ
+    var HIDDEN = GROUND_Y + 30;           // 地中（頭も隠れる）
+    if (b.isAngry) { b.angerTimer--; if (b.angerTimer <= 0) b.isAngry = false; }
+
+    switch (b.serpMode) {
+    case 'burrowed':
+        b.exposed = false;
+        b.headY = HIDDEN; b.y = b.headY;
+        b.serpTimer--;
+        if (b.serpTimer <= 0) {
+            var r = Math.random();
+            if (enc >= 2 && r < 0.24) {              // 【2回目〜】毒吐き
+                b.serpMode = 'spit'; b.serpTimer = 26;
+                b.x = Math.max(aL, Math.min(aR - b.width, player.x + player.width / 2 - b.width / 2));
+            } else if (r < 0.30) {                   // 地這い（横断・飛び越え）
+                b.serpMode = 'sweep';
+                b.rollDir = (player.x + player.width / 2 < b.x + b.width / 2) ? 1 : -1; // 逆側から来る
+                b.x = (b.rollDir > 0) ? (aL - b.width) : aR;
+                b.facing = b.rollDir < 0 ? 'left' : 'right';
+            } else {                                 // 突き上げ（足元を予告）
+                b.serpMode = 'telegraph';
+                b.x = Math.max(aL, Math.min(aR - b.width, player.x + player.width / 2 - b.width / 2));
+                b.serpTimer = (phase === 3 ? 20 : 32) * (enc >= 3 ? 0.7 : 1); // 【3回目〜】予告が短い
+            }
+        }
+        break;
+
+    case 'telegraph':                     // 足元に土煙予告（drawBoss）＝ここから離れれば回避
+        b.headY = HIDDEN; b.y = b.headY;
+        b.serpTimer--;
+        if (b.serpTimer <= 0) { b.serpMode = 'strike'; b.velY = -20; }
+        break;
+
+    case 'strike':                        // 頭が地面から突き上がる
+        b.velY += 1.3;
+        b.headY += b.velY;
+        b.y = b.headY;
+        if (b.headY <= APEX) {
+            b.headY = APEX; b.y = b.headY;
+            b.serpMode = 'exposed'; b.exposed = true;
+            b.exposedTimer = (phase === 3 ? 52 : 76); // 頭が出て踏める窓
+        }
+        break;
+
+    case 'exposed':                       // 頭が露出（無防備＝踏むチャンス）。接近は許す（本体接触ダメージなし）
+        b.headY = APEX; b.y = b.headY;
+        b.exposedTimer--;
+        if (b.exposedTimer <= 0) { b.exposed = false; b.serpMode = 'retreat'; }
+        break;
+
+    case 'retreat':                       // 地中へ引っ込む
+        b.exposed = false;
+        b.headY += 9; b.y = b.headY;
+        if (b.headY >= HIDDEN) { b.headY = HIDDEN; b.serpMode = 'burrowed'; b.serpTimer = (phase === 3 ? 24 : 42); }
+        break;
+
+    case 'sweep': {                       // 地を這って横断（頭を地面すぐ上に）＝ジャンプで飛び越え
+        b.headY = GROUND_Y - 44; b.y = b.headY; b.exposed = false;
+        var sweepSpeed = (phase === 3 ? 7 : 6) * (enc >= 2 ? 1.15 : 1);
+        b.x += b.rollDir * sweepSpeed;
+        if ((b.rollDir > 0 && b.x > aR) || (b.rollDir < 0 && b.x + b.width < aL)) {
+            b.serpMode = 'burrowed'; b.serpTimer = (phase === 3 ? 22 : 38);
+        }
+        break;
+    }
+
+    case 'spit': {                        // 頭を少し出して毒（闇の飛沫）を前方へ吐く
+        b.headY = GROUND_Y - 68; b.y = b.headY; b.exposed = false;
+        b.facing = (b.x + b.width / 2 > player.x + player.width / 2) ? 'left' : 'right';
+        b.serpTimer--;
+        if (b.serpTimer === 12) spawnSnakeVenom(b, phase === 3 ? 4 : 3);
+        if (b.serpTimer <= 0) { b.serpMode = 'exposed'; b.exposed = true; b.exposedTimer = 58; }
+        break;
+    }
+
+    default:
+        b.serpMode = 'burrowed'; b.serpTimer = 40;
+        break;
+    }
+}
+
+// 大蛇の毒（闇の飛沫）: 頭から前方へ扇状に。isFlame を流用（updateEggs のシールド判定/移動/描画/被弾がそのまま効く）。
+function spawnSnakeVenom(boss, count) {
+    var bx = boss.x + boss.width / 2;
+    var by = boss.headY + 18;
+    var dir = (player.x + player.width / 2 < bx) ? -1 : 1;
+    for (var i = 0; i < count; i++) {
+        var t = count > 1 ? i / (count - 1) : 0.5;
+        bossState.eggs.push({
+            x: bx - 11, y: by, width: 22, height: 22,
+            velX: dir * (4 + t * 2.2),
+            velY: -3.2 + t * 3.6,   // 上向き〜やや下の扇（前方へ散る）
+            timer: 0, isFlame: true
+        });
+    }
+    if (soundManager) soundManager.playFlash();
+}
+
 function updateBossCollision(b) {
     if (!b || b.hp <= 0) return;
     if (b.kind === 'hawk') { updateBossCollision_hawk(b); return; }
     if (b.kind === 'egg') { updateBossCollision_egg(b); return; }
+    if (b.kind === 'snake') { updateBossCollision_snake(b); return; }
     // stompCooldownカウントダウン
     if (b.stompCooldown > 0) b.stompCooldown--;
     var stompHit = aabbShrink(player, b, 10, 15);
@@ -2379,6 +2504,37 @@ function updateBossCollision_egg(b) {
         var lowHit = aabbShrink(player, b, 8, 6);
         if (lowHit && player.y + player.height >= GROUND_Y - 55) {
             takeDamage();
+        }
+    }
+}
+
+// 大蛇の当たり判定:
+// ・突き上げ(strike)中: 頭がプレイヤーを下から突く（頭の位置にいると被弾／予告で離れれば回避）。
+// ・地這い(sweep)中: 地上付近のプレイヤーに被弾（ジャンプで回避）。
+// ・頭露出(exposed)中: 頭を踏む=ダメージ。露出中の本体接触は無効（接近して踏める）。
+function updateBossCollision_snake(b) {
+    if (b.stompCooldown > 0) b.stompCooldown--;
+    var headTop = b.headY;
+    var headBox = { x: b.x + 16, y: headTop, width: b.width - 32, height: 58 };
+
+    if (b.serpMode === 'strike' && !isPlayerProtected() && b.stompCooldown <= 0) {
+        if (aabb(player, headBox)) { takeDamage(); return; } // 下から突かれる
+    }
+    if (b.serpMode === 'sweep' && !isPlayerProtected() && b.stompCooldown <= 0) {
+        if (aabb(player, { x: b.x + 10, y: GROUND_Y - 46, width: b.width - 20, height: 46 }) &&
+            player.y + player.height >= GROUND_Y - 42) { takeDamage(); return; } // 地上=被弾（ジャンプ回避）
+    }
+    if (b.exposed && b.stompCooldown <= 0) {
+        var stompPose = player.velY > 0 && aabb(player, headBox) && player.y + player.height <= headTop + headBox.height * 0.75;
+        if (stompPose) {
+            b.hp -= 1;
+            player.velY = JUMP_FORCE * 0.5;
+            if (soundManager) soundManager.playKill();
+            spawnExplosionEffect(player.x + player.width / 2, headTop);
+            gainScore(500);
+            b.isAngry = true; b.angerTimer = BOSS_ANGER_DURATION;
+            b.stompCooldown = 30;
+            if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
         }
     }
 }

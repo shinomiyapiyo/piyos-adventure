@@ -120,7 +120,10 @@ var IMAGE_SPRITES = {
     ] },
 
     // ボス3 (128x128, OpenAI生成 闇の巨卵ゴーレム - 立ち絵1枚。転がり=回転／弱点露出=グロー overlay で procedural)
-    boss_egg:        { files: ['images/boss_egg_idle.png'] }
+    boss_egg:        { files: ['images/boss_egg_idle.png'] },
+
+    // ボス4 (128x128, OpenAI生成 闇の大蛇 - 立ち絵1枚。地中→突き上げは headY＋地面クリップで procedural)
+    boss_snake:      { files: ['images/boss_snake_idle.png'] }
 };
 
 // ─── 地形/背景用パレット定義 (SFC 16色) ───

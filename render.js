@@ -1250,11 +1250,35 @@ function drawBoss(b) {
     var flipH = b.facing === 'right';
     var bounce = Math.sin(b.animFrame * 0.08) * 3;
     var drawY = b.y + bounce;
-    // 影（空中ボスは高度演出のため薄く小さめ・常に真下の地面に出す）
-    ctx.fillStyle = isHawk ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.ellipse(b.x + b.width / 2, GROUND_Y + 2, b.width * (isHawk ? 0.26 : 0.4), isHawk ? 6 : 8, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // 影（空中ボスは薄く小さめ／大蛇は地面の穴＋突き上げ予告）
+    if (b.kind === 'snake') {
+        var shx = b.x + b.width / 2;
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.beginPath(); ctx.ellipse(shx, GROUND_Y + 3, b.width * 0.3, 9, 0, 0, Math.PI * 2); ctx.fill();
+        if (b.serpMode === 'telegraph') { // 突き上げ位置を危険ゾーン＋土煙で予告（ここから離れれば回避）
+            var wp = 0.55 + Math.sin(b.animFrame * 0.5) * 0.35;
+            ctx.save();
+            ctx.globalAlpha = wp * 0.5;   // 危険ゾーンの赤い塗り
+            ctx.fillStyle = '#ff2a2a';
+            ctx.beginPath(); ctx.ellipse(shx, GROUND_Y + 2, b.width * 0.36, 13, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = wp;         // 明滅する赤リング
+            ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.ellipse(shx, GROUND_Y + 2, b.width * 0.36, 13, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalAlpha = wp * 0.9;   // 噴き上がる土煙
+            ctx.fillStyle = '#8a6a44';
+            for (var di = 0; di < 6; di++) {
+                var ddx = shx - 10 + Math.sin(b.animFrame * 0.35 + di * 1.4) * b.width * 0.28;
+                var ddy = GROUND_Y - 6 - (Math.floor(b.animFrame * 0.4 + di * 3) % 16);
+                ctx.fillRect(ddx, ddy, 5, 5);
+            }
+            ctx.restore();
+        }
+    } else {
+        ctx.fillStyle = isHawk ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(b.x + b.width / 2, GROUND_Y + 2, b.width * (isHawk ? 0.26 : 0.4), isHawk ? 6 : 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
     // 踏み無敵時の点滅 + 怒り時の赤点滅
     if (b.stompCooldown > 0 && Math.floor(b.animFrame / 3) % 2 === 0) {
         ctx.globalAlpha = 0.35;
@@ -1285,13 +1309,23 @@ function drawBoss(b) {
             ctx.fill();
             ctx.restore();
         }
+    } else if (b.kind === 'snake') {
+        // 大蛇: 頭がheadYに来る縦スプライトを、地面(GROUND_Y)より上だけ描画＝地面から生えてくる演出
+        if (b.headY < GROUND_Y - 2) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(b.x - 12, b.headY - 6, b.width + 24, GROUND_Y - b.headY + 6);
+            ctx.clip();
+            spriteManager.draw(ctx, 'boss_snake', 0, b.x, b.headY, b.width, b.height, flipH);
+            ctx.restore();
+        }
     } else {
         spriteManager.draw(ctx, isHawk ? 'boss_hawk' : 'boss_rooster', b.spriteFrame, b.x, drawY, b.width, b.height, flipH);
     }
-    // 怒り赤オーバーレイ（楕円放射グラデーション）
-    if (b.isAngry) {
+    // 怒り赤オーバーレイ（楕円放射グラデーション）※大蛇は頭が地上に出ている時だけ（地中で地面下に描かない）
+    if (b.isAngry && (b.kind !== 'snake' || b.headY < GROUND_Y - 20)) {
         var acx = b.x + b.width / 2;
-        var acy = drawY + b.height * 0.45;
+        var acy = (b.kind === 'snake') ? b.headY + b.height * 0.3 : drawY + b.height * 0.45;
         var arx = b.width * 0.55;
         var ary = b.height * 0.48;
         ctx.globalAlpha = 0.25 + Math.sin(b.animFrame * 0.3) * 0.15;

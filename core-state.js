@@ -46,6 +46,8 @@ const BOSS_TRIGGER_DISTANCE = 2400;   // 2400mごとにボス出現
 const BOSS_MAX_HP           = 10;
 const BOSS_HP_PER_ROUND     = 2;      // ラウンド毎のHP増（緩やか化: 旧+3→+2）。難度は攻撃パターンで上げる方針
 const BOSS_HP_ROUND_CAP     = 7;      // HP増の上限ステップ数（R(3+7)=R10で頭打ち＝戦闘の間延び防止）
+// ボス出現ローテ（この順で毎ラウンド循環）。新ボスは末尾に足すだけ＝kind決定と bossEncounter() が自動追随
+var BOSS_KINDS = ['rooster', 'hawk', 'egg', 'snake'];
 const BOSS_WIDTH            = 128;
 const BOSS_HEIGHT           = 128;
 const BOSS_DEFEAT_SCORE     = 5000;
@@ -336,6 +338,7 @@ var ZUKAN_ENTRIES = [
     { id: 'boss:rooster', cat: 'boss', nameKey: 'zukan_b_rooster', descKey: 'zukan_b_rooster_d', kind: 'rooster', kill: true },
     { id: 'boss:hawk',    cat: 'boss', nameKey: 'zukan_b_hawk',    descKey: 'zukan_b_hawk_d',    kind: 'hawk',    kill: true },
     { id: 'boss:egg',     cat: 'boss', nameKey: 'zukan_b_egg',     descKey: 'zukan_b_egg_d',     kind: 'egg',     kill: true },
+    { id: 'boss:snake',   cat: 'boss', nameKey: 'zukan_b_snake',   descKey: 'zukan_b_snake_d',   kind: 'snake',   kill: true },
     // ── アイテム：フィールドで拾う ──
     { id: 'item:heart',      cat: 'item', nameKey: 'zukan_i_heart',  descKey: 'zukan_i_heart_d',  img: 'images/icon_lives.png' },
     { id: 'item:coin',       cat: 'item', nameKey: 'zukan_i_coin',   descKey: 'zukan_i_coin_d',   img: 'images/icon_money.png' },
