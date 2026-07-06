@@ -1,15 +1,21 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.380 まで push済／Ver.1.381 ボス改修が未コミット**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
+> 最終更新: **Ver.1.381 まで push済／Ver.1.382 3体目ボス（闇のタマゴ）が未コミット**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在地サマリ（← 次セッションはまずここ / 2026-07-06）
 
-### ✅ 1.380まで push済／⏳ ボス改修（1.381）が未コミット
-- **1.373〜1.380 は commit＆push 済み**（origin/main=1.380コミット `2e2f02f`）。1.378=ポーチ／1.379=スキルLvバッジ／1.380=図鑑の仕上げ＋ママひよこ→ニワトリ改名。
-- **`git status` の未コミット＝Ver.1.381（ボス改修）のみ**: core-state.js / gameplay.js / index.html / sw.js。画像追加なし。**下の 1.381 push で push**（ローカルコミットは作成済みなら `git push` のみ）。
-- **内容（ユーザー方針: HPは緩やか・難度は攻撃パターンで上げる）**: ①**ボスHPを緩やか化＋上限**＝旧 `10+max(0,R-3)*3`（上限なし）→ `10+min(max(0,R-3),7)*2`（`BOSS_HP_PER_ROUND=2`/`BOSS_HP_ROUND_CAP=7`）。R4=120,R10=240で頭打ち（表示値）＝踏み戦闘が最長約36秒に収束・間延び解消。②**共通ヘルパー `bossEncounter()`=`Math.ceil(gameRound/2)`**＝そのボスの登場回数（ニワトリR1,3,5→1,2,3／カラスR2,4,6→1,2,3）。新ボスは技を `bossEncounter()>=N` でぶら下げる。③**闇のカラスに登場回数連動の攻撃を追加**（従来カラスはHP%フェーズのみで登場回数連動ゼロだった）: **2回目〜(R4+)=広角・高密度の羽根バースト**（`spawnHawkFeathers(b,9/11,Math.PI*0.95)`＝ほぼ水平まで広げ全て下向き・横に避けにくい）／**3回目〜(R6+)=2連ダイブ**（`pendingDoubleDive`・rise時に滞空へ戻らず即再ダイブ・毎回の着地硬直=踏みチャンスは残しフェア）。**地上ボス `updateBossAI_mama` は変更禁止コメント尊重で未変更**（閃光=`gameRound>=2`は実質encounter2解禁で既に整合）。全項目 実機検証済み（HP式値／enc各300回試行でR2広角0・2連0／R4広角48%・2連0／R6広角52%・2連46%／rise2連遷移・羽根全下向き）。
+### ✅ 1.381まで push済／⏳ 3体目ボス「闇のタマゴ」（1.382）が未コミット
+- **1.373〜1.381 は commit＆push 済み**（origin/main=1.381コミット `0c9d500`）。1.380=図鑑仕上げ＋ニワトリ改名／1.381=ボス改修（HP緩やか化＋上限・カラスに登場回数連動の攻撃）。
+- **`git status` の未コミット＝Ver.1.382（3体目ボス）**: core-state.js / gameplay.js / render.js / sprites.js / i18n.js / index.html / sw.js ＋ 新規 `images/boss_egg_idle.png`・`tools/generate-boss-egg-openai.mjs`。**画像追加版なのでデプロイ後10分待ってアップデート案内**。**下の 1.382 push（Claudeがローカルcommit済→ユーザーは `git push` のみ）**。
+- **内容: 3体目ボス「闇のタマゴ」(kind='egg') = 装甲/弱点ボス**（ユーザー案B・"踏み放題"を崩す新鮮さ）。**硬い殻で通常の踏み/弾を弾く（ダメージ0）→ 転がり/叩きつけ/召喚の各攻撃後の「弱点露出(exposed)」中だけダメージが通る**タイミング勝負。**特殊技(ぴよフラッシュ)は殻を貫通**（トランプ）。転がりは**ジャンプで飛び越え**て回避（地上付近のみ被弾）、叩きつけは衝撃波を飛び越え。**登場回数連動**: 2回目〜(R6+)転がり高速化／3回目〜(R9+)壁ヒットで2連転がり。**出現ローテを3周に変更**（rooster R1,4,7／hawk R2,5,8／egg R3,6,9）＝それに合わせ **`bossEncounter()` を `Math.ceil(gameRound/3)` に修正**（カラス/ニワトリの解禁ラウンドもこれに追随＝2番目/3番目の登場で解禁は不変）。全メカニクス 実機検証済み（装甲弾き/露出ダメージ/特殊貫通/転がりジャンプ回避/叩きつけ衝撃波/回転描画/露出マゼンタ発光/HP上限）。
+
+### 3体目ボス「闇のタマゴ」(1.382) 実装メモ
+- **スプライト**: 立ち絵1枚 `images/boss_egg_idle.png`（OpenAI・暗い装甲卵/光る紫の目とヒビ）。**動きは procedural**＝転がり=`b.rollAngle` で回転描画（render.js drawBoss の egg分岐）／弱点露出=マゼンタのグロー overlay。生成=`tools/generate-boss-egg-openai.mjs`。sprites.js `boss_egg`・sw.js 登録済み。
+- **状態機械** `updateBossAI_egg`（gameplay.js）: `eggMode` = idle→(rollWind→roll)/slam/summon→**exposed**→idle。装甲判定 `updateBossCollision_egg`（露出中のみ踏みダメージ・非露出は高バウンスで弾く／転がり中の地上接触で被弾）。弾のボス判定（index.html）に `kind==='egg' && !exposed` の露出ゲート追加。ボス状態フィールド: eggMode/eggTimer/rollAngle/rollDir/exposed/exposedTimer/didDoubleRoll。
+- **zukan**: `boss:egg`（core-state.js ZUKAN_ENTRIES・i18n `zukan_b_egg`/`_d` ja=闇のタマゴ/en=Dark Egg）。**全種が36→37に増加**（zukanProgressは動的なのでコンプ判定は自動追随。既にboss/all をclaim済みのプレイヤーは egg分の再報酬は出ない＝許容）。
+- **次候補**: 案A(闇の大蛇/地中)・案C(闇のフクロウ/暗転)＝[[piyo-gameplay-backlog]]に記録済み。同じ `bossEncounter()>=N` 枠に技をぶら下げるだけ。ローテ配列に足す。
 
 ### 図鑑の仕上げ（1.380）実装メモ
 - **データ**: `gameSettings.zukan` に `new{}`（未閲覧の新規＝NEW!用）と `claimed{}`（コンプ報酬受取済み）を追加。gameSettings既定＋loadSettings復元＋データ引き継ぎに自動同梱。`ZUKAN_REWARDS={enemy:3,item:3,boss:3,biome:3,all:10}`（core-state.js）。
@@ -25,7 +31,7 @@
 - **i18n**: `egg_pouch`/`egg_pouch_desc`/`tshop_keeper_egg_pouch_max`/`egg_perma_no_revive`/`stock_full_savings`（ja/en）。
 - **素材**: `tools/generate-pouch-openai.mjs`（gpt-image-1・巾着袋/ひよこ紋章/金紐・96px透過）→ `images/item_pouch.png`。sw.js STATIC_ASSETS 登録済み。
 
-### ⏱ push（Ver.1.381 ボス改修）
+### ⏱ push（Ver.1.382 3体目ボス・画像追加版＝デプロイ後10分待つ）
 ※長い絵文字入り1行コマンドは貼り付けで崩れて `git commit` が実行されないことがある（1.380で発生）。**Claudeがローカルで `git commit` 作成→ユーザーは `git push` のみ**が確実。
 ```bash
 cd /Users/veriquest/dev/piyos-adventure && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ push成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 push版: $(git show HEAD:index.html | grep -oE 'Ver\.[0-9]+\.[0-9]+' | head -1)" && echo "📝 $(git log -1 --pretty='%h %s')"

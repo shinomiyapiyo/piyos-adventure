@@ -1603,14 +1603,22 @@ function setupBossArena() {
         spriteFrame: 0,
         spriteResetTimer: 0,
         stompCooldown: 0,
-        // 奇数ラウンド=地上ボス(rooster) / 偶数ラウンド=空中ボス(hawk) を交互に
-        kind: (gameRound % 2 === 1) ? 'rooster' : 'hawk',
+        // ボス3種を3ラウンド周期で: rooster(地上万能)→hawk(空中ダイバー)→egg(装甲卵)
+        kind: ['rooster', 'hawk', 'egg'][(gameRound - 1) % 3],
         // 空中ボス(hawk)専用ステート
         hawkMode: 'hover',   // hover→charge→dive→stun→rise
         hawkBob: 0,          // 滞空の上下揺れ位相
         chargeTimer: 0,      // ダイブ前の溜め
         stunTimer: 0,        // ダイブ着地後の硬直（=踏める窓）
-        diveTargetX: 0
+        diveTargetX: 0,
+        pendingDoubleDive: false, // (hawk用) 2連ダイブ予約
+        // 装甲卵ボス(egg)専用ステート
+        eggMode: 'idle',     // idle→roll/slam/summon→exposed→idle
+        eggTimer: 0,         // 各モードの残り時間
+        rollAngle: 0,        // 転がり回転角（描画用）
+        rollDir: -1,         // 転がり方向
+        exposed: false,      // 弱点露出中（この間だけ踏み/弾でダメージが通る）
+        exposedTimer: 0
     };
     // 空中ボスは地面より高い滞空高度から登場させる
     if (bossState.boss.kind === 'hawk') {
@@ -1651,6 +1659,14 @@ function updateBoss() {
                 b.attackTimer = 80;
                 bossState.phase = 3;
             }
+            return;
+        }
+        if (b.kind === 'egg') {
+            // 装甲卵ボス: 右から転がって入場
+            b.x -= 2.5;
+            b.animFrame++;
+            b.rollAngle -= 0.1;
+            if (b.x <= targetX) { b.x = targetX; b.eggMode = 'idle'; b.eggTimer = 45; bossState.phase = 3; }
             return;
         }
         // 地上ボス: 右から歩いて入場
@@ -1807,12 +1823,13 @@ var HAWK_HOVER_CYCLE = [6, 7, 8, 9, 5, 9, 8, 7];
 
 function updateBossAI(b) {
     if (b.kind === 'hawk') { updateBossAI_hawk(b); }
+    else if (b.kind === 'egg') { updateBossAI_egg(b); }
     else { updateBossAI_mama(b); }
 }
 
-// そのボスの「何回目の登場か」（ニワトリ=R1,3,5→1,2,3 / カラス=R2,4,6→1,2,3）。
+// そのボスの「何回目の登場か」。ボス3種を3ラウンド周期で回すので /3（rooster=R1,4,7 / hawk=R2,5,8 / egg=R3,6,9 → 各1,2,3…）。
 // ラウンド連動の攻撃解禁の共通基準。新ボスもこれで技をぶら下げる（bossEncounter()>=N）。
-function bossEncounter() { return Math.ceil(gameRound / 2); }
+function bossEncounter() { return Math.ceil(gameRound / 3); }
 
 // ─────────────────────────────────────────────────────────────
 // 空中ボス(hawk)のAI: 滞空して左右に漂い、ダイブ爆撃と羽根弾で攻める。
@@ -2126,9 +2143,120 @@ function updateBossAI_mama(b) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// 装甲卵ボス(egg)のAI: 硬い殻で通常の踏みを弾く（ダメージ0）。転がり/叩きつけ/召喚の各攻撃後に
+// 「弱点露出（exposed）」の隙ができ、その間だけ踏み/弾でダメージが通る＝タイミング勝負。
+// 転がりは低くジャンプで回避／叩きつけは衝撃波を飛び越え。攻撃はbossEncounter()で解禁。
+// ─────────────────────────────────────────────────────────────
+function updateBossAI_egg(b) {
+    var maxHp = bossState.maxHp || BOSS_MAX_HP;
+    var hpRatio = b.hp / maxHp;
+    var phase = hpRatio > 0.6 ? 1 : hpRatio > 0.3 ? 2 : 3; // 瀕死ほど攻撃が速く隙が短い
+    var enc = bossEncounter();
+    var aL = bossState.arenaLeft, aR = bossState.arenaRight;
+    var groundY = GROUND_Y - b.height;
+    if (b.isAngry) { b.angerTimer--; if (b.angerTimer <= 0) b.isAngry = false; }
+
+    switch (b.eggMode) {
+    case 'idle':
+        b.exposed = false;
+        b.y = groundY;
+        b.facing = (b.x + b.width / 2 > player.x + player.width / 2) ? 'left' : 'right';
+        b.eggTimer--;
+        if (b.eggTimer <= 0) {
+            var r = Math.random();
+            if (r < 0.55) {
+                b.eggMode = 'rollWind';
+                b.rollDir = (player.x + player.width / 2 < b.x + b.width / 2) ? -1 : 1;
+                b.eggTimer = 26;         // 溜め（転がりの予告）
+                b.didDoubleRoll = false;
+            } else if (r < 0.82) {
+                b.eggMode = 'slam';
+                b.velY = -13;
+            } else {
+                b.eggMode = 'summon';
+                b.eggTimer = 26;
+            }
+        }
+        break;
+
+    case 'rollWind':                     // その場で震えて予告（回避の猶予）
+        b.y = groundY;
+        b.rollAngle += (Math.floor(b.animFrame / 2) % 2 === 0 ? 1 : -1) * 0.06;
+        b.eggTimer--;
+        if (b.eggTimer <= 0) b.eggMode = 'roll';
+        break;
+
+    case 'roll': {
+        var rollSpeed = (phase === 3 ? 8 : phase === 2 ? 7 : 6) * (enc >= 2 ? 1.2 : 1); // 【2回目〜(R6+)】高速化
+        b.x += b.rollDir * rollSpeed;
+        b.rollAngle += b.rollDir * (rollSpeed / (b.width * 0.45)); // 見た目の転がり回転
+        b.facing = b.rollDir < 0 ? 'left' : 'right';
+        b.y = groundY;
+        var hitWall = (b.rollDir < 0 && b.x <= aL) || (b.rollDir > 0 && b.x + b.width >= aR);
+        if (hitWall) {
+            b.x = Math.max(aL, Math.min(aR - b.width, b.x));
+            floatEffects.push({ type: 'boss_shockwave', worldX: b.x + b.width / 2, worldY: GROUND_Y, timer: 0, duration: 18 });
+            if (enc >= 3 && !b.didDoubleRoll) {   // 【3回目〜(R9+)】壁ヒットで一度だけ逆方向へ2連転がり
+                b.didDoubleRoll = true;
+                b.rollDir *= -1;
+            } else {
+                b.eggMode = 'exposed';
+                b.exposed = true;
+                b.exposedTimer = (phase === 3 ? 80 : 108); // ダウン＝踏める窓
+            }
+        }
+        break;
+    }
+
+    case 'slam':                          // ジャンプ→落下→着地で衝撃波＋露出
+        b.velY += GRAVITY;
+        b.y += b.velY;
+        b.rollAngle = 0;
+        if (b.y >= groundY) {
+            b.y = groundY;
+            b.velY = 0;
+            floatEffects.push({ type: 'boss_shockwave', worldX: b.x + b.width / 2, worldY: GROUND_Y, timer: 0, duration: 22 });
+            if (!isPlayerProtected() && player.y + player.height >= GROUND_Y - 60 &&
+                Math.abs((player.x + player.width / 2) - (b.x + b.width / 2)) < b.width * 1.3) {
+                takeDamage(); // 着地の衝撃波（地上にいると被弾／ジャンプで回避）
+            }
+            b.eggMode = 'exposed';
+            b.exposed = true;
+            b.exposedTimer = (phase === 3 ? 66 : 92);
+        }
+        break;
+
+    case 'summon':
+        b.y = groundY;
+        b.eggTimer--;
+        if (b.eggTimer <= 0) {
+            spawnBossChick(b);
+            if (phase >= 2) spawnBossChick(b);
+            b.eggMode = 'exposed';
+            b.exposed = true;
+            b.exposedTimer = 76;          // 召喚後の隙
+        }
+        break;
+
+    case 'exposed':                       // 弱点露出（踏み/弾が通る窓）。停止してプレイヤーを向く
+    default:
+        b.y = groundY;
+        b.facing = (b.x + b.width / 2 > player.x + player.width / 2) ? 'left' : 'right';
+        b.exposedTimer--;
+        if (b.exposedTimer <= 0) {
+            b.exposed = false;
+            b.eggMode = 'idle';
+            b.eggTimer = (phase === 3 ? 28 : 46); // 次の攻撃までの間
+        }
+        break;
+    }
+}
+
 function updateBossCollision(b) {
     if (!b || b.hp <= 0) return;
     if (b.kind === 'hawk') { updateBossCollision_hawk(b); return; }
+    if (b.kind === 'egg') { updateBossCollision_egg(b); return; }
     // stompCooldownカウントダウン
     if (b.stompCooldown > 0) b.stompCooldown--;
     var stompHit = aabbShrink(player, b, 10, 15);
@@ -2216,6 +2344,43 @@ function spawnBossItem() {
         lifetime: 600, // 10秒（60fps × 10）
         maxLifetime: 600
     });
+}
+
+// 装甲卵ボスの当たり判定:
+// ・弱点露出中(exposed)のみ踏み/弾でダメージ。露出してない殻への踏みは弾かれる（ダメージ0＋高バウンス）。
+// ・転がり中の本体接触は地上付近のプレイヤーのみ被弾（ジャンプで回避可）。特殊技(ぴよフラッシュ)は殻貫通（特殊/弾はkind非依存の既存処理・弾は露出ゲートを別途追加）。
+function updateBossCollision_egg(b) {
+    if (b.stompCooldown > 0) b.stompCooldown--;
+    var topHit = aabbShrink(player, b, 12, 12);
+    var stompPose = topHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.4;
+
+    if (b.stompCooldown <= 0 && stompPose) {
+        if (b.exposed) {
+            // 弱点露出中: ダメージ
+            b.hp -= 1;
+            player.velY = JUMP_FORCE * 0.5;
+            if (soundManager) soundManager.playKill();
+            spawnExplosionEffect(player.x + player.width / 2, b.y);
+            gainScore(500);
+            b.isAngry = true; b.angerTimer = BOSS_ANGER_DURATION;
+            b.stompCooldown = 35;
+            if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
+        } else {
+            // 装甲: 弾かれる（ダメージなし）。高めにバウンス＋リングで「今は踏んでも無駄」と伝える
+            player.velY = JUMP_FORCE * 0.62;
+            b.stompCooldown = 14;
+            floatEffects.push({ type: 'boss_shockwave', worldX: player.x + player.width / 2, worldY: b.y + 12, timer: 0, duration: 12 });
+            if (soundManager) soundManager.playCursorMove(); // 「カキン」代わりの軽い音
+        }
+        return;
+    }
+    // 転がり中の本体接触（地上付近のみ被弾＝ジャンプで回避可）
+    if (b.eggMode === 'roll' && !isPlayerProtected() && b.stompCooldown <= 0) {
+        var lowHit = aabbShrink(player, b, 8, 6);
+        if (lowHit && player.y + player.height >= GROUND_Y - 55) {
+            takeDamage();
+        }
+    }
 }
 
 function updateBossItems() {

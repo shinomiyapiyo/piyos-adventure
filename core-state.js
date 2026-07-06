@@ -335,6 +335,7 @@ var ZUKAN_ENTRIES = [
     // ── ボス（撃破数つき）──
     { id: 'boss:rooster', cat: 'boss', nameKey: 'zukan_b_rooster', descKey: 'zukan_b_rooster_d', kind: 'rooster', kill: true },
     { id: 'boss:hawk',    cat: 'boss', nameKey: 'zukan_b_hawk',    descKey: 'zukan_b_hawk_d',    kind: 'hawk',    kill: true },
+    { id: 'boss:egg',     cat: 'boss', nameKey: 'zukan_b_egg',     descKey: 'zukan_b_egg_d',     kind: 'egg',     kill: true },
     // ── アイテム：フィールドで拾う ──
     { id: 'item:heart',      cat: 'item', nameKey: 'zukan_i_heart',  descKey: 'zukan_i_heart_d',  img: 'images/icon_lives.png' },
     { id: 'item:coin',       cat: 'item', nameKey: 'zukan_i_coin',   descKey: 'zukan_i_coin_d',   img: 'images/icon_money.png' },

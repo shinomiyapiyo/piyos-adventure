@@ -117,7 +117,10 @@ var IMAGE_SPRITES = {
         'images/boss2_flap4.png',
         'images/boss2_flap5.png',
         'images/boss2_flap6.png'
-    ] }
+    ] },
+
+    // ボス3 (128x128, OpenAI生成 闇の巨卵ゴーレム - 立ち絵1枚。転がり=回転／弱点露出=グロー overlay で procedural)
+    boss_egg:        { files: ['images/boss_egg_idle.png'] }
 };
 
 // ─── 地形/背景用パレット定義 (SFC 16色) ───

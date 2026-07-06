@@ -1261,8 +1261,33 @@ function drawBoss(b) {
     } else if (b.isAngry && Math.floor(b.animFrame / 4) % 2 === 0) {
         ctx.globalAlpha = 0.7;
     }
-    // ボス本体スプライト（kindでシート切替: 地上=boss_rooster / 空中=boss_hawk）
-    spriteManager.draw(ctx, isHawk ? 'boss_hawk' : 'boss_rooster', b.spriteFrame, b.x, drawY, b.width, b.height, flipH);
+    // ボス本体スプライト（kindでシート切替: 地上=boss_rooster / 空中=boss_hawk / 装甲卵=boss_egg[回転]）
+    if (b.kind === 'egg') {
+        // 装甲卵: 転がり=回転で描画（立ち絵1枚を回す）
+        var ecx = b.x + b.width / 2, ecy = drawY + b.height / 2;
+        ctx.save();
+        ctx.translate(ecx, ecy);
+        ctx.rotate(b.rollAngle || 0);
+        spriteManager.draw(ctx, 'boss_egg', 0, -b.width / 2, -b.height / 2, b.width, b.height, false);
+        ctx.restore();
+        // 弱点露出中: コア/ヒビを光らせる overlay（＝ここが踏みチャンス）
+        if (b.exposed) {
+            var gpulse = 0.5 + Math.sin(b.animFrame * 0.35) * 0.35;
+            ctx.save();
+            ctx.globalAlpha = gpulse;
+            var ggrd = ctx.createRadialGradient(ecx, ecy, 4, ecx, ecy, b.width * 0.5);
+            ggrd.addColorStop(0, 'rgba(255,130,255,0.95)');
+            ggrd.addColorStop(0.5, 'rgba(200,60,255,0.5)');
+            ggrd.addColorStop(1, 'rgba(150,0,255,0)');
+            ctx.fillStyle = ggrd;
+            ctx.beginPath();
+            ctx.ellipse(ecx, ecy, b.width * 0.42, b.height * 0.46, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    } else {
+        spriteManager.draw(ctx, isHawk ? 'boss_hawk' : 'boss_rooster', b.spriteFrame, b.x, drawY, b.width, b.height, flipH);
+    }
     // 怒り赤オーバーレイ（楕円放射グラデーション）
     if (b.isAngry) {
         var acx = b.x + b.width / 2;
