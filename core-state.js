@@ -366,6 +366,8 @@ var ZUKAN_ENTRIES = [
     { id: 'biome:snow',      cat: 'biome', nameKey: 'zukan_bio_snow',   descKey: 'zukan_bio_snow_d' },
     { id: 'biome:night',     cat: 'biome', nameKey: 'zukan_bio_night',  descKey: 'zukan_bio_night_d' }
 ];
+// 図鑑コンプリート報酬（ゴールデンエッグ）。各カテゴリ100%＋全種コンプで付与。gameSettings.zukan.claimed で二重防止。
+var ZUKAN_REWARDS = { enemy: 3, item: 3, boss: 3, biome: 3, all: 10 };
 var ZUKAN_BIOME_NAMES = ['grassland', 'desert', 'snow', 'night']; // getBiomeIndex → biome:<name>
 var ZUKAN_POWERUP_IDS = { heart: 'item:heart', lemon_can: 'item:lemon', shield: 'item:shield', energy: 'item:energy', magnet: 'item:magnet' }; // powerUp.type → id（golden_eggは collectGoldenEgg 側で記録）
 
@@ -374,13 +376,17 @@ function markZukanSeen(id) {
     if (!id || !gameSettings.zukan) return;
     if (gameSettings.zukan.seen[id]) return;
     gameSettings.zukan.seen[id] = 1;
+    if (gameSettings.zukan.new) gameSettings.zukan.new[id] = 1; // 未閲覧の新規発見（図鑑を開くまで NEW! バッジ）
     saveSettings();
 }
 // 撃破数を加算（＝発見）。保存は頻度を抑えるためここでは行わず gameOver でまとめて確定する。
 function zukanAddKill(id) {
     if (!id || !gameSettings.zukan) return;
     gameSettings.zukan.kills[id] = (gameSettings.zukan.kills[id] || 0) + 1;
-    if (!gameSettings.zukan.seen[id]) gameSettings.zukan.seen[id] = 1;
+    if (!gameSettings.zukan.seen[id]) {
+        gameSettings.zukan.seen[id] = 1;
+        if (gameSettings.zukan.new) gameSettings.zukan.new[id] = 1; // 新規発見（保存はgameOverでまとめて）
+    }
 }
 // 敵オブジェクト → ずかんID（typeと、基本ひよこはバイオーム見た目 walkSprite で分岐）
 function enemyZukanId(e) {

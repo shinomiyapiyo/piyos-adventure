@@ -1,15 +1,20 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.378 まほうのポーチ push済／Ver.1.379 スキルLvバッジが未コミット**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
+> 最終更新: **Ver.1.379 まで push済／Ver.1.380 図鑑の仕上げが未コミット**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在地サマリ（← 次セッションはまずここ / 2026-07-06）
 
-### ✅ まほうのポーチ（1.378）push済／⏳ スキルLvバッジ（1.379）が未コミット
-- **1.373〜1.378 は commit＆push 済み**（origin/main=1.378コミット `4314184`＝まほうのポーチ一式）。ポーチは画像追加版なのでデプロイ後10分待ってアップデート案内。
-- **`git status` の未コミット＝Ver.1.379（スキルLvバッジ）のみ**: gameplay.js / index.html / sw.js。**ゲーム中の所持スキル（永久アップグレード）アイコンに Lv2以上で右下に数字バッジ**（コインマスターLv3→「3」等・Lv1は素のアイコン）。前セッションで指示済みだったが未実装だったのをユーザー指摘で対応。画像追加なしなので10分待ち不要。**下の 1.379 push ブロックで push**。
-- **実装**: `updateStockUI`（gameplay.js）の所持スキル描画を `<img>`→`<span class="owned-skill-wrap">`＋Lv2以上で `<span class="skill-lv-badge">N</span>`。CSS は index.html `.owned-skill-wrap`/`.skill-lv-badge`（金丸・右下）。
+### ✅ 1.378ポーチ＋1.379スキルLvバッジ push済／⏳ 図鑑の仕上げ（1.380）が未コミット
+- **1.373〜1.379 は commit＆push 済み**（origin/main=1.379コミット `6f81ff2`）。1.378=まほうのポーチ／1.379=所持スキルアイコンのLv2以上バッジ。
+- **`git status` の未コミット＝Ver.1.380（図鑑の仕上げ）のみ**: core-state.js / i18n.js / index.html / sw.js。画像追加なしなので10分待ち不要。**下の 1.380 push ブロックで push**。
+- **内容**: ①**新規発見「NEW!」演出**＝発見時に `gameSettings.zukan.new[id]=1`／図鑑グリッドに「NEW!」リボン・カテゴリタブに未読ドット・**タイトルの設定ボタン＋設定内の図鑑ボタンに赤バッジ**（`updateZukanBadge`）／図鑑を閉じたら `new` 全クリア（`hideZukanScreen`）。②**コンプリート報酬🥚**＝各カテゴリ100%で🥚3・全36種コンプで🥚10ボーナス（計🥚22）。図鑑を開いた時に `checkZukanRewards` が判定→未受取なら🥚付与＋祝トースト、`gameSettings.zukan.claimed` で二重防止。※アップグレード/スキンは `seenIf` 派生でNEW!対象外（購入=能動発見）。全項目 実機検証済み（発見→NEW!→バッジ→閉じてクリア／カテゴリ🥚3／全コンプ🥚22／二重防止／トーストが図鑑上に表示 z=10000>9999）。③**敵「ママひよこ」→「ニワトリ」に改名**（表示名i18n `zukan_e_mama` ja=ニワトリ/en=Hen のみ変更・内部id `enemy:mama_chick`とスプライトは据置＝セーブ互換維持。ボスは「闇のニワトリ」で別物）。
+
+### 図鑑の仕上げ（1.380）実装メモ
+- **データ**: `gameSettings.zukan` に `new{}`（未閲覧の新規＝NEW!用）と `claimed{}`（コンプ報酬受取済み）を追加。gameSettings既定＋loadSettings復元＋データ引き継ぎに自動同梱。`ZUKAN_REWARDS={enemy:3,item:3,boss:3,biome:3,all:10}`（core-state.js）。
+- **関数**: `zukanNewCount()`/`updateZukanBadge()`/`zukanCatHasNew(cat)`/`checkZukanRewards()`（index.html）。`markZukanSeen`/`zukanAddKill`（core-state.js）が新規登録時に `new[id]=1`。i18n `zukan_reward_toast`。
+- **落とし穴**: 報酬トーストは `showRewardToast`（z-index:10000）。図鑑画面(`#zukanScreen` z=9999)の上に出るのを確認済み。トーストは `pointer-events:none` なので `elementFromPoint` はすり抜ける（重なり判定に使うと誤検出）。
 
 ### まほうのポーチ（永続ストック）確定仕様と実装（完成・1.378）
 **仕様**: エッグ品「まほうのポーチ」を🥚10で買うたび**永続ストック枠+1**（上限=`stockState.maxSlots`・きぐるみは🥚5に変更済み）。枠は**上から順に金枠**・毎ラン**中身を自動補充**（使っても翌ラン戻る）。**入手品は空き永続枠へ自動割当→通常枠→満杯なら貯金換算**（損なし・売値=定価の半分）。永続枠の中身は**ドラッグでスワップ**（タップ=使用は維持）。**復活薬は永続化不可**（`PERMA_STOCK_EXCLUDE`・フレーバー `egg_perma_no_revive`）。
@@ -20,9 +25,9 @@
 - **i18n**: `egg_pouch`/`egg_pouch_desc`/`tshop_keeper_egg_pouch_max`/`egg_perma_no_revive`/`stock_full_savings`（ja/en）。
 - **素材**: `tools/generate-pouch-openai.mjs`（gpt-image-1・巾着袋/ひよこ紋章/金紐・96px透過）→ `images/item_pouch.png`。sw.js STATIC_ASSETS 登録済み。
 
-### ⏱ push（Ver.1.379 スキルLvバッジ・時刻表示付き）
+### ⏱ push（Ver.1.380 図鑑の仕上げ・時刻表示付き）
 ```bash
-cd /Users/veriquest/dev/piyos-adventure && date '+⏰ 開始 %H:%M:%S' && git add -A && git commit -m "ゲーム中の所持スキル（永久アップグレード）アイコンにLv2以上で右下に数字バッジを表示（コインマスターLv3→3等・Lv1は素のアイコン）(Ver.1.379)" -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ 更新成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 $(grep -oE 'Ver\.[0-9]+\.[0-9]+' index.html | head -1)" && echo "📝 $(git log -1 --pretty='%h %s')" && date '+⏰ 完了 %H:%M:%S'
+cd /Users/veriquest/dev/piyos-adventure && date '+⏰ 開始 %H:%M:%S' && git add -A && git commit -m "図鑑の仕上げ：新規発見に「NEW!」演出（グリッドリボン/タブ未読ドット/設定ボタン赤バッジ・開いたらクリア）＋コンプリート報酬🥚（各カテゴリ100%で🥚3・全36種で🥚10ボーナス・二重防止）／敵「ママひよこ」→「ニワトリ」に改名 (Ver.1.380)" -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ 更新成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 $(grep -oE 'Ver\.[0-9]+\.[0-9]+' index.html | head -1)" && echo "📝 $(git log -1 --pretty='%h %s')" && date '+⏰ 完了 %H:%M:%S'
 ```
 
 ### 1.377の内容（完成・push済み）

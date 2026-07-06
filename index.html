@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.379";
+                content: "Ver.1.380";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.379</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.380</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -815,7 +815,7 @@
                     position: absolute; top: 50%; right: 10px;
                     transform: translateY(-50%);
                     display: flex; flex-direction: column; gap: 8px; z-index: 25;">
-                    <button class="game-button" id="settingsButton"><img src="images/icon_settings.png" class="ui-icon"> <span data-i18n="title_settings">SETTING</span></button>
+                    <button class="game-button" id="settingsButton" style="position:relative;"><img src="images/icon_settings.png" class="ui-icon"> <span data-i18n="title_settings">SETTING</span><span id="zukanBadgeSettings" style="display:none; position:absolute; top:-5px; right:-5px; width:13px; height:13px; background:#ff3344; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(255,51,68,0.9);"></span></button>
                     <button class="game-button" id="rankingButton"><img src="images/icon_trophy.png" class="ui-icon"> <span data-i18n="title_ranking">RANKING</span></button>
                     <button class="game-button" id="shopButton"><img src="images/icon_cart.png" class="ui-icon"> <span data-i18n="title_shop">SHOP</span></button>
                     <button class="game-button" id="missionButton" style="position:relative;"><img src="images/icon_flag.png" class="ui-icon"> <span data-i18n="title_mission">MISSION</span><span id="missionBadge" style="display:none; position:absolute; top:-5px; right:-5px; width:13px; height:13px; background:#ff3344; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(255,51,68,0.9);"></span></button>
@@ -970,13 +970,13 @@
                 <div style="display: flex; justify-content: space-between; align-items: center;
                     padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
                     <span data-i18n="settings_zukan" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;">ずかん</span>
-                    <button onclick="showZukanScreen()" style="
+                    <button onclick="showZukanScreen()" id="zukanOpenBtn" style="position: relative;
                         min-width: 60px; min-height: 36px; padding: 6px 14px; border-radius: 18px; border: none;
                         font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
                         font-family: 'M PLUS Rounded 1c', sans-serif;
                         background: linear-gradient(180deg, #d4a017, #9c7409);
                         color: #fff; transition: background 0.15s ease;
-                        -webkit-tap-highlight-color: transparent;">▶</button>
+                        -webkit-tap-highlight-color: transparent;">▶<span id="zukanBadgeRow" style="display:none; position:absolute; top:-5px; right:-5px; width:13px; height:13px; background:#ff3344; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(255,51,68,0.9);"></span></button>
                 </div>
 
                 <!-- データ引き継ぎ（機種変更/ブラウザ変更時のセーブ移行） -->
@@ -1663,7 +1663,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.379
+ * ぴよ氏の冒険 v1.380
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2160,7 +2160,7 @@ var gameSettings = {
     goldenEggs: 0,                // ゴールデンエッグ所持数（レア通貨）
     lastGoldenEggDate: '',        // 最後に2500m日次エッグを取得した日付
     lastGoldenEggTimestamp: 0,    // 時計巻き戻しガード用
-    zukan: { seen: {}, kills: {} }, // ずかん: seen[id]=1(発見済み) / kills[id]=撃破数(敵・ボスのみ)
+    zukan: { seen: {}, kills: {}, new: {}, claimed: {} }, // ずかん: seen[id]=1(発見済み)/kills[id]=撃破数/new[id]=1(未閲覧の新規=NEW!)/claimed[key]=1(コンプ報酬受取済み)
     pouchLevel: 0,                // まほうのポーチ所持数＝永続ストック枠の数（上から順に永続化）
     permaStock: []                // 永続ストック枠のアイテムid配列（枠index順・''=未割当）
 };
@@ -2228,6 +2228,8 @@ var gameSettings = {
             if (parsed.zukan && typeof parsed.zukan === 'object') {
                 if (parsed.zukan.seen && typeof parsed.zukan.seen === 'object') gameSettings.zukan.seen = parsed.zukan.seen;
                 if (parsed.zukan.kills && typeof parsed.zukan.kills === 'object') gameSettings.zukan.kills = parsed.zukan.kills;
+                if (parsed.zukan.new && typeof parsed.zukan.new === 'object') gameSettings.zukan.new = parsed.zukan.new;
+                if (parsed.zukan.claimed && typeof parsed.zukan.claimed === 'object') gameSettings.zukan.claimed = parsed.zukan.claimed;
             }
             // ── まほうのポーチ（永続ストック）──
             if (typeof parsed.pouchLevel === 'number') gameSettings.pouchLevel = parsed.pouchLevel;
@@ -2473,6 +2475,7 @@ function recordMissionProgress() {
     saveSettings();
     updateMissionBadge();
     updateAchievementBadge();
+    updateZukanBadge();
 }
 
 function claimMission(i) {
@@ -3234,6 +3237,7 @@ function startApp() {
     checkDailyMissions();
     updateMissionBadge();
     updateAchievementBadge();
+    updateZukanBadge();
 }
 
 function handleTitleScreenClick(e) {
@@ -3314,6 +3318,7 @@ function showStartScreen() {
     hideGameOverScreen();
     updateMissionBadge();
     updateAchievementBadge();
+    updateZukanBadge();
 
     if (soundManager) { try { soundManager.playBGM('title'); } catch (_) {} }
 }
@@ -3557,6 +3562,7 @@ function showSettings() {
     showScreenEl('settingsScreen');
     history.pushState({ screen: 'settings' }, '');
     updateSettingsUI();
+    updateZukanBadge(); // 図鑑の新規発見バッジ（設定内の図鑑行）を更新
 }
 
 function hideSettings() {
@@ -3609,6 +3615,48 @@ function ensureZukanTapBindings() {
     var back = document.getElementById('zukanBackBtn');
     if (back && typeof bindTapButton === 'function') bindTapButton(back, closeZukanScreen, { stopClickPropagation: true });
 }
+// 未閲覧の新規発見（NEW!）の件数
+function zukanNewCount() {
+    var n = 0, mp = (gameSettings.zukan && gameSettings.zukan.new) || {};
+    for (var k in mp) { if (mp[k]) n++; }
+    return n;
+}
+// 未閲覧の新規発見があれば、タイトルの設定ボタン＋設定内の図鑑ボタンに赤バッジを表示
+function updateZukanBadge() {
+    var show = zukanNewCount() > 0;
+    var b1 = document.getElementById('zukanBadgeSettings');
+    if (b1) b1.style.display = show ? 'block' : 'none';
+    var b2 = document.getElementById('zukanBadgeRow');
+    if (b2) b2.style.display = show ? 'block' : 'none';
+}
+// そのカテゴリに未閲覧の新規発見があるか（タブの未読ドット用）
+function zukanCatHasNew(cat) {
+    var mp = (gameSettings.zukan && gameSettings.zukan.new) || {};
+    for (var i = 0; i < ZUKAN_ENTRIES.length; i++) {
+        if (ZUKAN_ENTRIES[i].cat === cat && mp[ZUKAN_ENTRIES[i].id]) return true;
+    }
+    return false;
+}
+// 図鑑コンプリート報酬（🥚）: 各カテゴリ100%＋全種コンプで付与。gameSettings.zukan.claimed で二重防止。図鑑を開いた時に判定。
+function checkZukanRewards() {
+    if (!gameSettings.zukan) return;
+    if (!gameSettings.zukan.claimed) gameSettings.zukan.claimed = {};
+    var claimed = gameSettings.zukan.claimed;
+    var eggs = 0, cats = ['enemy', 'item', 'boss', 'biome'];
+    for (var i = 0; i < cats.length; i++) {
+        var pr = zukanProgress(cats[i]);
+        var key = 'cat:' + cats[i];
+        if (pr.total > 0 && pr.seen >= pr.total && !claimed[key]) { claimed[key] = 1; eggs += (ZUKAN_REWARDS[cats[i]] || 0); }
+    }
+    var all = zukanProgress();
+    if (all.total > 0 && all.seen >= all.total && !claimed['all']) { claimed['all'] = 1; eggs += (ZUKAN_REWARDS.all || 0); }
+    if (eggs > 0) {
+        gameSettings.goldenEggs = (gameSettings.goldenEggs || 0) + eggs;
+        saveSettings();
+        var msg = '<img src="images/item_golden_egg.png" width="22" height="22" style="image-rendering:pixelated; vertical-align:middle;"> ×' + eggs + ' ' + escapeHtml(t('zukan_reward_toast'));
+        setTimeout(function() { if (typeof showRewardToast === 'function') showRewardToast(msg, 'linear-gradient(180deg,#ffe07a,#ffb400)', '#5a3d00'); }, 400);
+    }
+}
 function showZukanScreen() {
     if (isInTransitionCooldown()) return;
     markScreenTransition();
@@ -3617,10 +3665,17 @@ function showZukanScreen() {
     showScreenEl('zukanScreen');
     history.pushState({ screen: 'zukan' }, '');
     renderZukan();
+    checkZukanRewards(); // コンプ達成があれば🥚付与＋祝トースト
     if (soundManager) soundManager.playConfirmSelect();
 }
 function hideZukanScreen() {
     markScreenTransition();
+    // 開いて見たので「NEW!」を全クリア（バッジも消す）
+    if (gameSettings.zukan && gameSettings.zukan.new && Object.keys(gameSettings.zukan.new).length) {
+        gameSettings.zukan.new = {};
+        saveSettings();
+    }
+    updateZukanBadge();
     hideScreenEl('zukanScreen');
 }
 function closeZukanScreen() {
@@ -3685,7 +3740,8 @@ function renderZukan() {
             var tab = document.createElement('div');
             tab.style.cssText = 'flex:1; text-align:center; font-size:clamp(10px,2.1vw,13px); font-weight:700; padding:7px 2px; border-radius:9px; cursor:pointer; font-family:\'M PLUS Rounded 1c\',sans-serif; -webkit-tap-highlight-color:transparent;' +
                 (active ? 'background:#ff4f8b; color:#4b1528;' : 'background:#2a2a45; color:#c7c7e0;');
-            tab.innerHTML = t(c.labelKey) + ' <span style="font-size:0.82em; opacity:0.85;">' + pr.seen + '/' + pr.total + '</span>';
+            tab.innerHTML = t(c.labelKey) + ' <span style="font-size:0.82em; opacity:0.85;">' + pr.seen + '/' + pr.total + '</span>' +
+                (zukanCatHasNew(c.cat) ? ' <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#ff3344; vertical-align:middle;"></span>' : '');
             tab.setAttribute('data-zcat', c.cat); // touchend委譲でタップ（bindTapDelegate）
             tabsEl.appendChild(tab);
         })(ZUKAN_CATS[ti]);
@@ -3701,7 +3757,13 @@ function renderZukan() {
         if (firstId === null) firstId = entry.id;
         if (seen && firstSeenId === null) firstSeenId = entry.id;
         var card = document.createElement('div');
-        card.style.cssText = 'background:' + (seen ? '#26264a' : '#191930') + '; border:1px solid rgba(255,255,255,' + (seen ? '0.09' : '0.04') + '); border-radius:11px; padding:6px 3px 5px; cursor:pointer; -webkit-tap-highlight-color:transparent; display:flex; flex-direction:column; align-items:center; gap:2px;';
+        card.style.cssText = 'position:relative; background:' + (seen ? '#26264a' : '#191930') + '; border:1px solid rgba(255,255,255,' + (seen ? '0.09' : '0.04') + '); border-radius:11px; padding:6px 3px 5px; cursor:pointer; -webkit-tap-highlight-color:transparent; display:flex; flex-direction:column; align-items:center; gap:2px;';
+        if (gameSettings.zukan.new && gameSettings.zukan.new[entry.id]) { // 未閲覧の新規発見に「NEW!」リボン
+            var rib = document.createElement('div');
+            rib.textContent = 'NEW!';
+            rib.style.cssText = 'position:absolute; top:-4px; left:-4px; background:#ff3344; color:#fff; font-size:8px; font-weight:900; padding:1px 4px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.5); font-family:\'M PLUS Rounded 1c\',sans-serif; letter-spacing:0.3px; z-index:2;';
+            card.appendChild(rib);
+        }
         var thumbWrap = document.createElement('div');
         thumbWrap.style.cssText = 'width:44px; height:44px; display:flex; align-items:center; justify-content:center;';
         thumbWrap.appendChild(zukanThumb(entry, seen, 44));
