@@ -16,7 +16,7 @@ const args = process.argv.slice(2);
 const getArg = (n) => { const a = args.find(x => x.startsWith(`--${n}=`)); return a ? a.split('=')[1] : null; };
 const PREVIEW_ONLY = args.includes('--preview');
 const OUT = 128;
-const POSES = ['idle', 'flap', 'flap2', 'dive', 'shoot', 'damaged'];
+const POSES = ['idle', 'flap', 'flap2', 'flap3', 'flap4', 'flap5', 'flap6', 'dive', 'shoot', 'damaged'];
 const picks = {};
 for (const p of POSES) { const v = getArg(p); if (v) picks[p] = parseInt(v, 10); }
 

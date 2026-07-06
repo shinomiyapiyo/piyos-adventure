@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.376";
+                content: "Ver.1.377";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.376</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.377</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1404,8 +1404,8 @@
                 </div>
                 <div id="zukanTabs" style="display:flex; gap:5px; flex-shrink:0; margin-bottom:8px;"></div>
                 <div style="display:flex; gap:10px; flex:1 1 auto; min-height:0;">
-                    <div id="zukanGrid" style="flex:1.5; display:grid; grid-template-columns:repeat(auto-fill,minmax(80px,1fr)); grid-auto-rows:min-content; gap:6px; overflow-y:auto; -webkit-overflow-scrolling:touch; align-content:start; padding-right:2px;"></div>
-                    <div id="zukanDetail" style="flex:1; min-width:0; background:#191933; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 8px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow-y:auto;"></div>
+                    <div id="zukanGrid" style="flex:1.5; display:grid; grid-template-columns:repeat(auto-fill,minmax(80px,1fr)); grid-auto-rows:min-content; gap:6px; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; align-content:start; padding-right:2px;"></div>
+                    <div id="zukanDetail" style="flex:1; min-width:0; background:#191933; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 8px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y;"></div>
                 </div>
                 <button class="game-button" id="zukanBackBtn" data-i18n="btn_back" style="margin-top:8px; flex-shrink:0; min-height:38px; font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
             </div>
@@ -1627,7 +1627,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.376
+ * ぴよ氏の冒険 v1.377
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3536,12 +3536,32 @@ var ZUKAN_CATS = [
 var _zukanBound = false;
 // タブ・カードは touchend 委譲でタップ判定（本編と同じ・onclickのiOS遅延/指ズレ無効化を回避）。
 // 委譲はコンテナに1回だけ張れば、再renderで中身が入れ替わっても効く。
+// スクロール可能なグリッド用のタップ委譲: 指が動いたら（＝縦スクロール）選択しない。
+// touchmove/touchendでpreventDefaultしない＝touch-action:pan-y のネイティブ縦スクロールと両立。
+function bindZukanScrollTap(container, attrName, handler) {
+    var sx = 0, sy = 0, moved = false, touchFired = false;
+    container.addEventListener('touchstart', function(e) { var t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY; moved = false; }, { passive: true });
+    container.addEventListener('touchmove', function(e) { var t = e.changedTouches[0]; if (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10) moved = true; }, { passive: true });
+    container.addEventListener('touchend', function(e) {
+        touchFired = true;
+        if (moved) return; // スクロール操作なのでタップ扱いしない
+        var t = e.changedTouches[0];
+        var el = document.elementFromPoint(t.clientX, t.clientY);
+        var item = el ? el.closest('[' + attrName + ']') : null;
+        if (item) handler(item.getAttribute(attrName));
+    });
+    container.addEventListener('click', function(e) {
+        if (touchFired) { touchFired = false; return; }
+        var item = e.target.closest('[' + attrName + ']');
+        if (item) handler(item.getAttribute(attrName));
+    });
+}
 function ensureZukanTapBindings() {
     if (_zukanBound) return;
     if (typeof bindTapDelegate !== 'function') return; // bootstrap.js未ロード時は次回に持ち越し
     _zukanBound = true;
     bindTapDelegate(document.getElementById('zukanTabs'), 'data-zcat', selectZukanCat);
-    bindTapDelegate(document.getElementById('zukanGrid'), 'data-zid', selectZukanEntry);
+    bindZukanScrollTap(document.getElementById('zukanGrid'), 'data-zid', selectZukanEntry); // 縦スクロールと両立
     var back = document.getElementById('zukanBackBtn');
     if (back && typeof bindTapButton === 'function') bindTapButton(back, closeZukanScreen, { stopClickPropagation: true });
 }
