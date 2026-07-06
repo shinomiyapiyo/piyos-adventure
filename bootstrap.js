@@ -299,23 +299,94 @@ function bindTapDelegate(container, attrName, handler) {
     //   結果 initialize() の登録まで実行されず起動不能になる。クロージャで包んでタップ時に解決する。
     bindTapButton(document.getElementById('forceUpdateBtn'), function() { if (window.forceUpdate) window.forceUpdate(); }, { guardTouchStart: true, stopClickPropagation: true });
 
-    // ストックアイテム使用: 枠は動的生成のため委譲で touchend 即時反応（onclickのiOS遅延・指の微動での無効化を回避）。
-    // ゲーム中の使用可能枠のみ data-idx を持つ（ショップ中の閲覧枠・空枠は対象外）。
+    // ストックアイテム: タップ=使用／ドラッグ=枠の中身を入替（永続枠の並べ替え）。枠は動的生成のため委譲。
+    // 使用可能枠(data-idx)からドラッグ開始・任意の枠(data-slot)へドロップ。閾値未満の動きはタップ=即使用（iOS遅延/微動回避）。
     (function bindStockTaps() {
         var sc = document.getElementById('stockSlots');
         if (!sc) return;
-        var fired = false;
-        function slotOf(e) { return (e.target && e.target.closest) ? e.target.closest('.stock-slot[data-idx]') : null; }
-        sc.addEventListener('touchstart', function(e) { if (slotOf(e)) e.stopPropagation(); }, { passive: true });
+        var DRAG_THRESH = 8;       // これ以上動いたらドラッグ扱い
+        var fired = false;         // touchend 処理済み→直後の click 無視
+        var suppressClick = false; // mouseドラッグ後の click 無視
+        var drag = null;           // {from,x,y,dragging,el}
+
+        function srcSlot(e) { return (e.target && e.target.closest) ? e.target.closest('.stock-slot[data-idx]') : null; }
+        function clearVisuals() {
+            var els = sc.querySelectorAll('.stock-slot');
+            for (var i = 0; i < els.length; i++) els[i].classList.remove('dragging', 'drag-over');
+        }
+        function dropIndexAt(cx, cy) {
+            var els = sc.querySelectorAll('.stock-slot[data-slot]');
+            for (var i = 0; i < els.length; i++) {
+                var r = els[i].getBoundingClientRect();
+                if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) return parseInt(els[i].getAttribute('data-slot'), 10);
+            }
+            return null;
+        }
+        function highlight(cx, cy, from) {
+            var idx = dropIndexAt(cx, cy);
+            var els = sc.querySelectorAll('.stock-slot[data-slot]');
+            for (var i = 0; i < els.length; i++) {
+                var di = parseInt(els[i].getAttribute('data-slot'), 10);
+                els[i].classList.toggle('drag-over', idx !== null && di === idx && di !== from);
+            }
+        }
+        function finishDrag(cx, cy) {
+            if (drag && drag.dragging) {
+                var to = dropIndexAt(cx, cy);
+                if (to !== null && to !== drag.from && typeof swapStockSlots === 'function') swapStockSlots(drag.from, to);
+            }
+            clearVisuals();
+        }
+
+        // ── タッチ（モバイル・主） ──
+        sc.addEventListener('touchstart', function(e) {
+            var el = srcSlot(e); if (!el) return;
+            e.stopPropagation();
+            var tt = e.touches[0];
+            drag = { from: parseInt(el.getAttribute('data-idx'), 10), x: tt.clientX, y: tt.clientY, dragging: false, el: el };
+        }, { passive: true });
+        sc.addEventListener('touchmove', function(e) {
+            if (!drag) return;
+            var tt = e.touches[0];
+            if (!drag.dragging && (Math.abs(tt.clientX - drag.x) > DRAG_THRESH || Math.abs(tt.clientY - drag.y) > DRAG_THRESH)) {
+                drag.dragging = true; drag.el.classList.add('dragging');
+            }
+            if (drag.dragging) { e.preventDefault(); e.stopPropagation(); highlight(tt.clientX, tt.clientY, drag.from); }
+        }, { passive: false });
         sc.addEventListener('touchend', function(e) {
-            var el = slotOf(e); if (!el) return;
+            if (!drag) return;
             e.preventDefault(); e.stopPropagation();
             fired = true;
-            useStockItem(parseInt(el.getAttribute('data-idx'), 10));
+            var tt = (e.changedTouches && e.changedTouches[0]) || { clientX: drag.x, clientY: drag.y };
+            if (drag.dragging) finishDrag(tt.clientX, tt.clientY);
+            else useStockItem(drag.from);
+            drag = null;
         });
+
+        // ── マウス（デスクトップ／Preview検証用） ──
+        sc.addEventListener('mousedown', function(e) {
+            var el = srcSlot(e); if (!el) return;
+            e.stopPropagation();
+            drag = { from: parseInt(el.getAttribute('data-idx'), 10), x: e.clientX, y: e.clientY, dragging: false, el: el };
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!drag) return;
+            if (!drag.dragging && (Math.abs(e.clientX - drag.x) > DRAG_THRESH || Math.abs(e.clientY - drag.y) > DRAG_THRESH)) {
+                drag.dragging = true; drag.el.classList.add('dragging');
+            }
+            if (drag.dragging) highlight(e.clientX, e.clientY, drag.from);
+        });
+        document.addEventListener('mouseup', function(e) {
+            if (!drag) return;
+            if (drag.dragging) { finishDrag(e.clientX, e.clientY); suppressClick = true; }
+            drag = null;
+        });
+
+        // ── click（touchend の後追い or デスクトップのタップ=使用） ──
         sc.addEventListener('click', function(e) {
-            var el = slotOf(e); if (!el) return;
+            var el = srcSlot(e); if (!el) return;
             if (fired) { fired = false; return; }
+            if (suppressClick) { suppressClick = false; return; }
             useStockItem(parseInt(el.getAttribute('data-idx'), 10));
         });
     })();

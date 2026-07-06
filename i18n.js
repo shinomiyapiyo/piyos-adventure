@@ -415,7 +415,13 @@ ja: {
     zukan_i_magnet_d: 'まわりのコインを引き寄せる。',
     zukan_i_egg: 'ゴールデンエッグ',
     zukan_i_egg_d: 'エッグこうかんで使えるレアなたまご。',
-    zukan_i_skin_maid_d: 'きせかえで手に入る黄色いメイド服。'
+    zukan_i_skin_maid_d: 'きせかえで手に入る黄色いメイド服。',
+    // ── まほうのポーチ（永続ストック） ──
+    egg_pouch: 'まほうのポーチ',
+    egg_pouch_desc: 'ストック品を1つ永続所持できる金の枠を追加。使っても毎ラン補充される。買うたびに枠が増える（ストック枠数まで）。',
+    tshop_keeper_egg_pouch_max: 'もう これ以上は ふやせないよ（ストックのわく数まで）。',
+    egg_perma_no_revive: 'ふっかつやくは いちどきりの きせき。まほうのポーチでも えいきゅうには しまえないんだ。',
+    stock_full_savings: 'ストックが いっぱい！ {amount}円に かえたよ'
 },
 en: {
     splash_warning: _ic('icon_warning.png') + ' Notice',
@@ -804,7 +810,12 @@ en: {
     zukan_i_magnet_d: 'Pulls nearby coins toward you.',
     zukan_i_egg: 'Golden Egg',
     zukan_i_egg_d: 'A rare egg you can spend at the Egg Exchange.',
-    zukan_i_skin_maid_d: 'A yellow maid outfit from the wardrobe.'
+    zukan_i_skin_maid_d: 'A yellow maid outfit from the wardrobe.',
+    egg_pouch: 'Magic Pouch',
+    egg_pouch_desc: 'Adds a golden slot that permanently holds one stock item, refilled every run. Buy again to add more (up to your stock slots).',
+    tshop_keeper_egg_pouch_max: 'No more room to add pouches (up to your stock slots).',
+    egg_perma_no_revive: 'The revival potion is a one-time miracle — even the magic pouch cannot hold it forever.',
+    stock_full_savings: 'Stock full! Converted to {amount} coins'
 }
 };
 

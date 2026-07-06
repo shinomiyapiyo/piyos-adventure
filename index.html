@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.377";
+                content: "Ver.1.378";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -614,6 +614,33 @@
         }
         /* ショップ中の閲覧専用スロット（アイテムは見えるが使用不可） */
         .stock-slot-readonly { pointer-events: none; cursor: default; }
+        /* ── まほうのポーチ 永続枠（金枠） ── */
+        .stock-slot-perma {
+            position: relative;
+            border: 2px solid #ffd24a;
+            background: linear-gradient(135deg, rgba(70,52,10,0.9), rgba(40,28,4,0.9));
+            box-shadow: 0 0 6px rgba(255,210,74,0.55), inset 0 0 4px rgba(255,225,120,0.35);
+        }
+        .stock-slot-perma-empty {
+            border-style: dashed;
+            background: rgba(255,210,74,0.1);
+            box-shadow: inset 0 0 4px rgba(255,210,74,0.25);
+            pointer-events: none;
+        }
+        /* 使用済み永続枠：金枠は残しアイコンを薄く（翌ラン補充のヒント） */
+        .stock-slot-perma-used { pointer-events: none; opacity: 0.9; }
+        .stock-slot-perma-used .ui-icon { opacity: 0.25; filter: grayscale(1); }
+        /* 永続枠のスロット番号バッジ（左上の小さな金丸） */
+        .perma-badge {
+            position: absolute; top: -5px; left: -5px;
+            min-width: 14px; height: 14px; padding: 0 2px; box-sizing: border-box;
+            border-radius: 7px; background: #ffd24a; color: #4a3200;
+            font-size: 10px; line-height: 14px; font-weight: 900; text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.4); pointer-events: none;
+        }
+        /* ドラッグ入替のフィードバック */
+        .stock-slot.dragging { opacity: 0.45; transform: scale(0.92); }
+        .stock-slot.drag-over { outline: 2px solid #fff; outline-offset: 1px; filter: brightness(1.25); }
         /* 所持している永久型アップグレードのアイコン（ストック枠の下にまとめて表示） */
         .owned-skills {
             display: flex; flex-wrap: wrap; justify-content: flex-end;
@@ -758,7 +785,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.377</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.378</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1627,7 +1654,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.377
+ * ぴよ氏の冒険 v1.378
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2124,7 +2151,9 @@ var gameSettings = {
     goldenEggs: 0,                // ゴールデンエッグ所持数（レア通貨）
     lastGoldenEggDate: '',        // 最後に2500m日次エッグを取得した日付
     lastGoldenEggTimestamp: 0,    // 時計巻き戻しガード用
-    zukan: { seen: {}, kills: {} } // ずかん: seen[id]=1(発見済み) / kills[id]=撃破数(敵・ボスのみ)
+    zukan: { seen: {}, kills: {} }, // ずかん: seen[id]=1(発見済み) / kills[id]=撃破数(敵・ボスのみ)
+    pouchLevel: 0,                // まほうのポーチ所持数＝永続ストック枠の数（上から順に永続化）
+    permaStock: []                // 永続ストック枠のアイテムid配列（枠index順・''=未割当）
 };
 (function loadSettings() {
     try {
@@ -2191,6 +2220,9 @@ var gameSettings = {
                 if (parsed.zukan.seen && typeof parsed.zukan.seen === 'object') gameSettings.zukan.seen = parsed.zukan.seen;
                 if (parsed.zukan.kills && typeof parsed.zukan.kills === 'object') gameSettings.zukan.kills = parsed.zukan.kills;
             }
+            // ── まほうのポーチ（永続ストック）──
+            if (typeof parsed.pouchLevel === 'number') gameSettings.pouchLevel = parsed.pouchLevel;
+            if (Array.isArray(parsed.permaStock)) gameSettings.permaStock = parsed.permaStock;
             if (typeof parsed.tutorialSeen === 'boolean') gameSettings.tutorialSeen = parsed.tutorialSeen;
             // adFree復元: 購入済みなら常にtrue
             if (gameSettings.purchased['ad_free'] || gameSettings.purchased['starter_pack']) gameSettings.adFree = true;
@@ -3240,6 +3272,9 @@ function startGame() {
     if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) requestFullscreen();
 
     applyUpgrades();
+    // 永続ストック枠を現在の pouchLevel で構築。resetGame を経由しない初回プレイやタイトルショップ購入直後でも確実に反映。
+    // resetGame 済みの場合も permaStock から再構築するだけ（used=false リセット＝ラン開始として正しい・二重処理なし）。
+    buildPermaSlots();
     gameState.gameStarted = true;
     gameState.gamePaused  = false;
 
@@ -3356,13 +3391,13 @@ function resetGame() {
 
     // ショップ・ストックリセット
     shopState = { active: false, visited: false, deposited: false, purchaseCounts: {}, savedGameSpeed: 0, buildingPlaced: false, buildingX: 0 };
+    // 永続ストック枠（まほうのポーチ）を構築：中身を毎ラン補充（used=false・使ってもラン開始で戻る）。
+    buildPermaSlots();
     stockState.items = [];
-    // ログインボーナスで受け取ったアイテムをストックに追加
+    // ログインボーナスで受け取ったアイテムをストックへ（addToStock=未割当永続枠→通常枠→満杯なら貯金換算）
     if (gameSettings.pendingStockItems && gameSettings.pendingStockItems.length > 0) {
         for (var pi = 0; pi < gameSettings.pendingStockItems.length; pi++) {
-            if (stockState.items.length < stockState.maxSlots) {
-                stockState.items.push({ id: gameSettings.pendingStockItems[pi] });
-            }
+            addToStock(gameSettings.pendingStockItems[pi]);
         }
         gameSettings.pendingStockItems = [];
         saveSettings();

@@ -478,7 +478,7 @@ function shopExitSequence(callback) {
 
 function renderStageShopItem(item, purchaseCount) {
     var canBuy = gameState.score >= item.price && purchaseCount < item.maxPerVisit;
-    if (item.stockItem && stockState.items.length >= stockState.maxSlots) canBuy = false;
+    if (item.stockItem && !stockHasRoom(item.id)) canBuy = false; // 永続枠/通常枠のどちらにも空きが無ければ買えない
     // ライフ上限チェック（回復薬はライフ10で買えない）
     if (item.id === 'heal' && gameState.lives >= 10) canBuy = false;
     var soldOut = purchaseCount >= item.maxPerVisit;
@@ -776,7 +776,7 @@ function selectShopItem(itemId) {
         return;
     }
     // ストック満杯チェック
-    if (item.stockItem && stockState.items.length >= stockState.maxSlots) {
+    if (item.stockItem && !stockHasRoom(item.id)) {
         setKeeperText('shop_keeper_stock_full');
         if (soundManager) soundManager.playDamage();
         updateStageShopUI();
@@ -893,7 +893,8 @@ function buyStageItem(itemId) {
         return false;
     }
     if (item.stockItem) {
-        if (!addToStock(itemId)) {
+        // 有料購入は満杯なら弾く（貯金換算③には落とさない＝金を払って半額戻りの損を防ぐ）。
+        if (!stockHasRoom(itemId)) {
             setKeeperText('shop_keeper_stock_full');
             if (soundManager) soundManager.playDamage();
             setShopBg('shop04', 1200);
@@ -901,6 +902,7 @@ function buyStageItem(itemId) {
             updateStageShopUI();
             return false;
         }
+        addToStock(itemId); // 空き保証済み→未割当永続枠 or 通常枠へ
     }
     gameState.score -= item.price;
     shopState.purchaseCounts[itemId] = bought + 1;
@@ -1068,6 +1070,7 @@ function selectTshopItem(upgradeId) {
 // ── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ──
 function eggShopItemById(id) { return EGG_SHOP_ITEMS.find(function(i) { return i.id === id; }) || null; }
 function isEggItemOwned(item) {
+    if (item.type === 'pouch') return (gameSettings.pouchLevel || 0) >= stockState.maxSlots; // 永続枠が上限＝MAX（これ以上買えない）
     return item.type === 'skin' && !!(gameSettings.ownedSkins && gameSettings.ownedSkins.indexOf(item.skinId) !== -1);
 }
 function selectEggShopItem(itemId) {
@@ -1107,8 +1110,17 @@ function confirmEggBuy(itemId) {
         updateTitleShopUI();
         return;
     }
+    // ポーチ: 永続枠が上限（ストック枠数）に達していたら買えない（減算前に弾く）
+    if (item.type === 'pouch' && (gameSettings.pouchLevel || 0) >= stockState.maxSlots) {
+        if (soundManager) soundManager.playDamage();
+        showTshopConfirm(false);
+        tshopConfirmingItem = null;
+        setTshopKeeperText('tshop_keeper_egg_pouch_max');
+        updateTitleShopUI();
+        return;
+    }
     // 付与処理が未実装の type は減算前に弾く（新type追加時の実装漏れでエッグだけ消えるのを防ぐ）
-    if (item.type !== 'skin') {
+    if (item.type !== 'skin' && item.type !== 'pouch') {
         if (soundManager) soundManager.playDamage();
         showTshopConfirm(false);
         tshopConfirmingItem = null;
@@ -1117,14 +1129,20 @@ function confirmEggBuy(itemId) {
         return;
     }
     gameSettings.goldenEggs -= item.eggPrice;
-    if (!gameSettings.ownedSkins) gameSettings.ownedSkins = [];
-    if (gameSettings.ownedSkins.indexOf(item.skinId) === -1) gameSettings.ownedSkins.push(item.skinId);
+    if (item.type === 'pouch') {
+        gameSettings.pouchLevel = (gameSettings.pouchLevel || 0) + 1; // 永続枠+1（上から順に永続化）
+        buildPermaSlots(); // 新しい金枠をストック表示に即反映（permaStockから再構築・購入時に空枠が増える）
+    } else { // skin
+        if (!gameSettings.ownedSkins) gameSettings.ownedSkins = [];
+        if (gameSettings.ownedSkins.indexOf(item.skinId) === -1) gameSettings.ownedSkins.push(item.skinId);
+    }
     saveSettings();
     if (soundManager) soundManager.playItem();
     showTshopConfirm(false);
     tshopConfirmingItem = null;
     setTshopKeeperText('tshop_keeper_egg_bought');
     updateTitleShopUI();
+    if (item.type === 'pouch') updateStockUI(); // 永続枠（金枠）の表示を更新
 }
 
 function previewTshopItem(upgradeId) {
@@ -1167,6 +1185,7 @@ function showTitleShop() {
         tshopAdBtnEl.style.display = gameSettings.adFree ? 'none' : 'block';
     }
     updateTitleShopUI();
+    buildPermaSlots(); // ゲーム未開始でも permaStock から永続枠を構築（返却プレイヤーが初回プレイ前にショップを開いた時の表示ズレ防止）
     updateStockUI(); // タイトルショップでもストック(枠＋所持アイテム)を表示＝拡張アイテム購入の参考に
     if (soundManager) soundManager.playBGM('shop');
 }
@@ -1234,7 +1253,7 @@ function renderEggShopItem(item) {
     return '<div data-tshop-id="' + key + '" class="shop-row shop-row-tshop' + (isHighlighted ? ' hl' : '') + '">' +
         '<span class="shop-cursor">' + cursor + '</span>' +
         '<img src="' + item.iconImg + '" width="18" height="18" class="shop-icon-img">' +
-        '<span class="shop-name" style="color:#fff;">' + escapeHtml(t(item.nameKey)) + '</span>' +
+        '<span class="shop-name" style="color:#fff;">' + escapeHtml(t(item.nameKey)) + (item.type === 'pouch' ? ' <span style="color:#ffd24a; font-size:0.82em;">Lv' + (gameSettings.pouchLevel || 0) + '/' + stockState.maxSlots + '</span>' : '') + '</span>' +
         '<span class="shop-price" style="color:#ffd700;">' + priceHtml + '</span>' +
     '</div>';
 }
@@ -1284,22 +1303,151 @@ function applyUpgrades() {
 }
 
 // ── ストックシステム ──
+// 永続ストック枠（まほうのポーチ）: stockState.perma=[{id,used}] を先頭に、その後ろに通常枠 stockState.items（詰め）。
+// 表示スロット index: 0..permaLevel()-1 = 永続枠 / それ以降 = 通常枠。
+function permaLevel() { return Math.max(0, Math.min(gameSettings.pouchLevel || 0, stockState.maxSlots)); }
+function normalMaxSlots() { return Math.max(0, stockState.maxSlots - permaLevel()); }
+
+// 永続ストック枠を permaStock から構築（毎ラン補充・used=false）。resetGame と startGame の両方から呼ぶ
+// （startGame は resetGame を経由しない初回プレイでも走る＝初回でも永続枠が確実に構築される）。
+// 長さ=pouchLevel（購入時に pouchLevel<=maxSlots を保証済み。permaLevel()が読み取り時に再クランプ）。
+function buildPermaSlots() {
+    stockState.perma = [];
+    var n = Math.max(0, gameSettings.pouchLevel || 0);
+    for (var i = 0; i < n; i++) {
+        var id = (gameSettings.permaStock && gameSettings.permaStock[i]) || '';
+        stockState.perma.push({ id: id, used: false });
+    }
+}
+
+// itemId を今この瞬間ストックに入れる余地があるか（購入可否・満杯判定に使用）
+function stockHasRoom(itemId) {
+    // 未割当の永続枠（復活薬など永続化不可品は永続枠に入れられない）
+    if (PERMA_STOCK_EXCLUDE.indexOf(itemId) === -1) {
+        for (var p = 0; p < stockState.perma.length; p++) {
+            if (!stockState.perma[p].id) return true;
+        }
+    }
+    // 通常枠の空き
+    return stockState.items.length < normalMaxSlots();
+}
+
+// ストック満杯時の入手品を貯金へ換算（損なし・売値=定価の半分）。永続化してsaveSettings。
+function convertItemToSavings(itemId) {
+    var si = STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; });
+    var amount = si ? Math.max(1, Math.floor(si.price / 2)) : 0;
+    if (amount > 0) {
+        gameSettings.savings = (gameSettings.savings || 0) + amount;
+        saveSettings();
+    }
+    if (typeof showRewardToast === 'function') {
+        showRewardToast(escapeHtml(t('stock_full_savings', { amount: amount })),
+            'linear-gradient(180deg,#7ad0ff,#2a7fd0)', '#062a44');
+    }
+}
+
 function addToStock(itemId) {
-    if (stockState.items.length >= stockState.maxSlots) return false;
-    stockState.items.push({ id: itemId });
+    // ① 未割当の永続枠へ自動割当（復活薬など永続化不可品は除外）→ 毎ラン補充される金枠に定着
+    if (PERMA_STOCK_EXCLUDE.indexOf(itemId) === -1) {
+        for (var p = 0; p < stockState.perma.length; p++) {
+            if (!stockState.perma[p].id) {
+                stockState.perma[p] = { id: itemId, used: false };
+                if (!gameSettings.permaStock) gameSettings.permaStock = [];
+                gameSettings.permaStock[p] = itemId;
+                saveSettings();
+                updateStockUI();
+                return true;
+            }
+        }
+    }
+    // ② 通常枠に空きがあれば追加
+    if (stockState.items.length < normalMaxSlots()) {
+        stockState.items.push({ id: itemId });
+        updateStockUI();
+        return true;
+    }
+    // ③ 満杯 → 貯金換算（損なし）
+    convertItemToSavings(itemId);
+    return true;
+}
+
+function useStockItem(displayIndex) {
+    var pl = permaLevel();
+    if (displayIndex < pl) {
+        // 永続枠: 使っても枠は残す（used=true）。翌ラン resetGame で used=false に補充される。
+        var pslot = stockState.perma[displayIndex];
+        if (!pslot || !pslot.id || pslot.used) return false;
+        var pItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === pslot.id; });
+        if (!pItem || !pItem.stockEffect) return false;
+        pItem.stockEffect();
+        pslot.used = true;
+        if (soundManager) soundManager.playItem();
+        updateStockUI();
+        return true;
+    }
+    // 通常枠（詰め配列）: 表示index から永続枠ぶんを引いた位置
+    var ni = displayIndex - pl;
+    if (ni < 0 || ni >= stockState.items.length) return false;
+    var item = stockState.items[ni];
+    var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === item.id; });
+    if (!shopItem || !shopItem.stockEffect) return false;
+    shopItem.stockEffect();
+    stockState.items.splice(ni, 1);
+    if (soundManager) soundManager.playItem();
     updateStockUI();
     return true;
 }
 
-function useStockItem(index) {
-    if (index < 0 || index >= stockState.items.length) return false;
-    var item = stockState.items[index];
-    var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === item.id; });
-    if (!shopItem || !shopItem.stockEffect) return false;
-    shopItem.stockEffect();
-    stockState.items.splice(index, 1);
-    if (soundManager) soundManager.playItem();
+// 永続枠へ移せない品（復活薬）をドロップした時のフィードバック
+function rejectPermaToast() {
+    if (typeof showRewardToast === 'function') {
+        showRewardToast(escapeHtml(t('egg_perma_no_revive')), 'linear-gradient(180deg,#c8a2ff,#7d4fd0)', '#fff');
+    }
+    if (soundManager) soundManager.playDamage();
+}
+
+// ドラッグでストック枠の中身を入替（perma/通常どちらも可）。永続枠へ復活薬は不可。
+// a,b は表示スロット index。used中の永続枠はロック（対象外）。
+function swapStockSlots(a, b) {
+    var pl = permaLevel();
+    var maxN = stockState.maxSlots;
+    if (a < 0 || b < 0 || a >= maxN || b >= maxN || a === b) return false;
+    // 使用済みの永続枠はドラッグ元/先ともに不可（この操作で復活してしまうのを防ぐ）
+    function isUsedPerma(idx) { return idx < pl && stockState.perma[idx] && stockState.perma[idx].id && stockState.perma[idx].used; }
+    if (isUsedPerma(a) || isUsedPerma(b)) return false;
+    // 位置スナップショット（各セル= {id,used} or null）。永続枠の used はここで保持される。
+    var snap = [];
+    for (var i = 0; i < maxN; i++) {
+        if (i < pl) {
+            var ps = stockState.perma[i];
+            snap.push((ps && ps.id) ? { id: ps.id, used: !!ps.used } : null);
+        } else {
+            var it = stockState.items[i - pl];
+            snap.push(it ? { id: it.id, used: false } : null);
+        }
+    }
+    var A = snap[a], B = snap[b];
+    if (!A && !B) return false;
+    // 復活薬を永続枠へ入れる操作は拒否
+    if (a < pl && B && B.id === 'revive_potion') { rejectPermaToast(); return false; }
+    if (b < pl && A && A.id === 'revive_potion') { rejectPermaToast(); return false; }
+    // 入替
+    snap[a] = B; snap[b] = A;
+    // 永続枠へ書き戻し（used は snap のまま＝スワップした側は元 used を持ち回る／未関与枠は不変）
+    for (var p = 0; p < pl; p++) {
+        var s = snap[p];
+        if (s) { stockState.perma[p] = { id: s.id, used: s.used }; }
+        else { stockState.perma[p] = { id: '', used: false }; }
+        if (!gameSettings.permaStock) gameSettings.permaStock = [];
+        gameSettings.permaStock[p] = s ? s.id : '';
+    }
+    // 通常枠は詰めて再構築
+    var newItems = [];
+    for (var n = pl; n < maxN; n++) { if (snap[n]) newItems.push({ id: snap[n].id }); }
+    stockState.items = newItems;
+    saveSettings();
     updateStockUI();
+    if (soundManager) soundManager.playCursorMove();
     return true;
 }
 
@@ -1320,20 +1468,45 @@ function updateStockUI() {
     var inShop = shopState.active || inTitleShop; // どちらのショップ中も枠・アイテムを見せるが使用不可（購入判断の参考用）
     container.classList.toggle('stock-panel', inShop); // ショップ中のみ背景パネルで視認性UP（ゲーム中は付けず視界を塞がない）
     var html = '';
+    var pl = permaLevel();
+    var iconFor = function(id) {
+        var s = STAGE_SHOP_ITEMS.find(function(x) { return x.id === id; });
+        return (s && s.iconImg) ? '<img src="' + s.iconImg + '" class="ui-icon">' : '?';
+    };
     for (var i = 0; i < stockState.maxSlots; i++) {
-        if (i < stockState.items.length) {
-            var itm = stockState.items[i];
-            var si = STAGE_SHOP_ITEMS.find(function(s) { return s.id === itm.id; });
-            var icon = (si && si.iconImg ? '<img src="' + si.iconImg + '" class="ui-icon">' : '?');
-            if (inShop) {
-                // ショップ中: アイコンは見せるが操作不可（pointer-events:none）
-                html += '<div class="stock-slot stock-slot-readonly">' + icon + '</div>';
+        if (i < pl) {
+            // ── 永続枠（まほうのポーチ・金枠＋スロット番号バッジ） ──
+            var pslot = stockState.perma[i] || { id: '', used: false };
+            var badge = '<span class="perma-badge">' + (i + 1) + '</span>';
+            if (pslot.id && !pslot.used) {
+                // 使用可能な永続アイテム: タップ=使用／ドラッグ=入替
+                if (inShop) {
+                    html += '<div class="stock-slot stock-slot-perma stock-slot-readonly">' + badge + iconFor(pslot.id) + '</div>';
+                } else {
+                    html += '<div class="stock-slot stock-slot-perma" data-idx="' + i + '" data-slot="' + i + '">' + badge + iconFor(pslot.id) + '</div>';
+                }
+            } else if (pslot.id && pslot.used) {
+                // 使用済み: 薄いアイコン＋金枠（翌ラン補充）。ゲーム中はドロップ先候補にはしない（ロック）。
+                html += '<div class="stock-slot stock-slot-perma stock-slot-perma-used">' + badge + iconFor(pslot.id) + '</div>';
             } else {
-                // ゲーム中: data-idx で識別。委譲タップ(touchend)で即使用（onclickのiOS遅延/指の微動での無効化を回避）
-                html += '<div class="stock-slot" data-idx="' + i + '">' + icon + '</div>';
+                // 未割当の永続枠（空の金枠）: ドロップ先候補
+                html += '<div class="stock-slot stock-slot-perma stock-slot-perma-empty"' + (inShop ? '' : ' data-slot="' + i + '"') + '>' + badge + '</div>';
             }
         } else {
-            html += '<div class="stock-slot stock-slot-empty"></div>';
+            // ── 通常枠 ──
+            var ni = i - pl;
+            if (ni < stockState.items.length) {
+                var itm = stockState.items[ni];
+                if (inShop) {
+                    // ショップ中: アイコンは見せるが操作不可（pointer-events:none）
+                    html += '<div class="stock-slot stock-slot-readonly">' + iconFor(itm.id) + '</div>';
+                } else {
+                    // ゲーム中: data-idx で識別。委譲タップ(touchend)で即使用／ドラッグ=入替
+                    html += '<div class="stock-slot" data-idx="' + i + '" data-slot="' + i + '">' + iconFor(itm.id) + '</div>';
+                }
+            } else {
+                html += '<div class="stock-slot stock-slot-empty"' + (inShop ? '' : ' data-slot="' + i + '"') + '></div>';
+            }
         }
     }
     // 所持している永久型アップグレードのアイコンを枠の下にまとめて表示（ゲーム中・両ショップで一貫表示）

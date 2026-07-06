@@ -224,7 +224,8 @@ var shopState = {
 
 var stockState = {
     maxSlots: 3,
-    items: []
+    items: [],       // 通常ストック枠（詰めて保持・毎ラン空から）
+    perma: []        // 永続ストック枠 [{id,used}]（長さ=pouchLevel・resetGameでpermaStockから構築・毎ラン補充）
 };
 
 var STAGE_SHOP_ITEMS = [
@@ -304,9 +305,15 @@ var TITLE_SHOP_UPGRADES = [
 // ⚠ 新しい type を追加する時は gameplay.js の confirmEggBuy（付与）と isEggItemOwned（所持判定）に
 //   対応を追加すること。未対応 type は購入時に減算されず「まだこうかんできない」と断られる（安全側）。
 var EGG_SHOP_ITEMS = [
+    // まほうのポーチ: 買うたびに永続ストック枠+1（上限=stockState.maxSlots）。confirmEggBuy/renderEggShopItemで
+    // レベル表示・再購入を特別扱い。所持レベル=gameSettings.pouchLevel、各枠の中身=gameSettings.permaStock。
+    { id: 'perma_stock', type: 'pouch', nameKey: 'egg_pouch', descKey: 'egg_pouch_desc',
+      iconImg: 'images/item_pouch.png', eggPrice: 10 },
     { id: 'skin_kigurumi', type: 'skin', skinId: 'kigurumi', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc',
-      iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 30 }
+      iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 5 }
 ];
+// 永続化できないストック品（一度きりの奇跡＝復活薬）。理由はi18n egg_perma_no_revive で表示。
+var PERMA_STOCK_EXCLUDE = ['revive_potion'];
 
 // ─── ずかん（図鑑）───────────────────────────────────────────────
 // 遭遇で自動登録するコレクション図鑑。gameSettings.zukan に保存（saveSettings/データ引き継ぎに自動同梱）。
