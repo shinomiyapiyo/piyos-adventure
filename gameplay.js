@@ -1735,12 +1735,12 @@ function updateBoss() {
                 bossState.edgeSpawnTimer = Math.max(90, 180 - (gameRound - 2) * 20);
             }
         }
-        // ── ROUND3+: 飛行敵も画面外からスポーン ──
-        if (gameRound >= 3) {
+        // ── ROUND6+: 飛行敵も画面外からスポーン（一巡目R1-5は空中雑魚を出さない・R6を最も緩い間隔に） ──
+        if (gameRound >= 6) {
             bossState.flyingEdgeSpawnTimer--;
             if (bossState.flyingEdgeSpawnTimer <= 0) {
                 spawnEdgeFlyingEnemy();
-                bossState.flyingEdgeSpawnTimer = Math.max(120, 240 - (gameRound - 3) * 20);
+                bossState.flyingEdgeSpawnTimer = Math.max(120, 240 - (gameRound - 6) * 20);
             }
         }
         return;
