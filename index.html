@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.378";
+                content: "Ver.1.379";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -650,6 +650,15 @@
             pointer-events: none;
         }
         .owned-skill-icon { width: 22px; height: 22px; image-rendering: pixelated; }
+        /* 強化スキルのレベル表示（Lv2以上でアイコン右下に数字バッジ） */
+        .owned-skill-wrap { position: relative; display: inline-flex; line-height: 0; }
+        .skill-lv-badge {
+            position: absolute; right: -3px; bottom: -3px;
+            min-width: 12px; height: 12px; padding: 0 2px; box-sizing: border-box;
+            border-radius: 6px; background: #ffcf3a; color: #4a3200;
+            font-size: 9px; line-height: 12px; font-weight: 900; text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.55); pointer-events: none;
+        }
         /* ショップ中のみ、枠＋アイコンの背後にパネルを敷いて賑やかな背景でも視認しやすくする。
            ゲーム中はこのクラスを付けない＝進行方向(右)の視界を塞がない。左の店UI(紺)と統一感。 */
         .stock-panel {
@@ -785,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.378</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.379</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1654,7 +1663,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.378
+ * ぴよ氏の冒険 v1.379
  * © 2026 Created by NullPo Works
  * ============================================================ */
 

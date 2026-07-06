@@ -1,15 +1,15 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.378 まほうのポーチ完成・commit/push待ち**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
+> 最終更新: **Ver.1.378 まほうのポーチ push済／Ver.1.379 スキルLvバッジが未コミット**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在地サマリ（← 次セッションはまずここ / 2026-07-06）
 
-### ✅ まほうのポーチ Phase 2-3 完成（1.378）＝未コミット・push待ち
-- **1.373〜1.377 は commit＆push 済み**（origin/main=1.377コミット `a7f783f`）。**未コミット変更＝まほうのポーチ Phase1〜3の全実装（＝1.378）**。実機検証すべて通過済み。
-- **`git status` の未コミット**: index.html / core-state.js / gameplay.js / i18n.js / bootstrap.js / sw.js / HANDOFF.md ＋ 新規 `images/item_pouch.png`・`tools/generate-pouch-openai.mjs`。版数は 1.378 に更新済み（HTML3箇所＋sw.js CACHE_NAME）。
-- **⚠ 画像を追加した版なので、push→デプロイ完了から10分待ってからアップデート案内**（CDN max-age=600）。push は下の時刻付きブロックで。
+### ✅ まほうのポーチ（1.378）push済／⏳ スキルLvバッジ（1.379）が未コミット
+- **1.373〜1.378 は commit＆push 済み**（origin/main=1.378コミット `4314184`＝まほうのポーチ一式）。ポーチは画像追加版なのでデプロイ後10分待ってアップデート案内。
+- **`git status` の未コミット＝Ver.1.379（スキルLvバッジ）のみ**: gameplay.js / index.html / sw.js。**ゲーム中の所持スキル（永久アップグレード）アイコンに Lv2以上で右下に数字バッジ**（コインマスターLv3→「3」等・Lv1は素のアイコン）。前セッションで指示済みだったが未実装だったのをユーザー指摘で対応。画像追加なしなので10分待ち不要。**下の 1.379 push ブロックで push**。
+- **実装**: `updateStockUI`（gameplay.js）の所持スキル描画を `<img>`→`<span class="owned-skill-wrap">`＋Lv2以上で `<span class="skill-lv-badge">N</span>`。CSS は index.html `.owned-skill-wrap`/`.skill-lv-badge`（金丸・右下）。
 
 ### まほうのポーチ（永続ストック）確定仕様と実装（完成・1.378）
 **仕様**: エッグ品「まほうのポーチ」を🥚10で買うたび**永続ストック枠+1**（上限=`stockState.maxSlots`・きぐるみは🥚5に変更済み）。枠は**上から順に金枠**・毎ラン**中身を自動補充**（使っても翌ラン戻る）。**入手品は空き永続枠へ自動割当→通常枠→満杯なら貯金換算**（損なし・売値=定価の半分）。永続枠の中身は**ドラッグでスワップ**（タップ=使用は維持）。**復活薬は永続化不可**（`PERMA_STOCK_EXCLUDE`・フレーバー `egg_perma_no_revive`）。
@@ -20,9 +20,9 @@
 - **i18n**: `egg_pouch`/`egg_pouch_desc`/`tshop_keeper_egg_pouch_max`/`egg_perma_no_revive`/`stock_full_savings`（ja/en）。
 - **素材**: `tools/generate-pouch-openai.mjs`（gpt-image-1・巾着袋/ひよこ紋章/金紐・96px透過）→ `images/item_pouch.png`。sw.js STATIC_ASSETS 登録済み。
 
-### ⏱ push（時刻表示付き・10分待ちの起点用）
+### ⏱ push（Ver.1.379 スキルLvバッジ・時刻表示付き）
 ```bash
-cd /Users/veriquest/dev/piyos-adventure && date '+⏰ 開始 %H:%M:%S' && git add -A && git commit -m "まほうのポーチ（永続ストック枠）を実装：エッグ交換品🥚10で金枠+1・毎ラン自動補充・入手品は空き永続枠へ自動割当→通常→満杯は貯金換算・ドラッグで並替（タップ=使用）・復活薬は永続化不可 (Ver.1.378)" -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ 更新成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 $(grep -oE 'Ver\.[0-9]+\.[0-9]+' index.html | head -1)" && echo "📝 $(git log -1 --pretty='%h %s')" && date '+⏰ 完了 %H:%M:%S（この時刻＋10分でアップデート案内OK）'
+cd /Users/veriquest/dev/piyos-adventure && date '+⏰ 開始 %H:%M:%S' && git add -A && git commit -m "ゲーム中の所持スキル（永久アップグレード）アイコンにLv2以上で右下に数字バッジを表示（コインマスターLv3→3等・Lv1は素のアイコン）(Ver.1.379)" -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ 更新成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 $(grep -oE 'Ver\.[0-9]+\.[0-9]+' index.html | head -1)" && echo "📝 $(git log -1 --pretty='%h %s')" && date '+⏰ 完了 %H:%M:%S'
 ```
 
 ### 1.377の内容（完成・push済み）

@@ -1514,9 +1514,12 @@ function updateStockUI() {
     var ownedUps = gameSettings.upgrades || {};
     for (var u = 0; u < TITLE_SHOP_UPGRADES.length; u++) {
         var up = TITLE_SHOP_UPGRADES[u];
-        if ((ownedUps[up.id] || 0) > 0 && up.iconImg) {
+        var upLv = ownedUps[up.id] || 0;
+        if (upLv > 0 && up.iconImg) {
             var nm = up.nameKey ? escapeHtml(t(up.nameKey)) : '';
-            ownedHtml += '<img src="' + up.iconImg + '" class="owned-skill-icon" title="' + nm + '">';
+            // Lv2以上は右下に小さくレベル数字を添える（Lv1は素のアイコン＝基本所持状態）
+            var lvBadge = upLv >= 2 ? '<span class="skill-lv-badge">' + upLv + '</span>' : '';
+            ownedHtml += '<span class="owned-skill-wrap" title="' + nm + '"><img src="' + up.iconImg + '" class="owned-skill-icon">' + lvBadge + '</span>';
         }
     }
     if (ownedHtml) html += '<div class="owned-skills">' + ownedHtml + '</div>';
