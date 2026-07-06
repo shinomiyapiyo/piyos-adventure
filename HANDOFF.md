@@ -11,6 +11,21 @@
 - **`git status` の未コミット＝Ver.1.384（5体目ボス）**: core-state.js / gameplay.js / render.js / sprites.js / i18n.js / index.html / sw.js ＋ 新規 `images/boss_owl_idle.png`・`tools/generate-boss-owl-openai.mjs`。**画像追加版なのでデプロイ後10分待つ**。**下の 1.384 push（Claudeがローカルcommit済→ユーザーは `git push` のみ）**。
 - **内容: 5体目ボス「闇のフクロウ」(kind='owl') = "視界かく乱"ボス**（ユーザー案C・空中）。**アリーナを暗転（プレイヤー周囲だけ見える vignette）**させ、暗転を貫く**"光る目"**でフクロウを追わせる。攻撃: **横一線を明るい赤で予告→"横薙ぎ急襲"（高さをズラして回避＝カラスの縦ダイブの対）／音波(地上被弾＝ジャンプ回避)／止まり(perch)＝暗転が晴れて無防備＝踏むチャンス**。登場回数連動: 2回目〜(R10+)暗転が濃い＋2連急襲／3回目〜(R15+)急襲が速い。**⚠モバイル可読性を優先し暗転は控えめ（端も真っ黒にしない・clearR広め）**＝実機で見えなくならないのを確認済。全メカニクス実機検証済み（暗転トグル／横薙ぎ高さズラし回避／perch踏み→飛び立つ／vignette＋光る目＋急襲予告線・危険帯・方向矢印／HP上限）。**BOSS_KINDS末尾に'owl'を足すだけで5周ローテ＆encounterが自動追随**。
 
+## 🎯 次にやること: ボスの微調整（次セッションはここから）
+**現状: 1.373〜1.384 すべて push 済み・作業ツリーはクリーン**（ボス5体が実装完了）。次は**5体の体感バランス調整**。ユーザーが実機で戦って気になった点を直す。**まず「どのボスの何を」直したいかユーザーに聞く**。以下は調整ノブの早見表。
+
+### ▶ ボス戦を実機で出す手順（Preview）
+`.claude/launch.json`(python3 http.server 8123)を作る→検証後 削除。横向き844×390。SW: unregister＋caches全消し＋リロード。起動: `gameSettings.tutorialSeen=true; loginBonusPending=null; startApp(); startGame();`→ログボが出たら「うけとる」をclickして閉じる。
+**ボス召喚**: `gameRound=N; setupBossArena(); bossState.active=true; bossState.phase=3;`（⚠active=true と phase=3 を手動セットしないと updateBoss が早期returnして動かない）。**gameRound→kind**: `BOSS_KINDS[(gameRound-1)%5]` = R1ニワトリ/R2カラス/R3タマゴ/R4大蛇/R5フクロウ（以降5周）。**静止スクショ**: `gameState.gameSpeed=0; gameState.gamePaused=false;` にして各ボスの `*Mode` と `*Timer=99999` を固定すると動かず撮れる。ロジックは `updateBossAI_*(b)` / `updateBossCollision_*(b)` を直接呼んで確かめられる（プレイヤー位置を置いて lives/hp の変化を見る）。
+
+### ▶ 調整ノブ早見表（値＝現在値）
+- **共通HP**（core-state.js:46-48／式 gameplay.js:1582）: `BOSS_MAX_HP=10`・`BOSS_HP_PER_ROUND=2`・`BOSS_HP_ROUND_CAP=7`（R10で頭打ち）。表示は×10。出現順=`BOSS_KINDS`(core-state.js:50)。登場回数=`bossEncounter()`(gameplay.js:1864 `Math.ceil(gameRound/5)`)、各ボスの技解禁は AI 内の `enc>=N`。
+- **ニワトリ**(rooster) `updateBossAI_mama` gameplay.js:1999 ／ collision 2108付近。攻撃間隔=`b.attackTimer`・召喚=`BOSS_SUMMON_INTERVAL`／`bossState.summonTimer`・確率=`BOSS_ATTACK_RATES`・閃光解禁=`gameRound>=2`。**⚠「変更禁止」コメントあり＝挙動は極力触らない**。
+- **カラス**(hawk) `updateBossAI_hawk` gameplay.js:1872。ダイブ確率=`diveChance`(0.4/0.5/0.6)・羽根=`spawnHawkFeathers(b,数,扇)`・広角バースト=`Math.PI*0.95`(1.980付近)・2連ダイブ=`enc>=3 && Math.random()<0.45`・各`attackTimer`。
+- **タマゴ**(egg) `updateBossAI_egg` gameplay.js:2183 ／ collision 2600（露出中のみ被ダメ・非露出は弾く・特殊技は貫通・弾ゲートは index.html の弾ループ）。転がり速度=`rollSpeed`(6/7/8×enc)・露出窓=`exposedTimer`(80/108)・2連転がり=`enc>=3`・叩きつけ`velY=-13`。描画=render.js drawBoss egg分岐（回転＋マゼンタ露出グロー）。
+- **大蛇**(snake) `updateBossAI_snake` gameplay.js:2293 ／ collision 2638。突き上げ予告=telegraph `serpTimer`(20/32・`enc>=3`で×0.7)・頂点高さ=`APEX=GROUND_Y-92`・露出窓=`exposedTimer`(52/76)・地這い速度=`sweepSpeed`・毒=`spawnSnakeVenom`(gameplay.js:2381)。危険ゾーン予告の描画=render.js drawBoss の snake影分岐（赤塗り＋リング＋土煙）。
+- **フクロウ**(owl) `updateBossAI_owl` gameplay.js:2402 ／ collision 2668 ／ 暗転描画 `drawOwlDarkness` render.js:1676。**暗転の濃さ=`drawOwlDarkness`のgradient alpha（`0.55*dark`/`0.86*dark`）＋`clearR=115`**（濃くしたい/薄くしたいはここ）・暗転周期/濃度=hover内 `darkWant`(0.72/0.9)＋`darkTimer`・横薙ぎ速度=`sp`(12/15×enc)・予告時間=aimの`owlTimer`(22/34)・2連急襲=`enc>=2`・**音波の着弾窓=hootの`owlTimer<=14 && >=8`**（狭い＝難、広げると易）・止まり窓=`owlTimer`(62/88)。
+
 ### 5体目ボス「闇のフクロウ」(1.384) 実装メモ
 - **スプライト**: 立ち絵1枚 `images/boss_owl_idle.png`（OpenAI・大きな光る目の暗いフクロウ）。空中ボス（入場はhawkと同様に空中を飛んで登場）。生成=`tools/generate-boss-owl-openai.mjs`。sprites.js `boss_owl`・sw.js 登録。
 - **暗転描画** `drawOwlDarkness(b)`（render.js・**screen座標**）＝render()の既存ボスオーバーレイ（`if bossState.active && phase>=2`）内から `kind==='owl'` で呼ぶ。プレイヤー中心の radialGradient vignette（clearR=115・端も真っ黒にしない=`rgba(2,0,12,0.86*dark)`）＋暗転を貫く光る目（`b.x+w/2-camera.x`）＋aim時の横一線予告（危険帯＋赤破線＋方向矢印）。`b.darkness`(0..1)は `b.darkWant` へ毎フレーム寄せ、perch中は0（暗転が晴れる）。
