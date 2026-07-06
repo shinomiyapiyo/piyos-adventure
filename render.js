@@ -1274,9 +1274,10 @@ function drawBoss(b) {
             ctx.restore();
         }
     } else {
-        ctx.fillStyle = isHawk ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.3)';
+        var aerial = isHawk || b.kind === 'owl'; // 空中ボスは薄く小さめの影
+        ctx.fillStyle = aerial ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.3)';
         ctx.beginPath();
-        ctx.ellipse(b.x + b.width / 2, GROUND_Y + 2, b.width * (isHawk ? 0.26 : 0.4), isHawk ? 6 : 8, 0, 0, Math.PI * 2);
+        ctx.ellipse(b.x + b.width / 2, GROUND_Y + 2, b.width * (aerial ? 0.26 : 0.4), aerial ? 6 : 8, 0, 0, Math.PI * 2);
         ctx.fill();
     }
     // 踏み無敵時の点滅 + 怒り時の赤点滅
@@ -1319,6 +1320,8 @@ function drawBoss(b) {
             spriteManager.draw(ctx, 'boss_snake', 0, b.x, b.headY, b.width, b.height, flipH);
             ctx.restore();
         }
+    } else if (b.kind === 'owl') {
+        spriteManager.draw(ctx, 'boss_owl', 0, b.x, drawY, b.width, b.height, flipH);
     } else {
         spriteManager.draw(ctx, isHawk ? 'boss_hawk' : 'boss_rooster', b.spriteFrame, b.x, drawY, b.width, b.height, flipH);
     }
@@ -1667,6 +1670,59 @@ function drawPipeRoom() {
     }
 }
 
+// 闇のフクロウの暗転（screen座標・render()のボスオーバーレイから呼ぶ）。
+// プレイヤー周囲はクリアな vignette（モバイルで見えなくならないよう clearR広め・端も真っ黒にしない）＋
+// 暗転を貫く"光る目"（フクロウを追える）＋横薙ぎ急襲の明るい予告線（高さをズラして回避）。
+function drawOwlDarkness(b) {
+    var dark = b.darkness || 0;
+    if (dark > 0.02) {
+        var px = player.x + player.width / 2 - gameState.camera.x;
+        var py = player.y + player.height / 2;
+        var g = ctx.createRadialGradient(px, py, 115, px, py, GAME_WIDTH * 0.9);
+        g.addColorStop(0, 'rgba(4,0,18,0)');
+        g.addColorStop(0.55, 'rgba(4,0,18,' + (0.55 * dark).toFixed(3) + ')');
+        g.addColorStop(1, 'rgba(2,0,12,' + (0.86 * dark).toFixed(3) + ')');
+        ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT); ctx.restore();
+    }
+    if (bossState.phase !== 3) return;
+    var ox = b.x + b.width / 2 - gameState.camera.x;
+    var oy = b.y + b.height * 0.32;
+    var eyeGlow = Math.min(1, 0.55 + Math.sin(b.animFrame * 0.2) * 0.15 + dark * 0.35);
+    ctx.save();
+    ctx.globalAlpha = eyeGlow;
+    for (var e = -1; e <= 1; e += 2) {
+        var exx = ox + e * b.width * 0.15;
+        var gg = ctx.createRadialGradient(exx, oy, 1, exx, oy, 15);
+        gg.addColorStop(0, 'rgba(255,235,150,1)');
+        gg.addColorStop(0.4, 'rgba(255,190,50,0.75)');
+        gg.addColorStop(1, 'rgba(255,150,0,0)');
+        ctx.fillStyle = gg;
+        ctx.beginPath(); ctx.arc(exx, oy, 15, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    if (b.owlMode === 'aim') { // 横薙ぎ急襲の予告（明るい赤の水平線＋方向矢印）＝この高さに来る。見て高さをズラす
+        var ly = b.swoopY + b.height / 2;
+        var pulse = 0.5 + Math.sin(b.animFrame * 0.4) * 0.3;
+        ctx.save();
+        // 薄い危険帯（線の周りをうっすら赤く）
+        ctx.globalAlpha = pulse * 0.35;
+        ctx.fillStyle = '#ff3030';
+        ctx.fillRect(0, ly - 14, GAME_WIDTH, 28);
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = '#ff6060'; ctx.lineWidth = 4;
+        ctx.setLineDash([14, 9]);
+        ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(GAME_WIDTH, ly); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = Math.min(1, pulse + 0.35);
+        ctx.fillStyle = '#ff5050';
+        var axDir = b.swoopDir > 0 ? 1 : -1;
+        var ax = b.swoopDir > 0 ? 40 : GAME_WIDTH - 40;
+        ctx.beginPath();
+        ctx.moveTo(ax, ly - 9); ctx.lineTo(ax + axDir * 16, ly); ctx.lineTo(ax, ly + 9); ctx.closePath(); ctx.fill();
+        ctx.restore();
+    }
+}
+
 function render() {
     // nearest-neighbor拡大でドット絵くっきり
     ctx.imageSmoothingEnabled = false;
@@ -1809,6 +1865,8 @@ function render() {
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
             ctx.globalAlpha = 1;
         }
+        // 闇のフクロウ: 暗転ギミック（プレイヤー周囲は見える vignette＋光る目/急襲予告を上から）
+        if (bossState.boss && bossState.boss.kind === 'owl' && bossState.phase >= 2) drawOwlDarkness(bossState.boss);
     } else {
       var nightOverlay = BIOME_CONFIGS[3].overlay;
       var isNightInvolved = biomeState.current === 3 || biomeState.previous === 3;

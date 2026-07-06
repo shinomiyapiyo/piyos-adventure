@@ -1,16 +1,22 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.382 まで push済／Ver.1.383 4体目ボス（闇の大蛇）が未コミット**（2026-07-07）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
+> 最終更新: **Ver.1.383 まで push済／Ver.1.384 5体目ボス（闇のフクロウ）が未コミット**（2026-07-07）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在地サマリ（← 次セッションはまずここ / 2026-07-07）
 
-### ✅ 1.382まで push済／⏳ 4体目ボス「闇の大蛇」（1.383）が未コミット
-- **1.373〜1.382 は commit＆push 済み**（origin/main=1.382コミット `dd68317`）。1.381=ボス改修／1.382=3体目ボス「闇のタマゴ」（装甲/弱点）。
-- **`git status` の未コミット＝Ver.1.383（4体目ボス）**: core-state.js / gameplay.js / render.js / sprites.js / i18n.js / index.html / sw.js ＋ 新規 `images/boss_snake_idle.png`・`tools/generate-boss-snake-openai.mjs`。**画像追加版なのでデプロイ後10分待つ**。**下の 1.383 push（Claudeがローカルcommit済→ユーザーは `git push` のみ）**。
-- **内容: 4体目ボス「闇の大蛇」(kind='snake') = "下から来る"ボス**（ユーザー案A・カラスの"上から"の対）。**地中に潜り→足元を危険ゾーンで予告→"下から"突き上げ→頂点で頭が露出(exposed)＝踏むチャンス→退避**の繰り返し。回避=**予告位置から横に離れる**。ほか **地這い(sweep)=ジャンプで飛び越え**／**毒吐き(spit・2回目〜)**。**登場回数連動**: 2回目〜(R8+)毒＆地這い高速化／3回目〜(R12+)突き上げ予告が短い。全メカニクス実機検証済み（潜行→予告→突き上げ被弾→頭露出踏み／地這いジャンプ回避／毒生成／地面クリップで生える描画＋危険ゾーン予告／HP上限）。
-- **⚠ ローテを配列化した**（重要・今後の新ボスが楽）: `var BOSS_KINDS = ['rooster','hawk','egg','snake']`（core-state.js）。setupBossArena の kind＝`BOSS_KINDS[(gameRound-1)%length]`、`bossEncounter()`＝`Math.ceil(gameRound/BOSS_KINDS.length)`。**新ボスは BOSS_KINDS 末尾に足すだけでローテ＆encounterが自動追随**（今回4体で /4 に。既存ボスの技解禁ラウンドは"N番目の登場"のまま不変）。
+### ✅ 1.383まで push済／⏳ 5体目ボス「闇のフクロウ」（1.384）が未コミット
+- **1.373〜1.383 は commit＆push 済み**（origin/main=1.383コミット `e8efebc`）。1.382=3体目「闇のタマゴ」（装甲）／1.383=4体目「闇の大蛇」（下から突き上げ）。
+- **`git status` の未コミット＝Ver.1.384（5体目ボス）**: core-state.js / gameplay.js / render.js / sprites.js / i18n.js / index.html / sw.js ＋ 新規 `images/boss_owl_idle.png`・`tools/generate-boss-owl-openai.mjs`。**画像追加版なのでデプロイ後10分待つ**。**下の 1.384 push（Claudeがローカルcommit済→ユーザーは `git push` のみ）**。
+- **内容: 5体目ボス「闇のフクロウ」(kind='owl') = "視界かく乱"ボス**（ユーザー案C・空中）。**アリーナを暗転（プレイヤー周囲だけ見える vignette）**させ、暗転を貫く**"光る目"**でフクロウを追わせる。攻撃: **横一線を明るい赤で予告→"横薙ぎ急襲"（高さをズラして回避＝カラスの縦ダイブの対）／音波(地上被弾＝ジャンプ回避)／止まり(perch)＝暗転が晴れて無防備＝踏むチャンス**。登場回数連動: 2回目〜(R10+)暗転が濃い＋2連急襲／3回目〜(R15+)急襲が速い。**⚠モバイル可読性を優先し暗転は控えめ（端も真っ黒にしない・clearR広め）**＝実機で見えなくならないのを確認済。全メカニクス実機検証済み（暗転トグル／横薙ぎ高さズラし回避／perch踏み→飛び立つ／vignette＋光る目＋急襲予告線・危険帯・方向矢印／HP上限）。**BOSS_KINDS末尾に'owl'を足すだけで5周ローテ＆encounterが自動追随**。
+
+### 5体目ボス「闇のフクロウ」(1.384) 実装メモ
+- **スプライト**: 立ち絵1枚 `images/boss_owl_idle.png`（OpenAI・大きな光る目の暗いフクロウ）。空中ボス（入場はhawkと同様に空中を飛んで登場）。生成=`tools/generate-boss-owl-openai.mjs`。sprites.js `boss_owl`・sw.js 登録。
+- **暗転描画** `drawOwlDarkness(b)`（render.js・**screen座標**）＝render()の既存ボスオーバーレイ（`if bossState.active && phase>=2`）内から `kind==='owl'` で呼ぶ。プレイヤー中心の radialGradient vignette（clearR=115・端も真っ黒にしない=`rgba(2,0,12,0.86*dark)`）＋暗転を貫く光る目（`b.x+w/2-camera.x`）＋aim時の横一線予告（危険帯＋赤破線＋方向矢印）。`b.darkness`(0..1)は `b.darkWant` へ毎フレーム寄せ、perch中は0（暗転が晴れる）。
+- **状態機械** `updateBossAI_owl`（gameplay.js）: `owlMode` = hover(暗転toggle＋攻撃選択)→aim(横一線予告)→swoop(横薙ぎ急襲)→recover／hoot(音波・地上被弾)／**perch**(止まって無防備＝踏める・暗転晴れる)。当たり `updateBossCollision_owl`（perch中に頭を踏む=ダメージ＋飛び立つ／swoop中の本体接触=被弾）。音波の着弾はAI側。ボス状態: owlMode/owlTimer/swoopY/swoopDir/darkness/darkWant/darkTimer。
+- **zukan**: `boss:owl`（i18n `zukan_b_owl`/`_d` ja=闇のフクロウ/en=Dark Owl）。全種 38→39。
+- **調整の余地**（実機プレイ後・ユーザー要望あれば）: 暗転の濃さ（`drawOwlDarkness`のalpha・現状は可読性優先で控えめ）／音波の着弾窓（AI hoot の owlTimer 14..8）／横薙ぎ速度。
 
 ### 4体目ボス「闇の大蛇」(1.383) 実装メモ
 - **スプライト**: 立ち絵1枚 `images/boss_snake_idle.png`（OpenAI・鎌首をもたげた縦構図のコブラ）。**動きは procedural**＝`b.headY`（頭の上端Y）で上下、drawBoss の snake分岐で **GROUND_Y より上だけクリップ描画＝地面から生えてくる演出**。生成=`tools/generate-boss-snake-openai.mjs`。sprites.js `boss_snake`・sw.js 登録。
@@ -38,7 +44,7 @@
 - **i18n**: `egg_pouch`/`egg_pouch_desc`/`tshop_keeper_egg_pouch_max`/`egg_perma_no_revive`/`stock_full_savings`（ja/en）。
 - **素材**: `tools/generate-pouch-openai.mjs`（gpt-image-1・巾着袋/ひよこ紋章/金紐・96px透過）→ `images/item_pouch.png`。sw.js STATIC_ASSETS 登録済み。
 
-### ⏱ push（Ver.1.383 4体目ボス・画像追加版＝デプロイ後10分待つ）
+### ⏱ push（Ver.1.384 5体目ボス・画像追加版＝デプロイ後10分待つ）
 ※長い絵文字入り1行コマンドは貼り付けで崩れて `git commit` が実行されないことがある（1.380で発生）。**Claudeがローカルで `git commit` 作成→ユーザーは `git push` のみ**が確実。
 ```bash
 cd /Users/veriquest/dev/piyos-adventure && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ push成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 push版: $(git show HEAD:index.html | grep -oE 'Ver\.[0-9]+\.[0-9]+' | head -1)" && echo "📝 $(git log -1 --pretty='%h %s')"

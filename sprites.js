@@ -123,7 +123,10 @@ var IMAGE_SPRITES = {
     boss_egg:        { files: ['images/boss_egg_idle.png'] },
 
     // ボス4 (128x128, OpenAI生成 闇の大蛇 - 立ち絵1枚。地中→突き上げは headY＋地面クリップで procedural)
-    boss_snake:      { files: ['images/boss_snake_idle.png'] }
+    boss_snake:      { files: ['images/boss_snake_idle.png'] },
+
+    // ボス5 (128x128, OpenAI生成 闇のフクロウ - 立ち絵1枚。暗転(vignette)＋光る目は drawOwlDarkness で procedural)
+    boss_owl:        { files: ['images/boss_owl_idle.png'] }
 };
 
 // ─── 地形/背景用パレット定義 (SFC 16色) ───

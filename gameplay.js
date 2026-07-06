@@ -1623,10 +1623,18 @@ function setupBossArena() {
         serpMode: 'burrowed',// burrowed→telegraph→strike→exposed→retreat（時々 sweep/spit）
         serpTimer: 0,
         strikeX: 0,          // 突き上げ狙いのX
-        headY: 0             // 頭の上端Y（描画/当たり＝地面から生える）
+        headY: 0,            // 頭の上端Y（描画/当たり＝地面から生える）
+        // 闇のフクロウ(owl)専用ステート
+        owlMode: 'hover',    // hover→aim→swoop→hoot→perch
+        owlTimer: 0,
+        swoopY: 0,           // 横薙ぎ急襲の高さ（screen/world共通・縦カメラ無し）
+        swoopDir: -1,
+        darkness: 0,         // 暗転の濃さ 0..1（描画）
+        darkWant: 0,         // 暗転の目標値
+        darkTimer: 0
     };
     // 空中ボスは地面より高い滞空高度から登場させる
-    if (bossState.boss.kind === 'hawk') {
+    if (bossState.boss.kind === 'hawk' || bossState.boss.kind === 'owl') {
         bossState.boss.y = GROUND_Y - BOSS_HEIGHT - 80;
     }
     markZukanSeen('boss:' + bossState.boss.kind); // ずかん: ボス遭遇（rooster/hawk）を発見
@@ -1664,6 +1672,14 @@ function updateBoss() {
                 b.attackTimer = 80;
                 bossState.phase = 3;
             }
+            return;
+        }
+        if (b.kind === 'owl') {
+            // 闇のフクロウ: 空中を右から飛んで入場
+            b.x -= 3;
+            b.animFrame++;
+            b.y = GROUND_Y - BOSS_HEIGHT - 70;
+            if (b.x <= targetX) { b.x = targetX; b.owlMode = 'hover'; b.owlTimer = 55; bossState.phase = 3; }
             return;
         }
         if (b.kind === 'snake') {
@@ -1839,6 +1855,7 @@ function updateBossAI(b) {
     if (b.kind === 'hawk') { updateBossAI_hawk(b); }
     else if (b.kind === 'egg') { updateBossAI_egg(b); }
     else if (b.kind === 'snake') { updateBossAI_snake(b); }
+    else if (b.kind === 'owl') { updateBossAI_owl(b); }
     else { updateBossAI_mama(b); }
 }
 
@@ -2377,11 +2394,117 @@ function spawnSnakeVenom(boss, count) {
     if (soundManager) soundManager.playFlash();
 }
 
+// ─────────────────────────────────────────────────────────────
+// 闇のフクロウ(owl)のAI: アリーナを暗転（プレイヤー周囲だけ見える vignette）させ、光る目と明るい予告で攻める。
+// 攻撃: 横一線を予告→"横薙ぎ急襲"（高さをズラして回避＝カラスの縦ダイブの対）／音波（地上被弾＝ジャンプ回避）／
+// 止まり(perch)＝暗転が晴れて無防備＝踏むチャンス。暗転の濃さ=b.darkness（drawOwlDarknessが描画）。
+// ─────────────────────────────────────────────────────────────
+function updateBossAI_owl(b) {
+    var maxHp = bossState.maxHp || BOSS_MAX_HP;
+    var hpRatio = b.hp / maxHp;
+    var phase = hpRatio > 0.6 ? 1 : hpRatio > 0.3 ? 2 : 3;
+    var enc = bossEncounter();
+    var aL = bossState.arenaLeft, aR = bossState.arenaRight;
+    var hoverY = GROUND_Y - BOSS_HEIGHT - 70;
+    if (b.isAngry) { b.angerTimer--; if (b.angerTimer <= 0) b.isAngry = false; }
+
+    // 暗転はperch中は晴らす（踏みやすく）。それ以外はdarkWantへ滑らかに寄せる
+    var darkTarget = (b.owlMode === 'perch') ? 0 : b.darkWant;
+    b.darkness += (darkTarget - b.darkness) * 0.06;
+
+    switch (b.owlMode) {
+    case 'hover': {
+        b.owlBob = (b.owlBob || 0) + 0.05;
+        b.y = hoverY + Math.sin(b.owlBob) * 10;
+        var tx = Math.max(aL, Math.min(aR - b.width, player.x + player.width / 2 - b.width / 2));
+        var hspeed = phase === 3 ? 1.6 : phase === 2 ? 1.2 : 0.9;
+        if (Math.abs(tx - b.x) > 1) b.x += (tx > b.x ? 1 : -1) * Math.min(hspeed, Math.abs(tx - b.x));
+        b.facing = (b.x + b.width / 2 > player.x + player.width / 2) ? 'left' : 'right';
+        // 暗転: 一定周期でトグル（enc2+は濃い/長い）
+        b.darkTimer--;
+        if (b.darkTimer <= 0) {
+            b.darkWant = (b.darkWant > 0.1) ? 0 : (enc >= 2 ? 0.9 : 0.72);
+            b.darkTimer = (b.darkWant > 0 ? (enc >= 2 ? 210 : 165) : 120);
+        }
+        b.owlTimer--;
+        if (b.owlTimer <= 0) {
+            var r = Math.random();
+            if (r < 0.5) {                 // 横薙ぎ急襲（予告へ）
+                b.owlMode = 'aim';
+                b.swoopY = Math.max(hoverY - 20, Math.min(GROUND_Y - b.height, player.y + player.height / 2 - b.height / 2));
+                b.swoopDir = (b.x + b.width / 2 > player.x + player.width / 2) ? -1 : 1;
+                b.x = (b.swoopDir > 0) ? aL : (aR - b.width); // 反対側から助走
+                b.owlTimer = (phase === 3 ? 22 : 34);
+                b.didDoubleSwoop = false;
+            } else if (r < 0.78) {          // 音波
+                b.owlMode = 'hoot'; b.owlTimer = 34;
+            } else {                        // 止まり（踏みチャンス）
+                b.owlMode = 'perch'; b.owlTimer = (phase === 3 ? 62 : 88);
+            }
+        }
+        break;
+    }
+    case 'aim':                            // 横一線を予告（drawOwlDarknessで赤線）。目が光る
+        b.y = b.swoopY;
+        b.owlTimer--;
+        if (b.owlTimer <= 0) { b.owlMode = 'swoop'; if (soundManager) soundManager.playFlash(); }
+        break;
+
+    case 'swoop': {                        // 横薙ぎ急襲（swoopYを水平ダッシュ）
+        b.y = b.swoopY;
+        var sp = (phase === 3 ? 15 : 12) * (enc >= 3 ? 1.15 : 1);
+        b.x += b.swoopDir * sp;
+        b.facing = b.swoopDir < 0 ? 'left' : 'right';
+        if ((b.swoopDir > 0 && b.x + b.width >= aR) || (b.swoopDir < 0 && b.x <= aL)) {
+            if (enc >= 2 && !b.didDoubleSwoop) {   // 【2回目〜(R7+)】反対へ2連急襲
+                b.didDoubleSwoop = true; b.swoopDir *= -1;
+                b.owlMode = 'aim'; b.owlTimer = (phase === 3 ? 16 : 24);
+                b.swoopY = Math.max(hoverY - 20, Math.min(GROUND_Y - b.height, player.y + player.height / 2 - b.height / 2));
+            } else {
+                b.owlMode = 'recover'; b.owlTimer = 20;
+            }
+        }
+        break;
+    }
+    case 'recover':                        // 滞空へ戻る
+        b.y += (hoverY - b.y) * 0.15;
+        b.owlTimer--;
+        if (b.owlTimer <= 0) { b.owlMode = 'hover'; b.owlTimer = (phase === 3 ? 40 : 60); }
+        break;
+
+    case 'hoot': {                         // 音波: 地面に衝撃波リング（これを見たらジャンプ）
+        b.y = hoverY + Math.sin(b.animFrame * 0.3) * 4;
+        b.owlTimer--;
+        if (b.owlTimer === 26) {
+            floatEffects.push({ type: 'boss_shockwave', worldX: b.x + b.width / 2, worldY: GROUND_Y, timer: 0, duration: 30 });
+            if (soundManager) soundManager.playFlash();
+        }
+        if (b.owlTimer <= 14 && b.owlTimer >= 8 && !isPlayerProtected() && player.y + player.height >= GROUND_Y - 42) {
+            takeDamage(); b.owlTimer = 7; // 着弾（地上）＝一度だけ
+        }
+        if (b.owlTimer <= 0) { b.owlMode = 'hover'; b.owlTimer = (phase === 3 ? 45 : 65); }
+        break;
+    }
+    case 'perch': {                        // 低く止まって無防備（暗転が晴れ＝踏むチャンス）
+        var perchY = GROUND_Y - b.height;
+        b.y += (perchY - b.y) * 0.2;
+        b.facing = (b.x + b.width / 2 > player.x + player.width / 2) ? 'left' : 'right';
+        b.owlTimer--;
+        if (b.owlTimer <= 0) { b.owlMode = 'hover'; b.owlTimer = (phase === 3 ? 40 : 60); }
+        break;
+    }
+    default:
+        b.owlMode = 'hover'; b.owlTimer = 50;
+        break;
+    }
+}
+
 function updateBossCollision(b) {
     if (!b || b.hp <= 0) return;
     if (b.kind === 'hawk') { updateBossCollision_hawk(b); return; }
     if (b.kind === 'egg') { updateBossCollision_egg(b); return; }
     if (b.kind === 'snake') { updateBossCollision_snake(b); return; }
+    if (b.kind === 'owl') { updateBossCollision_owl(b); return; }
     // stompCooldownカウントダウン
     if (b.stompCooldown > 0) b.stompCooldown--;
     var stompHit = aabbShrink(player, b, 10, 15);
@@ -2536,6 +2659,31 @@ function updateBossCollision_snake(b) {
             b.stompCooldown = 30;
             if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
         }
+    }
+}
+
+// フクロウの当たり判定:
+// ・perch(止まり)中: 頭を踏む=ダメージ（暗転が晴れて無防備）。踏まれたら飛び立つ。
+// ・swoop(横薙ぎ)中: 本体接触で被弾（高さをズラして回避）。音波の着弾はAI側で処理。
+function updateBossCollision_owl(b) {
+    if (b.stompCooldown > 0) b.stompCooldown--;
+    if (b.owlMode === 'perch' && b.stompCooldown <= 0) {
+        var stompHit = aabbShrink(player, b, 12, 14);
+        if (stompHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45) {
+            b.hp -= 1;
+            player.velY = JUMP_FORCE * 0.5;
+            if (soundManager) soundManager.playKill();
+            spawnExplosionEffect(player.x + player.width / 2, b.y);
+            gainScore(500);
+            b.isAngry = true; b.angerTimer = BOSS_ANGER_DURATION;
+            b.stompCooldown = 40;
+            b.owlMode = 'hover'; b.owlTimer = 28; // 踏まれたら飛び立つ
+            if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
+            return;
+        }
+    }
+    if (b.owlMode === 'swoop' && !isPlayerProtected() && b.stompCooldown <= 0) {
+        if (aabbShrink(player, b, 10, 12)) { takeDamage(); }
     }
 }
 
