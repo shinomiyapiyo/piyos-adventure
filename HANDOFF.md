@@ -1,15 +1,15 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.379 まで push済／Ver.1.380 図鑑の仕上げが未コミット**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
+> 最終更新: **Ver.1.380 まで push済／Ver.1.381 ボス改修が未コミット**（2026-07-06）。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在地サマリ（← 次セッションはまずここ / 2026-07-06）
 
-### ✅ 1.378ポーチ＋1.379スキルLvバッジ push済／⏳ 図鑑の仕上げ（1.380）が未コミット
-- **1.373〜1.379 は commit＆push 済み**（origin/main=1.379コミット `6f81ff2`）。1.378=まほうのポーチ／1.379=所持スキルアイコンのLv2以上バッジ。
-- **`git status` の未コミット＝Ver.1.380（図鑑の仕上げ）のみ**: core-state.js / i18n.js / index.html / sw.js。画像追加なしなので10分待ち不要。**下の 1.380 push ブロックで push**。
-- **内容**: ①**新規発見「NEW!」演出**＝発見時に `gameSettings.zukan.new[id]=1`／図鑑グリッドに「NEW!」リボン・カテゴリタブに未読ドット・**タイトルの設定ボタン＋設定内の図鑑ボタンに赤バッジ**（`updateZukanBadge`）／図鑑を閉じたら `new` 全クリア（`hideZukanScreen`）。②**コンプリート報酬🥚**＝各カテゴリ100%で🥚3・全36種コンプで🥚10ボーナス（計🥚22）。図鑑を開いた時に `checkZukanRewards` が判定→未受取なら🥚付与＋祝トースト、`gameSettings.zukan.claimed` で二重防止。※アップグレード/スキンは `seenIf` 派生でNEW!対象外（購入=能動発見）。全項目 実機検証済み（発見→NEW!→バッジ→閉じてクリア／カテゴリ🥚3／全コンプ🥚22／二重防止／トーストが図鑑上に表示 z=10000>9999）。③**敵「ママひよこ」→「ニワトリ」に改名**（表示名i18n `zukan_e_mama` ja=ニワトリ/en=Hen のみ変更・内部id `enemy:mama_chick`とスプライトは据置＝セーブ互換維持。ボスは「闇のニワトリ」で別物）。
+### ✅ 1.380まで push済／⏳ ボス改修（1.381）が未コミット
+- **1.373〜1.380 は commit＆push 済み**（origin/main=1.380コミット `2e2f02f`）。1.378=ポーチ／1.379=スキルLvバッジ／1.380=図鑑の仕上げ＋ママひよこ→ニワトリ改名。
+- **`git status` の未コミット＝Ver.1.381（ボス改修）のみ**: core-state.js / gameplay.js / index.html / sw.js。画像追加なし。**下の 1.381 push で push**（ローカルコミットは作成済みなら `git push` のみ）。
+- **内容（ユーザー方針: HPは緩やか・難度は攻撃パターンで上げる）**: ①**ボスHPを緩やか化＋上限**＝旧 `10+max(0,R-3)*3`（上限なし）→ `10+min(max(0,R-3),7)*2`（`BOSS_HP_PER_ROUND=2`/`BOSS_HP_ROUND_CAP=7`）。R4=120,R10=240で頭打ち（表示値）＝踏み戦闘が最長約36秒に収束・間延び解消。②**共通ヘルパー `bossEncounter()`=`Math.ceil(gameRound/2)`**＝そのボスの登場回数（ニワトリR1,3,5→1,2,3／カラスR2,4,6→1,2,3）。新ボスは技を `bossEncounter()>=N` でぶら下げる。③**闇のカラスに登場回数連動の攻撃を追加**（従来カラスはHP%フェーズのみで登場回数連動ゼロだった）: **2回目〜(R4+)=広角・高密度の羽根バースト**（`spawnHawkFeathers(b,9/11,Math.PI*0.95)`＝ほぼ水平まで広げ全て下向き・横に避けにくい）／**3回目〜(R6+)=2連ダイブ**（`pendingDoubleDive`・rise時に滞空へ戻らず即再ダイブ・毎回の着地硬直=踏みチャンスは残しフェア）。**地上ボス `updateBossAI_mama` は変更禁止コメント尊重で未変更**（閃光=`gameRound>=2`は実質encounter2解禁で既に整合）。全項目 実機検証済み（HP式値／enc各300回試行でR2広角0・2連0／R4広角48%・2連0／R6広角52%・2連46%／rise2連遷移・羽根全下向き）。
 
 ### 図鑑の仕上げ（1.380）実装メモ
 - **データ**: `gameSettings.zukan` に `new{}`（未閲覧の新規＝NEW!用）と `claimed{}`（コンプ報酬受取済み）を追加。gameSettings既定＋loadSettings復元＋データ引き継ぎに自動同梱。`ZUKAN_REWARDS={enemy:3,item:3,boss:3,biome:3,all:10}`（core-state.js）。
@@ -25,9 +25,10 @@
 - **i18n**: `egg_pouch`/`egg_pouch_desc`/`tshop_keeper_egg_pouch_max`/`egg_perma_no_revive`/`stock_full_savings`（ja/en）。
 - **素材**: `tools/generate-pouch-openai.mjs`（gpt-image-1・巾着袋/ひよこ紋章/金紐・96px透過）→ `images/item_pouch.png`。sw.js STATIC_ASSETS 登録済み。
 
-### ⏱ push（Ver.1.380 図鑑の仕上げ・時刻表示付き）
+### ⏱ push（Ver.1.381 ボス改修）
+※長い絵文字入り1行コマンドは貼り付けで崩れて `git commit` が実行されないことがある（1.380で発生）。**Claudeがローカルで `git commit` 作成→ユーザーは `git push` のみ**が確実。
 ```bash
-cd /Users/veriquest/dev/piyos-adventure && date '+⏰ 開始 %H:%M:%S' && git add -A && git commit -m "図鑑の仕上げ：新規発見に「NEW!」演出（グリッドリボン/タブ未読ドット/設定ボタン赤バッジ・開いたらクリア）＋コンプリート報酬🥚（各カテゴリ100%で🥚3・全36種で🥚10ボーナス・二重防止）／敵「ママひよこ」→「ニワトリ」に改名 (Ver.1.380)" -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ 更新成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 $(grep -oE 'Ver\.[0-9]+\.[0-9]+' index.html | head -1)" && echo "📝 $(git log -1 --pretty='%h %s')" && date '+⏰ 完了 %H:%M:%S'
+cd /Users/veriquest/dev/piyos-adventure && git push && printf '\n===== 結果 =====\n' && ( [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && echo "✅ push成功（origin/main と一致）" || echo "⚠ 未同期（push未完了）" ) && echo "📌 push版: $(git show HEAD:index.html | grep -oE 'Ver\.[0-9]+\.[0-9]+' | head -1)" && echo "📝 $(git log -1 --pretty='%h %s')"
 ```
 
 ### 1.377の内容（完成・push済み）

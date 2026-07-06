@@ -1578,7 +1578,8 @@ function setupBossArena() {
         type: 'cloud', special: 'normal', isBossArena: true
     });
     // ボスオブジェクト生成
-    var bossMaxHp = BOSS_MAX_HP + Math.max(0, gameRound - 3) * 3; // ROUND4以降+3ずつ
+    // HPは緩やか化＋上限（R4から+2/ラウンド・R10で頭打ち）。難度はラウンド連動の攻撃パターンで上げる（bossEncounter参照）
+    var bossMaxHp = BOSS_MAX_HP + Math.min(Math.max(0, gameRound - 3), BOSS_HP_ROUND_CAP) * BOSS_HP_PER_ROUND;
     bossState.maxHp = bossMaxHp;
     bossState.boss = {
         x: gameState.camera.x + GAME_WIDTH + 50,
@@ -1809,6 +1810,10 @@ function updateBossAI(b) {
     else { updateBossAI_mama(b); }
 }
 
+// そのボスの「何回目の登場か」（ニワトリ=R1,3,5→1,2,3 / カラス=R2,4,6→1,2,3）。
+// ラウンド連動の攻撃解禁の共通基準。新ボスもこれで技をぶら下げる（bossEncounter()>=N）。
+function bossEncounter() { return Math.ceil(gameRound / 2); }
+
 // ─────────────────────────────────────────────────────────────
 // 空中ボス(hawk)のAI: 滞空して左右に漂い、ダイブ爆撃と羽根弾で攻める。
 // 主ダメージ源はエナジー弾（updateBossCollision_hawk参照）、
@@ -1870,8 +1875,15 @@ function updateBossAI_hawk(b) {
         b.y -= 4.5;
         if (b.y <= hoverY) {
             b.y = hoverY;
-            b.hawkMode = 'hover';
-            b.attackTimer = (phase === 3 ? 45 : 85);
+            if (b.pendingDoubleDive) {
+                // 【3回目登場〜(R6+)】2連ダイブ: 滞空に戻らず即・再ダイブ（畳みかけ・毎回の着地硬直=踏みチャンスは残す）
+                b.pendingDoubleDive = false;
+                b.hawkMode = 'charge';
+                b.chargeTimer = (phase === 3 ? 14 : 20);
+            } else {
+                b.hawkMode = 'hover';
+                b.attackTimer = (phase === 3 ? 45 : 85);
+            }
         }
         break;
     }
@@ -1888,14 +1900,22 @@ function updateBossAI_hawk(b) {
 
         b.attackTimer--;
         if (b.attackTimer <= 0) {
+            var enc = bossEncounter();
             var diveChance = phase === 3 ? 0.6 : phase === 2 ? 0.5 : 0.4;
             if (Math.random() < diveChance) {
-                // ダイブ爆撃（溜めへ）
+                // ダイブ爆撃（溜めへ）。3回目登場〜(R6+)は一定確率で2連ダイブを予約
                 b.hawkMode = 'charge';
                 b.chargeTimer = (phase === 3 ? 16 : 26);
+                b.pendingDoubleDive = (enc >= 3 && Math.random() < 0.45);
+            } else if (enc >= 2 && Math.random() < 0.5) {
+                // 【2回目登場〜(R4+)】広角・高密度の羽根バースト（ほぼ水平まで広げて横に避けにくく隙間を突かせる。上向きにはしない）
+                spawnHawkFeathers(b, phase === 3 ? 11 : 9, Math.PI * 0.95);
+                b.spriteFrame = HAWK_FRAME_SHOOT;
+                b.spriteResetTimer = 20;
+                b.attackTimer = (phase === 3 ? 75 : 115);
             } else {
-                // 羽根弾ばらまき
-                spawnHawkFeathers(b, phase === 3 ? 7 : 5);
+                // 通常の羽根弾ばらまき（真下中心の扇）
+                spawnHawkFeathers(b, phase === 3 ? 7 : 5, Math.PI * 0.75);
                 b.spriteFrame = HAWK_FRAME_SHOOT;
                 b.spriteResetTimer = 20;
                 b.attackTimer = (phase === 3 ? 70 : 110);
@@ -1908,13 +1928,14 @@ function updateBossAI_hawk(b) {
 
 // 羽根弾: 滞空位置から扇状に下方へ。bossState.eggs を流用するので
 // updateEggs() のシールド判定・移動・消滅がそのまま効く（isFeather は描画用フラグ）。
-function spawnHawkFeathers(boss, count) {
+function spawnHawkFeathers(boss, count, arcSpan) {
     var bx = boss.x + boss.width / 2;
     var by = boss.y + boss.height * 0.55;
     var speed = 4.2;
+    var span = arcSpan || Math.PI * 0.75; // 既定=真下中心±約67°の扇（広角バーストは呼び出し側で拡大）
     for (var i = 0; i < count; i++) {
         var t = count > 1 ? (i / (count - 1)) : 0.5;             // 0..1
-        var angle = Math.PI * 0.5 + (t - 0.5) * (Math.PI * 0.75); // 真下中心に±約67°の扇
+        var angle = Math.PI * 0.5 + (t - 0.5) * span;           // 真下中心の扇（span で広がりを可変）
         bossState.eggs.push({
             x: bx - 8, y: by,
             width: 16, height: 16,

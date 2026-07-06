@@ -44,6 +44,8 @@ const DOWN_SWIPE_FRAMES   = 30;    // 0.5s
 // ─── ボスバトル定数 ───
 const BOSS_TRIGGER_DISTANCE = 2400;   // 2400mごとにボス出現
 const BOSS_MAX_HP           = 10;
+const BOSS_HP_PER_ROUND     = 2;      // ラウンド毎のHP増（緩やか化: 旧+3→+2）。難度は攻撃パターンで上げる方針
+const BOSS_HP_ROUND_CAP     = 7;      // HP増の上限ステップ数（R(3+7)=R10で頭打ち＝戦闘の間延び防止）
 const BOSS_WIDTH            = 128;
 const BOSS_HEIGHT           = 128;
 const BOSS_DEFEAT_SCORE     = 5000;
