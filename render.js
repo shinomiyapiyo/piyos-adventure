@@ -1678,10 +1678,10 @@ function drawOwlDarkness(b) {
     if (dark > 0.02) {
         var px = player.x + player.width / 2 - gameState.camera.x;
         var py = player.y + player.height / 2;
-        var g = ctx.createRadialGradient(px, py, 115, px, py, GAME_WIDTH * 0.9);
-        g.addColorStop(0, 'rgba(4,0,18,0)');
-        g.addColorStop(0.55, 'rgba(4,0,18,' + (0.55 * dark).toFixed(3) + ')');
-        g.addColorStop(1, 'rgba(2,0,12,' + (0.86 * dark).toFixed(3) + ')');
+        var g = ctx.createRadialGradient(px, py, 62, px, py, GAME_WIDTH * 0.62);
+        g.addColorStop(0, 'rgba(2,0,10,0)');
+        g.addColorStop(0.3, 'rgba(2,0,10,' + (0.74 * dark).toFixed(3) + ')');
+        g.addColorStop(1, 'rgba(0,0,3,' + (1.0 * dark).toFixed(3) + ')');
         ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT); ctx.restore();
     }
     if (bossState.phase !== 3) return;
@@ -1996,7 +1996,7 @@ function render() {
         // HPテキスト
         ctx.fillStyle = '#ff8888';
         ctx.textAlign = 'right';
-        ctx.fillText(Math.max(0, Math.ceil(bossB.hp * 10)) + '/' + (bossMaxHp * 10), bHpX + bHpW - 12, bHpY + 10); // 表示は×10（実HPは不変・1未満ダメージを見やすく）。撃破時マイナスにならないよう0でクランプ
+        ctx.fillText(Math.max(0, Math.ceil(bossB.hp)) + '/' + bossMaxHp, bHpX + bHpW - 12, bHpY + 10); // 内部HP=表示HP（統一スケール）。撃破時マイナスにならないよう0でクランプ
         ctx.textAlign = 'left';
         // HPバー
         drawProgressBar(bHpX + 16, bHpY + 19, bHpW - 32, 8, bhpRatio, '#ff2222', '#ff6666');

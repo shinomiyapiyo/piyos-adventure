@@ -1578,8 +1578,8 @@ function setupBossArena() {
         type: 'cloud', special: 'normal', isBossArena: true
     });
     // ボスオブジェクト生成
-    // HPは緩やか化＋上限（R4から+2/ラウンド・R10で頭打ち）。難度はラウンド連動の攻撃パターンで上げる（bossEncounter参照）
-    var bossMaxHp = BOSS_MAX_HP + Math.min(Math.max(0, gameRound - 3), BOSS_HP_ROUND_CAP) * BOSS_HP_PER_ROUND;
+    // HP増はR6から（1週目R1-R5=一律100）＋上限（R6から+20/ラウンド・R12で240頭打ち）。難度はラウンド連動の攻撃パターンで上げる（bossEncounter参照）
+    var bossMaxHp = BOSS_MAX_HP + Math.min(Math.max(0, gameRound - 5), BOSS_HP_ROUND_CAP) * BOSS_HP_PER_ROUND;
     bossState.maxHp = bossMaxHp;
     bossState.boss = {
         x: gameState.camera.x + GAME_WIDTH + 50,
@@ -2423,7 +2423,7 @@ function updateBossAI_owl(b) {
         // 暗転: 一定周期でトグル（enc2+は濃い/長い）
         b.darkTimer--;
         if (b.darkTimer <= 0) {
-            b.darkWant = (b.darkWant > 0.1) ? 0 : (enc >= 2 ? 0.9 : 0.72);
+            b.darkWant = (b.darkWant > 0.1) ? 0 : (enc >= 2 ? 0.98 : 0.85);
             b.darkTimer = (b.darkWant > 0 ? (enc >= 2 ? 210 : 165) : 120);
         }
         b.owlTimer--;
@@ -2512,7 +2512,7 @@ function updateBossCollision(b) {
 
     if (b.stompCooldown <= 0 && stompHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.3) {
         // 踏みつけ成功！
-        b.hp -= 1;
+        b.hp -= 10;
         player.velY = JUMP_FORCE * 0.5; // 低めバウンス（連続踏み防止）
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);
@@ -2553,7 +2553,7 @@ function updateBossCollision_hawk(b) {
 
     if (b.stompCooldown <= 0 && stompPose) {
         // 踏みつけ成功（着地硬直中=フル1.0 / 空中=半分0.5）
-        b.hp -= grounded ? 1 : 0.5;
+        b.hp -= grounded ? 10 : 5;
         player.velY = JUMP_FORCE * 0.5;
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);
@@ -2605,7 +2605,7 @@ function updateBossCollision_egg(b) {
     if (b.stompCooldown <= 0 && stompPose) {
         if (b.exposed) {
             // 弱点露出中: ダメージ
-            b.hp -= 1;
+            b.hp -= 10;
             player.velY = JUMP_FORCE * 0.5;
             if (soundManager) soundManager.playKill();
             spawnExplosionEffect(player.x + player.width / 2, b.y);
@@ -2650,7 +2650,7 @@ function updateBossCollision_snake(b) {
     if (b.exposed && b.stompCooldown <= 0) {
         var stompPose = player.velY > 0 && aabb(player, headBox) && player.y + player.height <= headTop + headBox.height * 0.75;
         if (stompPose) {
-            b.hp -= 1;
+            b.hp -= 10;
             player.velY = JUMP_FORCE * 0.5;
             if (soundManager) soundManager.playKill();
             spawnExplosionEffect(player.x + player.width / 2, headTop);
@@ -2663,25 +2663,26 @@ function updateBossCollision_snake(b) {
 }
 
 // フクロウの当たり判定:
-// ・perch(止まり)中: 頭を踏む=ダメージ（暗転が晴れて無防備）。踏まれたら飛び立つ。
-// ・swoop(横薙ぎ)中: 本体接触で被弾（高さをズラして回避）。音波の着弾はAI側で処理。
+// ・空中でも踏める（頭上から落下でボス上部45%に乗る＝hawk方式）。止まり(perch=地上に降りて無防備)踏み-10/空中踏み-5＝闇のカラスと同じ。踏むとhoverへ飛び上がりひるむ。
+// ・swoop(横薙ぎ)中: 上から踏めなければ本体接触で被弾（高さをズラして回避）。音波の着弾はAI側で処理。
 function updateBossCollision_owl(b) {
     if (b.stompCooldown > 0) b.stompCooldown--;
-    if (b.owlMode === 'perch' && b.stompCooldown <= 0) {
-        var stompHit = aabbShrink(player, b, 12, 14);
-        if (stompHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45) {
-            b.hp -= 1;
-            player.velY = JUMP_FORCE * 0.5;
-            if (soundManager) soundManager.playKill();
-            spawnExplosionEffect(player.x + player.width / 2, b.y);
-            gainScore(500);
-            b.isAngry = true; b.angerTimer = BOSS_ANGER_DURATION;
-            b.stompCooldown = 40;
-            b.owlMode = 'hover'; b.owlTimer = 28; // 踏まれたら飛び立つ
-            if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
-            return;
-        }
+    // 踏み判定: プレイヤーが上から（落下中＆ボス上部45%に乗る）。perch/hover/aim/hoot/swoop 問わず空中で踏める
+    var stompPose = aabbShrink(player, b, 12, 13) && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45;
+    if (b.stompCooldown <= 0 && stompPose) {
+        var groundStomp = (b.owlMode === 'perch'); // 止まり(地上)=フル10 / 空中=半分5（闇のカラスと同じ）
+        b.hp -= groundStomp ? 10 : 5;
+        player.velY = JUMP_FORCE * 0.5;
+        if (soundManager) soundManager.playKill();
+        spawnExplosionEffect(player.x + player.width / 2, b.y);
+        gainScore(groundStomp ? 500 : 300);
+        b.isAngry = true; b.angerTimer = BOSS_ANGER_DURATION;
+        b.stompCooldown = groundStomp ? 50 : 40;
+        b.owlMode = 'hover'; b.owlTimer = 28; // 踏まれたら滞空へ飛び上がってひるむ（攻撃を一旦解除）
+        if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
+        return;
     }
+    // 踏みでない接触: swoop(横薙ぎ)中の本体接触で被弾（高さをズラして回避）
     if (b.owlMode === 'swoop' && !isPlayerProtected() && b.stompCooldown <= 0) {
         if (aabbShrink(player, b, 10, 12)) { takeDamage(); }
     }
