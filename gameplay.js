@@ -87,6 +87,7 @@ function enterPipeRoom() {
     if (pipeRoomState.active || pipeRoomState.visited) return; // 入室中・このラウンド入室済みは弾く（再入室防止）
     pipeRoomState.active = true;
     pipeRoomState.visited = true;
+    if (typeof markZukanSeen === 'function') markZukanSeen('biome:bonus'); // ずかん(ステージ): ボーナス部屋を発見
     pipeRoomState.exitHold = 0; // 退室ゲージを初期化
     pipeRoomState.introTimer = 90; // 入場「BONUS!」演出（約1.5秒）
     pipeRoomState.savedGameSpeed = gameState.gameSpeed;
@@ -1517,8 +1518,8 @@ function updateStockUI() {
                     html += '<div class="stock-slot stock-slot-perma" data-idx="' + i + '" data-slot="' + i + '">' + badge + iconFor(pslot.id) + '</div>';
                 }
             } else if (pslot.id && pslot.used) {
-                // 使用済み: 薄いアイコン＋金枠（翌ラン補充）。ゲーム中はドロップ先候補にはしない（ロック）。
-                html += '<div class="stock-slot stock-slot-perma stock-slot-perma-used">' + badge + iconFor(pslot.id) + '</div>';
+                // 使用済み: アイコンは消す（空の金枠のまま＝使ったら消える。中身は翌ラン自動補充）。ゲーム中はドロップ先にしない（ロック）。
+                html += '<div class="stock-slot stock-slot-perma stock-slot-perma-used">' + badge + '</div>';
             } else {
                 // 未割当の永続枠（空の金枠）: ドロップ先候補
                 html += '<div class="stock-slot stock-slot-perma stock-slot-perma-empty"' + (inShop ? '' : ' data-slot="' + i + '"') + '>' + badge + '</div>';
@@ -1893,6 +1894,17 @@ function updateBossAI(b) {
 // そのボスの「何回目の登場か」。ボスは BOSS_KINDS.length 周期で循環するので /その周期（各ボスは自分の初登場を1として1,2,3…）。
 // ラウンド連動の攻撃解禁の共通基準。新ボスもこれで技をぶら下げる（bossEncounter()>=N）。
 function bossEncounter() { return Math.ceil(gameRound / BOSS_KINDS.length); }
+
+// 黄色メイド服の特殊効果: 攻撃1回につき1/20(5%)でクリティカル＝与ダメージ2倍。ダメージに掛ける倍率(1 or 2)を返す。
+// 当たった時だけ演出（クリティカル！）を出す。メイド服以外・スキン無効時は常に1。
+function critMultiplier(worldX, worldY) {
+    if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
+        gameSettings.activeSkin === 'maid' && Math.random() < 0.05) {
+        if (typeof spawnCritText === 'function') spawnCritText(worldX, worldY, (typeof t === 'function') ? t('crit_text') : 'CRITICAL!');
+        return 2;
+    }
+    return 1;
+}
 
 // ─────────────────────────────────────────────────────────────
 // 空中ボス(hawk)のAI: 滞空して左右に漂い、ダイブ爆撃と羽根弾で攻める。
@@ -2553,7 +2565,7 @@ function updateBossCollision(b) {
 
     if (b.stompCooldown <= 0 && stompHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.3) {
         // 踏みつけ成功！
-        b.hp -= 10;
+        b.hp -= 10 * critMultiplier(b.x + b.width / 2, b.y);
         player.velY = JUMP_FORCE * 0.5; // 低めバウンス（連続踏み防止）
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);
@@ -2594,7 +2606,7 @@ function updateBossCollision_hawk(b) {
 
     if (b.stompCooldown <= 0 && stompPose) {
         // 踏みつけ成功（着地硬直中=フル1.0 / 空中=半分0.5）
-        b.hp -= grounded ? 10 : 5;
+        b.hp -= (grounded ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
         player.velY = JUMP_FORCE * 0.5;
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);
@@ -2646,7 +2658,7 @@ function updateBossCollision_egg(b) {
     if (b.stompCooldown <= 0 && stompPose) {
         if (b.exposed) {
             // 弱点露出中: ダメージ
-            b.hp -= 10;
+            b.hp -= 10 * critMultiplier(b.x + b.width / 2, b.y);
             player.velY = JUMP_FORCE * 0.5;
             if (soundManager) soundManager.playKill();
             spawnExplosionEffect(player.x + player.width / 2, b.y);
@@ -2691,7 +2703,7 @@ function updateBossCollision_snake(b) {
     if (b.exposed && b.stompCooldown <= 0) {
         var stompPose = player.velY > 0 && aabb(player, headBox) && player.y + player.height <= headTop + headBox.height * 0.75;
         if (stompPose) {
-            b.hp -= 10;
+            b.hp -= 10 * critMultiplier(b.x + b.width / 2, headTop);
             player.velY = JUMP_FORCE * 0.5;
             if (soundManager) soundManager.playKill();
             spawnExplosionEffect(player.x + player.width / 2, headTop);
@@ -2712,7 +2724,7 @@ function updateBossCollision_owl(b) {
     var stompPose = aabbShrink(player, b, 12, 13) && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45;
     if (b.stompCooldown <= 0 && stompPose) {
         var groundStomp = (b.owlMode === 'perch'); // 止まり(地上)=フル10 / 空中=半分5（闇のカラスと同じ）
-        b.hp -= groundStomp ? 10 : 5;
+        b.hp -= (groundStomp ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
         player.velY = JUMP_FORCE * 0.5;
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);

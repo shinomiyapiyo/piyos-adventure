@@ -401,6 +401,16 @@ function spawnBonusText(worldX, worldY, label, score) {
     });
 }
 
+// クリティカル演出（黄色メイド服）: 金色の「クリティカル！」がポップ
+function spawnCritText(worldX, worldY, label) {
+    floatEffects.push({
+        type: 'crit_text',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 55,
+        label: label
+    });
+}
+
 function spawnComboEffect(worldX, worldY, count, score) {
     floatEffects.push({
         type: 'combo_text',
@@ -710,6 +720,23 @@ var EFFECT_RENDERERS = {
             ctx.font = "bold 12px 'DotGothic16', monospace";
             ctx.fillStyle = '#fff';
             ctx.fillText('+' + ef.score, 0, 16);
+            ctx.restore();
+        },
+        crit_text: function(ef, wx, progress) {
+            var cy = ef.worldY - progress * 30;
+            var alpha = progress < 0.15 ? progress / 0.15 : (progress > 0.7 ? (1 - progress) / 0.3 : 1);
+            var scale = progress < 0.2 ? 0.5 + 0.6 * (progress / 0.2) : 1.1;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.translate(wx, cy);
+            ctx.scale(scale, scale);
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.font = "bold 17px 'M PLUS Rounded 1c', sans-serif";
+            ctx.lineWidth = 4; ctx.strokeStyle = '#7a1500';
+            ctx.strokeText(ef.label, 0, 0);
+            ctx.shadowColor = 'rgba(255,130,0,0.9)'; ctx.shadowBlur = 10;
+            ctx.fillStyle = '#ffd24a';
+            ctx.fillText(ef.label, 0, 0);
             ctx.restore();
         },
     combo_spark: function(ef, wx, progress) {
@@ -1237,10 +1264,25 @@ function drawPowerUp(pu) {
 
 function drawBullet(b) {
     ctx.save();
-    // 発光エフェクト
-    ctx.shadowColor = '#ff6600';
-    ctx.shadowBlur = 12;
-    spriteManager.draw(ctx, 'bullet_energy', 0, b.x, b.y, b.width, b.height, b.dir < 0);
+    if (b.isZap) {
+        // きぐるみの電気弾（青白い稲妻＋発光）
+        var zx = b.x + b.width / 2, zy = b.y + b.height / 2, zd = b.dir < 0 ? -1 : 1;
+        ctx.shadowColor = '#8ecbff'; ctx.shadowBlur = 14;
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.strokeStyle = '#eaf6ff'; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(zx - zd * 8, zy - 5); ctx.lineTo(zx - zd * 2, zy - 1);
+        ctx.lineTo(zx - zd * 4, zy + 2); ctx.lineTo(zx + zd * 8, zy + 5);
+        ctx.stroke();
+        ctx.strokeStyle = '#5bb8ff'; ctx.lineWidth = 1.3; ctx.stroke();
+        ctx.shadowBlur = 8; ctx.fillStyle = '#eaf6ff';
+        ctx.beginPath(); ctx.arc(zx, zy, 2.6, 0, Math.PI * 2); ctx.fill();
+    } else {
+        // エナジー弾（発光）
+        ctx.shadowColor = '#ff6600';
+        ctx.shadowBlur = 12;
+        spriteManager.draw(ctx, 'bullet_energy', 0, b.x, b.y, b.width, b.height, b.dir < 0);
+    }
     ctx.restore();
 }
 

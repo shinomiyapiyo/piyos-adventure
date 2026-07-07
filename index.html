@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.397";
+                content: "Ver.1.398";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.397</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.398</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1663,7 +1663,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.397
+ * ぴよ氏の冒険 v1.398
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3349,6 +3349,7 @@ function resetGame() {
     gameState.puShield = 0;
     gameState.puEnergy = 0;
     gameState.puMagnet = 0;
+    gameState.zapFireTimer = 0;   // きぐるみの電気弾タイマーを新ランでリセット
     gameState.isInvincible = false;
     gameState.invincibleTimer = 0;
     gameState.speedLevel = 1;
@@ -3695,6 +3696,52 @@ function zukanSpriteName(entry) {
     return null;
 }
 // サムネイルDOM（発見済み=実スプライト/アイコン/バイオーム色、未発見=グレーのシルエット）
+// 図鑑「ステージ」のサムネを描く: 空グラデ＋遠景の丘＋地面（バイオーム連動）。bonus は宝部屋の見た目。
+function drawStageThumb(cx, px, entryId) {
+    cx.imageSmoothingEnabled = true;
+    if (entryId === 'biome:bonus') {
+        // ボーナス部屋: 暗いティール＋放射＋カラフルな紙吹雪
+        cx.fillStyle = '#0e343c'; cx.fillRect(0, 0, px, px);
+        cx.save(); cx.translate(px / 2, px * 0.5);
+        for (var r = 0; r < 12; r++) {
+            cx.rotate(Math.PI / 6);
+            cx.fillStyle = (r % 2 === 0) ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.10)';
+            cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(px, -px * 0.18); cx.lineTo(px, px * 0.18); cx.closePath(); cx.fill();
+        }
+        cx.restore();
+        var cols = ['#ff5b8a', '#ffd24a', '#5bd6ff', '#9b6bff', '#5bff9b', '#ff8f4a'];
+        var pts = [[0.18, 0.22], [0.72, 0.18], [0.35, 0.55], [0.82, 0.62], [0.55, 0.34], [0.25, 0.78], [0.66, 0.82], [0.9, 0.4]];
+        for (var c = 0; c < pts.length; c++) {
+            cx.save(); cx.translate(pts[c][0] * px, pts[c][1] * px); cx.rotate(c * 0.7);
+            cx.fillStyle = cols[c % cols.length];
+            var s = px * 0.1; cx.fillRect(-s / 2, -s / 2, s, s * 0.7);
+            cx.restore();
+        }
+        return;
+    }
+    var idx = ZUKAN_BIOME_NAMES.indexOf(entryId.split(':')[1]);
+    var cfg = (typeof BIOME_CONFIGS !== 'undefined' && BIOME_CONFIGS[idx]) ? BIOME_CONFIGS[idx] : null;
+    var sky = cfg ? cfg.sky : ['#87ceeb', '#3a5a45'];
+    var tp = cfg ? cfg.terrainPalette : ['transparent', '#5a5', '#4a4', '#383', '#262'];
+    // 空
+    var g = cx.createLinearGradient(0, 0, 0, px);
+    g.addColorStop(0, sky[0]); g.addColorStop(1, sky[sky.length - 1]);
+    cx.fillStyle = g; cx.fillRect(0, 0, px, px);
+    // 遠景の丘（暗めの地形色）
+    var hillY = px * 0.62;
+    cx.fillStyle = tp[4] || tp[3] || tp[2] || '#385';
+    cx.beginPath();
+    cx.moveTo(0, hillY + px * 0.06);
+    cx.quadraticCurveTo(px * 0.28, hillY - px * 0.10, px * 0.52, hillY + px * 0.04);
+    cx.quadraticCurveTo(px * 0.78, hillY - px * 0.08, px, hillY + px * 0.02);
+    cx.lineTo(px, px); cx.lineTo(0, px); cx.closePath(); cx.fill();
+    // 地面（surface）＋明るい地表ライン
+    var groundY = px * 0.76;
+    cx.fillStyle = tp[3] || tp[2] || '#4a4';
+    cx.fillRect(0, groundY, px, px - groundY);
+    cx.fillStyle = tp[2] || tp[1] || '#5b5';
+    cx.fillRect(0, groundY, px, Math.max(2, px * 0.07));
+}
 function zukanThumb(entry, seen, px) {
     var spriteName = zukanSpriteName(entry);
     var el;
@@ -3709,10 +3756,11 @@ function zukanThumb(entry, seen, px) {
         cx.drawImage(frame.normal, (px - dw) / 2, (px - dh) / 2, dw, dh);
         el.style.cssText = 'width:' + px + 'px; height:' + px + 'px; image-rendering:pixelated;';
     } else if (entry.cat === 'biome') {
-        var idx = ZUKAN_BIOME_NAMES.indexOf(entry.id.split(':')[1]);
-        var sky = (typeof BIOME_CONFIGS !== 'undefined' && BIOME_CONFIGS[idx]) ? BIOME_CONFIGS[idx].sky : ['#888', '#333'];
-        el = document.createElement('div');
-        el.style.cssText = 'width:' + px + 'px; height:' + px + 'px; border-radius:8px; background:linear-gradient(160deg,' + sky[0] + ',' + sky[sky.length - 1] + ');';
+        // 空の色だけでなく地形も描く（見分けやすく）。ボーナス部屋は専用の見た目。
+        el = document.createElement('canvas');
+        el.width = px; el.height = px;
+        el.style.cssText = 'width:' + px + 'px; height:' + px + 'px; border-radius:8px;';
+        drawStageThumb(el.getContext('2d'), px, entry.id);
     } else if (entry.img) {
         el = document.createElement('img');
         el.src = entry.img;
@@ -4774,7 +4822,7 @@ function applySpecialMoveImpact() {
     if (typeof flyingEnemies !== 'undefined') sweep(flyingEnemies);
     // ボスにダメージ（戦闘中のみ）
     if (bossState.active && bossState.boss && bossState.phase === 3) {
-        bossState.boss.hp -= dmg;
+        bossState.boss.hp -= dmg * critMultiplier(bossState.boss.x + bossState.boss.width / 2, bossState.boss.y);
         bossState.boss.isAngry = true;
         bossState.boss.angerTimer = (typeof BOSS_ANGER_DURATION !== 'undefined') ? BOSS_ANGER_DURATION : 60;
         spawnExplosionEffect(bossState.boss.x + bossState.boss.width / 2, bossState.boss.y + bossState.boss.height / 2);
@@ -5391,7 +5439,7 @@ function updateBullets() {
                 y: player.y + player.height / 2 - 8,
                 width: 16, height: 16,
                 velX: dir * (gameState.gameSpeed + 8),
-                dir: dir
+                dir: dir, dmg: 2
             });
             if (soundManager && soundManager.ctx && gameSettings.soundEnabled) {
                 // 簡易発射音 (既存AudioContextで短いビープ)
@@ -5406,6 +5454,32 @@ function updateBullets() {
                     gn.gain.exponentialRampToValueAtTime(0.001, ao.currentTime + 0.06);
                     osc.start(ao.currentTime);
                     osc.stop(ao.currentTime + 0.06);
+                } catch (_) {}
+            }
+        }
+    } else if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
+               gameSettings.activeSkin === 'kigurumi' && gameState.gameStarted && !pipeRoomState.active) {
+        // きぐるみの特殊効果: エナジー弾が出ていない時だけ、3秒に1発 青白い電気弾（ダメージ1＝エナジー弾2の半分）。
+        // エナジー弾発動中(上のif)はこちらへ来ないので電気は止まり、終わればまた出続ける。
+        gameState.zapFireTimer = (gameState.zapFireTimer || 0) + 1;
+        if (gameState.zapFireTimer >= 180) { // 3秒に1発
+            gameState.zapFireTimer = 0;
+            var zdir = player.facing === 'left' ? -1 : 1;
+            bullets.push({
+                x: zdir > 0 ? player.x + player.width : player.x - 16,
+                y: player.y + player.height / 2 - 8,
+                width: 16, height: 16,
+                velX: zdir * (gameState.gameSpeed + 8),
+                dir: zdir, isZap: true, dmg: 1
+            });
+            if (soundManager && soundManager.ctx && gameSettings.soundEnabled) {
+                try { // 電気音（エナジー弾より高め）
+                    var zao = soundManager.ctx, zosc = zao.createOscillator(), zgn = zao.createGain();
+                    zosc.connect(zgn); zgn.connect(zao.destination);
+                    zosc.frequency.value = 1320; zosc.type = 'square';
+                    zgn.gain.setValueAtTime(0.04, zao.currentTime);
+                    zgn.gain.exponentialRampToValueAtTime(0.001, zao.currentTime + 0.05);
+                    zosc.start(zao.currentTime); zosc.stop(zao.currentTime + 0.05);
                 } catch (_) {}
             }
         }
@@ -5447,7 +5521,7 @@ function updateBullets() {
         if (bossState.boss && bossState.phase === 3 && aabb(b, bossState.boss)) {
             // 装甲卵ボスは弱点露出中のみ弾が通る（それ以外は殻で弾く＝ダメージ0）
             var _eggArmored = (bossState.boss.kind === 'egg' && !bossState.boss.exposed);
-            if (!_eggArmored) bossState.boss.hp -= 2; // エナジー弾の威力2（HP100スケール・基本HP100なら50発で撃破）
+            if (!_eggArmored) bossState.boss.hp -= (b.dmg || 2) * critMultiplier(bossState.boss.x + bossState.boss.width / 2, bossState.boss.y); // エナジー弾2/電気弾1・メイド服で稀にクリティカル2倍
             spawnExplosionEffect(b.x, b.y);
             bullets.splice(i, 1);
             if (soundManager) soundManager.playKill();
