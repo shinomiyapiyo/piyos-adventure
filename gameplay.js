@@ -522,16 +522,45 @@ function renderShopMenuItem(id, icon, text) {
     '</div>';
 }
 
-function renderSellItem(stockIndex) {
-    var stockItem = stockState.items[stockIndex];
-    var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === stockItem.id; });
+// 売却対象（ストック枠）の解決：表示indexから { id, perma, index } を返す（売れない枠は null）。
+// 表示index規則は useStockItem と同じ＝ 0..permaLevel()-1 が永続枠(まほうのポーチ)、それ以降が通常枠。
+// perma:true なら index は永続枠の位置、false なら stockState.items の位置。
+function stockSlotSellTarget(displayIndex) {
+    var pl = permaLevel();
+    if (displayIndex < pl) {
+        var ps = stockState.perma[displayIndex];
+        // 永続枠は「中身があり かつ 今ラン未使用」のものだけ売れる（使用済み=空表示なので対象外）
+        if (ps && ps.id && !ps.used) return { id: ps.id, perma: true, index: displayIndex };
+        return null;
+    }
+    var ni = displayIndex - pl;
+    var it = stockState.items[ni];
+    return it ? { id: it.id, perma: false, index: ni } : null;
+}
+
+// 売却できる枠の表示indexリスト（永続枠=中身あり&未使用 / 通常枠=アイテムあり）。ポーチも通常枠も区別なく対象。
+function sellableStockSlots() {
+    var pl = permaLevel();
+    var list = [];
+    for (var i = 0; i < pl; i++) {
+        var ps = stockState.perma[i];
+        if (ps && ps.id && !ps.used) list.push(i);
+    }
+    for (var n = 0; n < stockState.items.length; n++) list.push(pl + n);
+    return list;
+}
+
+function renderSellItem(displayIndex) {
+    var target = stockSlotSellTarget(displayIndex);
+    if (!target) return '';
+    var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === target.id; });
     if (!shopItem) return '';
     var sellPrice = Math.floor(shopItem.price / 2);
-    var isHighlighted = (shopSellHighlightIndex === stockIndex);
-    var isConfirming = (shopSellingIndex === stockIndex);
+    var isHighlighted = (shopSellHighlightIndex === displayIndex);
+    var isConfirming = (shopSellingIndex === displayIndex);
     var highlighted = isHighlighted || isConfirming;
     var cursor = highlighted ? '>' : '　';
-    return '<div data-item-id="_sell_' + stockIndex + '" class="shop-row shop-row-item' + (highlighted ? ' hl' : '') + '">' +
+    return '<div data-item-id="_sell_' + displayIndex + '" class="shop-row shop-row-item' + (highlighted ? ' hl' : '') + '">' +
         '<span class="shop-cursor">' + cursor + '</span>' +
         (shopItem.iconImg
             ? '<img src="' + shopItem.iconImg + '" width="18" height="18" class="shop-icon-img">'
@@ -589,12 +618,13 @@ function updateStageShopUI() {
             closeBtn.parentElement.style.display = 'flex';
         }
     } else if (shopMode === 'sell') {
-        // 売却モード：ストックアイテムリスト
-        if (stockState.items.length === 0) {
+        // 売却モード：ストックアイテムリスト（通常枠＋まほうのポーチを区別なく列挙）
+        var sellSlots = sellableStockSlots();
+        if (sellSlots.length === 0) {
             html += '<div style="color:rgba(255,255,255,0.5); font-family:DotGothic16,monospace; font-size:clamp(9px,1.8vw,12px); padding:8px 6px; text-align:center;">---</div>';
         } else {
-            for (var j = 0; j < stockState.items.length; j++) {
-                html += renderSellItem(j);
+            for (var j = 0; j < sellSlots.length; j++) {
+                html += renderSellItem(sellSlots[j]);
             }
         }
         if (closeBtn) {
@@ -669,7 +699,7 @@ function selectShopItem(itemId) {
             shopInputCooldown = Date.now() + 350;
             updateStageShopUI();
         } else if (itemId === '_menu_sell') {
-            if (stockState.items.length === 0) {
+            if (sellableStockSlots().length === 0) {
                 setKeeperText('shop_keeper_sell_empty');
                 if (soundManager) soundManager.playDamage();
                 return;
@@ -716,9 +746,10 @@ function selectShopItem(itemId) {
     if (shopMode === 'sell') {
         if (itemId.indexOf('_sell_') !== 0) return;
         var sellIdx = parseInt(itemId.replace('_sell_', ''));
-        if (isNaN(sellIdx) || sellIdx < 0 || sellIdx >= stockState.items.length) return;
-        var stockItem = stockState.items[sellIdx];
-        var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === stockItem.id; });
+        if (isNaN(sellIdx)) return;
+        var sellTarget = stockSlotSellTarget(sellIdx);
+        if (!sellTarget) return;
+        var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === sellTarget.id; });
         if (!shopItem) return;
         // 1回目タップ：説明＋売値表示
         if (shopSellHighlightIndex !== sellIdx) {
@@ -814,13 +845,21 @@ function executeSellItem() {
     var idx = shopSellingIndex;
     shopSellingIndex = null;
     shopSellHighlightIndex = null;
-    if (idx === null || idx < 0 || idx >= stockState.items.length) return;
-    var stockItem = stockState.items[idx];
-    var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === stockItem.id; });
+    var target = stockSlotSellTarget(idx);
+    if (!target) return;
+    var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === target.id; });
     if (!shopItem) return;
     var sellPrice = Math.floor(shopItem.price / 2);
-    // ストックから除去
-    stockState.items.splice(idx, 1);
+    if (target.perma) {
+        // まほうのポーチ(永続枠): この枠を空ける。永続保存(permaStock)も消す＝翌ラン補充されない（無限売却の防止）。
+        // ポーチのLv(pouchLevel)は維持＝金枠自体は残り、拾った品でまた埋められる。
+        stockState.perma[target.index] = { id: '', used: false };
+        if (gameSettings.permaStock) gameSettings.permaStock[target.index] = '';
+        saveSettings();
+    } else {
+        // 通常枠: 詰め配列から除去
+        stockState.items.splice(target.index, 1);
+    }
     // お金を加算
     gameState.score += sellPrice;
     if (soundManager) soundManager.playItem();
@@ -828,8 +867,8 @@ function executeSellItem() {
     setShopBg(getSuccessShopBg(), 1500);
     updateStageShopUI();
     updateStockUI(); // 売却で減った分を浮いてるストック表示にも反映（枠からアイテムを消す）
-    // ストックが空になったらメニューに戻る
-    if (stockState.items.length === 0) {
+    // 売れるものが無くなったらメニューに戻る
+    if (sellableStockSlots().length === 0) {
         setTimeout(function() {
             returnToShopMenu();
         }, 1500);
@@ -966,7 +1005,7 @@ function depositScore() {
 // ── タイトルショップ ──
 var tshopHighlightedItem = null;  // カーソル選択中のアイテムID
 var tshopConfirmingItem = null;   // 購入確認中のアイテムID
-var tshopMode = 'buy';            // タイトルショップのモード 'buy'|'sell'（ステージショップ同様の買う/売る選択）
+var tshopMode = 'menu';           // タイトルショップのモード 'menu'|'buy'|'sell'（ステージショップ同様：最初にメニューで選択）
 var tshopLeaving = false;         // 退店確認中フラグ
 
 function formatTshopPrice(num) {
@@ -1046,13 +1085,27 @@ function cancelTshopBuy() {
 }
 
 function selectTshopItem(upgradeId) {
-    if (upgradeId === '_mode_buy' || upgradeId === '_mode_sell') { // 買う/売る の切替タブ
-        var m = upgradeId.slice(6);
-        if (tshopMode !== m) {
-            tshopMode = m; tshopHighlightedItem = null; tshopConfirmingItem = null; showTshopConfirm(false);
+    // ── メニューモード（ステージショップ同様：買う/売る/広告/出る をまず選ぶ）──
+    if (tshopMode === 'menu') {
+        if (upgradeId === '_tmenu_buy') {
             if (soundManager) soundManager.playCursorMove();
-            setTshopKeeperText(m === 'sell' ? 'tshop_keeper_sell_greet' : 'tshop_keeper_greet');
+            tshopMode = 'buy'; tshopHighlightedItem = null; tshopConfirmingItem = null; showTshopConfirm(false);
+            setTshopKeeperText('tshop_keeper_buy_greet');
             updateTitleShopUI();
+        } else if (upgradeId === '_tmenu_sell') {
+            if (!tshopHasSellable()) { // 売れるものが無ければメニューのまま案内
+                setTshopKeeperText('tshop_sell_empty');
+                if (soundManager) soundManager.playDamage();
+                return;
+            }
+            if (soundManager) soundManager.playCursorMove();
+            tshopMode = 'sell'; tshopHighlightedItem = null; tshopConfirmingItem = null; showTshopConfirm(false);
+            setTshopKeeperText('tshop_keeper_sell_greet');
+            updateTitleShopUI();
+        } else if (upgradeId === '_tmenu_reward_ad') {
+            adTshopBonus(); // クールダウン判定は adTshopBonus 内（待機中は案内＋ダメージ音）
+        } else if (upgradeId === '_tmenu_leave') {
+            requestTshopLeave();
         }
         return;
     }
@@ -1134,14 +1187,37 @@ function renderTshopSellList() {
     if (!any) html += '<div style="color:rgba(255,255,255,0.5); text-align:center; padding:16px 0; font-family:\'M PLUS Rounded 1c\',sans-serif; font-size:clamp(10px,2vw,13px);">' + escapeHtml(t('tshop_sell_empty')) + '</div>';
     return html;
 }
-// 「買う/売る」切替タブ（ステージショップの買う/売る相当）
-function renderTshopModeTabs() {
-    var mk = function(mode, label) {
-        var on = (tshopMode === mode);
-        return '<div data-tshop-id="_mode_' + mode + '" style="flex:1; text-align:center; padding:6px 2px; border-radius:8px; cursor:pointer; font-weight:800; font-family:\'M PLUS Rounded 1c\',sans-serif; font-size:clamp(11px,2.2vw,14px); -webkit-tap-highlight-color:transparent;' +
-            (on ? 'background:#ffd24a; color:#5a3d00;' : 'background:#2a2a45; color:#c7c7e0;') + '">' + escapeHtml(t(label)) + '</div>';
-    };
-    return '<div style="display:flex; gap:6px; margin-bottom:5px; flex-shrink:0;">' + mk('buy', 'tshop_mode_buy') + mk('sell', 'tshop_mode_sell') + '</div>';
+// 売れるものが1つでもあるか（ポーチ=永続枠 or 通常ストック）。売るメニューの可否判定に使用。
+function tshopHasSellable() {
+    var pl = permaLevel(), ps = gameSettings.permaStock || [];
+    for (var i = 0; i < pl; i++) { if (ps[i]) return true; }
+    return stockState.items.length > 0;
+}
+// メニュー項目（買う/売る/広告/出る）を1行描画（ステージショップの renderShopMenuItem 相当・data-tshop-id版）
+function renderTshopMenuItem(id, icon, text) {
+    var isHighlighted = (tshopHighlightedItem === id);
+    var cursor = isHighlighted ? '>' : '　';
+    return '<div data-tshop-id="' + id + '" class="shop-row shop-row-menu' + (isHighlighted ? ' hl' : '') + '">' +
+        '<span class="shop-cursor">' + cursor + '</span>' +
+        '<span class="shop-icon-txt">' + icon + '</span>' +
+        '<span class="shop-name">' + escapeHtml(text) + '</span>' +
+    '</div>';
+}
+// 売る/買うモードからメニューへ戻る（ステージショップの returnToShopMenu 相当）
+function returnToTshopMenu() {
+    if (soundManager) soundManager.playCursorMove();
+    tshopMode = 'menu';
+    tshopHighlightedItem = null;
+    tshopConfirmingItem = null;
+    tshopLeaving = false;
+    showTshopConfirm(false);
+    setTshopKeeperText('tshop_keeper_greet');
+    updateTitleShopUI();
+}
+// 画面下「もどる/お店を出る」ボタン：買う/売るモードならメニューへ、メニューなら退店確認
+function tshopBack() {
+    if (tshopMode !== 'menu') { returnToTshopMenu(); return; }
+    requestTshopLeave();
 }
 function selectTshopSell(key) {
     if (tshopConfirmingItem) return;
@@ -1293,15 +1369,13 @@ function showTitleShop() {
     history.pushState({ screen: 'titleShop' }, '');
     tshopHighlightedItem = null;
     tshopConfirmingItem = null;
-    tshopMode = 'buy'; // 開くたび「買う」から
+    tshopMode = 'menu'; // 開くたびメニューから（買う/売る/広告を選ぶ）
     tshopLeaving = false;
     setTshopKeeperText('tshop_keeper_greet');
     showTshopConfirm(false); // カーソルリセットも内包
-    // リワード広告ボタンの表示制御
+    // 旧・独立リワード広告ボタンはメニュー項目(_tmenu_reward_ad)へ統合したので常に隠す
     var tshopAdBtnEl = document.getElementById('tshopRewardAdBtn');
-    if (tshopAdBtnEl) {
-        tshopAdBtnEl.style.display = gameSettings.adFree ? 'none' : 'block';
-    }
+    if (tshopAdBtnEl) tshopAdBtnEl.style.display = 'none';
     updateTitleShopUI();
     buildPermaSlots(); // ゲーム未開始でも permaStock から永続枠を構築（返却プレイヤーが初回プレイ前にショップを開いた時の表示ズレ防止）
     updateStockUI(); // タイトルショップでもストック(枠＋所持アイテム)を表示＝拡張アイテム購入の参考に
@@ -1380,10 +1454,21 @@ function updateTitleShopUI() {
     document.getElementById('titleShopSavings').innerHTML = _ic('icon_bank.png', 'ui-icon-sm') + ' ' + t('tshop_savings_display', { amount: formatTshopPrice(gameSettings.savings) }) +
         '　' + _ic('item_golden_egg.png', 'ui-icon-sm') + ' ' + (gameSettings.goldenEggs || 0);
     var container = document.getElementById('titleShopList');
-    var html = renderTshopModeTabs(); // 「買う/売る」切替タブ（ステージショップ同様）
-    if (tshopMode === 'sell') {
+    var backBtn = document.getElementById('titleShopBackBtn');
+    var html = '';
+    if (tshopMode === 'menu') {
+        // メニュー：買う/売る/(広告)/出る をまず選ぶ（ステージショップ同様）
+        html += renderTshopMenuItem('_tmenu_buy', _ic('icon_cart.png'), t('shop_menu_buy'));
+        html += renderTshopMenuItem('_tmenu_sell', _ic('icon_money.png'), t('shop_menu_sell'));
+        if (!gameSettings.adFree) {
+            html += renderTshopMenuItem('_tmenu_reward_ad', _ic('icon_bank.png'), t('reward_ad_shop_money'));
+        }
+        html += renderTshopMenuItem('_tmenu_leave', _ic('icon_door.png'), t('shop_close').replace('&gt; ', '').replace('> ', ''));
+        if (backBtn) backBtn.style.display = 'none'; // メニューでは「出る」項目から退店
+    } else if (tshopMode === 'sell') {
         html += renderTshopSellList(); // 売る: 通常ストックも ポーチも 区別なく一覧
-    } else {
+        if (backBtn) { backBtn.style.display = 'block'; backBtn.innerHTML = t('shop_back'); }
+    } else { // buy
         for (var i = 0; i < TITLE_SHOP_UPGRADES.length; i++) {
             html += renderTitleShopItem(TITLE_SHOP_UPGRADES[i]);
         }
@@ -1394,6 +1479,7 @@ function updateTitleShopUI() {
                 html += renderEggShopItem(EGG_SHOP_ITEMS[e]);
             }
         }
+        if (backBtn) { backBtn.style.display = 'block'; backBtn.innerHTML = t('shop_back'); }
     }
     var _prevScroll = container.scrollTop; // 再描画でスクロール位置が最上部へ飛ぶのを防ぐ（ポーチ選択時など）
     container.innerHTML = html;

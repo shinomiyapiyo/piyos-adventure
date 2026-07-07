@@ -633,10 +633,10 @@ function initialize() {
     tshopAdBtn.addEventListener('touchend', function(e) { e.preventDefault(); e.stopPropagation(); adTshopBonus(); });
     tshopAdBtn.addEventListener('click', function(e) { e.stopPropagation(); adTshopBonus(); });
 
-    // タイトルショップ戻るボタン
+    // タイトルショップ戻るボタン（買う/売るモードならメニューへ、メニューなら退店確認）
     var tShopBack = document.getElementById('titleShopBackBtn');
-    tShopBack.addEventListener('touchend', function(e) { e.preventDefault(); e.stopPropagation(); requestTshopLeave(); });
-    tShopBack.addEventListener('click', function(e) { e.stopPropagation(); requestTshopLeave(); });
+    tShopBack.addEventListener('touchend', function(e) { e.preventDefault(); e.stopPropagation(); tshopBack(); });
+    tShopBack.addEventListener('click', function(e) { e.stopPropagation(); tshopBack(); });
 
     // タイトルショップ：アイテム選択（DQ風イベント委譲）
     var tshopList = document.getElementById('titleShopList');
