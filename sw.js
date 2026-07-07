@@ -1,4 +1,4 @@
-var CACHE_NAME = 'piyo-adventure-v1.386';
+var CACHE_NAME = 'piyo-adventure-v1.387';
 var STATIC_ASSETS = [
     './',
     './index.html',
@@ -86,6 +86,18 @@ var STATIC_ASSETS = [
     './images/enemy_flying_chick_fly_2.png',
     './images/enemy_flying_chick_fly_3.png',
     './images/enemy_flying_chick_fly_4.png',
+    './images/enemy_vulture_fly_1.png',
+    './images/enemy_vulture_fly_2.png',
+    './images/enemy_vulture_fly_3.png',
+    './images/enemy_vulture_fly_4.png',
+    './images/enemy_snowowl_fly_1.png',
+    './images/enemy_snowowl_fly_2.png',
+    './images/enemy_snowowl_fly_3.png',
+    './images/enemy_snowowl_fly_4.png',
+    './images/enemy_bat_fly_1.png',
+    './images/enemy_bat_fly_2.png',
+    './images/enemy_bat_fly_3.png',
+    './images/enemy_bat_fly_4.png',
     './images/item_coin.png',
     './images/item_lemon.png',
     './images/item_shield.png',

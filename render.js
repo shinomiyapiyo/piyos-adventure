@@ -1188,7 +1188,7 @@ function drawFlyingEnemy(e) {
     var frameIdx = Math.floor(e.animFrame / 5) % 4;
 
     var flipH = (e.velX < 0); // 左移動中なら反転して左向きに
-    spriteManager.draw(ctx, 'flying_chick_fly', frameIdx, e.x, cy, e.width, e.height, flipH);
+    spriteManager.draw(ctx, e.flySprite || 'flying_chick_fly', frameIdx, e.x, cy, e.width, e.height, flipH);
     e.animFrame++;
 }
 

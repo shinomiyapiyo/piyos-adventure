@@ -83,6 +83,25 @@ var IMAGE_SPRITES = {
         'images/enemy_flying_chick_fly_3.png',
         'images/enemy_flying_chick_fly_4.png'
     ] },
+    // 飛行雑魚v2（バイオーム見た目・行動/判定/出現率は不変）: 砂漠=ハゲタカ/雪山=白フクロウ/夜=コウモリ
+    vulture_fly:       { files: [
+        'images/enemy_vulture_fly_1.png',
+        'images/enemy_vulture_fly_2.png',
+        'images/enemy_vulture_fly_3.png',
+        'images/enemy_vulture_fly_4.png'
+    ] },
+    snowowl_fly:       { files: [
+        'images/enemy_snowowl_fly_1.png',
+        'images/enemy_snowowl_fly_2.png',
+        'images/enemy_snowowl_fly_3.png',
+        'images/enemy_snowowl_fly_4.png'
+    ] },
+    bat_fly:           { files: [
+        'images/enemy_bat_fly_1.png',
+        'images/enemy_bat_fly_2.png',
+        'images/enemy_bat_fly_3.png',
+        'images/enemy_bat_fly_4.png'
+    ] },
 
     // アイテム
     coin_spin:       { files: ['images/item_coin.png'] },

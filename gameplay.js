@@ -2755,6 +2755,7 @@ function spawnEdgeFlyingEnemy() {
         width: 56, height: 50,
         velX: dir * (1.0 + Math.random() * 0.5),
         type: 'flying_chick',
+        flySprite: biomeFlyingSprite(), // バイオーム見た目（行動/判定は不変）
         animFrame: Math.floor(Math.random() * 100),
         waveOffset: Math.random() * Math.PI * 2
     });

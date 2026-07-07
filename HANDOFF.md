@@ -1,7 +1,9 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.384 まで push済／Ver.1.385・1.386 が commit済・push待ち**（2026-07-07）。1.385=フクロウ再設計＋ボスHPの内部/表示スケール統一。1.386=ボス戦の空中雑魚をR6以降のみ出現に。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。※1.385/1.386とも画像変更なし＝コードのみなので「デプロイ後10分待ち」は不要。
+> 最終更新: **Ver.1.385 push済／1.386・1.387 が commit済・push待ち**（2026-07-07）。1.385=フクロウ再設計＋ボスHPスケール統一。1.386=ボス戦の空中雑魚をR6以降のみ。**1.387=飛行雑魚v2（バイオーム見た目・砂漠ハゲタカ/雪山白フクロウ/夜コウモリ）＝画像追加版なのでpushはデプロイ後10分待つ**。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
+>
+> 🚨 **素材生成の絶対ルール（2026-07-07に違反・厳格化）**: モーション差分コマは**必ず1キャラ1本のVeo動画から切り出す**。**OpenAIで1枚ずつ独立生成は絶対禁止（クレジット浪費＝即ユーザー資産減）**。飛行=`veo-enemy-fly.mjs`+`veo-frames-to-flying.mjs`／歩行=`veo-enemy-walk.mjs`+`veo-frames-to-enemy.mjs`。詳細=メモリ [[piyo-sprite-motion-rule]]。**向きは必ず実機描画で判定**（素材=右向きが正・飛行敵は左移動でflipHにより左＝進行方向を向く）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
 
 ## 現在地サマリ（← 次セッションはまずここ / 2026-07-07）
@@ -17,6 +19,12 @@
 - **③ 闇のフクロウを空中で踏めるように**（従来はperch中のみ）: `updateBossCollision_owl`をhawk方式に（頭上から落下でどのモードでも踏める）。**空中踏み-5／perch(止まり=地上に降りて無防備)踏み-10＝闇のカラスと同じ**（スコア/クールダウンもhawk準拠300/40・500/50）。弾が主力・踏みは補助。swoop中の側面接触は従来通り被弾。
 - **④ 暗転を"実感"できる強さに**（従来は控えめすぎて体感ゼロ→スポットライト化→さらに暗い箇所をもう少し暗くを2段でユーザー要望）: `drawOwlDarkness`＝クリア円を締め(`clearR 115→62`)・周辺を一気に暗く(`外半径0.9→0.62`・mid`0.55→0.74`を内側0.3へ・端`0.86→1.0*dark`・色をほぼ黒`rgba(0,0,3)`へ)。`darkWant`も`0.72/0.9→0.85/0.98`。プレイヤー周囲だけ光が残り、フクロウは光る目の黒シルエットに。**光る目/swoop赤線予告は暗転の上に描くので常に視認可。⚠実機で「暗すぎ」ならclearR↑/alpha↓、「まだ薄い」なら逆**（音波リングはdrawFloatEffectsが暗転の下＝owlは自機付近hoverなので概ね光の中に出るが要実機確認）。
 - 全メカニクスをPreviewで検証済（空中踏み-5でHP減／他ボス踏み-10／egg装甲ゲート／弾-2／HP表示"100/100"／R1-5=100・R6=120・R12=240／暗転スポットライトの見た目）。**push=ユーザーが`git push`のみ**。
+
+### 🆕 Ver.1.387（飛行雑魚v2＝バイオーム見た目）= commit済・push待ち（**画像追加＝デプロイ後10分待つ**）
+- **飛行雑魚 `flying_chick` の見た目をバイオーム連動に**（地上v1=1.367の飛行版。**行動/当たり/出現率/スコアは完全不変・見た目のみ**）。草原=飛行ひよこ据置／砂漠=ハゲタカ(vulture)／雪山=白フクロウ(snowowl)／夜=コウモリ(bat)。
+- **実装**: `biomeFlyingSprite()`(index.html・getBiomeIndex基準)でスポーン時に `flySprite` 確定→`drawFlyingEnemy`(render.js)が `e.flySprite||'flying_chick_fly'` 参照。spawn2箇所（index.html `spawnFlyingEnemy`／gameplay.js `spawnEdgeFlyingEnemy`=ボスアリーナ）に付与。sprites.js に `vulture_fly/snowowl_fly/bat_fly`、sw.js に12枚登録。
+- **素材（重要な教訓）**: 当初 私が `generate-biome-flying-openai.mjs`（OpenAIで1枚ずつ独立生成）で作り**モーションが崩れてユーザー指摘＋クレジット浪費**→**Veo方式で作り直し**。新ツール `tools/veo-enemy-fly.mjs`（承認デザイン`_raw/bf_<id>_1_1024.png`を種に"その場羽ばたき"動画1本生成）＋`tools/veo-frames-to-flying.mjs`（ffmpeg抽出→緑クロマキー→均一スケール→**中央整列**→64×64）。採用コマ: vulture=28,34,40,46／snowowl=52,58,64,70（36-38はまばたき=回避）／bat=50,56,62,68。**全コマ同一個体で翼だけ動く正しいアニメを実機の描画パスで確認**。禁止ツール `generate-biome-flying-openai.mjs` は削除、`generate-biome-chicks-openai.mjs` に禁止バナー。
+- **向き検証**: 素材は全種右向き（コウモリも右向き＝ユーザー目視確定）。飛行敵は左移動なので `flipH=(velX<0)` で左＝進行方向を向く＝正しい（--flop不要）。**静止画で断定せず実機描画で判定**（1.371の二重反転教訓）。
 
 ### 🆕 Ver.1.386（ボス戦の空中雑魚をR6以降のみ）= commit済・push待ち
 - **ボス戦中の空中雑魚 `spawnEdgeFlyingEnemy`（→`flyingEnemies`/`type:'flying_chick'`）の出現ゲートを R3+ → R6+ に**（gameplay.js `updateBoss()` case3・約1738）。あわせて間隔式を`240-(gameRound-3)*20`→`240-(gameRound-6)*20`にし**R6を最も緩い間隔**から始める（HP増R6起点と同思想）。**一巡目R1-5のボス戦は空中雑魚なし**（地上雑魚 `spawnEdgeEnemy`=R2+・ボス召喚 `spawnBossChick` は据置）。Preview実測: 空中雑魚 R1-5=0/R6=2/R7=3。
