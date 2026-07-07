@@ -1,7 +1,7 @@
 # 引き継ぎ — ぴよ氏の冒険（次セッション向け）
 
 > 最初に **CLAUDE.md**（プロジェクトルール）と、ユーザーの自動メモリ **MEMORY.md** を読むこと。本書はその次。
-> 最終更新: **Ver.1.395 まで push済／1.396 が commit済・push待ち**（2026-07-07）。直近: 1.390-1.391=地上敵に物理(土台+種類別挙動)／1.392=飛行雑魚を図鑑追加＋シマエナガのジャンプ調整／1.393=エッグ交換UI/図鑑文言/ボス説明の修正5件／**1.394=①シマエナガのジャンプ滞空を伸ばし上下をゆっくりに(`ENEMY_JUMP_V -13→-11`＋ジャンプ中だけ`ENEMY_JUMP_GRAVITY=0.5`＝apex維持で滞空37→43f)②全枠が魔法ポーチ(通常枠0)でも復活薬を「今回かぎり(保存されない)」で購入可に(`isTempReviveCase`・保存不可を説明してはい/いいえ・通常枠へ一時追加＝死亡時の自動復活/手動使用が効く・updateStockUIが一時オーバーフロー枠も描画)**／**1.395=復活薬を保険専用化＝手動使用を廃止(`revive_potion`から`stockEffect`削除・`useStockItem`がタップ時に`revive_auto_hint`トーストを出すだけ＝回復もバリアも無し)＋1.394②の一時枠機構を簡素化(未参照の`temp`旗を削除・全枠ポーチ購入の確認文言をja/en簡素化・未使用の`PU_DURATION.reviveShield`除去)。死亡時の自動復活`tryRevive`は不変**／**1.396=ボス周回スケーリング監査＋タマゴボスの2周目(R8+)に「殻の破片ばらまき」を追加（叩きつけ着地で`enc≥2`時に破片を左右へ低く飛散＝ジャンプ回避・`spawnEggShards`／render.js `isShard`）。これで全5ボスが2周目で新パターン獲得に統一**。全てコードのみ＝10分待ち不要。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
+> 最終更新: **Ver.1.396 まで push済／1.397 が commit済・push待ち**（2026-07-07）。直近: 1.390-1.391=地上敵に物理(土台+種類別挙動)／1.392=飛行雑魚を図鑑追加＋シマエナガのジャンプ調整／1.393=エッグ交換UI/図鑑文言/ボス説明の修正5件／**1.394=①シマエナガのジャンプ滞空を伸ばし上下をゆっくりに(`ENEMY_JUMP_V -13→-11`＋ジャンプ中だけ`ENEMY_JUMP_GRAVITY=0.5`＝apex維持で滞空37→43f)②全枠が魔法ポーチ(通常枠0)でも復活薬を「今回かぎり(保存されない)」で購入可に(`isTempReviveCase`・保存不可を説明してはい/いいえ・通常枠へ一時追加＝死亡時の自動復活/手動使用が効く・updateStockUIが一時オーバーフロー枠も描画)**／**1.395=復活薬を保険専用化＝手動使用を廃止(`revive_potion`から`stockEffect`削除・`useStockItem`がタップ時に`revive_auto_hint`トーストを出すだけ＝回復もバリアも無し)＋1.394②の一時枠機構を簡素化(未参照の`temp`旗を削除・全枠ポーチ購入の確認文言をja/en簡素化・未使用の`PU_DURATION.reviveShield`除去)。死亡時の自動復活`tryRevive`は不変**／**1.396=ボス周回スケーリング監査＋タマゴボスの2周目(R8+)に「殻の破片ばらまき」を追加（叩きつけ着地で`enc≥2`時に破片を左右へ低く飛散＝ジャンプ回避・`spawnEggShards`／render.js `isShard`）。これで全5ボスが2周目で新パターン獲得に統一**／**1.397=6件（①ニワトリ3周目(R11+)に2連突進を追加②タイトルショップの`stock_expand`購入で枠表示が即更新されない不具合修正=購入後に`applyUpgrades()`③シマエナガ滞空を約1.5倍(ENEMY_JUMP_V-11→-8・GRAVITY0.5→0.24)④雑魚2匹以上の同時踏みで被弾する不具合修正=`updateEnemies`ループ前に`falling`確定⑤全雑魚を壁で反転＝密集解消[穴はmama反転/enaga飛越/他落下・jumpWall廃止]⑥高速域でも短い穴を1画面1つ許可）**。全てコードのみ＝10分待ち不要。リポジトリ: `piyos-adventure`（GitHub Pages, **Actions方式で自動公開**）。
 >
 > ✅ **1.395 で完了: 復活薬購入(1.394②)の再検討・簡素化**（前セッションの最優先だった件）。**結論と実装**:
 > - **(1) 手動使用を廃止**＝`revive_potion` から `stockEffect` を削除し、`useStockItem`(gameplay.js) は復活薬タップ時に `revive_auto_hint` トーストを出して `return false`（回復もバリアも無し・他アイテムの手動使用は不変）。死亡時の自動復活 `tryRevive`(index.html:5181) は独立実装なので不変。
@@ -11,7 +11,7 @@
 >
 > 🔜 **次セッション: ボスの微調整のつづき**（下の「🎯 次にやること」「▶ 調整ノブ早見表」＋[[piyo-gameplay-backlog]]）。着手前にユーザーへ「どのボスの何を調整するか」を確認する。
 >
-> **地上敵物理（1.390土台＋1.391個性）まとめ** `updateEnemyPhysics`/`enemyBehavior`/`terrainTopAt`(index.html): 横は`e.x+=velX`（地面に対する歩き・スクロールはカメラ）＋重力＋terrain当たり（プレイヤーと同ロジック）＋穴で落下除去＋スポーン時に地形表面へ乗せる。種類別=`mama_chick`turn(壁で反転)/`golden_chick`jumpWall(高台ジャンプ)/`enaga_walk`jumpAll(穴も高台もジャンプ)/他stop。ジャンプは先読み(`ENEMY_LOOKAHEAD=60`px先の壁/穴)→`ENEMY_JUMP_V=-16`＋前方リープ`ENEMY_LEAP_VX=7`(着地で歩き復帰)。**ボスアリーナ(平地)の敵は従来挙動維持**(`bossState.active`分岐)。**飛行敵は物理なし=現状維持**。⚠バイオーム雑魚の行動個性化に方針転換（enagaだけ挙動も変えた）。調整ノブ=ENEMY_JUMP_V/LEAP_VX/LOOKAHEAD＋spawnEnemyのvelX。
+> **地上敵物理（1.390土台＋1.391個性）まとめ** `updateEnemyPhysics`/`enemyBehavior`/`terrainTopAt`(index.html): 横は`e.x+=velX`（地面に対する歩き・スクロールはカメラ）＋重力＋terrain当たり（プレイヤーと同ロジック）＋穴で落下除去＋スポーン時に地形表面へ乗せる。**壁は全員引き返す＝密集防止(1.397)**・穴のみ種類別=`mama_chick`turnHole(穴の手前で反転=落ちない)/`enaga_walk`jumpHole(穴を飛越)/他fallHole(落下)。穴の先読み(`ENEMY_LOOKAHEAD=60`)→enaga跳躍`ENEMY_JUMP_V=-8`＋低重力`ENEMY_JUMP_GRAVITY=0.24`(滞空≈1.5倍=43→66f・1.397)＋前方リープ`ENEMY_LEAP_VX=4.5`(着地で歩き復帰)。**壁ジャンプ(jumpWall)は廃止**(乗り越えさせず反転)。**ボスアリーナ(平地)の敵は従来挙動維持**(`bossState.active`分岐)。**飛行敵は物理なし=現状維持**。⚠バイオーム雑魚の行動個性化に方針転換（enagaだけ挙動も変えた）。調整ノブ=ENEMY_JUMP_V/LEAP_VX/LOOKAHEAD＋spawnEnemyのvelX。
 >
 > 🚨 **素材生成の絶対ルール（2026-07-07に違反・厳格化）**: モーション差分コマは**必ず1キャラ1本のVeo動画から切り出す**。**OpenAIで1枚ずつ独立生成は絶対禁止（クレジット浪費＝即ユーザー資産減）**。飛行=`veo-enemy-fly.mjs`+`veo-frames-to-flying.mjs`／歩行=`veo-enemy-walk.mjs`+`veo-frames-to-enemy.mjs`。詳細=メモリ [[piyo-sprite-motion-rule]]。**向きは必ず実機描画で判定**（素材=右向きが正・飛行敵は左移動でflipHにより左＝進行方向を向く）。
 > 公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
@@ -52,7 +52,7 @@
 
 ### ▶ ボス周回スケーリング監査（1.396時点・`enc=bossEncounter()=ceil(gameRound/5)`＝何周目）
 各ボスが**2周目(enc≥2=R6-10)/3周目(enc≥3=R11-15)**で獲得する新技。**1.396で全5ボスが2周目に新パターンを持つよう統一**（従来タマゴだけ2周目が速度アップのみ＝穴だったのを破片ばらまきで補完）。⚠**enc≥3で頭打ち**（enc4+は3周目と同一・HPもR12でcap）＝さらに周回させるならここに`enc>=4`枠を足す。
-- **ニワトリ**(R1,6…): 2周目=🆕閃光(`canFlash=gameRound>=2` gameplay.js:2146)／3周目=追加なし（コード「変更禁止」＝据置）。他攻撃(突進/卵/炎/ジャンプ)はHP位相ベース。
+- **ニワトリ**(R1,6…): 2周目=🆕閃光(`canFlash=gameRound>=2`)／3周目=🆕2連突進(`enc>=3`・突進後に逆端へ折り返し・`didDoubleRush`・**1.397追加**)。他攻撃(突進/卵/炎/ジャンプ)はHP位相ベース。**⚠既存挙動は「変更禁止」＝ユーザー承認の追加のみOK**。
 - **カラス**(R2,7…): 2周目=🆕広角・高密度羽根バースト(`enc>=2` gameplay.js:1989)／3周目=🆕2連ダイブ(`enc>=3` 1988)。
 - **タマゴ**(R3,8…): 2周目=🆕殻の破片ばらまき(`enc>=2`→`spawnEggShards` slam着地・**1.396追加**)＋転がり×1.2／3周目=🆕2連転がり(`enc>=3` 2262)。破片ノブ=`spawnEggShards`(perSide枚数=phase3で3・velX散り3.2〜5.6・velY弧-2.6〜-4.0)・描画=render.js `isShard`。
 - **大蛇**(R4,9…): 2周目=🆕毒吐き(`enc>=2` gameplay.js:2340)＋地這い×1.15／3周目=突き上げ予告×0.7で速く(2351)。
