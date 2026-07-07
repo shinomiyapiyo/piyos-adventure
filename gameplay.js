@@ -80,6 +80,14 @@ function checkPipeTrigger() {
         pipeRoomState.placed = true;
         pipeRoomState.x = spawnX;
         platforms.push({ x: spawnX, y: GROUND_Y - PIPE_H, width: PIPE_W, height: PIPE_H, type: 'pipe' });
+        // 土管の真上にある浮遊足場（雲/floating_ground）を除去＝下スワイプ入場を妨げない
+        for (var _pj = platforms.length - 1; _pj >= 0; _pj--) {
+            var _pl = platforms[_pj];
+            if (_pl.type === 'pipe') continue;
+            if (_pl.x + _pl.width > spawnX - 40 && _pl.x < spawnX + PIPE_W + 40 && _pl.y + _pl.height < GROUND_Y) {
+                platforms.splice(_pj, 1);
+            }
+        }
     }
 }
 
@@ -104,6 +112,7 @@ function enterPipeRoom() {
     player.x = PIPE_ROOM_LEFT; player.y = -player.height - 20;
     player.velX = 0; player.velY = 0; player.onGround = false; player.facing = 'right';
     initPipeRoom();
+    if (typeof updateStockUI === 'function') updateStockUI(); // ストック枠(＋所持アップグレードアイコン)を隠す＝「でる」と重ならない
     if (soundManager) soundManager.playBGM('bonus');
 }
 
@@ -119,6 +128,7 @@ function exitPipeRoom() {
     gameState.input.down = false; gameState.input.up = false;
     gameState.input.left = false; gameState.input.right = false;
     gameState.input.jump = false; gameState.input.jumpPressed = false;
+    if (typeof updateStockUI === 'function') updateStockUI(); // ストック枠を再表示
     playStageBGM(); // 本編BGMに復帰
 }
 
@@ -994,6 +1004,7 @@ function confirmTshopBuy() {
     }
     if (!tshopConfirmingItem) return;
     if (tshopConfirmingItem.indexOf('egg:') === 0) { confirmEggBuy(tshopConfirmingItem.slice(4)); return; } // エッグこうかん確定
+    if (tshopConfirmingItem.indexOf('_psell_') === 0) { confirmPouchSell(parseInt(tshopConfirmingItem.slice(7), 10)); return; } // ポーチ売却確定
     var upgrade = TITLE_SHOP_UPGRADES.find(function(u) { return u.id === tshopConfirmingItem; });
     if (!upgrade) return;
     var currentLevel = (gameSettings.upgrades || {})[tshopConfirmingItem] || 0;
@@ -1035,6 +1046,7 @@ function cancelTshopBuy() {
 
 function selectTshopItem(upgradeId) {
     if (upgradeId && upgradeId.indexOf('egg:') === 0) { selectEggShopItem(upgradeId.slice(4)); return; } // エッグこうかん行
+    if (upgradeId && upgradeId.indexOf('_psell_') === 0) { selectPouchSell(parseInt(upgradeId.slice(7), 10)); return; } // ポーチ売却行
     var upgrade = TITLE_SHOP_UPGRADES.find(function(u) { return u.id === upgradeId; });
     if (!upgrade) return;
     // 確認ダイアログ表示中は無視
@@ -1082,6 +1094,59 @@ function selectTshopItem(upgradeId) {
     });
     showTshopConfirm(true);
     updateTitleShopUI();
+}
+
+// ── ポーチ(永続枠)アイテムの売却（タイトルショップ）──
+// まほうのポーチに入っている品を半額で貯金へ売却＝枠が空く（ポーチLvは維持・次ランで拾った品が入る）。
+function renderPouchSellRow(slot, itemId) {
+    var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; });
+    if (!shopItem) return '';
+    var key = '_psell_' + slot;
+    var isHighlighted = (tshopHighlightedItem === key) || (tshopConfirmingItem === key);
+    var sellPrice = Math.floor(shopItem.price / 2);
+    return '<div data-tshop-id="' + key + '" class="shop-row shop-row-tshop' + (isHighlighted ? ' hl' : '') + '">' +
+        '<span class="shop-cursor">' + (isHighlighted ? '>' : '　') + '</span>' +
+        (shopItem.iconImg ? '<img src="' + shopItem.iconImg + '" width="18" height="18" class="shop-icon-img">' : '<span class="shop-icon-txt">?</span>') +
+        '<span class="shop-name" style="color:#fff;">' + escapeHtml(t(shopItem.nameKey)) + '</span>' +
+        '<span class="shop-price" style="color:#ffd700;">+' + formatTshopPrice(sellPrice) + t('currency_unit') + '</span>' +
+    '</div>';
+}
+function selectPouchSell(slot) {
+    if (tshopConfirmingItem) return;
+    var itemId = (gameSettings.permaStock || [])[slot];
+    var shopItem = itemId ? STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; }) : null;
+    if (!shopItem) return;
+    var key = '_psell_' + slot, sellPrice = Math.floor(shopItem.price / 2);
+    if (tshopHighlightedItem !== key) { // 1回目タップ: 説明＋ハイライト
+        tshopHighlightedItem = key;
+        if (soundManager) soundManager.playCursorMove();
+        setTshopKeeperText('tshop_keeper_sell_desc', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
+        updateTitleShopUI();
+        return;
+    }
+    // 2回目タップ: 売却確認
+    tshopConfirmingItem = key;
+    if (soundManager) soundManager.playConfirmSelect();
+    setTshopKeeperText('tshop_keeper_sell_confirm', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
+    showTshopConfirm(true);
+    updateTitleShopUI();
+}
+function confirmPouchSell(slot) {
+    var itemId = (gameSettings.permaStock || [])[slot];
+    var shopItem = itemId ? STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; }) : null;
+    showTshopConfirm(false);
+    tshopConfirmingItem = null;
+    tshopHighlightedItem = null;
+    if (!shopItem) { updateTitleShopUI(); return; }
+    var sellPrice = Math.floor(shopItem.price / 2);
+    gameSettings.savings += sellPrice;
+    gameSettings.permaStock[slot] = ''; // 枠を空ける（ポーチLvは維持）
+    saveSettings();
+    buildPermaSlots(); // 実行時の永続枠へ即反映
+    if (soundManager) soundManager.playItem();
+    setTshopKeeperText('tshop_keeper_sold', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
+    updateTitleShopUI();
+    updateStockUI();
 }
 
 // ── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ──
@@ -1290,6 +1355,12 @@ function updateTitleShopUI() {
             html += renderEggShopItem(EGG_SHOP_ITEMS[e]);
         }
     }
+    // ポーチのアイテムを売るセクション（永続枠に入っている品を半額で貯金へ売却＝枠が空く）
+    var _pl = permaLevel(), _ps = gameSettings.permaStock || [], _sellHtml = '';
+    for (var pv = 0; pv < _pl; pv++) { if (_ps[pv]) _sellHtml += renderPouchSellRow(pv, _ps[pv]); }
+    if (_sellHtml) {
+        html += '<div style="color:rgba(255,215,0,0.75); font-family:DotGothic16,monospace; font-size:clamp(8px,1.5vw,11px); text-align:center; padding:3px 0 1px;">─ ' + escapeHtml(t('tshop_sell_section')) + ' ─</div>' + _sellHtml;
+    }
     var _prevScroll = container.scrollTop; // 再描画でスクロール位置が最上部へ飛ぶのを防ぐ（ポーチ選択時など）
     container.innerHTML = html;
     container.scrollTop = _prevScroll;
@@ -1484,6 +1555,8 @@ function swapStockSlots(a, b) {
 function updateStockUI() {
     var container = document.getElementById('stockSlots');
     if (!container) return;
+    // ボーナス部屋(土管)中は隠す＝出口「でる」や部屋のアイテムと重ならない（部屋ではストックを使わない）
+    if (typeof pipeRoomState !== 'undefined' && pipeRoomState.active) { container.style.display = 'none'; return; }
     // ゲームプレイ中は、空でも maxSlots ぶんの枠を常に表示する（所持可能数を可視化＋拡張アイテム購入の動機）。
     // タイトル/ゲームオーバー中(gameStarted=false)は隠す。ショップ中は別途 display:none で隠している(誤タップ防止)。
     var inTitleShop = isScreenVisible('titleShopScreen');

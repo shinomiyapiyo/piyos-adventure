@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.398";
+                content: "Ver.1.399";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.398</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.399</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1663,7 +1663,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.398
+ * ぴよ氏の冒険 v1.399
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2749,8 +2749,8 @@ function closeAchievementScreen() {
 var SKIN_FEATURE_ENABLED = true;
 var SKINS = [
     { id: '',     nameKey: 'skin_default', preview: 'images/player_idle_v1.png' }, // デフォルト
-    { id: 'maid', nameKey: 'skin_maid',    preview: 'images/skin_maid_idle.png', unlockAch: 'dist_5000' },  // 実績「合計5,000m走る」で解放
-    { id: 'kigurumi', nameKey: 'skin_kigurumi', preview: 'images/skin_kigurumi_idle.png', eggItem: true }   // タイトルショップの「エッグこうかん」で解放
+    { id: 'maid', nameKey: 'skin_maid',    preview: 'images/skin_maid_idle.png', unlockAch: 'dist_5000', effectKey: 'skin_effect_maid' },  // 実績「合計5,000m走る」で解放
+    { id: 'kigurumi', nameKey: 'skin_kigurumi', preview: 'images/skin_kigurumi_idle.png', eggItem: true, effectKey: 'skin_effect_kigurumi' }   // タイトルショップの「エッグこうかん」で解放
 ];
 function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
 function isSkinOwned(id) {
@@ -2786,9 +2786,11 @@ function renderSkinRow(s) {
         else if (s.eggItem) { condHtml = '<div style="color:rgba(255,255,255,0.6); font-size:clamp(8px,1.6vw,11px); margin-top:2px;">' + escapeHtml(t('skin_unlock_egg')) + '</div>'; }
     }
     var dim = (!owned && !equipped) ? ' filter:grayscale(0.75); opacity:0.65;' : '';
+    // 特殊スキルの軽い説明（メイド=クリティカル/きぐるみ=電気攻撃）
+    var effHtml = s.effectKey ? '<div style="color:#8ee7ff; font-size:clamp(8px,1.7vw,11px); margin-top:2px; font-weight:600; line-height:1.25;">' + escapeHtml(t(s.effectKey)) + '</div>' : '';
     return '<div style="display:flex; align-items:center; gap:10px; background:rgba(0,0,40,0.55); border:1px solid ' + (equipped ? 'rgba(76,175,80,0.6)' : 'rgba(255,255,255,0.12)') + '; border-radius:10px; padding:6px 10px;">' +
         '<img src="' + s.preview + '" width="44" height="44" style="image-rendering:pixelated; flex-shrink:0; background:rgba(255,255,255,0.06); border-radius:8px;' + dim + '">' +
-        '<div style="flex:1 1 auto; min-width:0; color:#fff; font-size:clamp(11px,2.3vw,15px); font-weight:700; font-family:\'M PLUS Rounded 1c\',sans-serif;">' + escapeHtml(t(s.nameKey)) + condHtml + '</div>' +
+        '<div style="flex:1 1 auto; min-width:0; color:#fff; font-size:clamp(11px,2.3vw,15px); font-weight:700; font-family:\'M PLUS Rounded 1c\',sans-serif;">' + escapeHtml(t(s.nameKey)) + effHtml + condHtml + '</div>' +
         '<div style="flex-shrink:0;">' + stateHtml + '</div>' +
     '</div>';
 }
@@ -4246,6 +4248,14 @@ function spawnPlatform() {
     var x = gameState.camera.x + GAME_WIDTH + Math.random() * 200;
     var y = 164 + Math.random() * 122;
     var w = 120 + Math.random() * 80;
+    // 土管の真上に浮遊足場が出ると下スワイプ入場を妨げるので、土管の右へずらす
+    for (var _pi = 0; _pi < platforms.length; _pi++) {
+        var _pp = platforms[_pi];
+        if (_pp.type === 'pipe' && x + w > _pp.x - 40 && x < _pp.x + _pp.width + 40) {
+            x = _pp.x + _pp.width + 70 + Math.random() * 90;
+            break;
+        }
+    }
     var p = {
         x: x, y: y, width: w, height: 30,
         type: types[Math.floor(Math.random() * types.length)],
@@ -4959,16 +4969,17 @@ function terrainTopAt(x) {
 }
 
 // 地上敵の挙動: 壁は全員引き返す（一箇所への密集を防ぐ）。穴だけ種類別に差別化。
-//   turnHole=穴の手前でも引き返す(ニワトリのみ) / jumpHole=穴を飛び越える(シマエナガ) / fallHole=穴に落ちる(他)
+//   turnHole=穴の手前でも引き返す(ニワトリのみ) / jumpClear=穴＆越えられる高さのブロックは飛越・越せない壁は引き返す(シマエナガ) / fallHole=穴に落ちる(他)
 function enemyBehavior(e) {
     if (e.type === 'mama_chick')       return 'turnHole';  // ニワトリ=穴の手前でも引き返す（頑固・落ちない）
-    if (e.walkSprite === 'enaga_walk') return 'jumpHole';  // シマエナガ(雪chick)=穴を飛び越える
+    if (e.walkSprite === 'enaga_walk') return 'jumpClear'; // シマエナガ(雪chick)=穴＆低いブロックを飛び越える（高い壁は引き返す）
     return 'fallHole';                                     // 他chick系(草原/砂漠/夜/ゴールデン)=穴には落ちる
 }
-var ENEMY_JUMP_V  = -8;    // シマエナガの穴越えジャンプ初速（1.397で-11→-8。gと合わせ滞空を1.5倍にしつつ高さは元とほぼ同じに）
+var ENEMY_JUMP_V  = -6.2;  // シマエナガの飛び越えジャンプ初速（1.399で-8→-6.2＝ジャンプ高さを約6割に。gは据置で上昇下降の"速さ"感は維持・apex≈80px）
 var ENEMY_LEAP_VX = 4.5;   // ジャンプ中の前方リープ横速度（1.392で下げて避けやすく。広い穴は越えないこともある＝許容）
-var ENEMY_LOOKAHEAD = 60;  // 何px手前で穴を先読みするか（enaga=跳ぶ/mama=引き返す）
-var ENEMY_JUMP_GRAVITY = 0.24; // ジャンプ(leaping=シマエナガの穴越え)中の重力。1.397で0.5→0.24＝滞空時間を約1.5倍(43→66f)に延長（V=-8と合わせ高さは元とほぼ同じ）
+var ENEMY_LOOKAHEAD = 60;  // 何px手前で穴/壁を先読みするか（enaga=跳ぶor引き返す/mama=引き返す）
+var ENEMY_JUMP_GRAVITY = 0.24; // ジャンプ(leaping)中の重力（低いほど滞空が伸びfloaty。上昇下降の"速さ"感を保つため据置）
+var ENEMY_JUMP_CLEAR = 72; // シマエナガが飛び越えられる壁(高台)の最大高さpx（apex≈80pxで安全に着地できる上限）。これを超える高い壁は跳ばず引き返す
 
 // 地上敵の物理（重力＋地形当たり＋穴落下＋種類別の壁/穴対応）。プレイヤーと同じワールド座標で当たる。
 // 横は「地面に対する歩き(velX)」＝画面スクロールはカメラが担当（従来の -gameSpeed は廃止）。
@@ -4977,18 +4988,22 @@ function updateEnemyPhysics(e) {
     var beh = e.behavior;
     var dir = e.velX < 0 ? -1 : 1;
 
-    // 先読み: 進行方向の少し先が穴なら種類別に対応（enaga=飛び越える / mama=手前で引き返す）。
-    // 壁(高台)は全員が接触時に引き返すので先読み不要＝跳ばない（乗り越えさせず密集を防ぐ）。
-    if (e.onGround && (beh === 'jumpHole' || beh === 'turnHole')) {
+    // 先読み: 進行方向の少し先の 穴 / 壁(高台) に対し種類別に対応。
+    //   enaga(jumpClear)=穴＆越えられる高さの壁は前方リープで飛越／越せない高い壁は跳ばず→壁当たりで引き返す。
+    //   mama(turnHole)=穴の手前で引き返す。他=先読みなし（壁は全員 接触時に引き返す＝密集防止）。
+    if (e.onGround && (beh === 'jumpClear' || beh === 'turnHole')) {
         var lead = (dir < 0) ? e.x - ENEMY_LOOKAHEAD : e.x + e.width + ENEMY_LOOKAHEAD;
-        var holeAhead = (terrainTopAt(lead) === null);                 // 地面なし=穴
-        if (holeAhead) {
-            if (beh === 'jumpHole') {                                  // シマエナガ: 前方リープで飛び越える
+        var topAhead = terrainTopAt(lead);
+        var holeAhead = (topAhead === null);                           // 地面なし=穴
+        var wallH = (topAhead !== null) ? (e.y + e.height - topAhead) : 0; // 前方地形が高い分＝壁の高さ
+        if (beh === 'jumpClear') {
+            // 穴 or 越えられる高さの壁(30〜ENEMY_JUMP_CLEAR)なら飛ぶ。それ以上高い壁は跳ばない→壁当たりで引き返す
+            if (holeAhead || (wallH >= 30 && wallH <= ENEMY_JUMP_CLEAR)) {
                 e.velY = ENEMY_JUMP_V; e.onGround = false;
                 if (!e.leaping) { e.walkVX = e.velX; e.velX = dir * ENEMY_LEAP_VX; e.leaping = true; }
-            } else {                                                   // ニワトリ: 穴の手前で引き返す
-                e.velX = -e.velX;
             }
+        } else if (holeAhead) {                                        // ニワトリ: 穴の手前で引き返す
+            e.velX = -e.velX;
         }
     }
 
