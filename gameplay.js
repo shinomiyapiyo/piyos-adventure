@@ -10,8 +10,8 @@
 // ラウンドに応じたステージBGMを再生（stage→stage2→stage3→stage→...）
 function playStageBGM() {
     if (!soundManager) return;
-    var cycle = ((gameRound - 1) % 3); // 0=stage, 1=stage2, 2=stage3
-    var bgmType = cycle === 0 ? 'stage' : cycle === 1 ? 'stage2' : 'stage3';
+    var cycle = ((gameRound - 1) % 5); // 5ラウンド/1周に対応: 0=stage,1=stage2,2=stage3,3=stage4,4=stage5
+    var bgmType = cycle === 0 ? 'stage' : 'stage' + (cycle + 1);
     soundManager.playBGM(bgmType);
 }
 
@@ -966,6 +966,7 @@ function depositScore() {
 // ── タイトルショップ ──
 var tshopHighlightedItem = null;  // カーソル選択中のアイテムID
 var tshopConfirmingItem = null;   // 購入確認中のアイテムID
+var tshopMode = 'buy';            // タイトルショップのモード 'buy'|'sell'（ステージショップ同様の買う/売る選択）
 var tshopLeaving = false;         // 退店確認中フラグ
 
 function formatTshopPrice(num) {
@@ -1004,7 +1005,7 @@ function confirmTshopBuy() {
     }
     if (!tshopConfirmingItem) return;
     if (tshopConfirmingItem.indexOf('egg:') === 0) { confirmEggBuy(tshopConfirmingItem.slice(4)); return; } // エッグこうかん確定
-    if (tshopConfirmingItem.indexOf('_psell_') === 0) { confirmPouchSell(parseInt(tshopConfirmingItem.slice(7), 10)); return; } // ポーチ売却確定
+    if (tshopConfirmingItem.indexOf('_psell_') === 0 || tshopConfirmingItem.indexOf('_nsell_') === 0) { confirmTshopSell(tshopConfirmingItem); return; } // 売却確定(ポーチ/通常)
     var upgrade = TITLE_SHOP_UPGRADES.find(function(u) { return u.id === tshopConfirmingItem; });
     if (!upgrade) return;
     var currentLevel = (gameSettings.upgrades || {})[tshopConfirmingItem] || 0;
@@ -1045,8 +1046,18 @@ function cancelTshopBuy() {
 }
 
 function selectTshopItem(upgradeId) {
+    if (upgradeId === '_mode_buy' || upgradeId === '_mode_sell') { // 買う/売る の切替タブ
+        var m = upgradeId.slice(6);
+        if (tshopMode !== m) {
+            tshopMode = m; tshopHighlightedItem = null; tshopConfirmingItem = null; showTshopConfirm(false);
+            if (soundManager) soundManager.playCursorMove();
+            setTshopKeeperText(m === 'sell' ? 'tshop_keeper_sell_greet' : 'tshop_keeper_greet');
+            updateTitleShopUI();
+        }
+        return;
+    }
     if (upgradeId && upgradeId.indexOf('egg:') === 0) { selectEggShopItem(upgradeId.slice(4)); return; } // エッグこうかん行
-    if (upgradeId && upgradeId.indexOf('_psell_') === 0) { selectPouchSell(parseInt(upgradeId.slice(7), 10)); return; } // ポーチ売却行
+    if (upgradeId && (upgradeId.indexOf('_psell_') === 0 || upgradeId.indexOf('_nsell_') === 0)) { selectTshopSell(upgradeId); return; } // 売却行(ポーチ/通常)
     var upgrade = TITLE_SHOP_UPGRADES.find(function(u) { return u.id === upgradeId; });
     if (!upgrade) return;
     // 確認ダイアログ表示中は無視
@@ -1096,12 +1107,16 @@ function selectTshopItem(upgradeId) {
     updateTitleShopUI();
 }
 
-// ── ポーチ(永続枠)アイテムの売却（タイトルショップ）──
-// まほうのポーチに入っている品を半額で貯金へ売却＝枠が空く（ポーチLvは維持・次ランで拾った品が入る）。
-function renderPouchSellRow(slot, itemId) {
+// ── タイトルショップの売却（ステージショップと同様に「買う/売る」を選び、売るモードで一覧）──
+// 通常ストックも まほうのポーチ(永続枠)も区別なく 半額で貯金へ売却。ポーチは枠が空く(Lvは維持・次ランで拾った品が入る)。
+function tshopSellItemId(key) {
+    if (key.indexOf('_psell_') === 0) return (gameSettings.permaStock || [])[parseInt(key.slice(7), 10)] || '';
+    if (key.indexOf('_nsell_') === 0) { var it = stockState.items[parseInt(key.slice(7), 10)]; return it ? it.id : ''; }
+    return '';
+}
+function renderTshopSellRow(key, itemId) {
     var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; });
     if (!shopItem) return '';
-    var key = '_psell_' + slot;
     var isHighlighted = (tshopHighlightedItem === key) || (tshopConfirmingItem === key);
     var sellPrice = Math.floor(shopItem.price / 2);
     return '<div data-tshop-id="' + key + '" class="shop-row shop-row-tshop' + (isHighlighted ? ' hl' : '') + '">' +
@@ -1111,12 +1126,29 @@ function renderPouchSellRow(slot, itemId) {
         '<span class="shop-price" style="color:#ffd700;">+' + formatTshopPrice(sellPrice) + t('currency_unit') + '</span>' +
     '</div>';
 }
-function selectPouchSell(slot) {
+function renderTshopSellList() {
+    var html = '', any = false;
+    var pl = permaLevel(), ps = gameSettings.permaStock || [];
+    for (var i = 0; i < pl; i++) { if (ps[i]) { html += renderTshopSellRow('_psell_' + i, ps[i]); any = true; } }                 // ポーチ(永続枠)
+    for (var n = 0; n < stockState.items.length; n++) { html += renderTshopSellRow('_nsell_' + n, stockState.items[n].id); any = true; } // 通常ストック(区別なく)
+    if (!any) html += '<div style="color:rgba(255,255,255,0.5); text-align:center; padding:16px 0; font-family:\'M PLUS Rounded 1c\',sans-serif; font-size:clamp(10px,2vw,13px);">' + escapeHtml(t('tshop_sell_empty')) + '</div>';
+    return html;
+}
+// 「買う/売る」切替タブ（ステージショップの買う/売る相当）
+function renderTshopModeTabs() {
+    var mk = function(mode, label) {
+        var on = (tshopMode === mode);
+        return '<div data-tshop-id="_mode_' + mode + '" style="flex:1; text-align:center; padding:6px 2px; border-radius:8px; cursor:pointer; font-weight:800; font-family:\'M PLUS Rounded 1c\',sans-serif; font-size:clamp(11px,2.2vw,14px); -webkit-tap-highlight-color:transparent;' +
+            (on ? 'background:#ffd24a; color:#5a3d00;' : 'background:#2a2a45; color:#c7c7e0;') + '">' + escapeHtml(t(label)) + '</div>';
+    };
+    return '<div style="display:flex; gap:6px; margin-bottom:5px; flex-shrink:0;">' + mk('buy', 'tshop_mode_buy') + mk('sell', 'tshop_mode_sell') + '</div>';
+}
+function selectTshopSell(key) {
     if (tshopConfirmingItem) return;
-    var itemId = (gameSettings.permaStock || [])[slot];
+    var itemId = tshopSellItemId(key);
     var shopItem = itemId ? STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; }) : null;
     if (!shopItem) return;
-    var key = '_psell_' + slot, sellPrice = Math.floor(shopItem.price / 2);
+    var sellPrice = Math.floor(shopItem.price / 2);
     if (tshopHighlightedItem !== key) { // 1回目タップ: 説明＋ハイライト
         tshopHighlightedItem = key;
         if (soundManager) soundManager.playCursorMove();
@@ -1124,15 +1156,14 @@ function selectPouchSell(slot) {
         updateTitleShopUI();
         return;
     }
-    // 2回目タップ: 売却確認
-    tshopConfirmingItem = key;
+    tshopConfirmingItem = key; // 2回目タップ: 売却確認
     if (soundManager) soundManager.playConfirmSelect();
     setTshopKeeperText('tshop_keeper_sell_confirm', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
     showTshopConfirm(true);
     updateTitleShopUI();
 }
-function confirmPouchSell(slot) {
-    var itemId = (gameSettings.permaStock || [])[slot];
+function confirmTshopSell(key) {
+    var itemId = tshopSellItemId(key);
     var shopItem = itemId ? STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; }) : null;
     showTshopConfirm(false);
     tshopConfirmingItem = null;
@@ -1140,9 +1171,13 @@ function confirmPouchSell(slot) {
     if (!shopItem) { updateTitleShopUI(); return; }
     var sellPrice = Math.floor(shopItem.price / 2);
     gameSettings.savings += sellPrice;
-    gameSettings.permaStock[slot] = ''; // 枠を空ける（ポーチLvは維持）
-    saveSettings();
-    buildPermaSlots(); // 実行時の永続枠へ即反映
+    if (key.indexOf('_psell_') === 0) {                       // ポーチ: 永続枠を空ける
+        gameSettings.permaStock[parseInt(key.slice(7), 10)] = '';
+        saveSettings();
+        buildPermaSlots();
+    } else {                                                  // 通常ストック: 消費
+        stockState.items.splice(parseInt(key.slice(7), 10), 1);
+    }
     if (soundManager) soundManager.playItem();
     setTshopKeeperText('tshop_keeper_sold', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
     updateTitleShopUI();
@@ -1258,6 +1293,7 @@ function showTitleShop() {
     history.pushState({ screen: 'titleShop' }, '');
     tshopHighlightedItem = null;
     tshopConfirmingItem = null;
+    tshopMode = 'buy'; // 開くたび「買う」から
     tshopLeaving = false;
     setTshopKeeperText('tshop_keeper_greet');
     showTshopConfirm(false); // カーソルリセットも内包
@@ -1344,22 +1380,20 @@ function updateTitleShopUI() {
     document.getElementById('titleShopSavings').innerHTML = _ic('icon_bank.png', 'ui-icon-sm') + ' ' + t('tshop_savings_display', { amount: formatTshopPrice(gameSettings.savings) }) +
         '　' + _ic('item_golden_egg.png', 'ui-icon-sm') + ' ' + (gameSettings.goldenEggs || 0);
     var container = document.getElementById('titleShopList');
-    var html = '';
-    for (var i = 0; i < TITLE_SHOP_UPGRADES.length; i++) {
-        html += renderTitleShopItem(TITLE_SHOP_UPGRADES[i]);
-    }
-    // エッグこうかんセクション（ゴールデンエッグ払い・コスメ等）
-    if (EGG_SHOP_ITEMS.length) {
-        html += '<div style="color:rgba(255,215,0,0.75); font-family:DotGothic16,monospace; font-size:clamp(8px,1.5vw,11px); text-align:center; padding:3px 0 1px;">─ ' + escapeHtml(t('tshop_egg_section')) + ' ─</div>';
-        for (var e = 0; e < EGG_SHOP_ITEMS.length; e++) {
-            html += renderEggShopItem(EGG_SHOP_ITEMS[e]);
+    var html = renderTshopModeTabs(); // 「買う/売る」切替タブ（ステージショップ同様）
+    if (tshopMode === 'sell') {
+        html += renderTshopSellList(); // 売る: 通常ストックも ポーチも 区別なく一覧
+    } else {
+        for (var i = 0; i < TITLE_SHOP_UPGRADES.length; i++) {
+            html += renderTitleShopItem(TITLE_SHOP_UPGRADES[i]);
         }
-    }
-    // ポーチのアイテムを売るセクション（永続枠に入っている品を半額で貯金へ売却＝枠が空く）
-    var _pl = permaLevel(), _ps = gameSettings.permaStock || [], _sellHtml = '';
-    for (var pv = 0; pv < _pl; pv++) { if (_ps[pv]) _sellHtml += renderPouchSellRow(pv, _ps[pv]); }
-    if (_sellHtml) {
-        html += '<div style="color:rgba(255,215,0,0.75); font-family:DotGothic16,monospace; font-size:clamp(8px,1.5vw,11px); text-align:center; padding:3px 0 1px;">─ ' + escapeHtml(t('tshop_sell_section')) + ' ─</div>' + _sellHtml;
+        // エッグこうかんセクション（ゴールデンエッグ払い・コスメ等）
+        if (EGG_SHOP_ITEMS.length) {
+            html += '<div style="color:rgba(255,215,0,0.75); font-family:DotGothic16,monospace; font-size:clamp(8px,1.5vw,11px); text-align:center; padding:3px 0 1px;">─ ' + escapeHtml(t('tshop_egg_section')) + ' ─</div>';
+            for (var e = 0; e < EGG_SHOP_ITEMS.length; e++) {
+                html += renderEggShopItem(EGG_SHOP_ITEMS[e]);
+            }
+        }
     }
     var _prevScroll = container.scrollTop; // 再描画でスクロール位置が最上部へ飛ぶのを防ぐ（ポーチ選択時など）
     container.innerHTML = html;
@@ -2744,7 +2778,7 @@ function updateBossCollision_egg(b) {
             player.velY = JUMP_FORCE * 0.62;
             b.stompCooldown = 14;
             floatEffects.push({ type: 'boss_shockwave', worldX: player.x + player.width / 2, worldY: b.y + 12, timer: 0, duration: 12 });
-            if (soundManager) soundManager.playCursorMove(); // 「カキン」代わりの軽い音
+            if (soundManager) soundManager.playProtect(); // 装甲で弾いた「キン」専用SE
         }
         return;
     }

@@ -17,6 +17,8 @@ class SoundManager {
         this.stageBGM    = this._createBGM('sounds/stage.mp3',    0.5);
         this.stage2BGM   = this._createBGM('sounds/stage2.mp3',   0.5);
         this.stage3BGM   = this._createBGM('sounds/stage3.mp3',   0.5);
+        this.stage4BGM   = this._createBGM('sounds/stage4.mp3',   0.5);
+        this.stage5BGM   = this._createBGM('sounds/stage5.mp3',   0.5);
         this.gameoverBGM = this._createBGM('sounds/gameover.mp3', 0.7);
         this.rankingBGM  = this._createBGM('sounds/ranking.mp3',  0.6);
         this.bossBGM     = this._createBGM('sounds/boss.mp3',     0.6);
@@ -36,6 +38,8 @@ class SoundManager {
         this.flashSE.volume = 0.5;
         this.warningSE = new Audio('sounds/warning.mp3');
         this.warningSE.volume = 0.5;
+        this.protectSE = new Audio('sounds/protect.mp3'); // 闇の卵の装甲で踏みを弾いた時の「キン」
+        this.protectSE.volume = 0.55;
         // ぴよフラッシュ（必殺技）: チャージ音＋ビーム音
         this.specialChargeSE = new Audio('sounds/piyoflash_charge.mp3');
         this.specialChargeSE.volume = 0.6;
@@ -161,6 +165,10 @@ class SoundManager {
         if (!this.ctx || !gameSettings.soundEnabled) return;
         this._playSE(this.flashSE);
     }
+    playProtect() { // 闇の卵の装甲で弾かれた時の「キン」
+        if (!gameSettings.soundEnabled) return;
+        this._playSE(this.protectSE);
+    }
 
     playLevelUp() {
         if (!this.ctx || !gameSettings.soundEnabled) return;
@@ -241,7 +249,7 @@ class SoundManager {
     }
 
     stopAllBGM() {
-        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.bonusBGM, this.winBGM];
+        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.stage4BGM, this.stage5BGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.bonusBGM, this.winBGM];
         for (var i = 0; i < bgms.length; i++) {
             if (bgms[i]) { bgms[i].pause(); bgms[i].currentTime = 0; }
         }
