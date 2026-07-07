@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.388";
+                content: "Ver.1.389";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.388</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.389</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1663,7 +1663,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.388
+ * ぴよ氏の冒険 v1.389
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -4303,6 +4303,18 @@ function cullByX(arr, lb, rb, useWidth) {
     if (w !== arr.length) arr.length = w;
 }
 
+// 通過不能なソリッド地形（高台=elevated系）に完全に埋まって100%取れない位置かを判定。
+// すり抜け雲/floating_ground や、頭が地表より上に出て到達可能なものは対象外（保守的に「完全埋没」だけ弾く）。
+function isBuriedInSolid(obj) {
+    for (var i = 0; i < terrain.length; i++) {
+        var t = terrain[i];
+        if (t.type !== 'elevated' && t.type !== 'quicksand_elevated' && t.type !== 'ice_elevated') continue;
+        // AABBが完全にブロック内: x両端が内側 かつ 上端がブロック上面(t.y)以下＝頭が地表に出ていない
+        if (obj.x >= t.x && obj.x + obj.width <= t.x + t.width && obj.y >= t.y) return true;
+    }
+    return false;
+}
+
 function manageObjects() {
     var lb = gameState.camera.x - 200;
     var rb = gameState.camera.x + GAME_WIDTH + 200;
@@ -4317,8 +4329,13 @@ function manageObjects() {
     // ゴールデンエッグ: 2500m を最初に超えたら 1日1回フィールドに出す（取得で日付確定）
     if (!gameState.goldenEggFieldSpawned && gameState.distance >= 2500 && canDropGoldenEggToday()) {
         gameState.goldenEggFieldSpawned = true;
+        // 案A: 穴の上=取れない位置を回避。既定x〜前方を走査し、真下が平地(穴でない)の最初のxに置く（既定が平地ならそのまま）。
+        var eggX = gameState.camera.x + GAME_WIDTH + 60;
+        var eggScanEnd = eggX + 400; // terrain生成範囲(+500)内で前方の平地を探す
+        var eggFooting = function(x) { return isFlatGroundAt(x - 4) && isFlatGroundAt(x + 20) && isFlatGroundAt(x + 44); }; // エッグ幅+足場ぶんの平地
+        while (eggX < eggScanEnd && !eggFooting(eggX)) eggX += 20;
         powerUps.push({
-            x: gameState.camera.x + GAME_WIDTH + 60, y: 240,  // 画面外(右)から出してスクロールで入れる（急な出現で反応できない対策）
+            x: eggX, y: 240,  // 画面外(右)から出してスクロールで入れる＋真下は平地（穴の上に出さない）
             width: 40, height: 40, type: 'golden_egg', dailyEgg: true,
             collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2
         });
@@ -4346,10 +4363,14 @@ function manageObjects() {
         platforms.push(spawnPlatform()); gameState.platformSpawnTimer = 0;
     }
     if (gameState.coinSpawnTimer > 60 && Math.random() < 0.5) {
-        coins.push(spawnCoin()); gameState.coinSpawnTimer = 0;
+        var _c = spawnCoin();
+        if (!isBuriedInSolid(_c)) coins.push(_c); // 高台に埋まって取れない位置なら出さない
+        gameState.coinSpawnTimer = 0;
     }
     if (gameState.powerUpSpawnTimer > 480 && Math.random() < 0.06) {
-        powerUps.push(spawnPowerUp()); gameState.powerUpSpawnTimer = 0;
+        var _pu = spawnPowerUp();
+        if (!isBuriedInSolid(_pu)) powerUps.push(_pu); // 同上
+        gameState.powerUpSpawnTimer = 0;
     }
 }
 
