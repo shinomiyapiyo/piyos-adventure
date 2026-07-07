@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.393";
+                content: "Ver.1.394";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.393</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.394</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1663,7 +1663,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.393
+ * ぴよ氏の冒険 v1.394
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -4908,9 +4908,10 @@ function enemyBehavior(e) {
     if (e.walkSprite === 'enaga_walk') return 'jumpAll'; // シマエナガ(雪chick)=穴も高台もジャンプ
     return 'stop';                                     // 他chick系(草原/砂漠/夜)=壁で止まる
 }
-var ENEMY_JUMP_V  = -13;   // 敵ジャンプ初速（1.392でユーザー要望により8割へ＝高すぎ解消。高台100pxは越える）
+var ENEMY_JUMP_V  = -11;   // 敵ジャンプ初速（1.394で-13→-11。低重力と合わせ apex は維持しつつ上昇をゆっくりに）
 var ENEMY_LEAP_VX = 4.5;   // ジャンプ中の前方リープ横速度（1.392で下げて避けやすく。広い穴は越えないこともある＝許容）
 var ENEMY_LOOKAHEAD = 60;  // 何px手前で壁/穴を先読みして跳ぶか
+var ENEMY_JUMP_GRAVITY = 0.5; // ジャンプ(leaping)中の重力（<GRAVITY0.7で滞空を少し伸ばし、上昇下降をゆっくりに。1.394）
 
 // 地上敵の物理（重力＋地形当たり＋穴落下＋種類別の壁/穴対応）。プレイヤーと同じワールド座標で当たる。
 // 横は「地面に対する歩き(velX)」＝画面スクロールはカメラが担当（従来の -gameSpeed は廃止）。
@@ -4933,7 +4934,7 @@ function updateEnemyPhysics(e) {
     }
 
     e.x += e.velX;                                   // 地面に対する歩き（リープ中はリープ速度）
-    e.velY = (e.velY || 0) + GRAVITY;                // 重力
+    e.velY = (e.velY || 0) + (e.leaping ? ENEMY_JUMP_GRAVITY : GRAVITY); // ジャンプ中は低重力で滞空を伸ばす
     if (e.velY > 16) e.velY = 16;
     e.y += e.velY;
     e.onGround = false;

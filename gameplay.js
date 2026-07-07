@@ -777,6 +777,14 @@ function selectShopItem(itemId) {
     }
     // ストック満杯チェック
     if (item.stockItem && !stockHasRoom(item.id)) {
+        if (isTempReviveCase(item.id)) {
+            // 全枠ポーチ: 復活薬は永続保存できないが「今回かぎり」で購入可＝保存不可を説明してはい/いいえへ
+            shopConfirmingItem = itemId;
+            setKeeperText('shop_keeper_revive_nosave_confirm', { price: item.price });
+            showShopConfirm(true);
+            updateStageShopUI();
+            return;
+        }
         setKeeperText('shop_keeper_stock_full');
         if (soundManager) soundManager.playDamage();
         updateStageShopUI();
@@ -893,8 +901,14 @@ function buyStageItem(itemId) {
         return false;
     }
     if (item.stockItem) {
-        // 有料購入は満杯なら弾く（貯金換算③には落とさない＝金を払って半額戻りの損を防ぐ）。
-        if (!stockHasRoom(itemId)) {
+        if (stockHasRoom(itemId)) {
+            addToStock(itemId); // 空き保証済み→未割当永続枠 or 通常枠へ
+        } else if (isTempReviveCase(itemId)) {
+            // 全枠ポーチ: 復活薬を通常枠へ一時追加（保存されない＝今回かぎり）。死亡時の自動復活/手動使用はここを参照
+            stockState.items.push({ id: itemId, temp: true });
+            updateStockUI();
+        } else {
+            // 有料購入は満杯なら弾く（貯金換算③には落とさない＝金を払って半額戻りの損を防ぐ）。
             setKeeperText('shop_keeper_stock_full');
             if (soundManager) soundManager.playDamage();
             setShopBg('shop04', 1200);
@@ -902,7 +916,6 @@ function buyStageItem(itemId) {
             updateStageShopUI();
             return false;
         }
-        addToStock(itemId); // 空き保証済み→未割当永続枠 or 通常枠へ
     }
     gameState.score -= item.price;
     shopState.purchaseCounts[itemId] = bought + 1;
@@ -1334,6 +1347,9 @@ function stockHasRoom(itemId) {
     return stockState.items.length < normalMaxSlots();
 }
 
+// 全枠が永続(ポーチ)＝通常枠ゼロのとき、復活薬だけは「今回かぎり(保存されない)」で通常枠へ一時追加して購入できる例外ケース
+function isTempReviveCase(itemId) { return itemId === 'revive_potion' && normalMaxSlots() === 0; }
+
 // ストック満杯時の入手品を貯金へ換算（損なし・売値=定価の半分）。永続化してsaveSettings。
 function convertItemToSavings(itemId) {
     var si = STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; });
@@ -1475,7 +1491,9 @@ function updateStockUI() {
         var s = STAGE_SHOP_ITEMS.find(function(x) { return x.id === id; });
         return (s && s.iconImg) ? '<img src="' + s.iconImg + '" class="ui-icon">' : '?';
     };
-    for (var i = 0; i < stockState.maxSlots; i++) {
+    // 一時オーバーフロー枠（全枠ポーチ時に一時追加した復活薬など）も末尾に描く。通常時は maxSlots のまま
+    var _slotCount = Math.max(stockState.maxSlots, pl + stockState.items.length);
+    for (var i = 0; i < _slotCount; i++) {
         if (i < pl) {
             // ── 永続枠（まほうのポーチ・金枠＋スロット番号バッジ） ──
             var pslot = stockState.perma[i] || { id: '', used: false };
