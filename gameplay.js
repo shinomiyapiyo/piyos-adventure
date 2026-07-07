@@ -2283,6 +2283,7 @@ function updateBossAI_egg(b) {
                 Math.abs((player.x + player.width / 2) - (b.x + b.width / 2)) < b.width * 1.3) {
                 takeDamage(); // 着地の衝撃波（地上にいると被弾／ジャンプで回避）
             }
+            if (enc >= 2) spawnEggShards(b, phase); // 【2回目〜(R8+)】着地で殻の破片を左右へ飛散＝遠距離の脅威を追加
             b.eggMode = 'exposed';
             b.exposed = true;
             b.exposedTimer = (phase === 3 ? 66 : 92);
@@ -2805,6 +2806,29 @@ function spawnEggProjectiles(boss, count) {
             timer: 0
         });
     }
+}
+
+// 【装甲卵ボスの2回目登場〜(R8+)】叩きつけ着地で殻の破片を左右へ低く飛散させる（ジャンプで回避）。
+// タマゴは従来"接触ダメージのみ"だったので遠距離の脅威を追加＝2周目で難度が一段上がる。
+// bossState.eggs を流用（updateEggs の移動/弱重力/被弾/消滅がそのまま効く・isShard は描画用フラグ）。
+function spawnEggShards(boss, phase) {
+    var cx = boss.x + boss.width / 2;
+    var cy = GROUND_Y - 14;
+    var perSide = (phase === 3 ? 3 : 2);            // 瀕死ほど破片が多い
+    for (var side = -1; side <= 1; side += 2) {     // 左(-1)/右(+1)の両方へ散らす
+        for (var i = 0; i < perSide; i++) {
+            var t = perSide > 1 ? (i / (perSide - 1)) : 0.5; // 0..1
+            bossState.eggs.push({
+                x: cx - 7, y: cy,
+                width: 14, height: 14,
+                velX: side * (3.2 + t * 2.4),       // 手前は遅く奥は速く＝広がる
+                velY: -2.6 - t * 1.4,               // 低い弧（弱重力0.15で下りてくる＝ジャンプで越せる高さ）
+                rot0: t * Math.PI, rotSpeed: side * (0.18 + t * 0.12), // 転がる見た目
+                timer: 0, isShard: true
+            });
+        }
+    }
+    if (soundManager) soundManager.playFlash();
 }
 
 function updateEggs() {

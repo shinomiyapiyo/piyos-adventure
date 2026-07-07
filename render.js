@@ -1448,6 +1448,19 @@ function drawEggProjectiles() {
             ctx.beginPath();
             ctx.moveTo(9, 0); ctx.lineTo(2, 2); ctx.lineTo(2, -2);
             ctx.closePath(); ctx.fill();
+        } else if (egg.isShard) {
+            // 殻の破片（叩きつけで飛散するギザギザの欠片・回転しながら飛ぶ）
+            var sx = egg.x + egg.width / 2, sy = egg.y + egg.height / 2;
+            ctx.translate(sx, sy);
+            ctx.rotate((egg.rot0 || 0) + egg.timer * (egg.rotSpeed || 0.2));
+            ctx.fillStyle = '#f0dcae';
+            ctx.strokeStyle = '#b89050';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(-6, -3); ctx.lineTo(5, -5); ctx.lineTo(6, 4); ctx.lineTo(-2, 6); ctx.lineTo(-6, 2);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = 'rgba(120,90,50,0.55)';
+            ctx.beginPath(); ctx.moveTo(-2, -2); ctx.lineTo(1, 3); ctx.stroke();
         } else {
             // 通常の卵弾
             ctx.fillStyle = '#ffe8c0';
