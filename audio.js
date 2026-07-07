@@ -40,6 +40,8 @@ class SoundManager {
         this.warningSE.volume = 0.5;
         this.protectSE = new Audio('sounds/protect.mp3'); // 闇の卵の装甲で踏みを弾いた時の「キン」
         this.protectSE.volume = 0.55;
+        this.criticalSE = new Audio('sounds/critical.mp3'); // 黄色メイド服のクリティカル演出
+        this.criticalSE.volume = 0.6;
         // ぴよフラッシュ（必殺技）: チャージ音＋ビーム音
         this.specialChargeSE = new Audio('sounds/piyoflash_charge.mp3');
         this.specialChargeSE.volume = 0.6;
@@ -168,6 +170,10 @@ class SoundManager {
     playProtect() { // 闇の卵の装甲で弾かれた時の「キン」
         if (!gameSettings.soundEnabled) return;
         this._playSE(this.protectSE);
+    }
+    playCritical() { // 黄色メイド服のクリティカル
+        if (!gameSettings.soundEnabled) return;
+        this._playSE(this.criticalSE);
     }
 
     playLevelUp() {

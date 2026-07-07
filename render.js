@@ -401,14 +401,34 @@ function spawnBonusText(worldX, worldY, label, score) {
     });
 }
 
-// クリティカル演出（黄色メイド服）: 金色の「クリティカル！」がポップ
+// クリティカル演出（黄色メイド服）: 金色の「クリティカル！」がポップ＋金色フラッシュリング＋スパーク放射（分かりやすく）
 function spawnCritText(worldX, worldY, label) {
     floatEffects.push({
         type: 'crit_text',
         worldX: worldX, worldY: worldY,
-        timer: 0, duration: 55,
+        timer: 0, duration: 60,
         label: label
     });
+    // 金色の衝撃リング（一気に広がって消える＝ヒットが分かりやすい）
+    floatEffects.push({
+        type: 'crit_ring',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 26
+    });
+    // 金色スパークの放射（combo_spark を金色で流用）
+    for (var i = 0; i < 14; i++) {
+        var angle = (i / 14) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        var speed = 3 + Math.random() * 2.5;
+        floatEffects.push({
+            type: 'combo_spark',
+            worldX: worldX, worldY: worldY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 1.5,
+            timer: 0, duration: 30 + Math.floor(Math.random() * 15),
+            size: 2.5 + Math.random() * 2.5,
+            hue: 45 + Math.floor(Math.random() * 12) // 金〜黄
+        });
+    }
 }
 
 function spawnComboEffect(worldX, worldY, count, score) {
@@ -723,20 +743,34 @@ var EFFECT_RENDERERS = {
             ctx.restore();
         },
         crit_text: function(ef, wx, progress) {
-            var cy = ef.worldY - progress * 30;
-            var alpha = progress < 0.15 ? progress / 0.15 : (progress > 0.7 ? (1 - progress) / 0.3 : 1);
-            var scale = progress < 0.2 ? 0.5 + 0.6 * (progress / 0.2) : 1.1;
+            var cy = ef.worldY - progress * 34;
+            var alpha = progress < 0.12 ? progress / 0.12 : (progress > 0.72 ? (1 - progress) / 0.28 : 1);
+            // 大きく弾む: 0.25まで 0.4→1.3、その後ゆっくり戻す
+            var scale = progress < 0.25 ? 0.4 + 0.9 * (progress / 0.25) : 1.3 - (progress - 0.25) * 0.2;
             ctx.save();
             ctx.globalAlpha = alpha;
             ctx.translate(wx, cy);
             ctx.scale(scale, scale);
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.font = "bold 17px 'M PLUS Rounded 1c', sans-serif";
-            ctx.lineWidth = 4; ctx.strokeStyle = '#7a1500';
+            ctx.font = "900 23px 'M PLUS Rounded 1c', sans-serif";
+            ctx.lineWidth = 5; ctx.strokeStyle = '#7a1500';
             ctx.strokeText(ef.label, 0, 0);
-            ctx.shadowColor = 'rgba(255,130,0,0.9)'; ctx.shadowBlur = 10;
-            ctx.fillStyle = '#ffd24a';
+            ctx.shadowColor = 'rgba(255,170,0,1)'; ctx.shadowBlur = 15;
+            ctx.fillStyle = '#ffe24a';
             ctx.fillText(ef.label, 0, 0);
+            ctx.restore();
+        },
+        crit_ring: function(ef, wx, progress) {
+            var r = 8 + progress * 48;
+            var a = (1 - progress) * 0.85;
+            ctx.save();
+            ctx.globalAlpha = a;
+            ctx.strokeStyle = '#ffe24a';
+            ctx.lineWidth = 5 * (1 - progress) + 1;
+            ctx.shadowColor = 'rgba(255,180,0,0.9)'; ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(wx, ef.worldY, r, 0, Math.PI * 2);
+            ctx.stroke();
             ctx.restore();
         },
     combo_spark: function(ef, wx, progress) {

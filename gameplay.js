@@ -2095,6 +2095,7 @@ function critMultiplier(worldX, worldY) {
     if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
         gameSettings.activeSkin === 'maid' && Math.random() < 0.05) {
         if (typeof spawnCritText === 'function') spawnCritText(worldX, worldY, (typeof t === 'function') ? t('crit_text') : 'CRITICAL!');
+        if (typeof soundManager !== 'undefined' && soundManager) soundManager.playCritical();
         return 2;
     }
     return 1;

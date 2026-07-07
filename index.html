@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.402";
+                content: "Ver.1.403";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.402</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.403</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -997,6 +997,18 @@
                             background: linear-gradient(180deg, #44bb77, #228855);
                             color: #fff; -webkit-tap-highlight-color: transparent;">入力</button>
                     </div>
+                </div>
+
+                <!-- セーブデータ削除（元に戻せない・二段確認） -->
+                <div style="display: flex; justify-content: space-between; align-items: center;
+                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_delete" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;"><img src="images/icon_settings.png" class="ui-icon"> セーブデータを削除</span>
+                    <button onclick="deleteSaveData()" data-i18n="settings_delete_btn" style="
+                        min-width: 60px; min-height: 36px; padding: 6px 14px; border-radius: 18px; border: none;
+                        font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                        font-family: 'M PLUS Rounded 1c', sans-serif;
+                        background: linear-gradient(180deg, #dd4455, #a02030);
+                        color: #fff; -webkit-tap-highlight-color: transparent;">削除</button>
                 </div>
 
                 <!-- プライバシーポリシー & 利用規約 -->
@@ -1663,7 +1675,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.402
+ * ぴよ氏の冒険 v1.403
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2327,6 +2339,20 @@ function showTransferExport() {
     row.appendChild(copyBtn); row.appendChild(closeBtn);
     ui.card.appendChild(row);
     if (soundManager) soundManager.playConfirmSelect();
+}
+
+// セーブデータ削除（貯金・アップグレード・きせかえ・エッグ・記録を全消去）。二段確認＝元に戻せないので誤操作防止。
+// localStorage の piyo_settings を消してリロード＝loadSettings が既定値で初期化する。
+function deleteSaveData() {
+    if (soundManager) soundManager.playConfirmSelect();
+    showConfirmModal(t('settings_delete_confirm')).then(function(ok1) {
+        if (!ok1) return;
+        showConfirmModal(t('settings_delete_confirm2')).then(function(ok2) {
+            if (!ok2) return;
+            try { localStorage.removeItem('piyo_settings'); } catch (_) {}
+            location.reload();
+        });
+    });
 }
 
 // 入力: コードを貼り付けて上書き取り込み（2度押し確認）
