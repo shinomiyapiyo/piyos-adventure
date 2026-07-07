@@ -1080,7 +1080,7 @@ function selectEggShopItem(itemId) {
     if (isEggItemOwned(item)) { // 交換済み: 案内だけ
         if (soundManager) soundManager.playCursorMove();
         tshopHighlightedItem = key;
-        setTshopKeeperText('tshop_keeper_egg_owned');
+        setTshopKeeperText(item.type === 'pouch' ? 'tshop_keeper_egg_owned_pouch' : 'tshop_keeper_egg_owned');
         updateTitleShopUI();
         return;
     }
@@ -1140,7 +1140,7 @@ function confirmEggBuy(itemId) {
     if (soundManager) soundManager.playItem();
     showTshopConfirm(false);
     tshopConfirmingItem = null;
-    setTshopKeeperText('tshop_keeper_egg_bought');
+    setTshopKeeperText(item.type === 'pouch' ? 'tshop_keeper_egg_bought_pouch' : 'tshop_keeper_egg_bought'); // ポーチは「きせかえ装備」案内を出さない
     updateTitleShopUI();
     if (item.type === 'pouch') updateStockUI(); // 永続枠（金枠）の表示を更新
 }
@@ -1273,7 +1273,9 @@ function updateTitleShopUI() {
             html += renderEggShopItem(EGG_SHOP_ITEMS[e]);
         }
     }
+    var _prevScroll = container.scrollTop; // 再描画でスクロール位置が最上部へ飛ぶのを防ぐ（ポーチ選択時など）
     container.innerHTML = html;
+    container.scrollTop = _prevScroll;
 }
 
 function applyUpgrades() {
