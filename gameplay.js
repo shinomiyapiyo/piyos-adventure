@@ -1010,6 +1010,7 @@ function confirmTshopBuy() {
     if (!gameSettings.upgrades) gameSettings.upgrades = {};
     gameSettings.upgrades[tshopConfirmingItem] = currentLevel + 1;
     saveSettings();
+    applyUpgrades(); // 購入効果を即反映（stock_expand の maxSlots 再計算＋updateStockUI）。無いと枠増が再入場まで表示されない
     if (soundManager) soundManager.playItem();
     showTshopConfirm(false);
     tshopConfirmingItem = null;
@@ -2031,6 +2032,7 @@ function updateBossAI_mama(b) {
     var maxHp = bossState.maxHp || BOSS_MAX_HP;
     var hpRatio = b.hp / maxHp;
     var phase = hpRatio > 0.7 ? 1 : hpRatio > 0.3 ? 2 : 3;
+    var enc = bossEncounter(); // 3周目(R11+)で2連突進を解禁
 
     // 怒りモードカウントダウン
     if (b.isAngry) {
@@ -2047,11 +2049,17 @@ function updateBossAI_mama(b) {
         b.spriteFrame = BOSS_FRAME_RUSH;
         if (Math.abs(b.x + b.width / 2 - b.rushTargetX) < 15 ||
             b.x <= bossState.arenaLeft || b.x + b.width >= bossState.arenaRight) {
-            b.isRushing = false;
-            b.spriteFrame = BOSS_FRAME_IDLE;
-            b.attackTimer = phase === 3 ? 60 : 120;
             if (b.x <= bossState.arenaLeft) b.x = bossState.arenaLeft;
             if (b.x + b.width >= bossState.arenaRight) b.x = bossState.arenaRight - b.width;
+            if (enc >= 3 && !b.didDoubleRush) {   // 【3回目登場〜(R11+)】逆方向の端へ折り返してもう一度＝2連突進
+                b.didDoubleRush = true;
+                var mid = (bossState.arenaLeft + bossState.arenaRight) / 2;
+                b.rushTargetX = (b.x + b.width / 2 < mid) ? bossState.arenaRight : bossState.arenaLeft;
+            } else {
+                b.isRushing = false;
+                b.spriteFrame = BOSS_FRAME_IDLE;
+                b.attackTimer = phase === 3 ? 60 : 120;
+            }
         }
         return;
     }
@@ -2159,6 +2167,7 @@ function updateBossAI_mama(b) {
         } else if (r < rates.rush) {
             // 突進
             b.isRushing = true;
+            b.didDoubleRush = false; // 3周目の2連突進フラグをリセット（毎回1回だけ折り返せる）
             b.rushTargetX = player.x + player.width / 2;
             b.spriteFrame = BOSS_FRAME_RUSH;
         } else if (r < rates.egg) {
@@ -2182,6 +2191,7 @@ function updateBossAI_mama(b) {
             b.chargeTimer = 35;
         } else if (r < rates.rush) {
             b.isRushing = true;
+            b.didDoubleRush = false; // 3周目の2連突進フラグをリセット
             b.rushTargetX = player.x + player.width / 2;
             b.spriteFrame = BOSS_FRAME_RUSH;
         } else if (r < rates.egg) {

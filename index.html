@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.396";
+                content: "Ver.1.397";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.396</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.397</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1663,7 +1663,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.396
+ * ぴよ氏の冒険 v1.397
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -4117,6 +4117,7 @@ function initTerrain() {
         terrain.push({ x: x, y: GROUND_Y, width: 100, height: 130, type: 'ground' });
     }
     gameState.lastTerrainX = 1900;
+    gameState.lastHoleX = null; // 「1画面1つ」制限の基準を新ランでリセット（前ランの値を持ち越さない）
 }
 
 function isInSafeZone(distanceM) {
@@ -4152,22 +4153,30 @@ function generateTerrain() {
         return;
     }
 
-    // 高速スクロール時は穴の確率を下げる（400%以上で段階的に減少）
+    // 穴の仕様: 通常は15%・広さ120〜220px。高速域(400%〜)は「短い穴」に切替＋「1画面に1つ」だけ許可。
+    //   （従来は500%で穴が消滅していたが、短い穴なら理不尽にならないので出す＝ユーザー要望1.397）
     var speedMult = gameState.gameSpeed / BASE_SCROLL_SPEED;
-    var holeChance = 0.15; // 通常15%（roll 0.70〜0.85）
-    if (speedMult >= 4.0) {
-        // 400%→7.5%, 500%(上限)→0%
-        holeChance = Math.max(0, 0.15 * (5.0 - speedMult));
+    var highSpeed = speedMult >= 4.0;
+    var holeChance = 0.15;                  // 通常15%（roll 0.70〜0.85）
+    var holeMin = 120, holeVar = 100;       // 通常穴 120〜220px
+    if (highSpeed) {
+        holeChance = 0.10;                  // 高速でも一定確率で短穴を許可
+        holeMin = 70; holeVar = 45;         // 短い穴 70〜115px（速くても跳べる）
     }
+    // 高速時のみ1画面1つ制限: 直近の穴から1画面(GAME_WIDTH)以上離れていなければ穴を作らない
+    var holeAllowed = !highSpeed || gameState.lastHoleX == null ||
+                      (nextX - gameState.lastHoleX) >= GAME_WIDTH;
 
-    if (roll < 0.85 - holeChance) {
-        terrain.push({ x: nextX, y: GROUND_Y, width: 100, height: 130, type: biomeType });
-    } else if (roll < 0.85) {
-        var holeW = 120 + Math.random() * 100;
+    if (roll >= 0.85 - holeChance && roll < 0.85 && holeAllowed) {
+        var holeW = holeMin + Math.random() * holeVar;
         terrain.push({ x: nextX, y: GROUND_Y, width: 0, height: 0, type: 'hole' });
         terrain.push({ x: nextX + holeW, y: GROUND_Y, width: 100, height: 130, type: biomeType });
+        gameState.lastHoleX = nextX;        // 1画面1つ制限の基準
         gameState.lastTerrainX = nextX + holeW;
         return;
+    } else if (roll < 0.85) {
+        // 平地（穴の抽選に外れた or 1画面制限で穴を作れない枠も平地に倒す）
+        terrain.push({ x: nextX, y: GROUND_Y, width: 100, height: 130, type: biomeType });
     } else {
         var elev = 60 + Math.random() * 40;
         // 高台もバイオームギミック適用（elevated描画 + ギミック効果）
@@ -4901,17 +4910,17 @@ function terrainTopAt(x) {
     return top;
 }
 
-// 地上敵の種類別挙動（フェーズ2）: stop(壁で止まる)/turn(引き返す)/jumpWall(高台ジャンプ)/jumpAll(穴も高台もジャンプ)
+// 地上敵の挙動: 壁は全員引き返す（一箇所への密集を防ぐ）。穴だけ種類別に差別化。
+//   turnHole=穴の手前でも引き返す(ニワトリのみ) / jumpHole=穴を飛び越える(シマエナガ) / fallHole=穴に落ちる(他)
 function enemyBehavior(e) {
-    if (e.type === 'mama_chick')   return 'turn';      // ニワトリ=壁で引き返す（頑固）
-    if (e.type === 'golden_chick') return 'jumpWall';  // ゴールデン=高台をジャンプ（俊敏）
-    if (e.walkSprite === 'enaga_walk') return 'jumpAll'; // シマエナガ(雪chick)=穴も高台もジャンプ
-    return 'stop';                                     // 他chick系(草原/砂漠/夜)=壁で止まる
+    if (e.type === 'mama_chick')       return 'turnHole';  // ニワトリ=穴の手前でも引き返す（頑固・落ちない）
+    if (e.walkSprite === 'enaga_walk') return 'jumpHole';  // シマエナガ(雪chick)=穴を飛び越える
+    return 'fallHole';                                     // 他chick系(草原/砂漠/夜/ゴールデン)=穴には落ちる
 }
-var ENEMY_JUMP_V  = -11;   // 敵ジャンプ初速（1.394で-13→-11。低重力と合わせ apex は維持しつつ上昇をゆっくりに）
+var ENEMY_JUMP_V  = -8;    // シマエナガの穴越えジャンプ初速（1.397で-11→-8。gと合わせ滞空を1.5倍にしつつ高さは元とほぼ同じに）
 var ENEMY_LEAP_VX = 4.5;   // ジャンプ中の前方リープ横速度（1.392で下げて避けやすく。広い穴は越えないこともある＝許容）
-var ENEMY_LOOKAHEAD = 60;  // 何px手前で壁/穴を先読みして跳ぶか
-var ENEMY_JUMP_GRAVITY = 0.5; // ジャンプ(leaping)中の重力（<GRAVITY0.7で滞空を少し伸ばし、上昇下降をゆっくりに。1.394）
+var ENEMY_LOOKAHEAD = 60;  // 何px手前で穴を先読みするか（enaga=跳ぶ/mama=引き返す）
+var ENEMY_JUMP_GRAVITY = 0.24; // ジャンプ(leaping=シマエナガの穴越え)中の重力。1.397で0.5→0.24＝滞空時間を約1.5倍(43→66f)に延長（V=-8と合わせ高さは元とほぼ同じ）
 
 // 地上敵の物理（重力＋地形当たり＋穴落下＋種類別の壁/穴対応）。プレイヤーと同じワールド座標で当たる。
 // 横は「地面に対する歩き(velX)」＝画面スクロールはカメラが担当（従来の -gameSpeed は廃止）。
@@ -4920,16 +4929,18 @@ function updateEnemyPhysics(e) {
     var beh = e.behavior;
     var dir = e.velX < 0 ? -1 : 1;
 
-    // 先読みジャンプ: 進行方向の少し先に 壁(高台) / 穴 があり接地中なら跳ぶ（jump系のみ）
-    if (e.onGround && (beh === 'jumpWall' || beh === 'jumpAll')) {
+    // 先読み: 進行方向の少し先が穴なら種類別に対応（enaga=飛び越える / mama=手前で引き返す）。
+    // 壁(高台)は全員が接触時に引き返すので先読み不要＝跳ばない（乗り越えさせず密集を防ぐ）。
+    if (e.onGround && (beh === 'jumpHole' || beh === 'turnHole')) {
         var lead = (dir < 0) ? e.x - ENEMY_LOOKAHEAD : e.x + e.width + ENEMY_LOOKAHEAD;
-        var topAhead = terrainTopAt(lead);
-        var feetY0 = e.y + e.height;
-        var wallAhead = (topAhead !== null && topAhead < feetY0 - 30); // 30px以上高い地形=壁
-        var holeAhead = (topAhead === null);                           // 地面なし=穴
-        if (wallAhead || (holeAhead && beh === 'jumpAll')) {
-            e.velY = ENEMY_JUMP_V; e.onGround = false;
-            if (!e.leaping) { e.walkVX = e.velX; e.velX = dir * ENEMY_LEAP_VX; e.leaping = true; } // 前方リープ
+        var holeAhead = (terrainTopAt(lead) === null);                 // 地面なし=穴
+        if (holeAhead) {
+            if (beh === 'jumpHole') {                                  // シマエナガ: 前方リープで飛び越える
+                e.velY = ENEMY_JUMP_V; e.onGround = false;
+                if (!e.leaping) { e.walkVX = e.velX; e.velX = dir * ENEMY_LEAP_VX; e.leaping = true; }
+            } else {                                                   // ニワトリ: 穴の手前で引き返す
+                e.velX = -e.velX;
+            }
         }
     }
 
@@ -4946,11 +4957,11 @@ function updateEnemyPhysics(e) {
             e.y = t.y - e.height; e.velY = 0; e.onGround = true;         // 上面に着地
             if (e.leaping) { e.velX = e.walkVX; e.leaping = false; }     // リープ終了→歩きへ戻す
         } else if (e.velX < 0 && e.x - e.velX >= t.x + t.width) {
-            e.x = t.x + t.width;                                          // 左移動→高台の右面に接触
-            if (beh === 'turn') e.velX = -e.velX;                        // 引き返す（stop/跳べなかったjumpは停止）
+            e.x = t.x + t.width;                                          // 左移動→壁(高台)の右面に接触
+            e.velX = -e.velX;                                            // 全員引き返す（壁での密集を防ぐ）
         } else if (e.velX > 0 && e.x + e.width - e.velX <= t.x) {
-            e.x = t.x - e.width;                                          // 右移動(turn後)→左面に接触
-            if (beh === 'turn') e.velX = -e.velX;
+            e.x = t.x - e.width;                                          // 右移動→壁の左面に接触
+            e.velX = -e.velX;
         }
     }
     // 段差スナップ（横から高台へ乗り移る時のめり込み落下を防ぐ・プレイヤーと同ロジック）
@@ -4968,6 +4979,9 @@ function updateEnemyPhysics(e) {
 
 function updateEnemies() {
     var i, e, stomped;
+    // 落下中かどうかはループ前に確定させる（1匹踏むと player.velY が跳ね返りで負になり、
+    // 同フレームの2匹目が「落下中」判定を外して被弾する不具合を防ぐ＝複数同時踏みでも全部踏める）
+    var falling = player.velY > 0;
 
     // 地上敵
     for (i = enemies.length - 1; i >= 0; i--) {
@@ -4989,7 +5003,7 @@ function updateEnemies() {
             continue;
         }
 
-        stomped = player.velY > 0 && player.y + player.height <= e.y + e.height * 0.65;
+        stomped = falling && player.y + player.height <= e.y + e.height * 0.65;
 
         if (stomped) {
             killEnemy(enemies, i, e, 200);
