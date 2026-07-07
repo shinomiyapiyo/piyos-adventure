@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.401";
+                content: "Ver.1.402";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.401</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.402</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1663,7 +1663,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.401
+ * ぴよ氏の冒険 v1.402
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3879,7 +3879,7 @@ function showGuide() {
     showScreenEl('guideScreen');
     history.pushState({ screen: 'guide' }, '');
     // ガイド内容を動的に生成（言語切替対応）
-    var sections = ['controls', 'items', 'boss', 'money', 'shop', 'savings', 'titleshop', 'datasave', 'tips'];
+    var sections = ['controls', 'items', 'stock', 'pouch', 'special', 'boss', 'bonus', 'money', 'shop', 'savings', 'titleshop', 'egg', 'avatar', 'datasave', 'tips'];
     var html = '';
     for (var i = 0; i < sections.length; i++) {
         var s = sections[i];
@@ -4978,7 +4978,8 @@ function enemyBehavior(e) {
 }
 var ENEMY_JUMP_V  = -6.2;  // シマエナガの飛び越えジャンプ初速（1.399で-8→-6.2＝ジャンプ高さを約6割に。gは据置で上昇下降の"速さ"感は維持・apex≈80px）
 var ENEMY_LEAP_VX = 4.5;   // ジャンプ中の前方リープ横速度（1.392で下げて避けやすく。広い穴は越えないこともある＝許容）
-var ENEMY_LOOKAHEAD = 60;  // 何px手前で穴/壁を先読みするか（enaga=跳ぶor引き返す/mama=引き返す）
+var ENEMY_LOOKAHEAD = 60;  // 何px手前で穴/壁を先読みするか（enaga/golden=跳ぶ判断に十分な距離が要る）
+var MAMA_HOLE_LOOKAHEAD = 10; // ニワトリ(turnHole)専用の穴先読み距離。小さいほど穴のギリギリで引き返す（体幅50pxぶん余裕があり落ちない）
 var ENEMY_JUMP_GRAVITY = 0.24; // ジャンプ(leaping)中の重力（低いほど滞空が伸びfloaty。上昇下降の"速さ"感を保つため据置）
 var ENEMY_JUMP_CLEAR = 72; // シマエナガが飛び越えられる壁(高台)の最大高さpx（apex≈80pxで安全に着地できる上限）。これを超える高い壁は跳ばず引き返す
 var ENEMY_JUMP_V_GOLDEN = -7.5; // ゴールデン専用の高台越えジャンプ初速（apex≈117px＝高台60-100pxを確実に越える。俊敏の証）
@@ -4994,7 +4995,9 @@ function updateEnemyPhysics(e) {
     //   enaga(jumpClear)=穴＆越えられる高さの壁は前方リープで飛越／越せない高い壁は跳ばず→壁当たりで引き返す。
     //   mama(turnHole)=穴の手前で引き返す。他=先読みなし（壁は全員 接触時に引き返す＝密集防止）。
     if (e.onGround && (beh === 'jumpClear' || beh === 'jumpWall' || beh === 'turnHole')) {
-        var lead = (dir < 0) ? e.x - ENEMY_LOOKAHEAD : e.x + e.width + ENEMY_LOOKAHEAD;
+        // ニワトリ(turnHole)は穴のギリギリで引き返すので短い先読み。跳ぶ enaga/golden は跳躍判断に十分な距離を確保。
+        var look = (beh === 'turnHole') ? MAMA_HOLE_LOOKAHEAD : ENEMY_LOOKAHEAD;
+        var lead = (dir < 0) ? e.x - look : e.x + e.width + look;
         var topAhead = terrainTopAt(lead);
         var holeAhead = (topAhead === null);                           // 地面なし=穴
         var wallH = (topAhead !== null) ? (e.y + e.height - topAhead) : 0; // 前方地形が高い分＝壁の高さ

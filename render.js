@@ -1673,12 +1673,13 @@ function drawPipeRoom() {
     if (pipeSideImg.complete && pipeSideImg.naturalWidth) {
         ctx.drawImage(pipeSideImg, exitX, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H, SIDE_PIPE_W, SIDE_PIPE_H);
     }
-    // 出口ヒント（→ でる）
+    // 出口ヒント（→ でる）: 土管のすぐ左上に右寄せで配置＝画面右のストック枠（所持アイテム）と重ならない。
+    // 口は左向きなのでテキスト右端を土管の左端(exitX)に合わせ、「→」が土管の口を指す。
     ctx.save();
     ctx.fillStyle = '#ffe066';
     ctx.font = 'bold 15px DotGothic16, monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(t('pipe_room_exit'), exitX + SIDE_PIPE_W / 2, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H - 10 + Math.sin(gameState.time * 0.1) * 3);
+    ctx.textAlign = 'right';
+    ctx.fillText(t('pipe_room_exit'), exitX, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H - 8 + Math.sin(gameState.time * 0.1) * 3);
     ctx.restore();
     // 退室ゲージ（口で右を押し続けている間だけ表示・満タンで退室）
     if (pipeRoomState.exitHold > 0) {

@@ -112,7 +112,7 @@ function enterPipeRoom() {
     player.x = PIPE_ROOM_LEFT; player.y = -player.height - 20;
     player.velX = 0; player.velY = 0; player.onGround = false; player.facing = 'right';
     initPipeRoom();
-    if (typeof updateStockUI === 'function') updateStockUI(); // ストック枠(＋所持アップグレードアイコン)を隠す＝「でる」と重ならない
+    if (typeof updateStockUI === 'function') updateStockUI(); // ストック枠(＋所持アップグレードアイコン)を読み取り専用で表示（部屋では使わない）
     if (soundManager) soundManager.playBGM('bonus');
 }
 
@@ -1675,8 +1675,8 @@ function swapStockSlots(a, b) {
 function updateStockUI() {
     var container = document.getElementById('stockSlots');
     if (!container) return;
-    // ボーナス部屋(土管)中は隠す＝出口「でる」や部屋のアイテムと重ならない（部屋ではストックを使わない）
-    if (typeof pipeRoomState !== 'undefined' && pipeRoomState.active) { container.style.display = 'none'; return; }
+    // ボーナス部屋(土管)中も枠は表示する（「でる」は左へずらして重なり回避）。ただし部屋では使わないので読み取り専用にする。
+    var inPipeRoom = (typeof pipeRoomState !== 'undefined' && pipeRoomState.active);
     // ゲームプレイ中は、空でも maxSlots ぶんの枠を常に表示する（所持可能数を可視化＋拡張アイテム購入の動機）。
     // タイトル/ゲームオーバー中(gameStarted=false)は隠す。ショップ中は別途 display:none で隠している(誤タップ防止)。
     var inTitleShop = isScreenVisible('titleShopScreen');
@@ -1689,7 +1689,8 @@ function updateStockUI() {
     // タイトルショップ(z-index:9999・不透明)中は枠を前面に出す。それ以外は通常の100(ポーズ画面等の下に隠れる)。
     container.style.zIndex = inTitleShop ? '10000' : '100';
     var inShop = shopState.active || inTitleShop; // どちらのショップ中も枠・アイテムを見せるが使用不可（購入判断の参考用）
-    container.classList.toggle('stock-panel', inShop); // ショップ中のみ背景パネルで視認性UP（ゲーム中は付けず視界を塞がない）
+    var readOnly = inShop || inPipeRoom; // ショップ中＋ボーナス部屋中は 表示のみ（タップ使用/ドラッグ入替を無効化）
+    container.classList.toggle('stock-panel', inShop); // ショップ中のみ背景パネルで視認性UP（ゲーム中・部屋では付けず視界を塞がない）
     var html = '';
     var pl = permaLevel();
     var iconFor = function(id) {
@@ -1705,7 +1706,7 @@ function updateStockUI() {
             var badge = '<span class="perma-badge">' + (i + 1) + '</span>';
             if (pslot.id && !pslot.used) {
                 // 使用可能な永続アイテム: タップ=使用／ドラッグ=入替
-                if (inShop) {
+                if (readOnly) {
                     html += '<div class="stock-slot stock-slot-perma stock-slot-readonly">' + badge + iconFor(pslot.id) + '</div>';
                 } else {
                     html += '<div class="stock-slot stock-slot-perma" data-idx="' + i + '" data-slot="' + i + '">' + badge + iconFor(pslot.id) + '</div>';
@@ -1715,22 +1716,22 @@ function updateStockUI() {
                 html += '<div class="stock-slot stock-slot-perma stock-slot-perma-used">' + badge + '</div>';
             } else {
                 // 未割当の永続枠（空の金枠）: ドロップ先候補
-                html += '<div class="stock-slot stock-slot-perma stock-slot-perma-empty"' + (inShop ? '' : ' data-slot="' + i + '"') + '>' + badge + '</div>';
+                html += '<div class="stock-slot stock-slot-perma stock-slot-perma-empty"' + (readOnly ? '' : ' data-slot="' + i + '"') + '>' + badge + '</div>';
             }
         } else {
             // ── 通常枠 ──
             var ni = i - pl;
             if (ni < stockState.items.length) {
                 var itm = stockState.items[ni];
-                if (inShop) {
-                    // ショップ中: アイコンは見せるが操作不可（pointer-events:none）
+                if (readOnly) {
+                    // ショップ/部屋中: アイコンは見せるが操作不可（pointer-events:none）
                     html += '<div class="stock-slot stock-slot-readonly">' + iconFor(itm.id) + '</div>';
                 } else {
                     // ゲーム中: data-idx で識別。委譲タップ(touchend)で即使用／ドラッグ=入替
                     html += '<div class="stock-slot" data-idx="' + i + '" data-slot="' + i + '">' + iconFor(itm.id) + '</div>';
                 }
             } else {
-                html += '<div class="stock-slot stock-slot-empty"' + (inShop ? '' : ' data-slot="' + i + '"') + '></div>';
+                html += '<div class="stock-slot stock-slot-empty"' + (readOnly ? '' : ' data-slot="' + i + '"') + '></div>';
             }
         }
     }
