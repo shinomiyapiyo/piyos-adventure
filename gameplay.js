@@ -904,8 +904,10 @@ function buyStageItem(itemId) {
         if (stockHasRoom(itemId)) {
             addToStock(itemId); // 空き保証済み→未割当永続枠 or 通常枠へ
         } else if (isTempReviveCase(itemId)) {
-            // 全枠ポーチ: 復活薬を通常枠へ一時追加（保存されない＝今回かぎり）。死亡時の自動復活/手動使用はここを参照
-            stockState.items.push({ id: itemId, temp: true });
+            // 全枠ポーチ(通常枠0)の例外: 復活薬だけ通常枠へオーバーフロー追加。
+            // stockState.items は毎ラン resetGame で =[] になり localStorage にも保存されない＝持ち越し不可。
+            // 死亡時の自動復活は tryRevive がこの配列を走査して発動する。
+            stockState.items.push({ id: itemId });
             updateStockUI();
         } else {
             // 有料購入は満杯なら弾く（貯金換算③には落とさない＝金を払って半額戻りの損を防ぐ）。
@@ -1407,6 +1409,14 @@ function useStockItem(displayIndex) {
     var ni = displayIndex - pl;
     if (ni < 0 || ni >= stockState.items.length) return false;
     var item = stockState.items[ni];
+    // 復活薬は死亡時に自動発動する保険専用（tryRevive が処理）＝手動使用は不可。タップ時はヒントだけ出す。
+    if (item.id === 'revive_potion') {
+        if (typeof showRewardToast === 'function') {
+            showRewardToast(escapeHtml(t('revive_auto_hint')), 'linear-gradient(180deg,#8ad1ff,#3a7bd0)', '#fff');
+        }
+        if (soundManager) soundManager.playCursorMove();
+        return false;
+    }
     var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === item.id; });
     if (!shopItem || !shopItem.stockEffect) return false;
     shopItem.stockEffect();

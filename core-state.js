@@ -72,8 +72,7 @@ var PU_DURATION = {
     magnet: 600,       // フィールド: マグネット（10秒）
     barrierItem: 600,  // ショップ: バリア（10秒）
     lemonItem: 1200,   // ショップ: レモンスペシャル（20秒）
-    fullCharge: 900,   // ショップ: フルチャージ（15秒）
-    reviveShield: 300  // 復活薬使用時のシールド（5秒）
+    fullCharge: 900    // ショップ: フルチャージ（15秒）
 };
 
 // ─── キャンバス ───
@@ -272,16 +271,11 @@ var STAGE_SHOP_ITEMS = [
         }
     },
     {
+        // 復活薬は「保険専用」＝手動使用なし。stockEffect を持たせない（tryRevive が死亡時にライフ2で自動発動）。
+        // タップされたら useStockItem がヒントだけ表示する（手動発動は誤操作の元・説明文とも不整合なので廃止）。
         id: 'revive_potion', nameKey: 'shop_item_revive', descKey: 'shop_item_revive_desc',
         icon: '', iconImg: 'images/icon_revive_potion.png', price: 20000, maxPerVisit: 1,
-        stockItem: true,
-        stockEffect: function() {
-            // ストックから手動使用した場合: HP2回復+バリア付与
-            gameState.lives = Math.min(gameState.lives + 2, 10);
-            gameState.puShield = PU_DURATION.reviveShield;
-            gameState.isInvincible = true;
-            gameState.invincibleTimer = PU_DURATION.reviveShield;
-        }
+        stockItem: true
     }
 ];
 

@@ -253,7 +253,7 @@ ja: {
     shop_keeper_no_money: 'お金が 足りないみたいです…',
     shop_keeper_sold_out: 'ごめんなさい、売り切れです',
     shop_keeper_stock_full: 'ストックが いっぱいみたいです',
-    shop_keeper_revive_nosave_confirm: 'ストックが ポーチで いっぱいで\nこの ふっかつやくは 保存できません…\n今回かぎりですが {price}円で 買いますか？',
+    shop_keeper_revive_nosave_confirm: 'この ふっかつやくは\n今回かぎりの もちものです。\n{price}円で 買いますか？',
     shop_keeper_deposit_ok: '{amount}円 お預かり！\n貯金合計 {total}円です',
     shop_keeper_deposit_zero: '貯金するお金が\nないみたいです…',
     shop_keeper_deposit_confirm: '所持金の半分 {amount}円を\n貯金しますか？',
@@ -321,6 +321,7 @@ ja: {
     revival_potion_text: 'ふっかつやくで復活！',
     shop_item_revive: 'ふっかつやく',
     shop_item_revive_desc: 'たおれたとき\nライフ2で ふっかつする（1回）',
+    revive_auto_hint: 'ふっかつやくは たおれたときに じどうで はつどうするよ！',
     // ── ログインボーナス ──
     login_bonus_title: 'ログインボーナス',
     login_bonus_day: '{day}日目のボーナス！',
@@ -664,7 +665,7 @@ en: {
     shop_keeper_no_money: "You don't seem to\nhave enough money...",
     shop_keeper_sold_out: "Sorry, that's sold out",
     shop_keeper_stock_full: 'Your stock seems full...',
-    shop_keeper_revive_nosave_confirm: 'Your slots are all pouches,\nso this potion can\'t be saved...\nBuy it for {price} just for this run?',
+    shop_keeper_revive_nosave_confirm: 'This revival potion lasts for\nthis run only.\nBuy it for {price}?',
     shop_keeper_deposit_ok: "Saved {amount}!\nTotal: {total}",
     shop_keeper_deposit_zero: "You don't have\nanything to save...",
     shop_keeper_deposit_confirm: "Deposit half your money\n({amount})? ",
@@ -733,6 +734,7 @@ en: {
     revival_potion_text: 'Revived by potion!',
     shop_item_revive: 'Revival Potion',
     shop_item_revive_desc: 'Auto-revive with 2 life\nwhen defeated (1 use)',
+    revive_auto_hint: 'The revival potion activates automatically when you fall.',
     // ── Login Bonus ──
     login_bonus_title: 'Login Bonus',
     login_bonus_day: 'Day {day} Bonus!',
