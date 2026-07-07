@@ -334,6 +334,9 @@ var ZUKAN_ENTRIES = [
     { id: 'enemy:golden_chick', cat: 'enemy', nameKey: 'zukan_e_golden',       descKey: 'zukan_e_golden_d',       sprite: 'golden_chick_walk', kill: true },
     { id: 'enemy:mama_chick',   cat: 'enemy', nameKey: 'zukan_e_mama',         descKey: 'zukan_e_mama_d',         sprite: 'mama_chick_walk',   kill: true },
     { id: 'enemy:flying_chick', cat: 'enemy', nameKey: 'zukan_e_flying',       descKey: 'zukan_e_flying_d',       sprite: 'flying_chick_fly',  kill: true },
+    { id: 'enemy:flying_desert', cat: 'enemy', nameKey: 'zukan_e_flying_desert', descKey: 'zukan_e_flying_desert_d', sprite: 'vulture_fly',  kill: true },
+    { id: 'enemy:flying_snow',   cat: 'enemy', nameKey: 'zukan_e_flying_snow',   descKey: 'zukan_e_flying_snow_d',   sprite: 'snowowl_fly',  kill: true },
+    { id: 'enemy:flying_night',  cat: 'enemy', nameKey: 'zukan_e_flying_night',  descKey: 'zukan_e_flying_night_d',  sprite: 'bat_fly',      kill: true },
     // ── ボス（撃破数つき）──
     { id: 'boss:rooster', cat: 'boss', nameKey: 'zukan_b_rooster', descKey: 'zukan_b_rooster_d', kind: 'rooster', kill: true },
     { id: 'boss:hawk',    cat: 'boss', nameKey: 'zukan_b_hawk',    descKey: 'zukan_b_hawk_d',    kind: 'hawk',    kill: true },
@@ -400,7 +403,14 @@ function enemyZukanId(e) {
     if (!e) return null;
     if (e.type === 'golden_chick') return 'enemy:golden_chick';
     if (e.type === 'mama_chick')   return 'enemy:mama_chick';
-    if (e.type === 'flying_chick') return 'enemy:flying_chick';
+    if (e.type === 'flying_chick') {
+        switch (e.flySprite) {                       // バイオーム見た目ごとに図鑑エントリを分ける
+            case 'vulture_fly': return 'enemy:flying_desert';
+            case 'snowowl_fly': return 'enemy:flying_snow';
+            case 'bat_fly':     return 'enemy:flying_night';
+            default:            return 'enemy:flying_chick';
+        }
+    }
     switch (e.walkSprite) {
         case 'quail_walk': return 'enemy:chick_desert';
         case 'enaga_walk': return 'enemy:chick_snow';

@@ -1181,7 +1181,7 @@ function drawEnemy(e) {
 }
 
 function drawFlyingEnemy(e) {
-    markZukanSeen('enemy:flying_chick'); // ずかん: 遭遇として発見登録
+    markZukanSeen(enemyZukanId(e)); // ずかん: 遭遇として発見登録（バイオーム見た目ごとに別エントリ）
     e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
     var bounce = Math.sin(e.animFrame / 2) * 0.5;
     var cy = e.y + bounce;
