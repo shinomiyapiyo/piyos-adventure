@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.389";
+                content: "Ver.1.390";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.389</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.390</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1663,7 +1663,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.389
+ * ぴよ氏の冒険 v1.390
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -4257,9 +4257,12 @@ function spawnEnemy() {
         default:             w = 42; h = 38; s = 1 + Math.random();       break;
     }
     s *= (1 + (gameRound - 1) * 0.3); // ラウンド倍率
+    var sx = gameState.camera.x + GAME_WIDTH + Math.random() * 200;
+    var surf = terrainTopAt(sx + w / 2);            // スポーン地点の地形表面（高台なら上面・穴ならnull）
     return {
-        x: gameState.camera.x + GAME_WIDTH + Math.random() * 200,
-        y: GROUND_Y - h, width: w, height: h, velX: -s, type: t,
+        x: sx,
+        y: (surf !== null ? surf : GROUND_Y) - h,   // 地形表面に乗せる（穴なら地面高さで湧いて落ちる）
+        width: w, height: h, velX: -s, velY: 0, onGround: false, type: t,
         animFrame: Math.floor(Math.random() * 100),
         walkSprite: t === 'chick' ? biomeChickSprite() : null // 基本ひよこのみバイオーム見た目
     };
@@ -4887,13 +4890,63 @@ function updateNearMiss(e) {
     }
 }
 
+// そのxにあるソリッド地形の上面Y（最も高い＝最小y）。無ければnull（穴）。スポーン時の地形合わせ用。
+function terrainTopAt(x) {
+    var top = null;
+    for (var i = 0; i < terrain.length; i++) {
+        var t = terrain[i];
+        if (t.type === 'hole' || t.width <= 0) continue;
+        if (x >= t.x && x <= t.x + t.width) { if (top === null || t.y < top) top = t.y; }
+    }
+    return top;
+}
+
+// 地上敵の物理（重力＋地形当たり＋穴落下）。プレイヤーと同じワールド座標で当たる。
+// 横は「地面に対する歩き(velX)」＝画面スクロールはカメラが担当（従来の -gameSpeed は廃止）。
+// フェーズ1: 全種、高台の側面(壁)ではstop。個性(ジャンプ/引き返す)はフェーズ2で付与。
+function updateEnemyPhysics(e) {
+    e.x += e.velX;                                   // 地面に対する歩き
+    e.velY = (e.velY || 0) + GRAVITY;                // 重力
+    if (e.velY > 16) e.velY = 16;
+    e.y += e.velY;
+    e.onGround = false;
+    for (var i = 0; i < terrain.length; i++) {
+        var t = terrain[i];
+        if (t.type === 'hole' || t.width <= 0) continue;
+        if (!aabb(e, t)) continue;
+        if (e.velY > 0 && e.y + e.height - e.velY <= t.y) {
+            e.y = t.y - e.height; e.velY = 0; e.onGround = true;     // 上面に着地
+        } else if (e.velX < 0 && e.x - e.velX >= t.x + t.width) {
+            e.x = t.x + t.width;                                     // 左移動→高台の右面で停止（壁）
+        } else if (e.velX > 0 && e.x + e.width - e.velX <= t.x) {
+            e.x = t.x - e.width;                                     // 右移動(turn後)→左面で停止
+        }
+    }
+    // 段差スナップ（横から高台へ乗り移る時のめり込み落下を防ぐ・プレイヤーと同ロジック）
+    if (!e.onGround && e.velY >= 0) {
+        var feetY = e.y + e.height, snapTop = Infinity;
+        for (var si = 0; si < terrain.length; si++) {
+            var st = terrain[si];
+            if (st.type === 'hole' || st.width <= 0) continue;
+            var ox = Math.min(e.x + e.width, st.x + st.width) - Math.max(e.x, st.x);
+            if (ox >= e.width * 0.5 && feetY > st.y && e.y < st.y + Math.min(st.height, e.height) && st.y < snapTop) snapTop = st.y;
+        }
+        if (snapTop !== Infinity) { e.y = snapTop - e.height; e.velY = 0; e.onGround = true; }
+    }
+}
+
 function updateEnemies() {
     var i, e, stomped;
 
     // 地上敵
     for (i = enemies.length - 1; i >= 0; i--) {
         e = enemies[i];
-        e.x += e.velX - gameState.gameSpeed;
+        if (bossState.active) {
+            e.x += e.velX - gameState.gameSpeed;    // ボスアリーナは従来挙動（平地・スクロール維持）
+        } else {
+            updateEnemyPhysics(e);                  // 通常フィールド: 重力＋地形＋穴落下
+            if (e.y > GAME_HEIGHT + 120) { enemies.splice(i, 1); continue; } // 穴に落ちて画面外→除去
+        }
 
         // 踏みつけ判定 (横広め) とダメージ判定 (横狭め) を分離
         var stompHit = aabbShrink(player, e, 4, 12);
