@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.407";
+                content: "Ver.1.408";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.407</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.408</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1671,7 +1671,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.407
+ * ぴよ氏の冒険 v1.408
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3441,6 +3441,7 @@ function resetGame() {
     pipeRoomState.active = false; pipeRoomState.visited = false;
     pipeRoomState.placed = false; pipeRoomState.x = 0; pipeRoomState.savedPlayer = null;
     pipeRoomState.targetDist = 0; pipeRoomState.targetRound = 0;
+    pipeRoomState.anim = 'none'; pipeRoomState.animTimer = 0; pipeRoomState.animPipe = null; // 出入り演出の残留防止
     bonusRoomItems.length = 0;
     gameState.bossKills = 0;
     gameState.specialUses = 0;
@@ -4862,6 +4863,7 @@ function activateSpecialMove() {
     if (gameState.specialCutinTimer > 0) return;
     if (!gameState.gameStarted || gameState.gamePaused) return;
     if (pipeRoomState.active) return; // ボーナス部屋では使用不可（敵がいない＝ゲージ浪費＆カットインが退室後に遅延再生されるのを防ぐ）
+    if (pipeRoomState.anim !== 'none') return; // 土管出入り演出中も使用不可
     gameState.specialGauge = 0;
     gameState.specialUses++;  // デイリーミッション(必殺技使用)用
     gameState.specialCutinActive = true;
@@ -4990,7 +4992,7 @@ function drawSpecialCutin() {
 function updateSpecialMoveUI() {
     var ui = document.getElementById('specialMoveUI');
     if (!ui) return;
-    var show = (gameState.specialMoveLevel || 0) > 0 && gameState.gameStarted && !gameState.gamePaused && !pipeRoomState.active;
+    var show = (gameState.specialMoveLevel || 0) > 0 && gameState.gameStarted && !gameState.gamePaused && !pipeRoomState.active && pipeRoomState.anim === 'none';
     if (ui._shown !== show) { ui.style.display = show ? 'flex' : 'none'; ui._shown = show; }
     if (!show) return;
     var fill = document.getElementById('specialMoveGaugeFill');

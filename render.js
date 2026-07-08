@@ -1129,6 +1129,8 @@ function drawPlatform(p) {
         } else {
             ctx.fillStyle = '#3cb043'; ctx.fillRect(p.x, p.y, p.width, p.height + 12);
         }
+        if (pipeRoomState.anim !== 'none' && pipeRoomState.animPipe === p) return; // 出入り演出中は矢印/ヒントを消す（後描き側が管のみ描く）
+        if (pipeRoomState.visited) return; // 入室済み（このラウンドは入れない）土管には矢印/ヒントを出さない
         var ax = p.x + p.width / 2, ay = p.y - 30 + Math.sin(gameState.time * 0.12) * 3;
         ctx.fillStyle = 'rgba(255,224,102,0.9)';
         ctx.beginPath();
@@ -1748,6 +1750,10 @@ function drawPipeRoom() {
     }
     // プレイヤー
     if (gameState.gameStarted) drawPlayer(player.x, player.y);
+    // 退室演出中は横土管を後描きしてプレイヤーを隠す（Z順トリック・1.408）
+    if (pipeRoomState.anim === 'outRoom' && pipeSideImg.complete && pipeSideImg.naturalWidth) {
+        ctx.drawImage(pipeSideImg, exitX, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H, SIDE_PIPE_W, SIDE_PIPE_H);
+    }
     // 取得演出（らいふあっぷ！等）。部屋内のエフェクトは worldX=画面座標で発行されるのでそのまま描ける
     // （従来はここで描いておらず、部屋でのハート/エッグ取得演出が一切表示されなかった）
     if (floatEffects.length > 0) drawFloatEffects();
@@ -1955,6 +1961,16 @@ function render() {
     if (bossState.eggs.length > 0) drawEggProjectiles();
 
     if (gameState.gameStarted) drawPlayer(player.x, player.y);
+
+    // 土管出入り演出中は土管をプレイヤーの後に再描画（Z順トリック＝クリッピング不要で「土管に消える/出てくる」）
+    if ((pipeRoomState.anim === 'in' || pipeRoomState.anim === 'outWorld') && pipeRoomState.animPipe) {
+        var _ap = pipeRoomState.animPipe;
+        if (pipeImg.complete && pipeImg.naturalWidth) {
+            ctx.drawImage(pipeImg, _ap.x, _ap.y - 16, _ap.width, _ap.height + 25); // drawPlatformの土管と同じ描き方
+        } else {
+            ctx.fillStyle = '#3cb043'; ctx.fillRect(_ap.x, _ap.y, _ap.width, _ap.height + 12);
+        }
+    }
 
     // フロートエフェクト描画 (カメラtranslate適用済み)
     if (floatEffects.length > 0) drawFloatEffects();

@@ -175,6 +175,19 @@ class SoundManager {
         if (!gameSettings.soundEnabled) return;
         this._playSE(this.criticalSE);
     }
+    playPipeWarp() { // 土管出入りの「シュポッ」（マリオ風の下降スイープ・オシレータ合成＝追加音源ファイル不要）
+        if (!this.ctx || !gameSettings.soundEnabled) return;
+        var t = this.ctx.currentTime;
+        var o = this.ctx.createOscillator();
+        var g = this.ctx.createGain();
+        o.connect(g); g.connect(this.ctx.destination);
+        o.type = 'square';
+        o.frequency.setValueAtTime(520, t);
+        o.frequency.exponentialRampToValueAtTime(90, t + 0.42);
+        g.gain.setValueAtTime(0.22, t);
+        g.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+        o.start(t); o.stop(t + 0.5);
+    }
 
     playLevelUp() {
         if (!this.ctx || !gameSettings.soundEnabled) return;

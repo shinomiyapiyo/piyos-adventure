@@ -33,6 +33,8 @@ function gameLoop(timestamp) {
             frameSteps++;
             if (pipeRoomState.active) {
                 updatePipeRoom(); // 土管ボーナス部屋中は世界を止め、部屋だけ更新
+            } else if (pipeRoomState.anim === 'in' || pipeRoomState.anim === 'outWorld') {
+                updatePipeAnim(); // 土管出入り演出中も世界を止め、演出だけ進める（マリオ風・1.408）
             } else if (gameState.specialCutinTimer > 0) {
                 updateSpecialCutin(); // 必殺技カットイン中は世界を止め演出だけ進める
             } else {

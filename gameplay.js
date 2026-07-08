@@ -125,10 +125,70 @@ function updatePipeAssist() {
     }
 }
 
-function enterPipeRoom() {
-    if (pipeRoomState.active || pipeRoomState.visited) return; // 入室中・このラウンド入室済みは弾く（再入室防止）
+// ── マリオ風 出入り演出（1.408）──
+// 入場: enterPipeRoom(公開)→ anim='in'（中央へスナップ→土管へ沈む・世界は停止）→ _enterPipeRoomNow()
+// 退場: 出口ゲージ完了→ anim='outRoom'（横土管へ歩き込む）→ _exitPipeRoomNow() → anim='outWorld'（本編の土管から上昇）
+// Android戻る等の exitPipeRoom(公開) は歩き込みを省いて即退室＋上昇演出のみ。
+var PIPE_ANIM_SNAP = 9;   // 中央スナップのフレーム数
+var PIPE_ANIM_MOVE = 30;  // 沈む/上昇のフレーム数（66px≒0.5秒）
+
+function enterPipeRoom() { // 公開API（下スワイプ/キーボード↓から。呼び出し元は従来のまま）
+    if (pipeRoomState.active || pipeRoomState.visited || pipeRoomState.anim !== 'none') return;
+    var pipe = getEnterablePipe();
+    if (!pipe) return;
+    pipeRoomState.visited = true;               // 演出開始時点で消費（多重開始・再入場防止）
+    pipeAssistTimer = 0; pipeAssistPipe = null; // 土管タイム解除（速度はupdateGameSpeedが次tickで復帰）
+    pipeRoomState.anim = 'in';
+    pipeRoomState.animTimer = 0;
+    pipeRoomState.animPipe = pipe;
+    // 入力消費（演出中は専用分岐が走り通常updateは止まる）
+    gameState.input.down = false; gameState.input.up = false;
+    gameState.input.left = false; gameState.input.right = false;
+    gameState.input.jump = false; gameState.input.jumpPressed = false;
+    gameState.downSwipeActive = false; gameState.downSwipeTimer = 0;
+    if (soundManager) soundManager.playPipeWarp();
+}
+
+// 本編側の演出（gameLoopの専用分岐から毎tick呼ばれる。この間 世界の通常updateは走らない）
+function updatePipeAnim() {
+    var p = pipeRoomState.animPipe;
+    if (!p) { pipeRoomState.anim = 'none'; return; }
+    pipeRoomState.animTimer++;
+    var t = pipeRoomState.animTimer;
+    var cx = p.x + p.width / 2 - player.width / 2; // 土管中央
+    var standY = p.y - player.height;              // 土管上に立つy
+    if (pipeRoomState.anim === 'in') {
+        if (t <= PIPE_ANIM_SNAP) {
+            player.x += (cx - player.x) * 0.4;     // 中央へ吸い付き
+            player.y = standY;
+        } else if (t <= PIPE_ANIM_SNAP + PIPE_ANIM_MOVE) {
+            player.x = cx;
+            player.y = standY + PIPE_H * ((t - PIPE_ANIM_SNAP) / PIPE_ANIM_MOVE); // 沈む（土管がプレイヤーの後に再描画され隠れる）
+        } else {
+            player.x = cx; player.y = standY;      // 実座標は立ち位置へ（savedPlayer=退室後の復帰位置になる）
+            player.velX = 0; player.velY = 0;
+            pipeRoomState.anim = 'none';
+            _enterPipeRoomNow();
+        }
+    } else if (pipeRoomState.anim === 'outWorld') {
+        if (t <= PIPE_ANIM_MOVE) {
+            player.x = cx;
+            player.y = (standY + PIPE_H) - PIPE_H * (t / PIPE_ANIM_MOVE); // 上昇して出てくる
+        } else {
+            player.y = standY;
+            player.velX = 0; player.velY = 0; player.onGround = true;
+            pipeRoomState.anim = 'none';
+            pipeRoomState.animPipe = null;
+            // 出た直後の理不尽被弾を防ぐ短い無敵（1秒）
+            gameState.isInvincible = true;
+            gameState.invincibleTimer = Math.max(gameState.invincibleTimer, 60);
+        }
+    }
+}
+
+function _enterPipeRoomNow() { // 実際の入室処理（演出完了後に呼ばれる）
+    if (pipeRoomState.active) return;
     pipeRoomState.active = true;
-    pipeRoomState.visited = true;
     // Android戻る用に履歴を積む（無いと部屋内で戻る=即アプリ離脱）。戻る→BACK_HANDLERSがexitPipeRoom()＝pushと相殺。
     // 横土管から歩いて出た場合はこのstateが1つ余るが、余りは次の戻るでポーズになるだけ（無害）。
     history.pushState({ screen: 'pipeRoom' }, '');
@@ -155,7 +215,36 @@ function enterPipeRoom() {
     if (soundManager) soundManager.playBGM('bonus');
 }
 
-function exitPipeRoom() {
+// 出口ゲージ完了: 部屋側で横土管へ歩き込む演出を開始（updatePipeRoom冒頭の分岐が進める）
+function startPipeExitWalk() {
+    if (pipeRoomState.anim !== 'none') return;
+    pipeRoomState.anim = 'outRoom';
+    pipeRoomState.animTimer = 0;
+    pipeRoomState.exitHold = 0;
+    gameState.input.left = false; gameState.input.right = false; gameState.input.jump = false;
+    if (soundManager) soundManager.playPipeWarp();
+}
+
+// 本編側: 土管から上昇して出てくる演出をセット（土管参照が無ければ演出なしで即操作復帰）
+function _startPipeRiseOut() {
+    var p = pipeRoomState.animPipe;
+    if (!p) { pipeRoomState.anim = 'none'; return; }
+    pipeRoomState.anim = 'outWorld';
+    pipeRoomState.animTimer = 0;
+    player.x = p.x + p.width / 2 - player.width / 2;
+    player.y = p.y - player.height + PIPE_H; // 沈んだ位置から上昇開始
+    player.velX = 0; player.velY = 0;
+    if (soundManager) soundManager.playPipeWarp();
+}
+
+function exitPipeRoom() { // 公開API（Android戻る等）: 部屋の歩き込みは省き、即時退室＋本編の上昇演出のみ
+    if (!pipeRoomState.active) return;
+    if (pipeRoomState.anim === 'outRoom') return; // 歩き込み演出中は完了に任せる（二重退室防止）
+    _exitPipeRoomNow();
+    _startPipeRiseOut();
+}
+
+function _exitPipeRoomNow() { // 実際の退室処理（savedPlayer復元・BGM復帰など）
     if (!pipeRoomState.active) return;
     pipeRoomState.active = false;
     bonusRoomItems.length = 0;
@@ -207,6 +296,21 @@ function initPipeRoom() {
 
 // 部屋の毎フレーム更新（簡易物理・死なない）
 function updatePipeRoom() {
+    // 退室演出: 横土管へ歩き込んで消える（drawPipeRoomが土管を後描きして隠す）。入力は無効
+    if (pipeRoomState.anim === 'outRoom') {
+        pipeRoomState.animTimer++;
+        player.facing = 'right';
+        player.velX = 0; player.velY = 0;
+        player.y = PIPE_ROOM_FLOOR_Y - player.height; // 床に固定
+        player.x += 2.4;                              // 一定速度で口の奥へ
+        player.animFrame++;                           // 歩きモーション
+        if (player.x > pipeRoomExitX() + 56) {        // 体がほぼ土管に収まる位置まで入った
+            pipeRoomState.anim = 'none';
+            _exitPipeRoomNow();
+            _startPipeRiseOut();
+        }
+        return;
+    }
     var accel = 1.2, fric = 0.85;
     if (gameState.input.left) { player.velX = Math.max(player.velX - accel, -MOVE_SPEED); player.facing = 'left'; }
     else if (gameState.input.right) { player.velX = Math.min(player.velX + accel, MOVE_SPEED); player.facing = 'right'; }
@@ -240,7 +344,7 @@ function updatePipeRoom() {
             if (gameState.input.right) { // 右を押し続けている間だけゲージを溜め、一定時間(≒0.7秒)で退室（誤操作防止）
                 exitCharging = true;
                 pipeRoomState.exitHold++;
-                if (pipeRoomState.exitHold >= PIPE_EXIT_HOLD_FRAMES) { exitPipeRoom(); return; }
+                if (pipeRoomState.exitHold >= PIPE_EXIT_HOLD_FRAMES) { startPipeExitWalk(); return; } // 歩き込み演出→退室
             }
         } else if (feetY > exTop) {
             player.x = exX - player.width; if (player.velX > 0) player.velX = 0; // 土管の胴体（口）の高さで側面に衝突
@@ -1615,6 +1719,7 @@ function addToStock(itemId) {
 
 function useStockItem(displayIndex) {
     if (gameState.gamePaused) return false; // ポーズ中の誤タップで消費しない（表示は読み取り専用だが二重ガード）
+    if (pipeRoomState.anim !== 'none') return false; // 土管出入り演出中も消費しない
     var pl = permaLevel();
     if (displayIndex < pl) {
         // 永続枠: 使っても枠は残す（used=true）。翌ラン resetGame で used=false に補充される。

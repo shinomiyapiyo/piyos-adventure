@@ -224,7 +224,11 @@ var pipeRoomState = {
     targetDist: 0,       // このラウンドで土管を出す目標距離(m)。安全地帯手前の通常エリアにランダム
     targetRound: 0,      // targetDist を算出したラウンド（ラウンド変化検出用）
     exitHold: 0,         // 出口土管の口で右を押し続けているフレーム数（退室ゲージ・継続が切れたら0に戻す）
-    introTimer: 0        // 入場時「BONUS!」演出の残りフレーム
+    introTimer: 0,       // 入場時「BONUS!」演出の残りフレーム
+    // ── マリオ風 出入り演出（1.408）──
+    anim: 'none',        // 'none'|'in'(本編:土管へ沈む)|'outRoom'(部屋:横土管へ歩き込む)|'outWorld'(本編:土管から上昇)
+    animTimer: 0,        // 演出の経過フレーム
+    animPipe: null       // 対象の土管platform参照（本編側の沈む/出てくる位置）
 };
 var bonusRoomItems = []; // 部屋内の報酬エンティティ配列
 var pipeConfetti = [];   // 土管ボーナス部屋の背景（ジャックポット風）の紙吹雪
