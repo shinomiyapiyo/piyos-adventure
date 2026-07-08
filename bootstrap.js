@@ -452,8 +452,8 @@ function bindTapDelegate(container, attrName, handler) {
         function triggerDebugShopWarp() {
             if (!debugMode || !gameState.gameStarted || gameState.gamePaused) return;
             if (bossState.active || shopState.active) return;
-            // ボス出現の200m手前（≒2200m）にワープ
-            var targetDist = BOSS_TRIGGER_DISTANCE * gameRound - 200;
+            // ボス出現の200m手前（≒2200m・初回ラン圧縮中は連動して手前）にワープ
+            var targetDist = bossDistanceFor(gameRound) - 200;
             var warpDelta = targetDist - gameState.distance;
             if (warpDelta > 0) {
                 gameState.camera.x += warpDelta * 10;
@@ -462,7 +462,7 @@ function bindTapDelegate(container, attrName, handler) {
             }
             // ワープ時に即座にショップ建物を配置
             if (!shopState.buildingPlaced) {
-                var bossDistance = BOSS_TRIGGER_DISTANCE * gameRound;
+                var bossDistance = bossDistanceFor(gameRound);
                 shopState.buildingPlaced = true;
                 shopState.buildingX = (bossDistance - SHOP_BUILDING_OFFSET) * 10;
             }

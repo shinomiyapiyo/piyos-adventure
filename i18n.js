@@ -291,6 +291,9 @@ ja: {
     shop_confirm_nobuy: 'かわない',
     shop_confirm_sell: 'うる',
     shop_confirm_nosell: 'うらない',
+    // 初回ラン圧縮（Phase3 案B）
+    first_run_gift_toast: 'おためしの「まもりのたて」をもらった！ストックは タップで つかえる！',
+    first_run_pouch_teaser: 'このさき「まほうのポーチ」を手に入れると、すきなアイテムを 毎回もちこめるようになる！',
     // ── タイトルショップ ──
     tshop_title: _ic('icon_cart.png') + ' ショップ',
     tshop_keeper_greet: 'いらっしゃいませなのだ！\nここのアイテムはずーっと使えるのだ\n貯金で買い物していくのだ！',
@@ -731,6 +734,8 @@ en: {
     shop_confirm_nobuy: 'Don\'t buy',
     shop_confirm_sell: 'Sell',
     shop_confirm_nosell: 'Don\'t sell',
+    first_run_gift_toast: 'Free Barrier! Tap a stock slot to use it!',
+    first_run_pouch_teaser: 'Get the Magic Pouch later to bring your favorite items into every run!',
     // ── Title Shop ──
     tshop_title: 'Shop',
     tshop_coin_master: 'Coin Master',

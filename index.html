@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.418";
+                content: "Ver.1.419";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.418</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.419</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1516,6 +1516,15 @@
                     background: rgba(255,255,255,0.06); padding: 8px 16px; border-radius: 10px;
                     border: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px;
                     line-height: 1.6;"></div>
+                <!-- 初回ラン限定: まほうのポーチ予告カード（Phase3 案B-2・showGameOverScreenが表示制御） -->
+                <div id="firstRunPouchTeaser" style="display: none; margin: 0 auto 10px; max-width: 480px;
+                    background: linear-gradient(180deg, rgba(70,52,0,0.92), rgba(45,32,0,0.92));
+                    border: 2px solid #ffd700; border-radius: 8px; padding: 6px 12px;
+                    color: #ffe9a0; font-family: 'M PLUS Rounded 1c', sans-serif;
+                    font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; line-height: 1.5;">
+                    <img src="images/item_pouch.png" width="22" height="22" style="image-rendering:pixelated; vertical-align:middle;">
+                    <span data-i18n="first_run_pouch_teaser">「まほうのポーチ」を手に入れると アイテムを毎回もちこめる！</span>
+                </div>
                 <div id="adReviveContainer" style="display: none; margin-bottom: 8px;">
                     <button class="game-button" id="adReviveBtn" data-i18n="gameover_ad_revive" style="min-width: auto; padding: 8px 20px; font-size: 2.8vw; min-height: 44px;
                         background: linear-gradient(180deg, #ffb347 0%, #ff6723 50%, #cc4400 100%);
@@ -1672,7 +1681,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.418
+ * ぴよ氏の冒険 v1.419
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3246,7 +3255,7 @@ function updateBiome() {
     var newIdx = getBiomeIndex(gameState.distance);
     markZukanSeen('biome:' + ZUKAN_BIOME_NAMES[newIdx]); // ずかん: 今いるバイオームを発見（開始地=草原も毎フレーム記録・既発見なら無処理）
     // ボス戦直前・ボス戦中はバイオーム遷移を開始しない（草原に戻す必要なし）
-    var bossDistance = BOSS_TRIGGER_DISTANCE * gameRound;
+    var bossDistance = bossDistanceFor(gameRound);
     var nearBoss = gameState.distance >= bossDistance - 200 || bossState.active || shopState.active;
     if (newIdx !== biomeState.current && biomeState.transition === 0 && !nearBoss) {
         biomeState.previous = biomeState.current;
@@ -3366,6 +3375,14 @@ function startGame() {
     // 永続ストック枠を現在の pouchLevel で構築。resetGame を経由しない初回プレイやタイトルショップ購入直後でも確実に反映。
     // resetGame 済みの場合も permaStock から再構築するだけ（used=false リセット＝ラン開始として正しい・二重処理なし）。
     buildPermaSlots();
+    // 初回ランのおためしストック（Phase3 案B-1）: バリア1個を配布して
+    // 「ストック＝タップで使う」を最初のランで体験させる（ストック→ポーチ導線の学習）
+    if (gameState.isFirstRun && !gameState.trialGiftGiven) {
+        gameState.trialGiftGiven = true;
+        addToStock('barrier');
+        showRewardToast('<img src="images/icon_barrier.png" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' + escapeHtml(t('first_run_gift_toast')),
+            'linear-gradient(180deg,#7ad0ff,#2a7fd0)', '#062a44');
+    }
     gameState.gameStarted = true;
     gameState.gamePaused  = false;
     // ラン中のAndroid戻る/ブラウザバック用に履歴を1つ積む（無いと戻る=即アプリ離脱）。
@@ -3412,6 +3429,10 @@ function gainScore(n) {
 }
 
 function resetGame() {
+    // 初回ラン圧縮（Phase3 案A/B）: 生涯プレイ0回のランだけ有効。ラン開始時に確定させる
+    // （広告復活を挟むと totalPlays がラン途中で1になるが、確定済みフラグなのでボス距離等は途中で変わらない）
+    gameState.isFirstRun = (((gameSettings.achievementStats || {}).totalPlays) || 0) === 0;
+    gameState.trialGiftGiven = false; // おためしバリア（案B-1）の配布済みフラグ
     gameState.score = 0;
     gameState.rankScore = 0;
     gameState.lives = 5;
@@ -4254,7 +4275,7 @@ function initTerrain() {
 }
 
 function isInSafeZone(distanceM) {
-    var bossDistance = BOSS_TRIGGER_DISTANCE * gameRound;
+    var bossDistance = bossDistanceFor(gameRound);
     return distanceM >= bossDistance - SHOP_SAFE_ZONE_START && !bossState.active;
 }
 

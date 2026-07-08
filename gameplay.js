@@ -15,10 +15,19 @@ function playStageBGM() {
     soundManager.playBGM(bgmType);
 }
 
+// ── ラウンド境界（ボス出現距離） ──
+// 初回ラン圧縮（Phase3 案A）: 生涯プレイ0回のラン（gameState.isFirstRun・resetGameで確定）だけ、
+// 最初のボスを半分の距離(1200m)に前倒し。以降のラウンド境界も同じ量だけ手前にずれる＝ラウンド間隔2400mは不変。
+// ショップ配置・安全地帯・土管抽選・バイオーム遷移抑制はすべて本関数経由なので自動で連動する。
+function bossDistanceFor(round) {
+    var shift = (gameState.isFirstRun ? BOSS_TRIGGER_DISTANCE / 2 : 0);
+    return BOSS_TRIGGER_DISTANCE * round - shift;
+}
+
 // ── ステージショップ ──
 function checkShopTrigger() {
     if (bossState.active || bossState.bossTriggered) return;
-    var bossDistance = BOSS_TRIGGER_DISTANCE * gameRound;
+    var bossDistance = bossDistanceFor(gameRound);
 
     // ショップ建物をワールドに配置（一度だけ） — 安全地帯より100m手前で配置開始
     if (!shopState.buildingPlaced && gameState.distance >= bossDistance - SHOP_SAFE_ZONE_START - 100) {
@@ -46,8 +55,13 @@ function pickPipeTargetDist() {
     pipeRoomState.placed = false;
     pipeRoomState.visited = false;
     pipeRoomState.x = 0;
-    var roundStart = BOSS_TRIGGER_DISTANCE * (gameRound - 1);
-    var safeStart  = BOSS_TRIGGER_DISTANCE * gameRound - SHOP_SAFE_ZONE_START;
+    // 初回ラン圧縮（Phase3 案A-2）: 最初の土管を200〜400mに保証＝ボーナス部屋を最初のランで必ず見せる
+    if (gameRound === 1 && gameState.isFirstRun) {
+        pipeRoomState.targetDist = 200 + Math.random() * 200;
+        return;
+    }
+    var roundStart = Math.max(0, bossDistanceFor(gameRound - 1));
+    var safeStart  = bossDistanceFor(gameRound) - SHOP_SAFE_ZONE_START;
     var lo = roundStart + 150, hi = safeStart - 150;
     pipeRoomState.targetDist = (hi > lo) ? (lo + Math.random() * (hi - lo)) : 0;
 }
@@ -81,7 +95,7 @@ function checkPipeTrigger() {
     if (pipeRoomState.placed || pipeRoomState.targetDist <= 0) return;
     if (gameState.distance < pipeRoomState.targetDist) return;
     // 安全地帯に入ってしまったら今ラウンドは見送り（手前の平地に置けなかった）
-    var safeStart = BOSS_TRIGGER_DISTANCE * gameRound - SHOP_SAFE_ZONE_START;
+    var safeStart = bossDistanceFor(gameRound) - SHOP_SAFE_ZONE_START;
     if (gameState.distance >= safeStart) { pipeRoomState.placed = true; return; }
     // 目標距離を過ぎたら、画面右外の平地が見つかり次第そこに配置（スクロールで自然に入ってくる）
     var spawnX = gameState.camera.x + GAME_WIDTH + 20;
@@ -1902,7 +1916,7 @@ function updateStockUI() {
 
 function checkBossTrigger() {
     if (bossState.active || bossState.bossTriggered) return;
-    if (gameState.distance >= BOSS_TRIGGER_DISTANCE * gameRound) {
+    if (gameState.distance >= bossDistanceFor(gameRound)) {
         bossState.bossTriggered = true;
         bossState.active = true;
         bossState.phase = 1; // WARNING
@@ -3271,6 +3285,9 @@ function showGameOverScreen() {
     if (adReviveContainer) {
         adReviveContainer.style.display = (!rewardAdState.reviveUsedThisRun && !gameSettings.adFree) ? 'block' : 'none';
     }
+    // 初回ランのゲームオーバーだけ「まほうのポーチ」予告カードを見せる（Phase3 案B-2・継続動機の注入）
+    var pouchTeaser = document.getElementById('firstRunPouchTeaser');
+    if (pouchTeaser) pouchTeaser.style.display = gameState.isFirstRun ? 'block' : 'none';
     showScreenEl('gameOverScreen');
     history.pushState({ screen: 'gameOver' }, '');
 }
