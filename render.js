@@ -1052,6 +1052,85 @@ var EFFECT_RENDERERS = {
         }
 };
 
+// ─── はじまりの地（チュートリアル・biome4）専用の街パララックス ───
+// 遠景: パステルカラーの家並み（0.15x）。家ごとに壁色/屋根色/高さを決め打ちでローテーション
+var TOWN_HOUSES = [
+    { w: 120, h: 78, wall: '#f0e2c8', roof: '#c86850', win: '#ffe9a0' },
+    { w: 96,  h: 96, wall: '#e8d8e8', roof: '#7898b8', win: '#fff4c0' },
+    { w: 132, h: 66, wall: '#f4e8d0', roof: '#88a868', win: '#ffe9a0' },
+    { w: 104, h: 88, wall: '#f8e0cc', roof: '#c88848', win: '#fff4c0' },
+    { w: 116, h: 72, wall: '#e0e8dc', roof: '#a87888', win: '#ffe9a0' }
+];
+function drawTownSkyline(alpha) {
+    var baseY = GAME_HEIGHT - 74; // 山と同じ地平ライン
+    var span = 760; // 5軒ぶんの繰り返し幅
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    for (var hi = 0; hi < 12; hi++) {
+        var spec = TOWN_HOUSES[hi % TOWN_HOUSES.length];
+        var hx = ((hi * 152) % span - gameState.camera.x * 0.15) % span;
+        if (hx < -spec.w) hx += span;
+        if (hx > GAME_WIDTH) continue;
+        var top = baseY - spec.h;
+        // 壁
+        ctx.fillStyle = spec.wall;
+        ctx.fillRect(hx, top, spec.w, spec.h);
+        // 屋根（三角）
+        ctx.fillStyle = spec.roof;
+        ctx.beginPath();
+        ctx.moveTo(hx - 8, top);
+        ctx.lineTo(hx + spec.w / 2, top - 34);
+        ctx.lineTo(hx + spec.w + 8, top);
+        ctx.closePath();
+        ctx.fill();
+        // 窓（2列）
+        ctx.fillStyle = spec.win;
+        for (var wy = top + 14; wy < baseY - 18; wy += 30) {
+            ctx.fillRect(hx + 14, wy, 14, 14);
+            ctx.fillRect(hx + spec.w - 28, wy, 14, 14);
+        }
+        // ドア
+        ctx.fillStyle = spec.roof;
+        ctx.fillRect(hx + spec.w / 2 - 9, baseY - 26, 18, 26);
+    }
+    ctx.restore();
+}
+// 中景: 街灯と生け垣（0.25x）
+function drawTownStreet(alpha) {
+    var baseY = GAME_HEIGHT - 45; // 木と同じ地平ライン
+    var span = 1920;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    for (var si = 0; si < 12; si++) {
+        var sx = ((si * 160) % span - gameState.camera.x * 0.25) % span;
+        if (sx < -70) sx += span;
+        if (sx > GAME_WIDTH) continue;
+        if (si % 2 === 0) {
+            // 街灯: 支柱＋アーム＋やわらかい灯り
+            ctx.fillStyle = '#5a5048';
+            ctx.fillRect(sx, baseY - 88, 5, 88);
+            ctx.fillRect(sx, baseY - 88, 22, 4);
+            ctx.fillStyle = '#ffd870';
+            ctx.fillRect(sx + 16, baseY - 86, 12, 12);
+            ctx.globalAlpha = alpha * 0.35;
+            ctx.beginPath();
+            ctx.arc(sx + 22, baseY - 80, 20, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffe9a0';
+            ctx.fill();
+            ctx.globalAlpha = alpha;
+        } else {
+            // 生け垣
+            ctx.fillStyle = '#88b868';
+            ctx.beginPath();
+            ctx.arc(sx + 16, baseY - 12, 16, Math.PI, 0);
+            ctx.arc(sx + 44, baseY - 12, 16, Math.PI, 0);
+            ctx.fill();
+            ctx.fillRect(sx, baseY - 12, 60, 12);
+        }
+    }
+    ctx.restore();
+}
+
 function drawFloatEffects() {
     for (var i = floatEffects.length - 1; i >= 0; i--) {
         var ef = floatEffects[i];
@@ -2085,6 +2164,11 @@ function render() {
         ctx.globalAlpha = 1;
     }
 
+    if (biomeState.current === 4) {
+        // はじまりの地（街）: 遠景=家並み・中景=街灯（山/木の代わり・チュートリアル専用）
+        drawTownSkyline(biMtnAlpha);
+        drawTownStreet(biTreeAlpha);
+    } else {
     // パララックス: 遠景山 (0.15x速度)
     var mountainDispW = 160, mountainDispH = 100;
     var mountainY = GAME_HEIGHT - mountainDispH - 74;
@@ -2108,6 +2192,7 @@ function render() {
         spriteManager.draw(ctx, 'bg_trees', 0, treeX, treeY, treeDispW, treeDispH, false);
     }
     ctx.globalAlpha = 1.0;
+    }
 
     // 背景雲 (夜は半透明に)
     var cloudAlpha = (biomeState.current === 3) ? 0.25 : 1;

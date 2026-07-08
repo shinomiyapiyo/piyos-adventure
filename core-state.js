@@ -424,11 +424,12 @@ var ZUKAN_ENTRIES = [
     { id: 'biome:desert',    cat: 'biome', nameKey: 'zukan_bio_desert', descKey: 'zukan_bio_desert_d' },
     { id: 'biome:snow',      cat: 'biome', nameKey: 'zukan_bio_snow',   descKey: 'zukan_bio_snow_d' },
     { id: 'biome:night',     cat: 'biome', nameKey: 'zukan_bio_night',  descKey: 'zukan_bio_night_d' },
+    { id: 'biome:town',      cat: 'biome', nameKey: 'zukan_bio_town',   descKey: 'zukan_bio_town_d' }, // はじまりの地（チュートリアル）
     { id: 'biome:bonus',     cat: 'biome', nameKey: 'zukan_bio_bonus',  descKey: 'zukan_bio_bonus_d' }
 ];
 // 図鑑コンプリート報酬（ゴールデンエッグ）。各カテゴリ100%＋全種コンプで付与。gameSettings.zukan.claimed で二重防止。
 var ZUKAN_REWARDS = { enemy: 3, item: 3, boss: 3, biome: 3, all: 10 };
-var ZUKAN_BIOME_NAMES = ['grassland', 'desert', 'snow', 'night']; // getBiomeIndex → biome:<name>
+var ZUKAN_BIOME_NAMES = ['grassland', 'desert', 'snow', 'night', 'town']; // getBiomeIndex → biome:<name>（4=はじまりの地・チュートリアル専用）
 var ZUKAN_POWERUP_IDS = { heart: 'item:heart', lemon_can: 'item:lemon', shield: 'item:shield', energy: 'item:energy', magnet: 'item:magnet' }; // powerUp.type → id（golden_eggは collectGoldenEgg 側で記録）
 
 // 発見を記録（初回のみ保存）。既発見なら何もしない＝スポーン/描画から毎フレーム呼んでも安い。

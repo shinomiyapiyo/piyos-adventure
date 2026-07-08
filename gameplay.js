@@ -28,6 +28,11 @@ function setupTutorialStage() {
     tutorialState.slowTimer = 0;
     tutorialState.bossGuided = false;
     tutorialState.skipArmed = 0;
+    // 舞台は専用バイオーム「はじまりの地」（街・index4）。遷移演出なしで最初から適用
+    biomeState.current = 4;
+    biomeState.previous = 4;
+    biomeState.transition = 0;
+    if (typeof bgCache !== 'undefined') bgCache = null; // 空グラデのキャッシュを街の空で作り直させる
     // 固定地形: 全面平地＋練習用の穴1つ（150m・幅90px）。resetGameが敷いた初期地形を丸ごと置き換える
     terrain.length = 0;
     var segs = [[0, 1500], [1590, 9400]]; // px（1m=10px）

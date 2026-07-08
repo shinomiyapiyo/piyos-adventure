@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.424";
+                content: "Ver.1.425";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.424</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.425</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1723,7 +1723,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.424
+ * ぴよ氏の冒険 v1.425
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3200,6 +3200,17 @@ var BIOME_CONFIGS = [
         ],
         mountainAlpha: 0.3, treeAlpha: 0.4,
         overlay: 'rgba(5,5,30,0.35)'
+    },
+    { // 4: はじまりの地（チュートリアル専用の街。getBiomeIndexでは出ない＝updateBiomeがtutorial中だけ選ぶ）
+        name: 'town',
+        sky: ['#8ec5e8', '#a6d8f0', '#ffe0b8', '#ffd8a8', '#f8c890'],
+        terrainPalette: [
+            'transparent','#e0d8c8','#c0b8a8','#a09888','#807868','#c8a060',
+            '#a08040','#887030','#e0c880','#8a8272','#f0e8d8','#9a9282',
+            '#9a9282','#c8c0b0','#daa520','#b8860b'
+        ],
+        mountainAlpha: 0.55, treeAlpha: 0.6,
+        overlay: null
     }
 ];
 
@@ -3297,7 +3308,8 @@ function retypeTerrainForBiome(biomeIdx) {
 }
 
 function updateBiome() {
-    var newIdx = getBiomeIndex(gameState.distance);
+    // チュートリアルは全編「はじまりの地」（街・index4）固定＝先へ進んでも砂漠等に遷移しない
+    var newIdx = tutorialState.active ? 4 : getBiomeIndex(gameState.distance);
     markZukanSeen('biome:' + ZUKAN_BIOME_NAMES[newIdx]); // ずかん: 今いるバイオームを発見（開始地=草原も毎フレーム記録・既発見なら無処理）
     // ボス戦直前・ボス戦中はバイオーム遷移を開始しない（草原に戻す必要なし）
     var bossDistance = bossDistanceFor(gameRound);
@@ -4558,7 +4570,8 @@ function isBuriedInSolid(obj) {
 
 function manageObjects() {
     var lb = gameState.camera.x - 200;
-    var rb = gameState.camera.x + GAME_WIDTH + 200;
+    // チュートリアルはコイン/土管などを開始時に前方へ確定配置するため、右側（未到達側）はカリングしない
+    var rb = tutorialState.active ? Number.MAX_SAFE_INTEGER : gameState.camera.x + GAME_WIDTH + 200;
 
     cullByX(enemies, lb, rb, false);
     cullByX(flyingEnemies, lb, rb, false);
