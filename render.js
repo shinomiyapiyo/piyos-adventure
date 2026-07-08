@@ -539,6 +539,29 @@ function spawnGoldenEggEffect(worldX, worldY) {
     }
 }
 
+// 装甲/非露出ボスに弾かれた「キン」演出（卵の殻・大蛇の横這い中など）:
+// ダメージ時の爆発(spawnExplosionEffect)とは色形を変え「効いていない」ことを伝える。
+// 白銀の十字グリント＋小リング＋銀の火花（SEは呼び出し側で playProtect）
+function spawnDeflectEffect(worldX, worldY) {
+    floatEffects.push({
+        type: 'deflect_glint',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 16
+    });
+    for (var i = 0; i < 6; i++) {
+        var angle = Math.random() * Math.PI * 2;
+        var speed = 2 + Math.random() * 2.5;
+        floatEffects.push({
+            type: 'deflect_spark',
+            worldX: worldX, worldY: worldY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 1.2, // やや上方向に飛散
+            timer: 0, duration: 16 + Math.floor(Math.random() * 10),
+            size: 1.5 + Math.random() * 1.5
+        });
+    }
+}
+
 // ─── エフェクト描画関数テーブル ───
 // key: floatEffectsのtype / 値: 描画関数(ef, wx, progress)
 // 新しいエフェクトを追加するときはここに1エントリ追加するだけでよい
@@ -869,6 +892,42 @@ var EFFECT_RENDERERS = {
                 ctx.arc(wx, ef.worldY, 8 + p2 * 58, 0, Math.PI * 2);
                 ctx.stroke();
             }
+            ctx.restore();
+        },
+        deflect_glint: function(ef, wx, progress) {
+            var a = 1 - progress;
+            var s = 6 + progress * 10;
+            ctx.save();
+            ctx.globalAlpha = a * 0.9;
+            // 小さな白リング（すぐ消える＝軽い手応え）
+            ctx.strokeStyle = '#e8f0ff';
+            ctx.lineWidth = 2 * (1 - progress) + 0.5;
+            ctx.beginPath();
+            ctx.arc(wx, ef.worldY, 3 + progress * 14, 0, Math.PI * 2);
+            ctx.stroke();
+            // 十字グリント（金属で「キン」と光る）
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = 'rgba(200,220,255,0.9)'; ctx.shadowBlur = 6;
+            ctx.beginPath();
+            ctx.moveTo(wx, ef.worldY - s); ctx.lineTo(wx + s * 0.22, ef.worldY);
+            ctx.lineTo(wx, ef.worldY + s); ctx.lineTo(wx - s * 0.22, ef.worldY);
+            ctx.closePath(); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(wx - s, ef.worldY); ctx.lineTo(wx, ef.worldY - s * 0.22);
+            ctx.lineTo(wx + s, ef.worldY); ctx.lineTo(wx, ef.worldY + s * 0.22);
+            ctx.closePath(); ctx.fill();
+            ctx.restore();
+        },
+        deflect_spark: function(ef, wx, progress) {
+            ef.worldX += ef.vx * frameSteps;
+            ef.worldY += ef.vy * frameSteps;
+            ef.vy += 0.12 * frameSteps;
+            ctx.save();
+            ctx.globalAlpha = (1 - progress) * 0.9;
+            ctx.fillStyle = '#dde8f5'; // 銀色（爆発の橙と差別化）
+            ctx.beginPath();
+            ctx.arc(ef.worldX, ef.worldY, ef.size * (1 - progress * 0.5), 0, Math.PI * 2);
+            ctx.fill();
             ctx.restore();
         },
         goldenegg_star: function(ef, wx, progress) {

@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.414";
+                content: "Ver.1.415";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.414</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.415</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1671,7 +1671,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.414
+ * ぴよ氏の冒険 v1.415
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -5649,18 +5649,26 @@ function updateBullets() {
 
         // ボスとの衝突
         if (bossState.boss && bossState.phase === 3 && aabb(b, bossState.boss)) {
-            // 装甲卵ボスは弱点露出中のみ弾が通る（それ以外は殻で弾く＝ダメージ0）
             // 卵/大蛇は「露出(exposed)中のみダメージが通る」設計（フィールド共用・gameplay.js:1875）。
-            // 従来は卵だけゲートしており、大蛇は非露出中(sweep/spit/strike上昇中)も弾が通っていた。
-            var _eggArmored = ((bossState.boss.kind === 'egg' || bossState.boss.kind === 'snake') && !bossState.boss.exposed);
-            if (!_eggArmored) bossState.boss.hp -= (b.dmg || 2) * critMultiplier(bossState.boss.x + bossState.boss.width / 2, bossState.boss.y); // エナジー弾2/電気弾1・メイド服で稀にクリティカル2倍
-            spawnExplosionEffect(b.x, b.y);
-            bullets.splice(i, 1);
-            if (soundManager) soundManager.playKill();
-            if (bossState.boss.hp <= 0) {
-                bossState.phase = 4;
-                bossState.defeatedTimer = 0;
+            var _armored = ((bossState.boss.kind === 'egg' || bossState.boss.kind === 'snake') && !bossState.boss.exposed);
+            if (_armored) {
+                // 装甲/非露出: 効いていない演出＝爆発や撃破SEは出さず「キン」(protect.mp3)＋弾きスパークのみ
+                spawnDeflectEffect(b.x, b.y);
+                if (soundManager) soundManager.playProtect();
+            } else {
+                // 空中ボス(カラス/フクロウ)は飛行中の弾ダメージ半減＝踏みと同じ設計（着地中=フル/空中=半分）。
+                // エナジー弾2→1・電気弾1→0.5。カラス着地=stun硬直中・フクロウ着地=perch止まり中。
+                var _flying = (bossState.boss.kind === 'hawk' && bossState.boss.hawkMode !== 'stun') ||
+                              (bossState.boss.kind === 'owl' && bossState.boss.owlMode !== 'perch');
+                bossState.boss.hp -= (b.dmg || 2) * (_flying ? 0.5 : 1) * critMultiplier(bossState.boss.x + bossState.boss.width / 2, bossState.boss.y); // メイド服で稀にクリティカル2倍
+                spawnExplosionEffect(b.x, b.y);
+                if (soundManager) soundManager.playKill();
+                if (bossState.boss.hp <= 0) {
+                    bossState.phase = 4;
+                    bossState.defeatedTimer = 0;
+                }
             }
+            bullets.splice(i, 1);
         }
     }
 }
