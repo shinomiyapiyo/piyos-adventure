@@ -718,6 +718,16 @@ function createConfirmBox(ids, onYes, onNo, opts) {
     };
 }
 
+// ステージショップの陳列（1.426）: チュートリアル=専用3品（いちごショート/たて/ゼロレモン）・
+// 通常ラン=チュートリアル限定品(tutorialOnly)を除く全品
+var TUTORIAL_SHOP_IDS = ['shortcake', 'barrier', 'lemon_special'];
+function stageShopLineup() {
+    if (tutorialState.active) {
+        return STAGE_SHOP_ITEMS.filter(function(i) { return TUTORIAL_SHOP_IDS.indexOf(i.id) >= 0; });
+    }
+    return STAGE_SHOP_ITEMS.filter(function(i) { return !i.tutorialOnly; });
+}
+
 // 店員セリフ表示の共通処理（ステージ/タイトルショップ共用）
 function setKeeperTextFor(elementId, key, replacements) {
     var txt = t(key);
@@ -854,9 +864,10 @@ function renderStageShopItem(item, purchaseCount) {
     var canBuy = gameState.score >= item.price && purchaseCount < item.maxPerVisit;
     if (item.stockItem && !stockHasRoom(item.id)) canBuy = false; // 永続枠/通常枠のどちらにも空きが無ければ買えない
     // ライフ上限チェック（回復薬はライフ10で買えない）
-    if (item.id === 'heal' && gameState.lives >= 10) canBuy = false;
+    var isHpItem = (item.id === 'heal' || item.id === 'shortcake'); // 即時回復系（そば/いちごショート）
+    if (isHpItem && gameState.lives >= 10) canBuy = false;
     var soldOut = purchaseCount >= item.maxPerVisit;
-    var hpFull = (item.id === 'heal' && gameState.lives >= 10);
+    var hpFull = (isHpItem && gameState.lives >= 10);
     // DQ風メニュー項目：> アイテム名　　　価格
     var isConfirming = (shopConfirmingItem === item.id);
     var isHighlighted = (shopHighlightedItem === item.id);
@@ -970,9 +981,10 @@ function updateStageShopUI() {
         html += renderShopMenuItem('_menu_leave', _ic('icon_door.png'), t('shop_close').replace('&gt; ', '').replace('> ', ''));
         if (closeBtn) closeBtn.parentElement.style.display = 'none';
     } else if (shopMode === 'buy') {
-        // 購入モード：商品リスト
-        for (var i = 0; i < STAGE_SHOP_ITEMS.length; i++) {
-            var item = STAGE_SHOP_ITEMS[i];
+        // 購入モード：商品リスト（チュートリアルは専用ラインナップ）
+        var lineup = stageShopLineup();
+        for (var i = 0; i < lineup.length; i++) {
+            var item = lineup[i];
             var count = shopState.purchaseCounts[item.id] || 0;
             html += renderStageShopItem(item, count);
         }
@@ -1102,7 +1114,7 @@ function selectShopItem(itemId) {
     var blockKey = null;
     var moneyBg = false;
     if (bought >= item.maxPerVisit) { blockKey = 'shop_keeper_sold_out'; moneyBg = true; }
-    else if (item.id === 'heal' && gameState.lives >= 10) { blockKey = 'shop_keeper_heal_maxhp'; }
+    else if ((item.id === 'heal' || item.id === 'shortcake') && gameState.lives >= 10) { blockKey = 'shop_keeper_heal_maxhp'; }
     else if (gameState.score < item.price) { blockKey = 'shop_keeper_no_money'; moneyBg = true; }
     else if (item.stockItem && !stockHasRoom(item.id) && !isTempReviveCase(item.id)) { blockKey = 'shop_keeper_stock_full'; }
     if (blockKey) {
@@ -1218,7 +1230,7 @@ function buyStageItem(itemId) {
     var item = STAGE_SHOP_ITEMS.find(function(i) { return i.id === itemId; });
     if (!item) return false;
     // ライフ上限チェック（回復薬はライフ10で買えない）
-    if (item.id === 'heal' && gameState.lives >= 10) {
+    if ((item.id === 'heal' || item.id === 'shortcake') && gameState.lives >= 10) {
         setKeeperText('shop_keeper_heal_maxhp');
         if (soundManager) soundManager.playDamage();
         shopConfirmingItem = null;
@@ -1266,7 +1278,9 @@ function buyStageItem(itemId) {
     markZukanSeen('item:' + itemId); // ずかん: ショップ品を購入＝発見
     var livesBefore = gameState.lives;
     if (!item.stockItem) item.effect();
-    if (item.id === 'heal' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore); // たちぐいそば：フルスクリーン演出＋実回復量の表示
+    // たちぐいそば/いちごショート：フルスクリーン演出＋実回復量の表示（画像だけ差し替えて同方式）
+    if (item.id === 'heal' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore);
+    if (item.id === 'shortcake' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore, 'images/shortcake_scene.png');
     if (soundManager) soundManager.playItem();
     setKeeperText('shop_keeper_buy_ok');
     setShopBg(getSuccessShopBg(), 1500);

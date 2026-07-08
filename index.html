@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.425";
+                content: "Ver.1.426";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.425</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.426</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1723,7 +1723,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.425
+ * ぴよ氏の冒険 v1.426
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1967,6 +1967,8 @@ var eyesImg = new Image();             // 来るぞ感の両目アップ
 eyesImg.src = 'images/eyes_closeup.png';
 var sobaSceneImg = new Image();        // たちぐいそば購入時のフルスクリーン演出（先読みで初回もカクつかない）
 sobaSceneImg.src = 'images/soba_shop_scene.png';
+var shortcakeSceneImg = new Image();   // いちごショート購入時のフルスクリーン演出（チュートリアルショップ限定）
+shortcakeSceneImg.src = 'images/shortcake_scene.png';
 var pipeImg = new Image();             // 入口（縦）土管
 pipeImg.src = 'images/item_pipe.png';
 var pipeSideImg = new Image();         // 出口（横）土管（口は左向き）
@@ -2136,7 +2138,8 @@ function showLoginBonusPopup() {
 
 // ─── たちぐいそば購入時のフルスクリーン演出（約1.2秒で自動クローズ・タップでスキップ） ───
 var sobaSceneActive = false;
-function showSobaScene(healedLives) {
+function showSobaScene(healedLives, imgPath) {
+    // imgPath省略時=たちぐいそば。いちごショート等は画像だけ差し替えて同じ演出を使う（1.426）
     if (sobaSceneActive) return;
     sobaSceneActive = true;
 
@@ -2149,7 +2152,7 @@ function showSobaScene(healedLives) {
         'opacity:0; transition:opacity 0.25s ease-out;';
 
     var img = document.createElement('img');
-    img.src = 'images/soba_shop_scene.png';
+    img.src = imgPath || 'images/soba_shop_scene.png';
     img.alt = '';
     img.style.cssText = 'max-width:100vw; max-height:100vh; width:auto; height:auto;' +
         'object-fit:contain; image-rendering:pixelated;' +
