@@ -499,6 +499,46 @@ function spawnLifeUpEffect(worldX, worldY) {
     });
 }
 
+// ゴールデンエッグ取得演出（レア通貨＝ハートの LIFE UP! とは別物）:
+// 金色「ゴールデンエッグ GET！」＋エッグアイコン＋金フラッシュ二重リング＋金スパーク放射＋時間差の星きらめき
+function spawnGoldenEggEffect(worldX, worldY) {
+    floatEffects.push({
+        type: 'goldenegg_text',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 100
+    });
+    floatEffects.push({
+        type: 'goldenegg_ring',
+        worldX: worldX, worldY: worldY,
+        timer: 0, duration: 45
+    });
+    // 金色スパークの放射（クリティカルより多め＝レア感）
+    for (var i = 0; i < 18; i++) {
+        var angle = (i / 18) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        var speed = 3 + Math.random() * 3;
+        floatEffects.push({
+            type: 'combo_spark',
+            worldX: worldX, worldY: worldY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 2,
+            timer: 0, duration: 40 + Math.floor(Math.random() * 20),
+            size: 2.5 + Math.random() * 3,
+            hue: 42 + Math.floor(Math.random() * 14) // 金〜黄
+        });
+    }
+    // 星のきらめき（周囲にランダム配置・timerを負にして時間差で点滅開始）
+    for (var s = 0; s < 7; s++) {
+        floatEffects.push({
+            type: 'goldenegg_star',
+            worldX: worldX + (Math.random() - 0.5) * 100,
+            worldY: worldY + (Math.random() - 0.5) * 80,
+            timer: -Math.floor(Math.random() * 30),
+            duration: 28,
+            size: 4 + Math.random() * 5
+        });
+    }
+}
+
 // ─── エフェクト描画関数テーブル ───
 // key: floatEffectsのtype / 値: 描画関数(ef, wx, progress)
 // 新しいエフェクトを追加するときはここに1エントリ追加するだけでよい
@@ -758,6 +798,102 @@ var EFFECT_RENDERERS = {
             ctx.shadowColor = 'rgba(255,170,0,1)'; ctx.shadowBlur = 15;
             ctx.fillStyle = '#ffe24a';
             ctx.fillText(ef.label, 0, 0);
+            ctx.restore();
+        },
+        goldenegg_text: function(ef, wx, progress) {
+            var gy = ef.worldY - progress * 40;
+            var alpha = progress < 0.1 ? progress / 0.1 : (progress > 0.75 ? (1 - progress) / 0.25 : 1);
+            // 大きく弾んで着地→ゆるくキラキラ脈動
+            var scale = progress < 0.2 ? 0.3 + 1.1 * (progress / 0.2) : 1.4 - (progress - 0.2) * 0.25;
+            scale *= 1 + Math.sin(ef.timer * 0.35) * 0.04;
+            var label = t('hud_goldenegg');
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.font = "900 24px 'M PLUS Rounded 1c', sans-serif";
+            var half = ctx.measureText(label).width / 2;
+            // 取得位置がプレイヤー(=画面左寄り)なので、文字全体(アイコン込み)が画面内に収まるようXをクランプ
+            var halfPx = (half + 40) * scale;
+            var cx = Math.max(gameState.camera.x + halfPx,
+                     Math.min(wx, gameState.camera.x + GAME_WIDTH - halfPx));
+            ctx.translate(cx, gy);
+            ctx.scale(scale, scale);
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 6; ctx.strokeStyle = '#6b4a00';
+            ctx.strokeText(label, 0, 0);
+            ctx.shadowColor = 'rgba(255,200,0,1)'; ctx.shadowBlur = 16;
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText(label, 0, 0);
+            ctx.shadowBlur = 0;
+            // 白いハイライトを重ねて金属感
+            ctx.globalAlpha = alpha * 0.55;
+            ctx.fillStyle = '#fff8d0';
+            ctx.fillText(label, 0, -1);
+            // 両側にゴールデンエッグのアイコン
+            if (goldenEggImg.complete && goldenEggImg.naturalWidth) {
+                ctx.globalAlpha = alpha;
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(goldenEggImg, -half - 32, -13, 26, 26);
+                ctx.drawImage(goldenEggImg, half + 6, -13, 26, 26);
+            }
+            ctx.restore();
+        },
+        goldenegg_ring: function(ef, wx, progress) {
+            ctx.save();
+            // 中心の金フラッシュ（出だしだけ）
+            if (progress < 0.4) {
+                var fa = (1 - progress / 0.4) * 0.7;
+                var fr = 12 + progress * 60;
+                var grad = ctx.createRadialGradient(wx, ef.worldY, 0, wx, ef.worldY, fr);
+                grad.addColorStop(0, 'rgba(255,255,220,' + fa + ')');
+                grad.addColorStop(0.5, 'rgba(255,215,0,' + (fa * 0.5) + ')');
+                grad.addColorStop(1, 'rgba(255,180,0,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(wx, ef.worldY, fr, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // 二重の金リング（2本目は遅延）
+            ctx.globalAlpha = (1 - progress) * 0.9;
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 5 * (1 - progress) + 1;
+            ctx.shadowColor = 'rgba(255,190,0,0.9)'; ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(wx, ef.worldY, 10 + progress * 75, 0, Math.PI * 2);
+            ctx.stroke();
+            if (progress > 0.2) {
+                var p2 = (progress - 0.2) / 0.8;
+                ctx.globalAlpha = (1 - p2) * 0.6;
+                ctx.strokeStyle = '#fff0a0';
+                ctx.lineWidth = 3 * (1 - p2);
+                ctx.beginPath();
+                ctx.arc(wx, ef.worldY, 8 + p2 * 58, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        },
+        goldenegg_star: function(ef, wx, progress) {
+            if (progress < 0) return; // 負timer=時間差待機中は描かない
+            var sa = Math.sin(progress * Math.PI); // ふわっと出てふわっと消える
+            var ss = ef.size * (0.5 + sa * 0.5);
+            ctx.save();
+            ctx.globalAlpha = sa * 0.95;
+            ctx.fillStyle = '#fff8c0';
+            ctx.shadowColor = 'rgba(255,215,0,0.9)'; ctx.shadowBlur = 8;
+            // 縦横2枚のひし形でキラッと光る星
+            ctx.beginPath();
+            ctx.moveTo(wx, ef.worldY - ss);
+            ctx.lineTo(wx + ss * 0.3, ef.worldY);
+            ctx.lineTo(wx, ef.worldY + ss);
+            ctx.lineTo(wx - ss * 0.3, ef.worldY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(wx - ss, ef.worldY);
+            ctx.lineTo(wx, ef.worldY - ss * 0.3);
+            ctx.lineTo(wx + ss, ef.worldY);
+            ctx.lineTo(wx, ef.worldY + ss * 0.3);
+            ctx.closePath();
+            ctx.fill();
             ctx.restore();
         },
         crit_ring: function(ef, wx, progress) {

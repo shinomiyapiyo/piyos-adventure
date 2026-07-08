@@ -97,6 +97,7 @@ ja: {
     hud_speedup: 'SPEED UP! Lv.',
     hud_pause: 'ポーズ中',
     hud_lifeup: 'LIFE UP!',
+    hud_goldenegg: 'ゴールデンエッグ GET！',
     // HUDラベル
     hud_kills_suffix: '体撃破',
     hud_level_prefix: 'レベル',
@@ -543,6 +544,7 @@ en: {
     hud_speedup: 'SPEED UP! Lv.',
     hud_pause: 'Paused',
     hud_lifeup: 'LIFE UP!',
+    hud_goldenegg: 'GOLDEN EGG!',
     hud_kills_suffix: ' kills',
     hud_level_prefix: 'Lv.',
     hud_next_prefix: 'Next ',

@@ -381,7 +381,7 @@ function updatePipeRoom() {
             if (addToStock(it.itemId)) { it.collected = true; markZukanSeen('item:' + it.itemId); if (soundManager) soundManager.playItem(); }
         } else if (it.type === 'golden_egg') {
             it.collected = true; collectGoldenEgg(false);
-            spawnLifeUpEffect(it.x + it.width / 2, it.y);
+            spawnGoldenEggEffect(it.x + it.width / 2, it.y);
             if (soundManager) soundManager.playItem();
         }
     }
