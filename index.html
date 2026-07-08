@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.436";
+                content: "Ver.1.437";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -826,7 +826,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.436</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.437</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1840,7 +1840,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.436
+ * ぴよ氏の冒険 v1.437
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2376,7 +2376,8 @@ var gameSettings = {
     lastGoldenEggTimestamp: 0,    // 時計巻き戻しガード用
     zukan: { seen: {}, kills: {}, new: {}, claimed: {} }, // ずかん: seen[id]=1(発見済み)/kills[id]=撃破数/new[id]=1(未閲覧の新規=NEW!)/claimed[key]=1(コンプ報酬受取済み)
     pouchLevel: 0,                // まほうのポーチ所持数＝永続ストック枠の数（上から順に永続化）
-    permaStock: []                // 永続ストック枠のアイテムid配列（枠index順・''=未割当）
+    permaStock: [],               // 永続ストック枠のアイテムid配列（枠index順・''=未割当）
+    reportedNames: []             // 通報したランキング名（この端末では以後＊＊＊表示）。上限50件・古い順に削除
 };
 (function loadSettings() {
     try {
@@ -2451,6 +2452,8 @@ var gameSettings = {
             // ── まほうのポーチ（永続ストック）──
             if (typeof parsed.pouchLevel === 'number') gameSettings.pouchLevel = parsed.pouchLevel;
             if (Array.isArray(parsed.permaStock)) gameSettings.permaStock = parsed.permaStock;
+            // ── 通報済み名のローカル非表示リスト（文字列のみ・上限50に無害化）──
+            if (Array.isArray(parsed.reportedNames)) gameSettings.reportedNames = parsed.reportedNames.filter(function(n) { return typeof n === 'string'; }).slice(-50);
 
             // ── 範囲外データの無害化（改ざん/破損した引き継ぎコード対策・正常データは不変） ──
             // pouchLevel と upgrades はループ回数/枠数に直結するため必須（巨大値だと枠構築ループでフリーズする）。
@@ -3963,8 +3966,9 @@ function showRankingByType(type) {
             var rank = i + 1;
             var color = rank <= 3 ? '#ffd700' : '#fff';
             var rawName = String(rankings[i].name || '???');
-            // 表示側の防御: 入力チェックを迂回してDBへ直接投入された不適切名も表示しない（通報用にdata-nameへは原文を保持）
-            var dispName = containsNgWord(rawName) ? '＊＊＊' : rawName;
+            // 表示側の防御: 入力チェックを迂回してDBへ直接投入された不適切名と、この端末で通報済みの名前は
+            // 表示しない（通報用にdata-nameへは原文を保持）
+            var dispName = (containsNgWord(rawName) || isReportedName(rawName)) ? '＊＊＊' : rawName;
             html += '<div class="rank-row" data-name="' + escapeHtml(rawName) + '" data-value="' + (Number(rankings[i][type]) || 0) + '" style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.3);color:#fff;font-size:1.5vw;">' +
                 '<span style="color:' + color + ';">' + rank + '. ' + escapeHtml(dispName) + '</span>' +
                 '<span style="color:#ffd700;font-weight:bold;">' + escapeHtml(rankings[i][type] || 0) + t(unitKeys[type]) + '</span></div>';
@@ -4037,6 +4041,10 @@ function handleRankingListTap(e) {
 function reportRankingName(name, value) {
     showConfirmModal(t('report_confirm').replace('{name}', name)).then(function(yes) {
         if (!yes) return;
+        // 通報者の画面ではこの瞬間から非表示（＊＊＊）。送信の成否に関わらず端末に永続（Apple UGC: 通報+ブロック）
+        addReportedName(name);
+        setRankingReportMode(false);
+        showRankingByType(currentRankingType || 'score'); // 即時反映
         if (!database) { showGameModal(t('report_fail')); return; }
         var data = {
             name: String(name).substring(0, 16),
@@ -4045,12 +4053,24 @@ function reportRankingName(name, value) {
             ts: Date.now()
         };
         database.ref('reports').push().set(data).then(function() {
-            setRankingReportMode(false);
             showGameModal(t('report_done'));
         }).catch(function() {
             showGameModal(t('report_fail'));
         });
     });
+}
+var REPORTED_NAMES_MAX = 50; // ローカル非表示リストの上限（超過は古い順に削除）
+function isReportedName(name) {
+    return (gameSettings.reportedNames || []).indexOf(String(name)) !== -1;
+}
+function addReportedName(name) {
+    if (!Array.isArray(gameSettings.reportedNames)) gameSettings.reportedNames = [];
+    var n = String(name);
+    if (gameSettings.reportedNames.indexOf(n) === -1) {
+        gameSettings.reportedNames.push(n);
+        while (gameSettings.reportedNames.length > REPORTED_NAMES_MAX) gameSettings.reportedNames.shift();
+        saveSettings();
+    }
 }
 
 // ─── 設定画面 ───
