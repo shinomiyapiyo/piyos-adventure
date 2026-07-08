@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.412";
+                content: "Ver.1.413";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.412</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.413</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1671,7 +1671,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.412
+ * ぴよ氏の冒険 v1.413
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1796,14 +1796,30 @@ var spriteManager = {
 
             for (var j = 0; j < config.files.length; j++) {
                 pending++;
-                (function(sName, fileIdx, filePath, shouldFlip) {
+                (function(sName, fileIdx, filePath, shouldFlip, recolor) {
                     var img = new Image();
                     img.onload = function() {
                         var cw = img.width, ch = img.height;
                         var canvas = document.createElement('canvas');
                         canvas.width = cw;
                         canvas.height = ch;
-                        canvas.getContext('2d').drawImage(img, 0, 0);
+                        var cctx = canvas.getContext('2d');
+                        cctx.drawImage(img, 0, 0);
+
+                        // 読み込み時色変換（recolor指定スプライトのみ・例: コウモリを夜空で見やすい灰色寄りに）
+                        if (recolor) {
+                            var idat = cctx.getImageData(0, 0, cw, ch);
+                            var d = idat.data;
+                            for (var p = 0; p < d.length; p += 4) {
+                                if (d[p + 3] === 0) continue; // 透明部は不変
+                                var lum = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+                                for (var k = 0; k < 3; k++) {
+                                    var v = d[p + k] + (lum - d[p + k]) * recolor.desat; // 灰色(輝度)へ寄せる
+                                    d[p + k] = Math.round(recolor.lift + v * (255 - recolor.lift) / 255); // 暗部を底上げ
+                                }
+                            }
+                            cctx.putImageData(idat, 0, 0);
+                        }
 
                         var flipped = document.createElement('canvas');
                         flipped.width = cw;
@@ -1824,7 +1840,7 @@ var spriteManager = {
                         onImageDone();
                     };
                     img.src = filePath;
-                })(spriteName, j, config.files[j], !!config.flip);
+                })(spriteName, j, config.files[j], !!config.flip, config.recolor || null);
             }
         }
 
@@ -5573,10 +5589,10 @@ function updateBullets() {
         }
     } else if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
                gameSettings.activeSkin === 'kigurumi' && gameState.gameStarted && !pipeRoomState.active) {
-        // きぐるみの特殊効果: エナジー弾が出ていない時だけ、3秒に1発 青白い電気弾（ダメージ1＝エナジー弾2の半分）。
+        // きぐるみの特殊効果: エナジー弾が出ていない時だけ、2秒に1発 青白い電気弾（ダメージ1＝エナジー弾2の半分）。
         // エナジー弾発動中(上のif)はこちらへ来ないので電気は止まり、終わればまた出続ける。
         gameState.zapFireTimer = (gameState.zapFireTimer || 0) + 1;
-        if (gameState.zapFireTimer >= 180) { // 3秒に1発
+        if (gameState.zapFireTimer >= 120) { // 2秒に1発
             gameState.zapFireTimer = 0;
             var zdir = player.facing === 'left' ? -1 : 1;
             bullets.push({

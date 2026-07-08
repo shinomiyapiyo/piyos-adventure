@@ -101,7 +101,10 @@ var IMAGE_SPRITES = {
         'images/enemy_bat_fly_2.png',
         'images/enemy_bat_fly_3.png',
         'images/enemy_bat_fly_4.png'
-    ] },
+    ],
+    // 元画像の暗紫色は夜空(濃紺)と同化して見にくいため、読み込み時に灰色寄りへ変換
+    // desat=彩度を落とす率(0-1) / lift=明るさの底上げ(0-255)
+    recolor: { desat: 0.75, lift: 100 } },
 
     // アイテム
     coin_spin:       { files: ['images/item_coin.png'] },
