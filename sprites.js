@@ -126,6 +126,19 @@ var IMAGE_SPRITES = {
         'images/boss_flame.png'
     ] },
 
+    // チュートリアルボス「ひよこ大王」(128x128, OpenAI立ち絵+Veoコマ切り出し)
+    // boss_rooster と同じフレーム順(0:idle,1:walk,2:rush,3:jump,4:summon,5:damaged,6:flame)に合わせる
+    // （AI/描画はニワトリ流用のため。4/6は行進/突進コマで代用＝チュートリアルでは召喚・火炎は使わない）
+    boss_hiyoko:     { files: [
+        'images/boss_hiyoko_idle.png',
+        'images/boss_hiyoko_walk_2.png',
+        'images/boss_hiyoko_rush.png',
+        'images/boss_hiyoko_jump.png',
+        'images/boss_hiyoko_walk_4.png',
+        'images/boss_hiyoko_damaged.png',
+        'images/boss_hiyoko_rush.png'
+    ] },
+
     // ボス2 (128x128, Gemini[gemini-3-pro-image]生成 闇の空中タカ - 5ポーズ)
     // 0:idle, 1:flap, 2:dive, 3:shoot, 4:damaged
     boss_hawk:       { files: [

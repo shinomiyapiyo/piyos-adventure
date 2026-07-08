@@ -391,6 +391,7 @@ var ZUKAN_ENTRIES = [
     { id: 'boss:egg',     cat: 'boss', nameKey: 'zukan_b_egg',     descKey: 'zukan_b_egg_d',     kind: 'egg',     kill: true },
     { id: 'boss:snake',   cat: 'boss', nameKey: 'zukan_b_snake',   descKey: 'zukan_b_snake_d',   kind: 'snake',   kill: true },
     { id: 'boss:owl',     cat: 'boss', nameKey: 'zukan_b_owl',     descKey: 'zukan_b_owl_d',     kind: 'owl',     kill: true },
+    { id: 'boss:hiyoko',  cat: 'boss', nameKey: 'zukan_b_hiyoko',  descKey: 'zukan_b_hiyoko_d',  kind: 'hiyoko',  kill: true }, // チュートリアル「はじまりの地」のボス
     // ── アイテム：フィールドで拾う ──
     { id: 'item:heart',      cat: 'item', nameKey: 'zukan_i_heart',  descKey: 'zukan_i_heart_d',  img: 'images/icon_lives.png' },
     { id: 'item:coin',       cat: 'item', nameKey: 'zukan_i_coin',   descKey: 'zukan_i_coin_d',   img: 'images/icon_money.png' },

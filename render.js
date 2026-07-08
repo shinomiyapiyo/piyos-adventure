@@ -1610,7 +1610,7 @@ function drawBoss(b) {
     } else if (b.kind === 'owl') {
         spriteManager.draw(ctx, 'boss_owl', 0, b.x, drawY, b.width, b.height, flipH);
     } else {
-        spriteManager.draw(ctx, isHawk ? 'boss_hawk' : 'boss_rooster', b.spriteFrame, b.x, drawY, b.width, b.height, flipH);
+        spriteManager.draw(ctx, isHawk ? 'boss_hawk' : (b.hiyoko ? 'boss_hiyoko' : 'boss_rooster'), b.spriteFrame, b.x, drawY, b.width, b.height, flipH);
     }
     // 怒り赤オーバーレイ（楕円放射グラデーション）※大蛇は頭が地上に出ている時だけ（地中で地面下に描かない）
     if (b.isAngry && (b.kind !== 'snake' || b.headY < GROUND_Y - 20)) {

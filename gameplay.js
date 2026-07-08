@@ -2119,7 +2119,7 @@ function setupBossArena() {
     // ボスオブジェクト生成
     // HP増はR6から（1週目R1-R5=一律100）＋上限（R6から+20/ラウンド・R12で240頭打ち）。難度はラウンド連動の攻撃パターンで上げる（bossEncounter参照）
     var bossMaxHp = BOSS_MAX_HP + Math.min(Math.max(0, gameRound - 5), BOSS_HP_ROUND_CAP) * BOSS_HP_PER_ROUND;
-    if (tutorialState.active) bossMaxHp = 30; // チュートリアル専用の弱いボス（R1=ニワトリ・専用スプライトは素材が来たら差し替え）
+    if (tutorialState.active) bossMaxHp = 30; // チュートリアル専用の弱いボス（AI=ニワトリ流用・見た目=ひよこ大王）
     bossState.maxHp = bossMaxHp;
     bossState.boss = {
         x: gameState.camera.x + GAME_WIDTH + 50,
@@ -2177,7 +2177,8 @@ function setupBossArena() {
     if (bossState.boss.kind === 'hawk' || bossState.boss.kind === 'owl') {
         bossState.boss.y = GROUND_Y - BOSS_HEIGHT - 80;
     }
-    markZukanSeen('boss:' + bossState.boss.kind); // ずかん: ボス遭遇（rooster/hawk）を発見
+    if (tutorialState.active && bossState.boss.kind === 'rooster') bossState.boss.hiyoko = true; // ひよこ大王（見た目/図鑑だけ専用・AIはニワトリ）
+    markZukanSeen(bossState.boss.hiyoko ? 'boss:hiyoko' : 'boss:' + bossState.boss.kind); // ずかん: ボス遭遇を発見
     bossState.phase = 2; // entering
     bossState.summonTimer = BOSS_SUMMON_INTERVAL;
     bossState.itemSpawnTimer = 480; // ボス戦アイテム初回出現まで8秒（ショップ導入で抑制）
@@ -2324,7 +2325,7 @@ function updateBoss() {
             gainScore(BOSS_DEFEAT_SCORE);
             gameState.enemyKills++; // ボス撃破を撃破数に加算
             gameState.bossKills++;  // デイリーミッション(ボス撃破)用
-            zukanAddKill('boss:' + b.kind); // ずかん: ボス撃破数を加算
+            zukanAddKill(b.hiyoko ? 'boss:hiyoko' : 'boss:' + b.kind); // ずかん: ボス撃破数を加算
             if (soundManager) soundManager.playBossFanfare();
             floatEffects.push({
                 type: 'boss_defeated_text',
