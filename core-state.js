@@ -380,7 +380,10 @@ var EGG_SHOP_ITEMS = [
     // コインマスター: 旧TITLE_SHOP_UPGRADES（円建て3段階・premium=準備中）から移設（1.439・課金前提価格）。
     // Lv1のみ＝コイン獲得+30%。付与は upgrades.coin_master=1（applyUpgradesのcoinBonus・図鑑seenIfをそのまま共用）
     { id: 'coin_master', type: 'upgrade', upgradeId: 'coin_master', nameKey: 'tshop_coin_master', descKey: 'tshop_coin_master_desc',
-      iconImg: 'images/icon_coin_master.png', eggPrice: 100 }
+      iconImg: 'images/icon_coin_master.png', eggPrice: 100 },
+    // 忍者ぴよ: 2段ジャンプ+1秒毎の自動手裏剣(ダメージ1)。（1.440・課金前提価格）
+    { id: 'skin_ninja', type: 'skin', skinId: 'ninja', nameKey: 'skin_ninja', descKey: 'egg_item_ninja_desc',
+      iconImg: 'images/skin_ninja_idle.png', eggPrice: 200 }
 ];
 // 永続化できないストック品（一度きりの奇跡＝復活薬）。理由はi18n egg_perma_no_revive で表示。
 var PERMA_STOCK_EXCLUDE = ['revive_potion'];

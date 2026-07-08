@@ -39,6 +39,19 @@ var IMAGE_SPRITES = {
     skin_kigurumi_jump: { files: ['images/skin_kigurumi_jump.png'] },
     skin_kigurumi_fall: { files: ['images/skin_kigurumi_fall.png'] },
 
+    // 忍者ぴよスキン（エッグ交換🥚200・黄色装束+頭巾。歩行=Veo veo_ninja_walk.mp4 f_27/33/38/44）
+    skin_ninja_idle: { files: ['images/skin_ninja_idle.png'] },
+    skin_ninja_walk: { files: [
+        'images/skin_ninja_walk_1.png',
+        'images/skin_ninja_walk_2.png',
+        'images/skin_ninja_walk_3.png',
+        'images/skin_ninja_walk_4.png'
+    ]},
+    skin_ninja_jump: { files: ['images/skin_ninja_jump.png'] },
+    skin_ninja_fall: { files: ['images/skin_ninja_fall.png'] },
+    // 忍者の手裏剣弾（グレー=夜ステージでも視認可・drawBulletで回転描画）
+    shuriken: { files: ['images/shuriken.png'] },
+
     // 敵 (左向き固定 - 元画像が右向きのものだけflip:trueで反転)
     chick_walk:        { files: [
         'images/enemy_chick_walk_1.png',

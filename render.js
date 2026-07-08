@@ -1604,6 +1604,13 @@ function drawBullet(b) {
         ctx.strokeStyle = '#5bb8ff'; ctx.lineWidth = 1.3; ctx.stroke();
         ctx.shadowBlur = 8; ctx.fillStyle = '#eaf6ff';
         ctx.beginPath(); ctx.arc(zx, zy, 2.6, 0, Math.PI * 2); ctx.fill();
+    } else if (b.isShuriken) {
+        // 忍者の手裏剣（グレー・回転・薄い発光=夜ステージでの視認性）
+        var shx = b.x + b.width / 2, shy = b.y + b.height / 2;
+        ctx.shadowColor = '#dfe7ee'; ctx.shadowBlur = 7;
+        ctx.translate(shx, shy);
+        ctx.rotate(b.spin || 0);
+        spriteManager.draw(ctx, 'shuriken', 0, -b.width / 2, -b.height / 2, b.width, b.height, false);
     } else {
         // エナジー弾（発光）
         ctx.shadowColor = '#ff6600';
