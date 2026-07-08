@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.415";
+                content: "Ver.1.416";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.415</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.416</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1284,9 +1284,9 @@
                         <img src="images/keeper_title.png" class="dq-keeper-img">
                         <span id="tshopKeeperText" class="dq-keeper-text"></span>
                     </div>
-                    <!-- はい/いいえ確認ボックス（DQ風） -->
+                    <!-- 確認ダイアログ（DQ風・セリフ枠のすぐ右に表示: かう/かわない・うる/うらない・はい/いいえ。位置はJSがfixedで算出） -->
                     <div id="tshopConfirmBox" style="display:none;
-                        position: absolute; left: 4px; top: 100%; margin-top: 2px;
+                        position: fixed; left: 0; top: 0;
                         background: rgba(0,0,48,0.97);
                         border: 2px solid #fff; border-radius: 5px;
                         padding: 3px 0; min-width: 90px; z-index: 10;
@@ -1671,7 +1671,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.415
+ * ぴよ氏の冒険 v1.416
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -5656,11 +5656,14 @@ function updateBullets() {
                 spawnDeflectEffect(b.x, b.y);
                 if (soundManager) soundManager.playProtect();
             } else {
-                // 空中ボス(カラス/フクロウ)は飛行中の弾ダメージ半減＝踏みと同じ設計（着地中=フル/空中=半分）。
-                // エナジー弾2→1・電気弾1→0.5。カラス着地=stun硬直中・フクロウ着地=perch止まり中。
+                // 空中ボス(カラス/フクロウ)は飛行中のエナジー弾ダメージ半減(2→1)＝踏みと同じ設計（着地中=フル/空中=半分）。
+                // 電気弾はもともと1で、ゲーム内に0.5という単位は無いので据置（常に1）。
+                // カラス着地=stun硬直中・フクロウ着地=perch止まり中。
                 var _flying = (bossState.boss.kind === 'hawk' && bossState.boss.hawkMode !== 'stun') ||
                               (bossState.boss.kind === 'owl' && bossState.boss.owlMode !== 'perch');
-                bossState.boss.hp -= (b.dmg || 2) * (_flying ? 0.5 : 1) * critMultiplier(bossState.boss.x + bossState.boss.width / 2, bossState.boss.y); // メイド服で稀にクリティカル2倍
+                var _dmg = b.dmg || 2;
+                if (_flying && _dmg > 1) _dmg /= 2;
+                bossState.boss.hp -= _dmg * critMultiplier(bossState.boss.x + bossState.boss.width / 2, bossState.boss.y); // メイド服で稀にクリティカル2倍
                 spawnExplosionEffect(b.x, b.y);
                 if (soundManager) soundManager.playKill();
                 if (bossState.boss.hp <= 0) {

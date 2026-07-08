@@ -474,32 +474,50 @@ var shopSellHighlightIndex = null; // 売却モードでハイライト中のス
 // カーソル状態は内部に保持する。
 // ids: { box, keeperBox, itemsList, yes, no } 各要素ID
 // onYes / onNo: カーソルが合った状態で再タップされたときの決定処理
-function createConfirmBox(ids, onYes, onNo) {
+// opts.instant: true=単タップで決定（従来はカーソル合わせ→再タップの2段階）
+// opts.sideAnchor: true=店員セリフ枠のすぐ右に浮かせる（リストと重ならない＝margin/pointer-events操作なし）
+// show(visible, labels): labels={yes,no} でボタン文言を差し替え（省略時は はい/いいえ）
+function createConfirmBox(ids, onYes, onNo, opts) {
+    opts = opts || {};
     var cursor = null; // null | 'yes' | 'no'
+    var labels = null; // {yes,no} 表示文言（かう/かわない・うる/うらない等）
 
     function updateCursor() {
         var yesEl = document.getElementById(ids.yes);
         var noEl = document.getElementById(ids.no);
+        var yesTxt = (labels && labels.yes) || t('shop_confirm_yes');
+        var noTxt = (labels && labels.no) || t('shop_confirm_no');
         if (yesEl) {
-            yesEl.textContent = (cursor === 'yes' ? '> ' : '　 ') + t('shop_confirm_yes');
+            yesEl.textContent = (cursor === 'yes' ? '> ' : '　 ') + yesTxt;
             yesEl.style.background = cursor === 'yes' ? 'rgba(255,255,255,0.15)' : '';
         }
         if (noEl) {
-            noEl.textContent = (cursor === 'no' ? '> ' : '　 ') + t('shop_confirm_no');
+            noEl.textContent = (cursor === 'no' ? '> ' : '　 ') + noTxt;
             noEl.style.background = cursor === 'no' ? 'rgba(255,255,255,0.15)' : '';
         }
     }
 
-    function show(visible) {
+    function show(visible, newLabels) {
         var box = document.getElementById(ids.box);
         var keeperBox = document.getElementById(ids.keeperBox);
         var itemsList = document.getElementById(ids.itemsList);
         cursor = null;
-        if (box) box.style.display = visible ? 'block' : 'none';
+        labels = newLabels || null;
         if (visible) {
+            if (opts.sideAnchor && box && keeperBox) {
+                // セリフ枠のすぐ右に固定表示（fixed=パネルのoverflow:hiddenにクリップされない）。
+                // 枠のtopは説明の長さに依らず一定なので位置が安定する
+                var kr = keeperBox.getBoundingClientRect();
+                box.style.position = 'fixed';
+                box.style.left = (kr.right + 8) + 'px';
+                box.style.top = kr.top + 'px';
+                box.style.marginTop = '0';
+            }
             if (soundManager) soundManager.playConfirmSelect();
             updateCursor();
         }
+        if (box) box.style.display = visible ? 'block' : 'none';
+        if (opts.sideAnchor) return; // リストと重ならないので以下の退避処理は不要（一覧は表示中もタップ可能）
         // 確認ボックス表示中はmarginを広げてアイテムリストとの重なりを防止
         if (keeperBox) {
             keeperBox.style.marginBottom = visible ? '54px' : '3px';
@@ -510,6 +528,12 @@ function createConfirmBox(ids, onYes, onNo) {
     }
 
     function tap(which, action) {
+        if (opts.instant) { // 単タップで決定（ダイアログの表示自体が確認ステップ）
+            cursor = null;
+            if (soundManager) soundManager.playCursorMove();
+            action();
+            return;
+        }
         if (cursor !== which) {
             cursor = which;
             if (soundManager) soundManager.playCursorMove();
@@ -1153,12 +1177,16 @@ function setTshopKeeperText(key, replacements) {
 }
 
 // タイトルショップ用 確認ボックス（決定処理: confirmTshopBuy / cancelTshopBuy）
+// 1.416: アイテム1タップで説明枠のすぐ右に「かう/かわない」を出す方式（単タップ決定・一覧は表示中もタップ可＝選択切り替え）
 var tshopConfirmUI = createConfirmBox(
     { box: 'tshopConfirmBox', keeperBox: 'tshopKeeperBox', itemsList: 'titleShopList', yes: 'tshopConfirmYes', no: 'tshopConfirmNo' },
     function() { confirmTshopBuy(); },
-    function() { cancelTshopBuy(); }
+    function() { cancelTshopBuy(); },
+    { instant: true, sideAnchor: true }
 );
-function showTshopConfirm(show) { tshopConfirmUI.show(show); }
+function showTshopConfirm(show, labels) { tshopConfirmUI.show(show, labels); }
+function tshopBuyLabels() { return { yes: t('shop_confirm_buy'), no: t('shop_confirm_nobuy') }; }
+function tshopSellLabels() { return { yes: t('shop_confirm_sell'), no: t('shop_confirm_nosell') }; }
 function handleTshopConfirmYes() { tshopConfirmUI.tapYes(); }
 function handleTshopConfirmNo() { tshopConfirmUI.tapNo(); }
 
@@ -1216,11 +1244,19 @@ function cancelTshopBuy() {
     }
     showTshopConfirm(false);
     tshopConfirmingItem = null;
-    setTshopKeeperText('tshop_keeper_greet');
+    // モードに合った店員あいさつへ戻す（買う=何を買うのだ？/売る=何を売るのだ？）
+    setTshopKeeperText(tshopMode === 'buy' ? 'tshop_keeper_buy_greet' : tshopMode === 'sell' ? 'tshop_keeper_sell_greet' : 'tshop_keeper_greet');
     updateTitleShopUI();
 }
 
 function selectTshopItem(upgradeId) {
+    // 退店確認が開いたまま項目をタップしたら、退店を取り下げて通常操作へ
+    // （ダイアログ表示中も一覧はタップ可能なので、ここで状態をほどく）
+    if (tshopLeaving) {
+        tshopLeaving = false;
+        showTshopConfirm(false);
+        setTshopKeeperText('tshop_keeper_greet');
+    }
     // ── メニューモード（ステージショップ同様：買う/売る/広告/出る をまず選ぶ）──
     if (tshopMode === 'menu') {
         if (upgradeId === '_tmenu_buy') {
@@ -1249,12 +1285,12 @@ function selectTshopItem(upgradeId) {
     if (upgradeId && (upgradeId.indexOf('_psell_') === 0 || upgradeId.indexOf('_nsell_') === 0)) { selectTshopSell(upgradeId); return; } // 売却行(ポーチ/通常)
     var upgrade = TITLE_SHOP_UPGRADES.find(function(u) { return u.id === upgradeId; });
     if (!upgrade) return;
-    // 確認ダイアログ表示中は無視
-    if (tshopConfirmingItem) return;
     var currentLevel = (gameSettings.upgrades || {})[upgradeId] || 0;
     var isMax = currentLevel >= upgrade.maxLevel;
-    // 課金アイテム（スターターパック購入済みなら解放）
+    // 課金アイテム（スターターパック購入済みなら解放）: 説明のみ・ダイアログは出さない
     if (upgrade.premium && !gameSettings.purchased['starter_pack']) {
+        showTshopConfirm(false);
+        tshopConfirmingItem = null;
         if (soundManager) soundManager.playCursorMove();
         tshopHighlightedItem = upgradeId;
         var premEl = document.getElementById('tshopKeeperText');
@@ -1265,8 +1301,10 @@ function selectTshopItem(upgradeId) {
         updateTitleShopUI();
         return;
     }
-    // MAX到達
+    // MAX到達: 案内のみ・ダイアログは出さない
     if (isMax) {
+        showTshopConfirm(false);
+        tshopConfirmingItem = null;
         if (soundManager) soundManager.playDamage();
         tshopHighlightedItem = upgradeId;
         setTshopKeeperText('tshop_keeper_max');
@@ -1274,25 +1312,16 @@ function selectTshopItem(upgradeId) {
         return;
     }
     var price = upgrade.prices[currentLevel];
-    // 1回目タップ：ハイライト＋説明表示
-    if (tshopHighlightedItem !== upgradeId) {
-        tshopHighlightedItem = upgradeId;
-        if (soundManager) soundManager.playCursorMove();
-        var effArr = (gameSettings.language === 'en' && upgrade.effectDescEn) ? upgrade.effectDescEn : upgrade.effectDesc;
-        var desc = t(upgrade.descKey) + ' → ' + effArr[currentLevel];
-        var el = document.getElementById('tshopKeeperText');
-        if (el) el.innerHTML = (upgrade.iconImg ? '<img src="' + upgrade.iconImg + '" class="ui-icon">' : '') + ' ' + escapeHtml(t(upgrade.nameKey)) + '\n' + escapeHtml(desc);
-        updateTitleShopUI();
-        return;
-    }
-    // 2回目タップ：購入確認ダイアログ
+    // 1タップで選択＝説明＋すぐ右に「かう/かわない」ダイアログ（1.416: 同じ行を2度タップする方式を廃止）。
+    // 別の行をタップすればダイアログを閉じずに選択がそのまま切り替わる
+    tshopHighlightedItem = upgradeId;
     tshopConfirmingItem = upgradeId;
-    if (soundManager) soundManager.playConfirmSelect();
-    setTshopKeeperText('tshop_keeper_buy_confirm', {
-        item: t(upgrade.nameKey),
-        price: formatTshopPrice(price)
-    });
-    showTshopConfirm(true);
+    var effArr = (gameSettings.language === 'en' && upgrade.effectDescEn) ? upgrade.effectDescEn : upgrade.effectDesc;
+    var desc = t(upgrade.descKey) + ' → ' + effArr[currentLevel];
+    var el = document.getElementById('tshopKeeperText');
+    if (el) el.innerHTML = (upgrade.iconImg ? '<img src="' + upgrade.iconImg + '" class="ui-icon">' : '') + ' ' + escapeHtml(t(upgrade.nameKey)) + '\n' + escapeHtml(desc) +
+        '\n<span style="color:#ffd700;">' + escapeHtml(t('tshop_buy_q', { price: formatTshopPrice(price) + t('currency_unit') })) + '</span>';
+    showTshopConfirm(true, tshopBuyLabels());
     updateTitleShopUI();
 }
 
@@ -1363,22 +1392,15 @@ function titleShopOnBack() {
     if (isScreenVisible('titleShopScreen')) history.pushState({ screen: 'titleShop' }, '');
 }
 function selectTshopSell(key) {
-    if (tshopConfirmingItem) return;
     var itemId = tshopSellItemId(key);
     var shopItem = itemId ? STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; }) : null;
     if (!shopItem) return;
     var sellPrice = Math.floor(shopItem.price / 2);
-    if (tshopHighlightedItem !== key) { // 1回目タップ: 説明＋ハイライト
-        tshopHighlightedItem = key;
-        if (soundManager) soundManager.playCursorMove();
-        setTshopKeeperText('tshop_keeper_sell_desc', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
-        updateTitleShopUI();
-        return;
-    }
-    tshopConfirmingItem = key; // 2回目タップ: 売却確認
-    if (soundManager) soundManager.playConfirmSelect();
+    // 1タップで選択＝内容確認＋すぐ右に「うる/うらない」ダイアログ（1.416）
+    tshopHighlightedItem = key;
+    tshopConfirmingItem = key;
     setTshopKeeperText('tshop_keeper_sell_confirm', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
-    showTshopConfirm(true);
+    showTshopConfirm(true, tshopSellLabels());
     updateTitleShopUI();
 }
 function confirmTshopSell(key) {
@@ -1411,28 +1433,24 @@ function isEggItemOwned(item) {
 }
 function selectEggShopItem(itemId) {
     var item = eggShopItemById(itemId);
-    if (!item || tshopConfirmingItem) return;
+    if (!item) return;
     var key = 'egg:' + itemId;
-    if (isEggItemOwned(item)) { // 交換済み: 案内だけ
+    if (isEggItemOwned(item)) { // 交換済み: 案内だけ・ダイアログは出さない
+        showTshopConfirm(false);
+        tshopConfirmingItem = null;
         if (soundManager) soundManager.playCursorMove();
         tshopHighlightedItem = key;
         setTshopKeeperText(item.type === 'pouch' ? 'tshop_keeper_egg_owned_pouch' : 'tshop_keeper_egg_owned');
         updateTitleShopUI();
         return;
     }
-    if (tshopHighlightedItem !== key) { // 1回目タップ: ハイライト＋説明
-        tshopHighlightedItem = key;
-        if (soundManager) soundManager.playCursorMove();
-        var el = document.getElementById('tshopKeeperText');
-        if (el) el.innerHTML = '<img src="' + item.iconImg + '" class="ui-icon"> ' + escapeHtml(t(item.nameKey)) + '\n' + escapeHtml(t(item.descKey));
-        updateTitleShopUI();
-        return;
-    }
-    // 2回目タップ: 交換確認
+    // 1タップで選択＝説明＋すぐ右に「かう/かわない」ダイアログ（1.416）
+    tshopHighlightedItem = key;
     tshopConfirmingItem = key;
-    if (soundManager) soundManager.playConfirmSelect();
-    setTshopKeeperText('tshop_keeper_egg_confirm', { item: t(item.nameKey), price: item.eggPrice });
-    showTshopConfirm(true);
+    var el = document.getElementById('tshopKeeperText');
+    if (el) el.innerHTML = '<img src="' + item.iconImg + '" class="ui-icon"> ' + escapeHtml(t(item.nameKey)) + '\n' + escapeHtml(t(item.descKey)) +
+        '\n<span style="color:#ffd700;">' + escapeHtml(t('tshop_egg_q', { price: item.eggPrice })) + '</span>';
+    showTshopConfirm(true, tshopBuyLabels());
     updateTitleShopUI();
 }
 function confirmEggBuy(itemId) {
