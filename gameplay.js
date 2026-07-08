@@ -1610,6 +1610,7 @@ function confirmTshopSell(key) {
 function eggShopItemById(id) { return EGG_SHOP_ITEMS.find(function(i) { return i.id === id; }) || null; }
 function isEggItemOwned(item) {
     if (item.type === 'pouch') return (gameSettings.pouchLevel || 0) >= stockState.maxSlots; // 永続枠が上限＝MAX（これ以上買えない）
+    if (item.type === 'upgrade') return ((gameSettings.upgrades || {})[item.upgradeId] || 0) > 0; // Lv1のみの永続アイテム（コインマスター等）
     return item.type === 'skin' && !!(gameSettings.ownedSkins && gameSettings.ownedSkins.indexOf(item.skinId) !== -1);
 }
 function selectEggShopItem(itemId) {
@@ -1621,7 +1622,7 @@ function selectEggShopItem(itemId) {
         tshopConfirmingItem = null;
         if (soundManager) soundManager.playCursorMove();
         tshopHighlightedItem = key;
-        setTshopKeeperText(item.type === 'pouch' ? 'tshop_keeper_egg_owned_pouch' : 'tshop_keeper_egg_owned');
+        setTshopKeeperText(item.type === 'skin' ? 'tshop_keeper_egg_owned' : 'tshop_keeper_egg_owned_pouch'); // skin以外は「きせかえで装備」と言わない汎用文
         updateTitleShopUI();
         return;
     }
@@ -1655,7 +1656,7 @@ function confirmEggBuy(itemId) {
         return;
     }
     // 付与処理が未実装の type は減算前に弾く（新type追加時の実装漏れでエッグだけ消えるのを防ぐ）
-    if (item.type !== 'skin' && item.type !== 'pouch') {
+    if (item.type !== 'skin' && item.type !== 'pouch' && item.type !== 'upgrade') {
         if (soundManager) soundManager.playDamage();
         showTshopConfirm(false);
         tshopConfirmingItem = null;
@@ -1667,6 +1668,10 @@ function confirmEggBuy(itemId) {
     if (item.type === 'pouch') {
         gameSettings.pouchLevel = (gameSettings.pouchLevel || 0) + 1; // 永続枠+1（上から順に永続化）
         buildPermaSlots(); // 新しい金枠をストック表示に即反映（permaStockから再構築・購入時に空枠が増える）
+    } else if (item.type === 'upgrade') { // Lv1のみの永続アイテム（コインマスター等）
+        if (!gameSettings.upgrades) gameSettings.upgrades = {};
+        gameSettings.upgrades[item.upgradeId] = 1;
+        applyUpgrades(); // 効果を即反映（円建てアップグレード購入と同じ扱い）
     } else { // skin
         if (!gameSettings.ownedSkins) gameSettings.ownedSkins = [];
         if (gameSettings.ownedSkins.indexOf(item.skinId) === -1) gameSettings.ownedSkins.push(item.skinId);
@@ -1675,7 +1680,9 @@ function confirmEggBuy(itemId) {
     if (soundManager) soundManager.playItem();
     showTshopConfirm(false);
     tshopConfirmingItem = null;
-    setTshopKeeperText(item.type === 'pouch' ? 'tshop_keeper_egg_bought_pouch' : 'tshop_keeper_egg_bought'); // ポーチは「きせかえ装備」案内を出さない
+    // skin以外は「きせかえ装備」案内を出さない（ポーチ=金枠案内・upgrade=永続効果案内）
+    setTshopKeeperText(item.type === 'pouch' ? 'tshop_keeper_egg_bought_pouch'
+        : item.type === 'upgrade' ? 'tshop_keeper_egg_bought_upgrade' : 'tshop_keeper_egg_bought');
     updateTitleShopUI();
     if (item.type === 'pouch') updateStockUI(); // 永続枠（金枠）の表示を更新
 }
@@ -1847,7 +1854,7 @@ function applyUpgrades() {
     }
     var ups = gameSettings.upgrades || {};
     var coinLv = ups.coin_master || 0;
-    gameState.coinBonus = 1.0 + coinLv * 0.1;
+    gameState.coinBonus = coinLv > 0 ? 1.3 : 1.0; // コインマスター（🥚こうかん・Lv1のみ）: コイン獲得+30%
     var toughLv = ups.toughness || 0;
     gameState.lives = 5 + toughLv;
     var stockLv = ups.stock_expand || 0;

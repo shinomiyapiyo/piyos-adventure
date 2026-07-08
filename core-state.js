@@ -349,8 +349,6 @@ var STAGE_SHOP_ITEMS = [
 ];
 
 var TITLE_SHOP_UPGRADES = [
-    { id: 'coin_master', nameKey: 'tshop_coin_master', descKey: 'tshop_coin_master_desc',
-      icon: '', iconImg: 'images/icon_coin_master.png', maxLevel: 3, prices: [5000, 15000, 30000], effectDesc: ['+10%', '+20%', '+30%'], premium: true },
     { id: 'special_move', nameKey: 'tshop_special_move', descKey: 'tshop_special_move_desc',
       icon: '', iconImg: 'images/icon_special_move.png', maxLevel: 3, prices: [10000, 50000, 150000], effectDesc: ['威力3', '威力5', '威力8'], effectDescEn: ['Power 3', 'Power 5', 'Power 8'] },
     { id: 'toughness', nameKey: 'tshop_toughness', descKey: 'tshop_toughness_desc',
@@ -368,7 +366,8 @@ var TITLE_SHOP_UPGRADES = [
 ];
 
 // ─── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ───
-// 方針: エッグは性能を売らない（コスメ＋非スコア実用のみ）。課金の目玉とは別レーン。
+// 方針: 当初「エッグは性能を売らない」だったが、1.398（スキンに戦闘効果）→1.439（コインマスター🥚100）で緩和。
+//       現在は将来的な課金前提の高額プレミアム枠（性能アイテム）もエッグで販売する。
 // ⚠ 新しい type を追加する時は gameplay.js の confirmEggBuy（付与）と isEggItemOwned（所持判定）に
 //   対応を追加すること。未対応 type は購入時に減算されず「まだこうかんできない」と断られる（安全側）。
 var EGG_SHOP_ITEMS = [
@@ -377,7 +376,11 @@ var EGG_SHOP_ITEMS = [
     { id: 'perma_stock', type: 'pouch', nameKey: 'egg_pouch', descKey: 'egg_pouch_desc',
       iconImg: 'images/item_pouch.png', eggPrice: 10 },
     { id: 'skin_kigurumi', type: 'skin', skinId: 'kigurumi', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc',
-      iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 10 } // 1.424で🥚5→10（入手が簡単すぎたため）
+      iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 10 }, // 1.424で🥚5→10（入手が簡単すぎたため）
+    // コインマスター: 旧TITLE_SHOP_UPGRADES（円建て3段階・premium=準備中）から移設（1.439・課金前提価格）。
+    // Lv1のみ＝コイン獲得+30%。付与は upgrades.coin_master=1（applyUpgradesのcoinBonus・図鑑seenIfをそのまま共用）
+    { id: 'coin_master', type: 'upgrade', upgradeId: 'coin_master', nameKey: 'tshop_coin_master', descKey: 'tshop_coin_master_desc',
+      iconImg: 'images/icon_coin_master.png', eggPrice: 100 }
 ];
 // 永続化できないストック品（一度きりの奇跡＝復活薬）。理由はi18n egg_perma_no_revive で表示。
 var PERMA_STOCK_EXCLUDE = ['revive_potion'];
