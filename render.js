@@ -1199,8 +1199,9 @@ function drawPlayer(x, y) {
     // 未完成スキンを出さないよう必ずデフォルト見た目で描画する。
     // 未登録のスキンID（壊れたセーブ・sprites.js登録漏れ）はポーズ単位でデフォルトへフォールバック（透明プレイヤー防止）。
     // 判定は spriteManager.cache（IMAGE_SPRITES はロード完了後に null 解放されるため使わない）
-    var skinKey = 'skin_' + gameSettings.activeSkin + '_' + pose;
-    spriteName = (SKIN_FEATURE_ENABLED && gameSettings.activeSkin && spriteManager.cache[skinKey]) ? skinKey : 'player_' + pose;
+    var runSkin = runActiveSkin(); // チュートリアル中はデフォルト（サンドボックス）
+    var skinKey = 'skin_' + runSkin + '_' + pose;
+    spriteName = (SKIN_FEATURE_ENABLED && runSkin && spriteManager.cache[skinKey]) ? skinKey : 'player_' + pose;
 
     spriteManager.draw(ctx, spriteName, frameIdx, x, y, player.width, player.height, flipH);
     player.animFrame += frameSteps;

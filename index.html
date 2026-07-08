@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.420";
+                content: "Ver.1.421";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.420</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.421</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1723,7 +1723,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.420
+ * ぴよ氏の冒険 v1.421
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3416,18 +3416,19 @@ function startGame() {
 
     if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) requestFullscreen();
 
-    applyUpgrades();
-    // 永続ストック枠を現在の pouchLevel で構築。resetGame を経由しない初回プレイやタイトルショップ購入直後でも確実に反映。
-    // resetGame 済みの場合も permaStock から再構築するだけ（used=false リセット＝ラン開始として正しい・二重処理なし）。
-    buildPermaSlots();
     // チュートリアル「はじまりの地」（Phase3.5）: 未クリアの新規プレイヤーは毎回ここから。
-    // クリア後は設定「チュートリアルをあそぶ」（tutorialState.forced）で再プレイ可
+    // クリア後は設定「チュートリアルをあそぶ」（tutorialState.forced）で再プレイ可。
+    // ※ applyUpgrades/buildPermaSlots より先に判定する＝サンドボックス（案A・1.421）が正しく効く
     if (tutorialState.forced ||
         (!gameSettings.tutorialCleared && (((gameSettings.achievementStats || {}).totalPlays) || 0) === 0)) {
         setupTutorialStage();
     } else {
         tutorialState.active = false;
     }
+    applyUpgrades();
+    // 永続ストック枠を現在の pouchLevel で構築。resetGame を経由しない初回プレイやタイトルショップ購入直後でも確実に反映。
+    // resetGame 済みの場合も permaStock から再構築するだけ（used=false リセット＝ラン開始として正しい・二重処理なし）。
+    buildPermaSlots();
     var _tsb = document.getElementById('tutorialSkipBtn');
     if (_tsb) {
         _tsb.style.display = tutorialState.active ? 'block' : 'none';
@@ -3492,6 +3493,11 @@ function resetGame() {
     // （広告復活を挟むと totalPlays がラン途中で1になるが、確定済みフラグなのでボス距離等は途中で変わらない）
     gameState.isFirstRun = (((gameSettings.achievementStats || {}).totalPlays) || 0) === 0;
     gameState.trialGiftGiven = false; // おためしバリア（案B-1）の配布済みフラグ
+    // チュートリアルの残留フラグ解除（ラン途中でタイトルへ戻った場合の保険）。
+    // タイトル画面でスキン/ポーチ表示がサンドボックスのまま固まるのを防ぐ。次のランで startGame が改めて判定する
+    tutorialState.active = false;
+    tutorialState.forced = false;
+    tutorialState.hintKey = '';
     gameState.score = 0;
     gameState.rankScore = 0;
     gameState.lives = 5;
@@ -5683,7 +5689,7 @@ function updateBullets() {
             }
         }
     } else if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
-               gameSettings.activeSkin === 'kigurumi' && gameState.gameStarted && !pipeRoomState.active) {
+               runActiveSkin() === 'kigurumi' && gameState.gameStarted && !pipeRoomState.active) {
         // きぐるみの特殊効果: エナジー弾が出ていない時だけ、2秒に1発 青白い電気弾（ダメージ1＝エナジー弾2の半分）。
         // エナジー弾発動中(上のif)はこちらへ来ないので電気は止まり、終わればまた出続ける。
         gameState.zapFireTimer = (gameState.zapFireTimer || 0) + 1;

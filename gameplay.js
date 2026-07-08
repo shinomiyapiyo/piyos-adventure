@@ -1773,6 +1773,22 @@ function updateTitleShopUI() {
 }
 
 function applyUpgrades() {
+    // チュートリアル（はじまりの地）はサンドボックス＝初期状態のロードアウト固定（案A・1.421）。
+    // アップグレード/ポーチ/スキン効果を持ち込まない＝案内が全員の画面と一致し、永続資産にも一切触れない。
+    // gameSettings は書き換えないので、次の通常ランでは本関数が従来どおり全効果を復元する
+    if (tutorialState.active) {
+        gameState.coinBonus = 1.0;
+        gameState.lives = 5;
+        stockState.maxSlots = 3;
+        gameState.magnetRange = 200;
+        gameState.magnetDurMult = 1;
+        COMBO_TIMEOUT = 60;
+        gameState.speedMultiplier = 1.0;
+        gameState.revivesLeft = 0;
+        gameState.specialMoveLevel = 0;
+        updateStockUI();
+        return;
+    }
     var ups = gameSettings.upgrades || {};
     var coinLv = ups.coin_master || 0;
     gameState.coinBonus = 1.0 + coinLv * 0.1;
@@ -1801,7 +1817,10 @@ function applyUpgrades() {
 // ── ストックシステム ──
 // 永続ストック枠（まほうのポーチ）: stockState.perma=[{id,used}] を先頭に、その後ろに通常枠 stockState.items（詰め）。
 // 表示スロット index: 0..permaLevel()-1 = 永続枠 / それ以降 = 通常枠。
-function permaLevel() { return Math.max(0, Math.min(gameSettings.pouchLevel || 0, stockState.maxSlots)); }
+function permaLevel() {
+    if (tutorialState.active) return 0; // サンドボックス: ポーチ（永続枠）は存在しない扱い
+    return Math.max(0, Math.min(gameSettings.pouchLevel || 0, stockState.maxSlots));
+}
 function normalMaxSlots() { return Math.max(0, stockState.maxSlots - permaLevel()); }
 
 // 永続ストック枠を permaStock から構築（毎ラン補充・used=false）。resetGame と startGame の両方から呼ぶ
@@ -1809,7 +1828,7 @@ function normalMaxSlots() { return Math.max(0, stockState.maxSlots - permaLevel(
 // 長さ=pouchLevel（購入時に pouchLevel<=maxSlots を保証済み。permaLevel()が読み取り時に再クランプ）。
 function buildPermaSlots() {
     stockState.perma = [];
-    var n = Math.max(0, gameSettings.pouchLevel || 0);
+    var n = tutorialState.active ? 0 : Math.max(0, gameSettings.pouchLevel || 0); // サンドボックス: 永続枠を作らない
     for (var i = 0; i < n; i++) {
         var id = (gameSettings.permaStock && gameSettings.permaStock[i]) || '';
         stockState.perma.push({ id: id, used: false });
@@ -1865,7 +1884,8 @@ function addToStock(itemId) {
         updateStockUI();
         return true;
     }
-    // ③ 満杯 → 貯金換算（損なし）
+    // ③ 満杯 → 貯金換算（損なし）。チュートリアル中は貯金へ漏らさない＝拾えず、その場に残る
+    if (tutorialState.active) return false;
     convertItemToSavings(itemId);
     return true;
 }
@@ -2391,7 +2411,7 @@ function bossEncounter() { return Math.ceil(gameRound / BOSS_KINDS.length); }
 // 当たった時だけ演出（クリティカル！）を出す。メイド服以外・スキン無効時は常に1。
 function critMultiplier(worldX, worldY) {
     if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
-        gameSettings.activeSkin === 'maid' && Math.random() < 0.05) {
+        runActiveSkin() === 'maid' && Math.random() < 0.05) {
         if (typeof spawnCritText === 'function') spawnCritText(worldX, worldY, (typeof t === 'function') ? t('crit_text') : 'CRITICAL!');
         if (typeof soundManager !== 'undefined' && soundManager) soundManager.playCritical();
         return 2;

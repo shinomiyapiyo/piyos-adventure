@@ -212,6 +212,12 @@ var tutorialState = {
     bossGuided: false,
     skipArmed: 0      // スキップ二度押し確認の残フレーム
 };
+// ラン中に適用するスキン（チュートリアルはサンドボックス＝デフォルト固定・案A 1.421）。
+// gameSettings.activeSkin は書き換えない＝きせかえの設定はそのまま、次の通常ランで自動復帰。
+// メイド(クリティカル)/きぐるみ(電気弾)の戦闘効果が台本を壊さないよう、見た目ごと初期状態にする
+function runActiveSkin() {
+    return tutorialState.active ? '' : (gameSettings.activeSkin || '');
+}
 // 台本: 到達距離(m)で案内を出す。slow=一時減速 / spawn=敵をその場で湧かせる
 var TUTORIAL_SCRIPT = [
     { atM: 10,  key: 'tut_welcome',   dur: 300 },
