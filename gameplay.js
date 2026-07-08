@@ -101,6 +101,19 @@ function updateTutorial() {
                       !stockState.items.some(function(it) { return it.id === 'barrier'; });
         } else if (g === 'pipe') {
             cleared = pipeRoomState.visited || pipeRoomState.active || pipeRoomState.anim !== 'none';
+            if (!cleared) {
+                // 保険1: 土管が消えていたら前方に出し直す（stompの再湧きと同思想・ゲートが詰まないように）
+                var gPipe = null;
+                for (var pi = 0; pi < platforms.length; pi++) { if (platforms[pi].type === 'pipe') { gPipe = platforms[pi]; break; } }
+                if (!gPipe) {
+                    gPipe = { x: gameState.camera.x + 500, y: GROUND_Y - PIPE_H, width: PIPE_W, height: PIPE_H, type: 'pipe' };
+                    platforms.push(gPipe);
+                }
+                // 保険2: ゲート中は土管の右端より先へ行けない（テロップ前にジャンプで飛び越える→置き去りで詰み を防ぐ・1.442）。
+                // クランプ位置は「土管の右端に立てる位置」＝飛び越えようとすると土管の上に着地して、そのまま下スワイプの練習になる
+                var maxPX = gPipe.x + gPipe.width - player.width;
+                if (player.x > maxPX) { player.x = maxPX; if (player.velX > 0) player.velX = 0; }
+            }
         }
         if (cleared) {
             tutorialState.gate = '';
@@ -495,7 +508,9 @@ function updatePipeRoom() {
         pipeRoomState.animTimer++;
         player.facing = 'right';
         player.velX = 0; player.velY = 0;
-        player.y = PIPE_ROOM_FLOOR_Y - player.height; // 床に固定
+        // 口の穴は床より約10px上（item_pipe_side.png 実測: 開口部下端=高さの87%）。
+        // 床のまま歩き込むと「足が穴じゃない位置」に見えるため、最初の数フレームで段差を上がるように足を口の下端へ合わせる（1.442）
+        player.y = PIPE_ROOM_FLOOR_Y - player.height - Math.min(10, pipeRoomState.animTimer * 1.5);
         player.x += 2.4;                              // 一定速度で口の奥へ
         player.animFrame++;                           // 歩きモーション
         // 体の左端が「口の内側の縁」ラインを越えたら完全に見えなくなる（クリップ方式・1.410）

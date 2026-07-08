@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.441";
+                content: "Ver.1.442";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -826,7 +826,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.441</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.442</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1840,7 +1840,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.441
+ * ぴよ氏の冒険 v1.442
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -5225,6 +5225,13 @@ function updatePlayer() {
             p.disappearTimer > p.disappearDuration * 0.7) continue;
 
         if (!aabb(player, p)) continue;
+
+        // 土管は「体の中心が管の上にある」時だけ乗れる（1.442）。通常の足場と同じ「縁に1px重なれば乗れる」だと、
+        // スプライトの透明余白も相まって管の横の何もない空間に立って見えるため、土管だけ判定を狭める
+        if (p.type === 'pipe') {
+            var pipeCx = player.x + player.width / 2;
+            if (pipeCx < p.x || pipeCx > p.x + p.width) continue;
+        }
 
         // すり抜けは「足がほぼ足場の上端＝真上に乗っていて・落下/静止中(velY>=0)」の時だけ発火。
         // player.height > 足場高 のため、旧条件 player.y<p.y だと横入り/上昇でも真になり誤すり抜け→recentlyDropped固着の副次経路になっていた。
