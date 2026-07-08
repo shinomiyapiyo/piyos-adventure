@@ -1134,6 +1134,19 @@ function drawPlatform(p) {
         ctx.beginPath();
         ctx.moveTo(ax, ay + 7); ctx.lineTo(ax - 6, ay - 2); ctx.lineTo(ax + 6, ay - 2);
         ctx.closePath(); ctx.fill();
+        // 入場ヒント（1.407）: 矢印の上に「したにスワイプ」。土管タイム中は速い点滅で「今入れる」を強調
+        var hintA = pipeAssistTimer > 0
+            ? 0.55 + 0.45 * Math.sin(gameState.time * 0.4)
+            : 0.55 + 0.25 * Math.sin(gameState.time * 0.1);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0.2, hintA);
+        ctx.fillStyle = '#ffe066';
+        ctx.font = "bold 11px 'DotGothic16', monospace";
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        ctx.strokeText(t('pipe_enter_hint'), ax, ay - 8);
+        ctx.fillText(t('pipe_enter_hint'), ax, ay - 8);
+        ctx.restore();
         return;
     }
     var pBiome = getBiomeIndex(gameState.distance);

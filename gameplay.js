@@ -91,6 +91,40 @@ function checkPipeTrigger() {
     }
 }
 
+// 入場可能な土管を返す（接地して土管の上にいる時）。findPlatformUnder(重なり任意+足元±5px)より
+// 寛容に、水平±12px・足元±8pxまで許容＝縁ギリギリや1px浮きでも入場できる（1.407 入場性改善）。
+function getEnterablePipe() {
+    if (!player.onGround) return null;
+    var pb = player.y + player.height;
+    for (var i = 0; i < platforms.length; i++) {
+        var p = platforms[i];
+        if (p.type !== 'pipe') continue;
+        if (player.x + player.width > p.x - 12 && player.x < p.x + p.width + 12 && Math.abs(pb - p.y) <= 8) return p;
+    }
+    return null;
+}
+
+// ── 土管タイム（入場アシスト・1.407） ──
+// 土管に乗った瞬間から一定時間、世界のスクロールを大幅減速（updateGameSpeed が pipeAssistTimer>0 で乗算）。
+// 高速域では狭い土管上で下スワイプする猶予がほぼ無いための救済。1つの土管につき1回だけ（離れると即解除・再発動なし）。
+var pipeAssistTimer = 0;
+var pipeAssistPipe = null;
+function updatePipeAssist() {
+    if (pipeRoomState.active || bossState.active || shopState.active || pipeRoomState.visited) {
+        pipeAssistTimer = 0; pipeAssistPipe = null; return;
+    }
+    var onPipe = getEnterablePipe();
+    if (onPipe && !onPipe.assistUsed && pipeAssistTimer === 0) {
+        onPipe.assistUsed = true; // 1土管1回
+        pipeAssistPipe = onPipe;
+        pipeAssistTimer = PIPE_ASSIST_FRAMES;
+    }
+    if (pipeAssistTimer > 0) {
+        pipeAssistTimer--;
+        if (pipeAssistPipe !== onPipe) { pipeAssistTimer = 0; pipeAssistPipe = null; } // 土管から離れたら即解除
+    }
+}
+
 function enterPipeRoom() {
     if (pipeRoomState.active || pipeRoomState.visited) return; // 入室中・このラウンド入室済みは弾く（再入室防止）
     pipeRoomState.active = true;

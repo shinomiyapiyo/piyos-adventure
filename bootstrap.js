@@ -39,6 +39,7 @@ function gameLoop(timestamp) {
             updateGameSpeed();
             checkShopTrigger();
             checkPipeTrigger();
+            updatePipeAssist(); // 土管タイム（土管上でスクロール減速・updateGameSpeedの直後に判定）
             checkBossTrigger();
             updateBoss();
             updateBiome();
@@ -212,9 +213,8 @@ function bindTapDelegate(container, attrName, handler) {
         if (dy > 15 && dt < 500) {
             // 土管ボーナス部屋中は下スワイプ無効（出口は右の横土管に歩いて入る）
             if (pipeRoomState.active) { moveSwiped = true; return; }
-            // 土管の上で下スワイプ → 入室（通常のすり抜けにはしない）
-            var pf = findPlatformUnder();
-            if (pf && pf.type === 'pipe') {
+            // 土管の上で下スワイプ → 入室（判定は寛容版=水平±12px・通常のすり抜けにはしない）
+            if (getEnterablePipe()) {
                 moveSwiped = true;
                 enterPipeRoom();
                 gameState.input.left = false; gameState.input.right = false;
@@ -484,9 +484,8 @@ function bindTapDelegate(container, attrName, handler) {
             case 'ArrowRight': case 'd': case 'D': gameState.input.right = true; break;
             case 'ArrowDown': case 's': case 'S':
                 if (pipeRoomState.active) break; // 部屋内では下入力の特殊動作なし（タッチと同等）
-                // 土管の上なら入室（タッチの下スワイプと同等。従来はキーボードから部屋に入れなかった）
-                var pfKey = findPlatformUnder();
-                if (pfKey && pfKey.type === 'pipe') { enterPipeRoom(); break; }
+                // 土管の上なら入室（タッチの下スワイプと同等・判定は寛容版=水平±12px）
+                if (getEnterablePipe()) { enterPipeRoom(); break; }
                 if (isOnPlatform()) {
                     gameState.input.down = true;
                     gameState.downSwipeActive = true;

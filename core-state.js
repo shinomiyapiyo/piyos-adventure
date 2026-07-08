@@ -198,7 +198,9 @@ var SHOP_BUILDING_OFFSET = 100; // ボス出現の100m前にショップ建物
 var SHOP_SAFE_ZONE_SPEED = 1.5; // 安全地帯のスクロール速度
 
 // ─── 土管ボーナス部屋 ───
-var PIPE_W = 72, PIPE_H = 66;                       // 入口（縦）土管のサイズ(px)。本編フィールドにもこの縦土管を置く
+var PIPE_W = 88, PIPE_H = 66;                       // 入口（縦）土管のサイズ(px)。本編フィールドにもこの縦土管を置く（1.407: 72→88 入場しやすく）
+var PIPE_ASSIST_FRAMES = 120;                       // 土管タイム: 土管に乗ってから世界を減速する猶予（2秒・1土管1回）
+var PIPE_ASSIST_SLOW = 0.25;                        // 土管タイム中のスクロール倍率（高速域でも落ち着いて下スワイプできる）
 var SIDE_PIPE_W = 140, SIDE_PIPE_H = 74;            // 出口（横）土管のサイズ(px・口は左向き)
 var PIPE_ROOM_FLOOR_Y    = GAME_HEIGHT - 64;        // 部屋の床上端（画面座標）
 var PIPE_ROOM_LEFT       = 110;                     // プレイヤーの入場落下X＆報酬配置の起点（画面座標）

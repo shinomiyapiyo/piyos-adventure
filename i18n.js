@@ -234,6 +234,7 @@ ja: {
     // ── ステージショップ ──
     shop_swipe_up: '↑スワイプで入店',
     pipe_room_exit: '→ でる',
+    pipe_enter_hint: 'したにスワイプ',
     urlmoved_title: 'アプリが新しくなりました',
     urlmoved_lead: 'この表示が出ている方は、お使いのアプリ（ホーム画面のアイコンやブックマーク）が古いままです。ホーム画面へ登録し直して、新しいアプリから改めて起動してください。',
     urlmoved_step1: '① この画面を「ホーム画面に追加」し直す',
@@ -670,6 +671,7 @@ en: {
     // ── Stage Shop ──
     shop_swipe_up: 'Swipe up to enter',
     pipe_room_exit: 'EXIT →',
+    pipe_enter_hint: 'Swipe down',
     urlmoved_title: 'The app has been updated',
     urlmoved_lead: 'If you see this screen, your app (home-screen icon or bookmark) is out of date. Please re-add it to your home screen and relaunch from the new app.',
     urlmoved_step1: '① Re-add this screen to your home screen',
