@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.434";
+                content: "Ver.1.435";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -787,15 +787,23 @@
                     white-space: nowrap;" data-i18n="game_subtitle">Piyo's Adventure</div>
                 </div>
 
-                <div id="startMessage" class="tap-to-start" style="
-                    position: absolute; bottom: 6px; left: 50%;
-                    transform: translateX(-50%); z-index: 10;
-                    font-size: clamp(8px, 1.3vw, 14px); color: rgba(255,255,255,0.55);
-                    font-family: 'M PLUS Rounded 1c', sans-serif;
-                    font-weight: 600;
-                    text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
-                    letter-spacing: 0.05em; white-space: nowrap;" data-i18n="start_tap">
-                    &gt; 画面をタップでメニュー
+                <!-- タップ案内: 右側の空きスペース（旧ボタン群の位置）に大きく表示。
+                     外側divが配置（translateY centering）・内側がtapBounceアニメ（transform競合を避けるため分離） -->
+                <div id="startMessage" style="
+                    position: absolute; right: 2.5%; top: 50%;
+                    transform: translateY(-50%); z-index: 10;">
+                    <div class="tap-to-start" style="
+                        margin: 0;
+                        background: rgba(0,0,0,0.5);
+                        border: 2px solid rgba(255,255,255,0.6);
+                        border-radius: 999px;
+                        padding: clamp(8px, 1.8vh, 14px) clamp(16px, 2.6vw, 26px);
+                        font-size: clamp(15px, 4.5vh, 26px);
+                        color: #fff;
+                        letter-spacing: 0.05em; white-space: nowrap;
+                        box-shadow: 0 4px 16px rgba(0,0,0,0.35);" data-i18n="start_tap">
+                        &gt; 画面をタップでメニュー
+                    </div>
                 </div>
 
                 <!-- バージョン情報：左下 -->
@@ -806,7 +814,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.434</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.435</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1636,7 +1644,7 @@
         <div id="tutorialClearScreen" class="hidden" style="
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
-            background: #180f26 url('images/tutorial_clear.png') center / contain no-repeat;
+            background: #180f26 url('images/tutorial_clear.jpg') center / contain no-repeat;
             display: none; flex-direction: column;
             justify-content: flex-end; align-items: center;
             z-index: 26;">
@@ -1800,7 +1808,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.434
+ * ぴよ氏の冒険 v1.435
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2043,9 +2051,9 @@ specialCutinImg.src = 'images/special_cutin.png';
 var eyesImg = new Image();             // 来るぞ感の両目アップ
 eyesImg.src = 'images/eyes_closeup.png';
 var sobaSceneImg = new Image();        // たちぐいそば購入時のフルスクリーン演出（先読みで初回もカクつかない）
-sobaSceneImg.src = 'images/soba_shop_scene.png';
+sobaSceneImg.src = 'images/soba_shop_scene.jpg';
 var shortcakeSceneImg = new Image();   // いちごショート購入時のフルスクリーン演出（チュートリアルショップ限定）
-shortcakeSceneImg.src = 'images/shortcake_scene.png';
+shortcakeSceneImg.src = 'images/shortcake_scene.jpg';
 var pipeImg = new Image();             // 入口（縦）土管
 pipeImg.src = 'images/item_pipe.png';
 var pipeSideImg = new Image();         // 出口（横）土管（口は左向き）
@@ -2229,7 +2237,7 @@ function showSobaScene(healedLives, imgPath) {
         'opacity:0; transition:opacity 0.25s ease-out;';
 
     var img = document.createElement('img');
-    img.src = imgPath || 'images/soba_shop_scene.png';
+    img.src = imgPath || 'images/soba_shop_scene.jpg';
     img.alt = '';
     img.style.cssText = 'max-width:100vw; max-height:100vh; width:auto; height:auto;' +
         'object-fit:contain; image-rendering:pixelated;' +

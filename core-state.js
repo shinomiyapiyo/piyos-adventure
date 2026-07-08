@@ -296,7 +296,7 @@ var stockState = {
 };
 
 var STAGE_SHOP_ITEMS = [
-    { // チュートリアルショップ限定（1.426）: いちごショート＝HP1回復。演出はそばと同方式（shortcake_scene.png）
+    { // チュートリアルショップ限定（1.426）: いちごショート＝HP1回復。演出はそばと同方式（shortcake_scene.jpg）
         id: 'shortcake', nameKey: 'shop_item_shortcake', descKey: 'shop_item_shortcake_desc',
         icon: '', iconImg: 'images/icon_shortcake.png', price: 1000, maxPerVisit: 2, tutorialOnly: true,
         effect: function() { gameState.lives = Math.min(gameState.lives + 1, 10); }

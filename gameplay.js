@@ -1315,7 +1315,7 @@ function buyStageItem(itemId) {
     if (!item.stockItem) item.effect();
     // たちぐいそば/いちごショート：フルスクリーン演出＋実回復量の表示（画像だけ差し替えて同方式）
     if (item.id === 'heal' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore);
-    if (item.id === 'shortcake' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore, 'images/shortcake_scene.png');
+    if (item.id === 'shortcake' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore, 'images/shortcake_scene.jpg');
     if (soundManager) soundManager.playItem();
     setKeeperText('shop_keeper_buy_ok');
     setShopBg(getSuccessShopBg(), 1500);
