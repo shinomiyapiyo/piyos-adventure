@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.416";
+                content: "Ver.1.417";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.416</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.417</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1284,9 +1284,10 @@
                         <img src="images/keeper_title.png" class="dq-keeper-img">
                         <span id="tshopKeeperText" class="dq-keeper-text"></span>
                     </div>
-                    <!-- 確認ダイアログ（DQ風・セリフ枠のすぐ右に表示: かう/かわない・うる/うらない・はい/いいえ。位置はJSがfixedで算出） -->
+                    <!-- 確認ダイアログ（DQ風）。既定=セリフ枠のすぐ下（はい/いいえ用・旧版JSとの混在でも壊れない基準位置）。
+                         かう/かわない・うる/うらない はJSが表示時にセリフ枠のすぐ右へfixed配置し直す -->
                     <div id="tshopConfirmBox" style="display:none;
-                        position: fixed; left: 0; top: 0;
+                        position: absolute; left: 4px; top: 100%; margin-top: 2px;
                         background: rgba(0,0,48,0.97);
                         border: 2px solid #fff; border-radius: 5px;
                         padding: 3px 0; min-width: 90px; z-index: 10;
@@ -1671,7 +1672,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.416
+ * ぴよ氏の冒険 v1.417
  * © 2026 Created by NullPo Works
  * ============================================================ */
 

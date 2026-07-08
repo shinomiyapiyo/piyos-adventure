@@ -503,21 +503,36 @@ function createConfirmBox(ids, onYes, onNo, opts) {
         var itemsList = document.getElementById(ids.itemsList);
         cursor = null;
         labels = newLabels || null;
-        if (visible) {
-            if (opts.sideAnchor && box && keeperBox) {
-                // セリフ枠のすぐ右に固定表示（fixed=パネルのoverflow:hiddenにクリップされない）。
-                // 枠のtopは説明の長さに依らず一定なので位置が安定する
+        // ラベル付き（かう/かわない・うる/うらない）だけセリフ枠のすぐ右へ。
+        // はい/いいえ（退店確認など・labels無し）は従来どおりセリフ枠のすぐ下＋リスト退避
+        var side = opts.sideAnchor && !!labels;
+        if (visible && opts.sideAnchor && box && keeperBox) {
+            if (side) {
+                // fixed=パネルのoverflow:hiddenにクリップされない。枠のtopは説明の長さに依らず一定
                 var kr = keeperBox.getBoundingClientRect();
                 box.style.position = 'fixed';
                 box.style.left = (kr.right + 8) + 'px';
                 box.style.top = kr.top + 'px';
                 box.style.marginTop = '0';
+            } else {
+                // 従来位置（セリフ枠のすぐ下）へ戻す（右横表示の後でも復元できるよう明示指定）
+                box.style.position = 'absolute';
+                box.style.left = '4px';
+                box.style.top = '100%';
+                box.style.marginTop = '2px';
             }
+        }
+        if (visible) {
             if (soundManager) soundManager.playConfirmSelect();
             updateCursor();
         }
         if (box) box.style.display = visible ? 'block' : 'none';
-        if (opts.sideAnchor) return; // リストと重ならないので以下の退避処理は不要（一覧は表示中もタップ可能）
+        if (side) {
+            // リストと重ならないので退避処理は不要（一覧は表示中もタップ可能）。残留していたら解除
+            if (keeperBox) { keeperBox.style.marginBottom = '3px'; keeperBox.style.zIndex = ''; }
+            if (itemsList) itemsList.style.pointerEvents = '';
+            return;
+        }
         // 確認ボックス表示中はmarginを広げてアイテムリストとの重なりを防止
         if (keeperBox) {
             keeperBox.style.marginBottom = visible ? '54px' : '3px';
