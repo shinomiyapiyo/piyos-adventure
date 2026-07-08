@@ -210,7 +210,9 @@ var tutorialState = {
     hintTimer: 0,     // 案内の残フレーム
     slowTimer: 0,     // 案内地点の一時減速の残フレーム
     bossGuided: false,
-    skipArmed: 0      // スキップ二度押し確認の残フレーム
+    skipArmed: 0,     // スキップ二度押し確認の残フレーム
+    gate: '',         // 達成待ちゲート（''=なし / 'jump'|'stomp'|'stock'|'pipe'）＝実行するまで世界停止
+    gateKills: 0      // stompゲート開始時の撃破数（増えたら達成）
 };
 // ラン中に適用するスキン（チュートリアルはサンドボックス＝デフォルト固定・案A 1.421）。
 // gameSettings.activeSkin は書き換えない＝きせかえの設定はそのまま、次の通常ランで自動復帰。
@@ -218,16 +220,17 @@ var tutorialState = {
 function runActiveSkin() {
     return tutorialState.active ? '' : (gameSettings.activeSkin || '');
 }
-// 台本: 到達距離(m)で案内を出す。slow=一時減速 / spawn=敵をその場で湧かせる
+// 台本: 到達距離(m)で案内を出す。slow=一時減速 / spawn=敵をその場で湧かせる /
+// gate=達成待ち（その行動を実行するまで世界停止・updateTutorialが判定）
 var TUTORIAL_SCRIPT = [
     { atM: 10,  key: 'tut_welcome',   dur: 300 },
     { atM: 60,  key: 'tut_move',      dur: 300 },
-    { atM: 115, key: 'tut_jump',      dur: 300, slow: true },  // 穴150m
-    { atM: 220, key: 'tut_stomp',     dur: 330, slow: true, spawn: 'chick' },
-    { atM: 320, key: 'tut_coin',      dur: 240 },              // コイン列340m〜
-    { atM: 400, key: 'tut_stock',     dur: 330, slow: true },  // おためしバリア
-    { atM: 470, key: 'tut_pipe',      dur: 420, slow: true },  // 土管530m
-    { atM: 600, key: 'tut_shop',      dur: 300 },              // おみせ640m
+    { atM: 120, key: 'tut_jump',      dur: 300, gate: 'jump' },   // 穴150m: ジャンプするまで停止
+    { atM: 220, key: 'tut_stomp',     dur: 330, spawn: 'chick', gate: 'stomp' }, // 踏むまで停止
+    { atM: 320, key: 'tut_coin',      dur: 240 },                 // コイン列340m〜
+    { atM: 400, key: 'tut_stock',     dur: 330, gate: 'stock' },  // おためしバリアを使うまで停止
+    { atM: 480, key: 'tut_pipe',      dur: 420, gate: 'pipe' },   // 土管530m: 入るまで停止（歩いて届く距離で止める）
+    { atM: 600, key: 'tut_shop',      dur: 300 },                 // おみせ640m
     { atM: 700, key: 'tut_boss_warn', dur: 240 }
 ];
 

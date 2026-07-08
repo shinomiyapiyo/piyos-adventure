@@ -28,6 +28,8 @@ function setupTutorialStage() {
     tutorialState.slowTimer = 0;
     tutorialState.bossGuided = false;
     tutorialState.skipArmed = 0;
+    tutorialState.gate = '';
+    tutorialState.gateKills = 0;
     // 舞台は専用バイオーム「はじまりの地」（街・index4）。遷移演出なしで最初から適用
     biomeState.current = 4;
     biomeState.previous = 4;
@@ -76,7 +78,35 @@ function updateTutorial() {
         tutorialState.hintTimer = st.dur;
         if (st.slow) tutorialState.slowTimer = 150; // 2.5秒だけゆっくり＝読んで構えられる
         if (st.spawn === 'chick') enemies.push(tutorialChick());
+        if (st.gate) { // 達成待ちゲート開始（1.427）: その行動を実行するまで世界停止
+            tutorialState.gate = st.gate;
+            tutorialState.gateKills = gameState.enemyKills;
+        }
         if (soundManager) soundManager.playCursorMove();
+    }
+    // ── 達成待ちゲート: 世界を止めて（プレイヤーと敵は動ける）、対象の行動を検知したら再開 ──
+    if (tutorialState.gate) {
+        gameState.gameSpeed = 0; // updateGameSpeedが毎tick再計算するため、ここで毎tick上書き
+        tutorialState.hintTimer = Math.max(tutorialState.hintTimer, 2); // ゲート中は案内を出し続ける
+        var g = tutorialState.gate, cleared = false;
+        if (g === 'jump') {
+            cleared = (player.velY < -2); // ジャンプ入力で上昇した
+        } else if (g === 'stomp') {
+            cleared = (gameState.enemyKills > tutorialState.gateKills);
+            // 保険: 練習台のひよこが穴落ち等でいなくなったら出し直す（ゲートが詰まないように）
+            if (!cleared && enemies.length === 0) enemies.push(tutorialChick());
+        } else if (g === 'stock') {
+            // バリアを使った（シールド発動中）か、ストックにもうバリアが無い＝使用済み
+            cleared = (gameState.puShield > 0) ||
+                      !stockState.items.some(function(it) { return it.id === 'barrier'; });
+        } else if (g === 'pipe') {
+            cleared = pipeRoomState.visited || pipeRoomState.active || pipeRoomState.anim !== 'none';
+        }
+        if (cleared) {
+            tutorialState.gate = '';
+            tutorialState.hintTimer = 90; // 案内は少し残してからフェード
+            if (soundManager) soundManager.playItem();
+        }
     }
     if (tutorialState.hintTimer > 0) {
         tutorialState.hintTimer--;
