@@ -61,8 +61,17 @@ function isFlatGroundAt(worldX) {
     }
     return false;
 }
+// 土管の設置可否（1.412で全面修正）: 足場全幅＋左右クリアランスにわたって「表面が地面の高さ(GROUND_Y)」であること。
+// 旧実装は「GROUND_Yの地面スラブが存在するか」を3点だけ見ていたため、高台の下にも基礎スラブが続く地形では
+// 高台の直下・直隣にも合格してしまい、柱に密着した土管が建っていた。表面高さ(terrainTopAt)基準に変更し、
+// 高台(表面がより上)・穴(null)・未生成地形(null)はすべて不可。細かい刻みで全幅を走査（3点サンプルの取りこぼしも解消）。
+var PIPE_SIDE_CLEARANCE = 60; // 土管の左右に要求する平地マージン(px)＝壁・高台に密着して建たない（近づく余地を保証）
 function pipeFootprintFlat(x, w) {
-    return isFlatGroundAt(x + 4) && isFlatGroundAt(x + w / 2) && isFlatGroundAt(x + w - 4);
+    var from = x - PIPE_SIDE_CLEARANCE, to = x + w + PIPE_SIDE_CLEARANCE;
+    for (var px = from; px < to; px += 20) {
+        if (terrainTopAt(px) !== GROUND_Y) return false;
+    }
+    return terrainTopAt(to) === GROUND_Y; // 右端も明示チェック（刻みの取りこぼし防止）
 }
 
 function checkPipeTrigger() {

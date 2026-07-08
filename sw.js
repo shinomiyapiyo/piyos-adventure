@@ -1,4 +1,4 @@
-var CACHE_NAME = 'piyo-adventure-v1.411';
+var CACHE_NAME = 'piyo-adventure-v1.412';
 var STATIC_ASSETS = [
     './',
     './index.html',
@@ -31,7 +31,7 @@ var STATIC_ASSETS = [
     './sounds/piyoflash.mp3',
     './sounds/piyoflash_charge.mp3',
     './sounds/critical.mp3',
-    './sounds/arsnd_00019_dokan.mp3',
+    './sounds/dokan.mp3',
     './images/icon-192.png',
     './images/icon-512.png',
     './images/logo.png',
