@@ -1960,15 +1960,22 @@ function render() {
     if (bossState.boss && bossState.phase >= 2 && bossState.phase <= 4) drawBoss(bossState.boss);
     if (bossState.eggs.length > 0) drawEggProjectiles();
 
-    if (gameState.gameStarted) drawPlayer(player.x, player.y);
-
-    // 土管出入り演出中は土管をプレイヤーの後に再描画（Z順トリック＝クリッピング不要で「土管に消える/出てくる」）
-    if ((pipeRoomState.anim === 'in' || pipeRoomState.anim === 'outWorld') && pipeRoomState.animPipe) {
-        var _ap = pipeRoomState.animPipe;
-        if (pipeImg.complete && pipeImg.naturalWidth) {
-            ctx.drawImage(pipeImg, _ap.x, _ap.y - 16, _ap.width, _ap.height + 25); // drawPlatformの土管と同じ描き方
+    if (gameState.gameStarted) {
+        if ((pipeRoomState.anim === 'in' || pipeRoomState.anim === 'outWorld') && pipeRoomState.animPipe) {
+            // 土管出入り演出: 「上面の穴の手前縁」ラインより上だけプレイヤーを描く（クリップ方式・1.409）。
+            // 土管スプライトは口の穴が見える絵なので、全体を前面に再描画する旧方式だと
+            // 「土管の裏に回った」ように見えてしまう。クリップなら穴に沈む/穴から出てくる見た目になる
+            // （ラインより下は描かれず、下地の土管の穴と手前の縁がそのまま見える）。
+            var _ap = pipeRoomState.animPipe;
+            var _mouthY = _ap.y + PIPE_MOUTH_LINE;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(gameState.camera.x - 60, _mouthY - 600, GAME_WIDTH + 120, 600);
+            ctx.clip();
+            drawPlayer(player.x, player.y);
+            ctx.restore();
         } else {
-            ctx.fillStyle = '#3cb043'; ctx.fillRect(_ap.x, _ap.y, _ap.width, _ap.height + 12);
+            drawPlayer(player.x, player.y);
         }
     }
 
