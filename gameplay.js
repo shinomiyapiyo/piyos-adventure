@@ -71,6 +71,15 @@ function tutorialChick() {
 // 毎フレーム呼ばれる台本進行（bootstrapのgameLoopから・非アクティブ時は即return）
 function updateTutorial() {
     if (!tutorialState.active) return;
+    // 台本より先へ走り込めないようにする前進クランプ（1.444）:
+    // テロップ/ゲートはスクロール距離（camera）基準で発火するため、プレイヤーが画面右へ走り込むと
+    // 「穴を跳び越えた後に穴の案内が出て世界が止まる」等のタイミングずれが起きる（ユーザー報告）。
+    // 420px＝画面(820px)の約半分。全ての案内対象（穴500px先/土管400px先/ドア390px先）より手前に収まる。
+    // ボス戦はアリーナ全域を使うため対象外。
+    if (!bossState.active && !bossState.bossTriggered) {
+        var tutMaxX = gameState.camera.x + 420;
+        if (player.x > tutMaxX) { player.x = tutMaxX; if (player.velX > 0) player.velX = 0; }
+    }
     while (tutorialState.stepIdx < TUTORIAL_SCRIPT.length &&
            gameState.distance >= TUTORIAL_SCRIPT[tutorialState.stepIdx].atM) {
         var st = TUTORIAL_SCRIPT[tutorialState.stepIdx++];
