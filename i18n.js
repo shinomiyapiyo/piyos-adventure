@@ -332,7 +332,6 @@ ja: {
     tshop_swift_feet_desc: '横移動の速度が1.3倍になる',
     // ── 共通 ──
     shop_deposit_preview: '貯金: {sf}円→{st}円 ／ 手持ち: {cf}円→{ct}円',
-    shop_sell_price_suffix: '\n（売値: {price}円）',
     tshop_savings_display: '貯金額 {amount}円',
     tshop_price_preparing: '準備中',
     currency_unit: '円',
@@ -774,7 +773,6 @@ en: {
     tshop_keeper_leave_bye: 'Come again!',
     // ── Common ──
     shop_deposit_preview: 'Save: {sf}→{st} / Cash: {cf}→{ct}',
-    shop_sell_price_suffix: '\n(Sell: {price})',
     tshop_savings_display: 'Savings {amount}',
     tshop_price_preparing: 'N/A',
     currency_unit: '',

@@ -585,12 +585,15 @@ function setKeeperText(key, replacements) {
 }
 
 // ステージショップ用 確認ボックス（決定処理: confirmShopBuy / cancelShopBuy）
+// 1.418: タイトルショップと同方式＝アイテム1タップでセリフ枠のすぐ右に「かう/かわない・うる/うらない」（単タップ決定）。
+// はい/いいえ（貯金/退店確認・labels無し）は従来どおりセリフ枠のすぐ下＋リスト退避
 var shopConfirmUI = createConfirmBox(
     { box: 'shopConfirmBox', keeperBox: 'shopKeeperBox', itemsList: 'stageShopItems', yes: 'shopConfirmYes', no: 'shopConfirmNo' },
     function() { confirmShopBuy(); },
-    function() { cancelShopBuy(); }
+    function() { cancelShopBuy(); },
+    { instant: true, sideAnchor: true }
 );
-function showShopConfirm(show) { shopConfirmUI.show(show); }
+function showShopConfirm(show, labels) { shopConfirmUI.show(show, labels); }
 function handleConfirmYes() { shopConfirmUI.tapYes(); }
 function handleConfirmNo() { shopConfirmUI.tapNo(); }
 
@@ -852,6 +855,7 @@ function updateStageShopUI() {
 function previewShopItem(itemId) {
     if (shopConfirmingItem) return; // 確認中は上書きしない
     if (shopMode !== 'buy') return; // 購入モード以外ではプレビューしない
+    if (shopConfirmingItem) return; // 確認ダイアログ表示中はhoverで説明を上書きしない
     var item = STAGE_SHOP_ITEMS.find(function(i) { return i.id === itemId; });
     if (!item) return;
     shopHighlightedItem = itemId;
@@ -926,91 +930,54 @@ function selectShopItem(itemId) {
         if (!sellTarget) return;
         var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === sellTarget.id; });
         if (!shopItem) return;
-        // 1回目タップ：説明＋売値表示
-        if (shopSellHighlightIndex !== sellIdx) {
-            if (soundManager) soundManager.playCursorMove();
-            shopSellingIndex = null;
-            showShopConfirm(false);
-            shopSellHighlightIndex = sellIdx;
-            var sellPrice = Math.floor(shopItem.price / 2);
-            var el = document.getElementById('shopKeeperText');
-            if (el) el.textContent = t(shopItem.descKey) + t('shop_sell_price_suffix', { price: sellPrice });
-            updateStageShopUI();
-            return;
-        }
-        // 2回目タップ：売却確認ダイアログ
-        if (soundManager) soundManager.playCursorMove();
-        shopSellHighlightIndex = null;
-        var sellPrice2 = Math.floor(shopItem.price / 2);
+        // 1タップで選択＝説明+売値＋すぐ右に「うる/うらない」（1.418: タイトルショップと同方式・2度タップ廃止）。
+        // 別の行をタップすれば選択がそのまま切り替わる
+        var sellPrice = Math.floor(shopItem.price / 2);
+        shopSellHighlightIndex = sellIdx;
         shopSellingIndex = sellIdx;
-        setKeeperText('shop_keeper_sell_confirm', { item: t(shopItem.nameKey), price: sellPrice2 });
-        showShopConfirm(true);
+        var el = document.getElementById('shopKeeperText');
+        if (el) el.textContent = t(shopItem.descKey) + '\n' + t('shop_keeper_sell_confirm', { item: t(shopItem.nameKey), price: sellPrice });
+        showShopConfirm(true, tshopSellLabels());
         updateStageShopUI();
         return;
     }
 
-    // ── 購入モード（従来のロジック） ──
+    // ── 購入モード ──
     var item = STAGE_SHOP_ITEMS.find(function(i) { return i.id === itemId; });
     if (!item) return;
-
-    // 1回目タップ：説明表示（まだハイライトされていない場合）
-    if (shopHighlightedItem !== itemId) {
-        if (soundManager) soundManager.playCursorMove();
+    // 1タップで選択（1.418: 2度タップ廃止）。買えない事情があれば説明＋理由を案内してダイアログは出さない。
+    // 買える場合は説明+価格＋すぐ右に「かう/かわない」。購入時の再検証は buyStageItem 側にもある
+    shopHighlightedItem = itemId;
+    var bought = shopState.purchaseCounts[itemId] || 0;
+    var blockKey = null;
+    var moneyBg = false;
+    if (bought >= item.maxPerVisit) { blockKey = 'shop_keeper_sold_out'; moneyBg = true; }
+    else if (item.id === 'heal' && gameState.lives >= 10) { blockKey = 'shop_keeper_heal_maxhp'; }
+    else if (gameState.score < item.price) { blockKey = 'shop_keeper_no_money'; moneyBg = true; }
+    else if (item.stockItem && !stockHasRoom(item.id) && !isTempReviveCase(item.id)) { blockKey = 'shop_keeper_stock_full'; }
+    if (blockKey) {
         shopConfirmingItem = null;
         showShopConfirm(false);
-        shopHighlightedItem = itemId;
-        var descEl = document.getElementById('shopKeeperText');
-        if (descEl) descEl.textContent = t(item.descKey);
-        updateStageShopUI();
-        return;
-    }
-
-    // 2回目タップ：購入チェック＆確認ダイアログ
-    if (soundManager) soundManager.playCursorMove();
-    shopHighlightedItem = null;
-    var bought = shopState.purchaseCounts[itemId] || 0;
-    // 売り切れチェック
-    if (bought >= item.maxPerVisit) {
-        setKeeperText('shop_keeper_sold_out');
+        var blockEl = document.getElementById('shopKeeperText');
+        if (blockEl) blockEl.textContent = t(item.descKey) + '\n' + t(blockKey); // 説明は見せつつ買えない理由を添える
         if (soundManager) soundManager.playDamage();
-        setShopBg('shop04', 1200);
+        if (moneyBg) setShopBg('shop04', 1200);
         updateStageShopUI();
         return;
     }
-    // ライフ上限チェック
-    if (item.id === 'heal' && gameState.lives >= 10) {
-        setKeeperText('shop_keeper_heal_maxhp');
-        if (soundManager) soundManager.playDamage();
+    if (item.stockItem && !stockHasRoom(item.id) && isTempReviveCase(item.id)) {
+        // 全枠ポーチ: 復活薬は永続保存できないが「今回かぎり」で購入可＝保存不可を説明して かう/かわない へ
+        shopConfirmingItem = itemId;
+        setKeeperText('shop_keeper_revive_nosave_confirm', { price: item.price });
+        showShopConfirm(true, tshopBuyLabels());
         updateStageShopUI();
         return;
     }
-    // 所持金チェック
-    if (gameState.score < item.price) {
-        setKeeperText('shop_keeper_no_money');
-        if (soundManager) soundManager.playDamage();
-        setShopBg('shop04', 1200);
-        updateStageShopUI();
-        return;
-    }
-    // ストック満杯チェック
-    if (item.stockItem && !stockHasRoom(item.id)) {
-        if (isTempReviveCase(item.id)) {
-            // 全枠ポーチ: 復活薬は永続保存できないが「今回かぎり」で購入可＝保存不可を説明してはい/いいえへ
-            shopConfirmingItem = itemId;
-            setKeeperText('shop_keeper_revive_nosave_confirm', { price: item.price });
-            showShopConfirm(true);
-            updateStageShopUI();
-            return;
-        }
-        setKeeperText('shop_keeper_stock_full');
-        if (soundManager) soundManager.playDamage();
-        updateStageShopUI();
-        return;
-    }
-    // 確認ダイアログ表示
+    // 説明+価格＋確認ダイアログ
     shopConfirmingItem = itemId;
-    setKeeperText('shop_keeper_confirm', { item: t(item.nameKey), price: item.price });
-    showShopConfirm(true);
+    var descEl = document.getElementById('shopKeeperText');
+    if (descEl) descEl.textContent = t(item.descKey) + '\n' + t('shop_keeper_confirm', { item: t(item.nameKey), price: item.price });
+    showShopConfirm(true, tshopBuyLabels());
     updateStageShopUI();
 }
 
