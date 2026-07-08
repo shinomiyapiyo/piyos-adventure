@@ -156,6 +156,9 @@ function finishTutorial() {
     if (tsb) tsb.style.display = 'none';
     if (typeof checkBadges === 'function') checkBadges(); // 「操作方法マスター」称号を解放（トースト通知）
     updateStockUI(); // gameStarted=false になったのでストック枠を隠す（クリア画面に残さない）
+    // クリアの一枚絵を隠さないよう、左上HUDと操作バーを隠す（次ランのstartGameで復帰）
+    var _uiEl = document.getElementById('ui'); if (_uiEl) _uiEl.style.display = 'none';
+    var _cbEl = document.getElementById('controlBar'); if (_cbEl) _cbEl.style.display = 'none';
     showScreenEl('tutorialClearScreen');
     if (soundManager) { try { soundManager.playBGM('tutorial'); } catch (_) {} } // クリア画面のBGMは はじまりの地の曲
 }
