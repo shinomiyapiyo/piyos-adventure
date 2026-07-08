@@ -42,6 +42,8 @@ class SoundManager {
         this.protectSE.volume = 0.55;
         this.criticalSE = new Audio('sounds/critical.mp3'); // 黄色メイド服のクリティカル演出
         this.criticalSE.volume = 0.6;
+        this.pipeWarpSE = new Audio('sounds/arsnd_00019_dokan.mp3'); // 土管出入り（アルスパーク素材・商用可/クレジット任意）
+        this.pipeWarpSE.volume = 0.6;
         // ぴよフラッシュ（必殺技）: チャージ音＋ビーム音
         this.specialChargeSE = new Audio('sounds/piyoflash_charge.mp3');
         this.specialChargeSE.volume = 0.6;
@@ -175,8 +177,10 @@ class SoundManager {
         if (!gameSettings.soundEnabled) return;
         this._playSE(this.criticalSE);
     }
-    playPipeWarp() { // 土管出入りの「シュポッ」（マリオ風の下降スイープ・オシレータ合成＝追加音源ファイル不要）
-        if (!this.ctx || !gameSettings.soundEnabled) return;
+    playPipeWarp() { // 土管出入りの「シュポッ」（arsnd_00019_dokan.mp3＝アルスパーク素材。読めない環境はオシレータ合成にフォールバック）
+        if (!gameSettings.soundEnabled) return;
+        if (this.pipeWarpSE && !this.pipeWarpSE.error) { this._playSE(this.pipeWarpSE); return; }
+        if (!this.ctx) return;
         var t = this.ctx.currentTime;
         var o = this.ctx.createOscillator();
         var g = this.ctx.createGain();
