@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.444";
+                content: "Ver.1.445";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -826,7 +826,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.444</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.445</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1840,7 +1840,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.444
+ * ぴよ氏の冒険 v1.445
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3471,6 +3471,11 @@ var BIOME_TRANSITION_STEPS = 16;
 })();
 
 function getBiomeIndex(distance) {
+    // チュートリアル: はじまりの地(4=街)で始まり、通常の最初の切替点(600m)で完全に草原(0)へ（ユーザー指定・1.445）。
+    // 以後も砂漠等へは行かない。距離→バイオームの唯一の変換点であるここで面倒を見ることで、
+    // updateBiome（背景/パレット/地形タイプ）だけでなく、足場タイル(render)・雑魚の見た目・
+    // 足場の地面物理など getBiomeIndex 直参照の全コードが自動で追従する。
+    if (tutorialState.active) return distance < 600 ? 4 : 0;
     return Math.floor((distance % 2400) / 600);
 }
 
@@ -3540,8 +3545,8 @@ function retypeTerrainForBiome(biomeIdx) {
 }
 
 function updateBiome() {
-    // チュートリアルは全編「はじまりの地」（街・index4）固定＝先へ進んでも砂漠等に遷移しない
-    var newIdx = tutorialState.active ? 4 : getBiomeIndex(gameState.distance);
+    // チュートリアル中の値（はじまりの地→600mで草原）は getBiomeIndex 側が返す＝通常の遷移処理をそのまま通す
+    var newIdx = getBiomeIndex(gameState.distance);
     markZukanSeen('biome:' + ZUKAN_BIOME_NAMES[newIdx]); // ずかん: 今いるバイオームを発見（開始地=草原も毎フレーム記録・既発見なら無処理）
     // ボス戦直前・ボス戦中はバイオーム遷移を開始しない（草原に戻す必要なし）
     var bossDistance = bossDistanceFor(gameRound);
