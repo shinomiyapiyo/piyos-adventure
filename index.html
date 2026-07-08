@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.419";
+                content: "Ver.1.420";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.419</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.420</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1027,6 +1027,15 @@
                        style="color: rgba(255,255,255,0.5); font-size: clamp(7px, 1.6vw, 11px); text-decoration: underline;
                            font-family: 'M PLUS Rounded 1c', sans-serif;"
                        data-i18n="terms_link_short">利用規約</a>
+                </div>
+
+                <!-- チュートリアル再プレイ（クリア後もここから何度でも遊べる・報酬は初回のみ） -->
+                <div style="display: flex; justify-content: center; align-items: center; padding: 4px 0 8px;">
+                    <button class="game-button" id="playTutorialBtn" data-i18n="settings_play_tutorial" style="
+                        min-width: auto; padding: 6px 18px; font-size: clamp(10px, 2.2vw, 14px); min-height: 36px;
+                        background: linear-gradient(180deg, #6ec06e 0%, #3f9f3f 50%, #2a7a2a 100%);
+                        border-bottom-color: rgba(0,0,0,0.4);
+                        -webkit-tap-highlight-color: transparent;">チュートリアルをあそぶ</button>
                 </div>
 
                 <!-- 素材クレジット（OtoLogic は CC BY 4.0 ＝帰属表示が必須） -->
@@ -1547,6 +1556,39 @@
             </div>
         </div>
 
+        <!-- チュートリアル完了画面（Phase3.5・finishTutorialが表示） -->
+        <div id="tutorialClearScreen" class="hidden" style="
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.82);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            display: none; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 26;">
+            <div style="text-align: center; max-width: 90vw;">
+                <div style="color: #ffd84d; font-size: 5vw; font-weight: 800;
+                    font-family: 'M PLUS Rounded 1c', sans-serif;
+                    text-shadow: 0 0 20px rgba(255,216,77,0.5), 0 2px 6px rgba(0,0,0,0.6);
+                    margin-bottom: 12px;" data-i18n="tut_clear_title">チュートリアル クリア！</div>
+                <div id="tutorialClearReward" style="display: none; margin: 0 auto 14px; max-width: 480px;
+                    background: linear-gradient(180deg, rgba(70,52,0,0.92), rgba(45,32,0,0.92));
+                    border: 2px solid #ffd700; border-radius: 8px; padding: 8px 14px;
+                    color: #ffe9a0; font-family: 'M PLUS Rounded 1c', sans-serif;
+                    font-size: clamp(11px, 2.4vw, 16px); font-weight: 700;"></div>
+                <button class="game-button" id="tutorialClearBtn" data-i18n="tut_to_title" style="min-width: auto; padding: 8px 24px; font-size: 3vw; min-height: 44px;
+                    -webkit-tap-highlight-color: transparent;">タイトルへ</button>
+            </div>
+        </div>
+
+        <!-- チュートリアル用スキップボタン（ラン中のみstartGameが表示制御・二度押しで確定） -->
+        <button id="tutorialSkipBtn" class="game-button" style="display: none;
+            position: fixed; top: 6px; left: 50%; transform: translateX(-50%);
+            z-index: 60; min-width: auto; min-height: 30px; padding: 3px 14px;
+            font-size: clamp(10px, 2vw, 13px);
+            background: rgba(0,0,48,0.75); border: 1px solid rgba(255,255,255,0.5);
+            color: rgba(255,255,255,0.85); border-radius: 14px;
+            -webkit-tap-highlight-color: transparent;">スキップ</button>
+
         <!-- 名前入力画面 -->
         <div id="nameInputScreen" class="hidden" style="
             position: absolute; top: 0; left: 0;
@@ -1681,7 +1723,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.419
+ * ぴよ氏の冒険 v1.420
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2195,7 +2237,8 @@ function showUrlChangeNotice() {
 var gameSettings = {
     dataVersion: 2,    // セーブデータ構造バージョン（将来の移行処理用）
     soundEnabled: true, language: 'ja', adFree: false, savings: 0, upgrades: {},
-    tutorialSeen: false,   // 初回チュートリアルを表示済みか
+    tutorialSeen: false,   // 初回チュートリアル（操作カード）を表示済みか
+    tutorialCleared: false, // チュートリアル「はじまりの地」クリア済みか（クリアまで新規は毎回チュートリアル）
     loginStreak: 0, lastLoginDate: '', pendingStockItems: [],
     lastLoginTimestamp: 0, loginBonusHistory: [],
     dailyMissions: { date: '', plays: 0, distance: 0, kills: 0, coins: 0, boss: 0, special: 0, claimed: [false, false, false], bonusClaimed: false, ts: 0 },
@@ -2299,6 +2342,7 @@ var gameSettings = {
             if (!isFinite(gameSettings.savings) || gameSettings.savings < 0) gameSettings.savings = 0;
             if (!isFinite(gameSettings.goldenEggs) || gameSettings.goldenEggs < 0) gameSettings.goldenEggs = 0;
             if (typeof parsed.tutorialSeen === 'boolean') gameSettings.tutorialSeen = parsed.tutorialSeen;
+            if (typeof parsed.tutorialCleared === 'boolean') gameSettings.tutorialCleared = parsed.tutorialCleared;
             // adFree復元: 購入済みなら常にtrue
             if (gameSettings.purchased['ad_free'] || gameSettings.purchased['starter_pack']) gameSettings.adFree = true;
         }
@@ -2533,6 +2577,7 @@ function hasClaimableMission() {
 
 // ゲームオーバー時に呼ぶ: その日の累計へ差分加算（広告復活で2回gameOverしても二重計上しない）
 function recordMissionProgress() {
+    if (tutorialState.active) return; // チュートリアルはミッション/実績/プレイ回数に計上しない
     checkDailyMissions(); // 日付が変わっていたら先にリセット
     var dm = gameSettings.dailyMissions;
     var as = gameSettings.achievementStats; // 実績の生涯累計（同じ差分・同じガードで加算＝二重計上しない）
@@ -3375,9 +3420,23 @@ function startGame() {
     // 永続ストック枠を現在の pouchLevel で構築。resetGame を経由しない初回プレイやタイトルショップ購入直後でも確実に反映。
     // resetGame 済みの場合も permaStock から再構築するだけ（used=false リセット＝ラン開始として正しい・二重処理なし）。
     buildPermaSlots();
+    // チュートリアル「はじまりの地」（Phase3.5）: 未クリアの新規プレイヤーは毎回ここから。
+    // クリア後は設定「チュートリアルをあそぶ」（tutorialState.forced）で再プレイ可
+    if (tutorialState.forced ||
+        (!gameSettings.tutorialCleared && (((gameSettings.achievementStats || {}).totalPlays) || 0) === 0)) {
+        setupTutorialStage();
+    } else {
+        tutorialState.active = false;
+    }
+    var _tsb = document.getElementById('tutorialSkipBtn');
+    if (_tsb) {
+        _tsb.style.display = tutorialState.active ? 'block' : 'none';
+        _tsb.textContent = t('tut_skip');
+    }
     // 初回ランのおためしストック（Phase3 案B-1）: バリア1個を配布して
-    // 「ストック＝タップで使う」を最初のランで体験させる（ストック→ポーチ導線の学習）
-    if (gameState.isFirstRun && !gameState.trialGiftGiven) {
+    // 「ストック＝タップで使う」を最初のランで体験させる（ストック→ポーチ導線の学習）。
+    // チュートリアルには「たてをタップ」の練習台本があるため、再プレイ時も必ず配布する
+    if ((gameState.isFirstRun || tutorialState.active) && !gameState.trialGiftGiven) {
         gameState.trialGiftGiven = true;
         addToStock('barrier');
         showRewardToast('<img src="images/icon_barrier.png" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' + escapeHtml(t('first_run_gift_toast')),
@@ -4341,6 +4400,7 @@ function generateTerrain() {
 }
 
 function manageTerrain() {
+    if (tutorialState.active) return; // チュートリアルは setupTutorialStage の固定地形のみ（生成/掃除とも不要）
     terrain = terrain.filter(function(t) { return t.x + t.width > gameState.camera.x - 200; });
     while (gameState.lastTerrainX < gameState.camera.x + GAME_WIDTH + 500) generateTerrain();
 }
@@ -4517,6 +4577,9 @@ function manageObjects() {
 
     // ボス戦中は通常スポーン停止
     if (bossState.active && bossState.phase >= 2) return;
+
+    // チュートリアルは台本配置のみ＝ランダム湧きなし（敵/飛行敵/足場/コイン/アイテム）
+    if (tutorialState.active) return;
 
     // 安全地帯: 敵・飛行敵スポーン停止
     var inSafe = isInSafeZone(gameState.distance);
@@ -5447,6 +5510,11 @@ function takeDamage() {
     spawnDamageEffect(player.x + player.width / 2, player.y);
     // 敵被弾: その場で点滅+無敵（位置リセットしない）
     player.velY = -6; // 軽くノックバック（上方向）
+    if (tutorialState.active && gameState.lives <= 0) { // チュートリアルでは死なない＝その場で全回復
+        gameState.lives = 5;
+        showRewardToast('💪 ' + escapeHtml(t('tut_dontmind')), 'linear-gradient(180deg,#9be27a,#3f9f3f)', '#0c3a0c');
+        return;
+    }
     if (!debugMode && gameState.lives <= 0) {
         if (!tryRevive()) gameOver();
     }
@@ -5469,6 +5537,11 @@ function fallDeath() {
     gameState.noDmgNext = NODMG_STEP;
     spawnDamageEffect(player.x + player.width / 2, player.y);
     resetPlayerPosition(); // 上から降ってくる
+    if (tutorialState.active && gameState.lives <= 0) { // チュートリアルでは死なない＝その場で全回復
+        gameState.lives = 5;
+        showRewardToast('💪 ' + escapeHtml(t('tut_dontmind')), 'linear-gradient(180deg,#9be27a,#3f9f3f)', '#0c3a0c');
+        return;
+    }
     if (!debugMode && gameState.lives <= 0) {
         if (!tryRevive()) gameOver();
     }

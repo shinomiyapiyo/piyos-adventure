@@ -15,6 +15,134 @@ function playStageBGM() {
     soundManager.playBGM(bgmType);
 }
 
+// ─── チュートリアル「はじまりの地」（Phase3.5） ───
+// 通常ランと同じエンジンで動く台本つき固定面。tutorialState.active 中は
+// ランダム生成（地形/敵/コイン/アイテム/足場）とボス/土管/ショップの自動配置を止め、ここで確定配置する。
+function setupTutorialStage() {
+    tutorialState.active = true;
+    tutorialState.stepIdx = 0;
+    tutorialState.hintKey = '';
+    tutorialState.hintTimer = 0;
+    tutorialState.slowTimer = 0;
+    tutorialState.bossGuided = false;
+    tutorialState.skipArmed = 0;
+    // 固定地形: 全面平地＋練習用の穴1つ（150m・幅90px）。resetGameが敷いた初期地形を丸ごと置き換える
+    terrain.length = 0;
+    var segs = [[0, 1500], [1590, 9400]]; // px（1m=10px）
+    for (var si = 0; si < segs.length; si++) {
+        for (var gx = segs[si][0]; gx < segs[si][1]; gx += 100) {
+            terrain.push({ x: gx, y: GROUND_Y, width: Math.min(100, segs[si][1] - gx), height: 130, type: 'ground' });
+        }
+    }
+    terrain.push({ x: 1500, y: GROUND_Y, width: 0, height: 0, type: 'hole' }); // 穴マーカー（generateTerrainと同形式）
+    gameState.lastTerrainX = 9400; // ランダム地形生成は再開させない（manageTerrainもガード済み）
+    gameState.lastHoleX = null;
+    // コイン列（340m〜・走って取れる高さ）
+    for (var ci = 0; ci < 6; ci++) {
+        coins.push({ x: 3400 + ci * 44, y: GROUND_Y - 90, width: 32, height: 32, collected: false, animFrame: ci * 3 });
+    }
+    // 土管（530m・checkPipeTriggerはガード＝ここで確定配置）
+    pipeRoomState.targetRound = gameRound;
+    pipeRoomState.placed = true;
+    pipeRoomState.visited = false;
+    pipeRoomState.targetDist = 530;
+    pipeRoomState.x = 5300;
+    platforms.push({ x: 5300, y: GROUND_Y - PIPE_H, width: PIPE_W, height: PIPE_H, type: 'pipe' });
+    // おみせ（640m・checkShopTriggerの自動配置はガード＝ここで確定配置）
+    shopState.buildingPlaced = true;
+    shopState.buildingX = 6400;
+}
+
+// 台本用のひよこ（ゆっくり・平地歩き）
+function tutorialChick() {
+    return { x: gameState.camera.x + GAME_WIDTH + 60, y: GROUND_Y - 38, width: 42, height: 38,
+             velX: -0.6, velY: 0, onGround: false, type: 'chick', animFrame: 0, walkSprite: 'chick_walk' };
+}
+
+// 毎フレーム呼ばれる台本進行（bootstrapのgameLoopから・非アクティブ時は即return）
+function updateTutorial() {
+    if (!tutorialState.active) return;
+    while (tutorialState.stepIdx < TUTORIAL_SCRIPT.length &&
+           gameState.distance >= TUTORIAL_SCRIPT[tutorialState.stepIdx].atM) {
+        var st = TUTORIAL_SCRIPT[tutorialState.stepIdx++];
+        tutorialState.hintKey = st.key;
+        tutorialState.hintTimer = st.dur;
+        if (st.slow) tutorialState.slowTimer = 150; // 2.5秒だけゆっくり＝読んで構えられる
+        if (st.spawn === 'chick') enemies.push(tutorialChick());
+        if (soundManager) soundManager.playCursorMove();
+    }
+    if (tutorialState.hintTimer > 0) {
+        tutorialState.hintTimer--;
+        if (tutorialState.hintTimer === 0) tutorialState.hintKey = '';
+    }
+    if (tutorialState.slowTimer > 0) {
+        tutorialState.slowTimer--;
+        gameState.gameSpeed *= 0.35; // updateGameSpeedが毎tick再計算するため乗算方式（土管タイムと同じ）
+    }
+    if (tutorialState.skipArmed > 0) {
+        tutorialState.skipArmed--;
+        if (tutorialState.skipArmed === 0) {
+            var sb = document.getElementById('tutorialSkipBtn');
+            if (sb) sb.textContent = t('tut_skip');
+        }
+    }
+    // ボス戦が始まったら倒し方を案内
+    if (bossState.active && bossState.phase === 3 && !tutorialState.bossGuided) {
+        tutorialState.bossGuided = true;
+        tutorialState.hintKey = 'tut_boss_fight';
+        tutorialState.hintTimer = 600;
+    }
+}
+
+// チュートリアル完了（ボス撃破演出の後に呼ばれる）: 初回のみゴールデンエッグ報酬→完了画面
+function finishTutorial() {
+    tutorialState.active = false;
+    tutorialState.forced = false;
+    tutorialState.hintKey = '';
+    gameState.gameStarted = false;
+    gameState.gamePaused = true;
+    bossState.active = false; bossState.phase = 0; bossState.boss = null;
+    bossState.bossTriggered = false; bossState.eggs = [];
+    var first = !gameSettings.tutorialCleared;
+    gameSettings.tutorialCleared = true;
+    if (first) {
+        gameSettings.goldenEggs = (gameSettings.goldenEggs || 0) + TUTORIAL_CLEAR_EGGS;
+        markZukanSeen('item:golden_egg');
+    }
+    saveSettings();
+    var rw = document.getElementById('tutorialClearReward');
+    if (rw) {
+        rw.style.display = first ? 'block' : 'none';
+        if (first) rw.innerHTML = '<img src="images/item_golden_egg.png" width="26" height="26" style="image-rendering:pixelated; vertical-align:middle;"> ×' + TUTORIAL_CLEAR_EGGS + '　' + escapeHtml(t('tut_clear_reward'));
+    }
+    var tsb = document.getElementById('tutorialSkipBtn');
+    if (tsb) tsb.style.display = 'none';
+    showScreenEl('tutorialClearScreen');
+    if (soundManager) { try { soundManager.playBGM('title'); } catch (_) {} }
+}
+
+// スキップ（二度押し確認）: クリア扱い（報酬なし）にしてタイトルへ
+function tapTutorialSkip() {
+    if (!tutorialState.active) return;
+    if (tutorialState.skipArmed > 0) {
+        tutorialState.skipArmed = 0;
+        tutorialState.active = false;
+        tutorialState.forced = false;
+        tutorialState.hintKey = '';
+        gameSettings.tutorialCleared = true; // スキップ=クリア扱い（報酬は出ない）
+        saveSettings();
+        var b2 = document.getElementById('tutorialSkipBtn');
+        if (b2) { b2.style.display = 'none'; b2.textContent = t('tut_skip'); }
+        showRewardToast(escapeHtml(t('tut_skipped_toast')), 'linear-gradient(180deg,#ccc,#888)', '#222');
+        showStartScreen();
+        return;
+    }
+    tutorialState.skipArmed = 180; // 3秒以内にもう一度で確定
+    if (soundManager) soundManager.playCursorMove();
+    var b = document.getElementById('tutorialSkipBtn');
+    if (b) b.textContent = t('tut_skip_confirm');
+}
+
 // ── ラウンド境界（ボス出現距離） ──
 // 初回ラン圧縮（Phase3 案A）: 生涯プレイ0回のラン（gameState.isFirstRun・resetGameで確定）だけ、
 // 最初のボスを半分の距離(1200m)に前倒し。以降のラウンド境界も同じ量だけ手前にずれる＝ラウンド間隔2400mは不変。
@@ -29,8 +157,8 @@ function checkShopTrigger() {
     if (bossState.active || bossState.bossTriggered) return;
     var bossDistance = bossDistanceFor(gameRound);
 
-    // ショップ建物をワールドに配置（一度だけ） — 安全地帯より100m手前で配置開始
-    if (!shopState.buildingPlaced && gameState.distance >= bossDistance - SHOP_SAFE_ZONE_START - 100) {
+    // ショップ建物をワールドに配置（一度だけ） — 安全地帯より100m手前で配置開始（チュートリアルは固定配置済み）
+    if (!tutorialState.active && !shopState.buildingPlaced && gameState.distance >= bossDistance - SHOP_SAFE_ZONE_START - 100) {
         shopState.buildingPlaced = true;
         shopState.buildingX = (bossDistance - SHOP_BUILDING_OFFSET) * 10; // m→px
     }
@@ -89,6 +217,7 @@ function pipeFootprintFlat(x, w) {
 }
 
 function checkPipeTrigger() {
+    if (tutorialState.active) return; // チュートリアルは setupTutorialStage で固定配置済み（再抽選もしない）
     if (bossState.active || bossState.bossTriggered || pipeRoomState.active) return;
     // ラウンドが変わったら、このラウンドの目標距離を新規抽選（1ラウンド1回）
     if (pipeRoomState.targetRound !== gameRound) pickPipeTargetDist();
@@ -311,8 +440,8 @@ function initPipeRoom() {
         var id = pool[Math.floor(Math.random() * pool.length)];
         bonusRoomItems.push({ type: 'shopitem', itemId: id, x: posC, y: floorY - 152, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
     }
-    // ゴールデンエッグ: 1/20
-    if (Math.random() < 0.05) {
+    // ゴールデンエッグ: 1/20（チュートリアルの土管部屋では出さない＝何度でも遊べるため稼ぎ場防止）
+    if (!tutorialState.active && Math.random() < 0.05) {
         bonusRoomItems.push({ type: 'golden_egg', x: posC, y: floorY - 215, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
     }
 }
@@ -818,13 +947,13 @@ function updateStageShopUI() {
         } else if (gameState.score > 0) {
             depLabel = depLabel + ' (' + depAmt + t('currency_unit') + ')';
         }
-        html += renderShopMenuItem('_menu_deposit', _ic('icon_bank.png'), depLabel);
-        // リワード広告ボーナス
-        if (!rewardAdState.shopAdUsedThisVisit && !gameSettings.adFree) {
+        if (!tutorialState.active) html += renderShopMenuItem('_menu_deposit', _ic('icon_bank.png'), depLabel); // チュートリアルでは貯金を隠す（永続資産の稼ぎ場防止）
+        // リワード広告ボーナス（チュートリアルでは出さない）
+        if (!rewardAdState.shopAdUsedThisVisit && !gameSettings.adFree && !tutorialState.active) {
             html += renderShopMenuItem('_menu_reward_ad', _ic('icon_money.png'), t('reward_ad_shop_money'));
         }
         // 貯金プレビュー情報
-        if (!shopState.deposited && gameState.score > 0) {
+        if (!shopState.deposited && gameState.score > 0 && !tutorialState.active) {
             html += '<div style="color:rgba(136,204,255,0.7); font-family:DotGothic16,monospace; font-size:clamp(7px,1.3vw,10px); text-align:center; padding:1px 6px; text-shadow:0 1px 2px rgba(0,0,0,0.8);">' +
                 t('shop_deposit_preview', { sf: gameSettings.savings, st: gameSettings.savings + depAmt, cf: gameState.score, ct: gameState.score - depAmt }) + '</div>';
         } else {
@@ -1916,7 +2045,9 @@ function updateStockUI() {
 
 function checkBossTrigger() {
     if (bossState.active || bossState.bossTriggered) return;
-    if (gameState.distance >= bossDistanceFor(gameRound)) {
+    // チュートリアルは専用距離(760m)で弱いボスを出す
+    var _trigDist = tutorialState.active ? TUTORIAL_BOSS_M : bossDistanceFor(gameRound);
+    if (gameState.distance >= _trigDist) {
         bossState.bossTriggered = true;
         bossState.active = true;
         bossState.phase = 1; // WARNING
@@ -1966,6 +2097,7 @@ function setupBossArena() {
     // ボスオブジェクト生成
     // HP増はR6から（1週目R1-R5=一律100）＋上限（R6から+20/ラウンド・R12で240頭打ち）。難度はラウンド連動の攻撃パターンで上げる（bossEncounter参照）
     var bossMaxHp = BOSS_MAX_HP + Math.min(Math.max(0, gameRound - 5), BOSS_HP_ROUND_CAP) * BOSS_HP_PER_ROUND;
+    if (tutorialState.active) bossMaxHp = 30; // チュートリアル専用の弱いボス（R1=ニワトリ・専用スプライトは素材が来たら差し替え）
     bossState.maxHp = bossMaxHp;
     bossState.boss = {
         x: gameState.camera.x + GAME_WIDTH + 50,
@@ -2186,6 +2318,7 @@ function updateBoss() {
         }
         // 5秒後に移行
         if (bossState.defeatedTimer >= 300) {
+            if (tutorialState.active) { finishTutorial(); return; } // チュートリアル: 次ラウンドへ行かず完了画面へ
             bossState.phase = 5;
             bossState.roundTextTimer = 180;
         }

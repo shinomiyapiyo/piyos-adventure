@@ -197,6 +197,34 @@ var SHOP_SAFE_ZONE_START = 250; // ボス出現の250m前から安全地帯
 var SHOP_BUILDING_OFFSET = 100; // ボス出現の100m前にショップ建物
 var SHOP_SAFE_ZONE_SPEED = 1.5; // 安全地帯のスクロール速度
 
+// ─── チュートリアル「はじまりの地」（Phase3.5） ───
+// クリアするまで新規プレイヤー(totalPlays=0)は毎回ここから。クリア後は設定「チュートリアルをあそぶ」で再プレイ可。
+// 報酬のゴールデンエッグは初回クリアのみ（再プレイ/チュートリアルの土管部屋では出さない＝稼ぎ場防止）。
+var TUTORIAL_CLEAR_EGGS = 3;   // 初回クリア報酬（調整ノブ）
+var TUTORIAL_BOSS_M     = 760; // ボス出現距離(m)
+var tutorialState = {
+    active: false,    // このランがチュートリアルか
+    forced: false,    // クリア済みでも設定から再プレイ（1ランで解除）
+    stepIdx: 0,       // TUTORIAL_SCRIPT の進行位置
+    hintKey: '',      // 表示中の案内（i18nキー・''=非表示）
+    hintTimer: 0,     // 案内の残フレーム
+    slowTimer: 0,     // 案内地点の一時減速の残フレーム
+    bossGuided: false,
+    skipArmed: 0      // スキップ二度押し確認の残フレーム
+};
+// 台本: 到達距離(m)で案内を出す。slow=一時減速 / spawn=敵をその場で湧かせる
+var TUTORIAL_SCRIPT = [
+    { atM: 10,  key: 'tut_welcome',   dur: 300 },
+    { atM: 60,  key: 'tut_move',      dur: 300 },
+    { atM: 115, key: 'tut_jump',      dur: 300, slow: true },  // 穴150m
+    { atM: 220, key: 'tut_stomp',     dur: 330, slow: true, spawn: 'chick' },
+    { atM: 320, key: 'tut_coin',      dur: 240 },              // コイン列340m〜
+    { atM: 400, key: 'tut_stock',     dur: 330, slow: true },  // おためしバリア
+    { atM: 470, key: 'tut_pipe',      dur: 420, slow: true },  // 土管530m
+    { atM: 600, key: 'tut_shop',      dur: 300 },              // おみせ640m
+    { atM: 700, key: 'tut_boss_warn', dur: 240 }
+];
+
 // ─── 土管ボーナス部屋 ───
 var PIPE_W = 176, PIPE_H = 66;                      // 入口（縦）土管のサイズ(px)。1.407:72→88→1.409:176（ユーザー指定で倍幅＝乗りやすく）
 var PIPE_MOUTH_LINE = 5;                            // 衝突上面(p.y)から「上面の穴の手前縁」までのpx（スプライト実測値）。出入り演出はこのラインより上だけプレイヤーを描く＝穴に沈む見た目

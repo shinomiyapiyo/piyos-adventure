@@ -2521,8 +2521,37 @@ function render() {
         ctx.restore();
     }
 
+    // チュートリアル案内バナー（画面上部中央・スクリーン座標）
+    if (tutorialState.active && tutorialState.hintKey && !pipeRoomState.active) drawTutorialHint();
+
     drawSpecialCutin();
     gameState.time += frameSteps;
+}
+
+// チュートリアルの案内バナー: 紺地+白枠のDQ風・複数行対応・残り20フレームでフェードアウト
+function drawTutorialHint() {
+    var lines = t(tutorialState.hintKey).split('\n');
+    ctx.save();
+    ctx.font = "bold 16px 'DotGothic16', monospace";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var w = 0;
+    for (var i = 0; i < lines.length; i++) w = Math.max(w, ctx.measureText(lines[i]).width);
+    var lh = 22;
+    var bw = w + 40, bh = lines.length * lh + 14;
+    var bx = GAME_WIDTH / 2, by = 52 + bh / 2;
+    ctx.globalAlpha = Math.min(1, tutorialState.hintTimer / 20) * 0.95;
+    ctx.fillStyle = 'rgba(0,0,48,0.88)';
+    drawRoundRect(bx - bw / 2, by - bh / 2, bw, bh, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    drawRoundRect(bx - bw / 2, by - bh / 2, bw, bh, 8);
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    for (var li = 0; li < lines.length; li++) {
+        ctx.fillText(lines[li], bx, by - bh / 2 + 7 + lh / 2 + li * lh);
+    }
+    ctx.restore();
 }
 
 function updateUI() {

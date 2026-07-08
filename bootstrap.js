@@ -42,6 +42,7 @@ function gameLoop(timestamp) {
             checkShopTrigger();
             checkPipeTrigger();
             updatePipeAssist(); // 土管タイム（土管上でスクロール減速・updateGameSpeedの直後に判定）
+            updateTutorial();   // チュートリアル台本（非アクティブ時は即return・減速はupdateGameSpeed後に乗算）
             checkBossTrigger();
             updateBoss();
             updateBiome();
@@ -701,6 +702,17 @@ function initialize() {
     bindTapButton(document.getElementById('stageShopCloseBtn'), closeStageShop, { stopClickPropagation: true });
 
     // DQ風 はい/いいえ確認ボタン（カーソル合わせ→決定の2ステップ）
+    // チュートリアル（はじまりの地）: スキップ・完了画面・設定からの再プレイ
+    bindTapButton(document.getElementById('tutorialSkipBtn'), tapTutorialSkip, { stopClickPropagation: true });
+    bindTapButton(document.getElementById('tutorialClearBtn'), function() {
+        hideScreenEl('tutorialClearScreen');
+        showStartScreen();
+    });
+    bindTapButton(document.getElementById('playTutorialBtn'), function() {
+        tutorialState.forced = true;
+        hideScreenEl('settingsScreen');
+        startGame();
+    });
     bindTapButton(document.getElementById('shopConfirmYes'), handleConfirmYes, { stopClickPropagation: true });
     bindTapButton(document.getElementById('shopConfirmNo'), handleConfirmNo, { stopClickPropagation: true });
 
