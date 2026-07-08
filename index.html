@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.435";
+                content: "Ver.1.436";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -497,6 +497,18 @@
             font-size: clamp(18px, 6vw, 30px);
             margin: 0 0 10px;
         }
+        /* --- ランキング通報モード（行がタップ対象になったことを強調） --- */
+        #rankingList.report-mode .rank-row {
+            background: rgba(150, 20, 45, 0.5);
+            cursor: pointer;
+            border-radius: 6px;
+            padding: 6px 6px !important;
+            margin: 2px 0;
+        }
+        #rankingList.report-mode .rank-row:active {
+            background: rgba(220, 40, 70, 0.65);
+        }
+
         /* 横向き: 高さが足りないため3列＋vh基準の小型化で1画面に収める */
         @media (orientation: landscape) {
             #titleMenuPanel { width: min(94vw, 640px) !important; }
@@ -814,7 +826,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.435</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.436</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -920,6 +932,26 @@
                 font-family: 'M PLUS Rounded 1c', sans-serif;
                 text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
                 letter-spacing: 0.08em;" data-i18n="ranking_title"><img src="images/icon_trophy.png" class="ui-icon"> ランキング</div>
+            <!-- 通報ボタン（Phase4: 14番地と同方式。タップで通報モード⇔キャンセル） -->
+            <button id="rankingReportBtn" onclick="toggleRankingReport()" data-i18n="ranking_report" style="
+                position: absolute;
+                top: calc(8px + env(safe-area-inset-top, 0px));
+                right: calc(10px + env(safe-area-inset-right, 0px));
+                z-index: 40; padding: 5px 14px; min-width: 0;
+                background: linear-gradient(180deg, #ff5a5a 0%, #d81a2c 60%, #a80f1f 100%);
+                border: none; border-top: 2px solid rgba(255,255,255,0.35);
+                border-bottom: 3px solid rgba(90,0,10,0.6);
+                border-radius: 10px; color: #fff; font-weight: 700;
+                font-family: 'M PLUS Rounded 1c', sans-serif;
+                font-size: clamp(11px, 2vw, 16px);
+                cursor: pointer; -webkit-tap-highlight-color: transparent;
+                box-shadow: 0 3px 10px rgba(216,26,44,0.45);">通報</button>
+            <div id="rankingReportHint" data-i18n="ranking_report_hint" style="
+                display: none; color: #ff6b7a; font-weight: 700;
+                font-size: clamp(11px, 1.8vw, 15px);
+                text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+                margin-bottom: 0.4vh; flex-shrink: 0;
+                font-family: 'M PLUS Rounded 1c', sans-serif;">通報する名前をタップ</div>
             <div style="display: flex; gap: 4px; margin-bottom: 0.5vh; flex-shrink: 0; flex-wrap: wrap; justify-content: center;">
                 <button class="game-button" data-i18n="ranking_score" onclick="showRankingByType('score')" id="scoreRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_money.png" class="ui-icon"> 金額</button>
                 <button class="game-button" data-i18n="ranking_distance" onclick="showRankingByType('distance')" id="distanceRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_distance.png" class="ui-icon"> 距離</button>
@@ -1783,7 +1815,7 @@
         backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
         display: none; flex-direction: column;
         justify-content: center; align-items: center;
-        z-index: 99999; padding: 20px;">
+        z-index: 9999999; padding: 20px;"><!-- ランキング画面(z:999999)より必ず前面（通報の確認ダイアログ等） -->
         <div style="
             background: linear-gradient(160deg, #2a1540 0%, #1a0a2e 40%, #120820 100%);
             border: 2px solid rgba(255,105,180,0.5);
@@ -1808,7 +1840,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.435
+ * ぴよ氏の冒険 v1.436
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3238,13 +3270,16 @@ var NG_WORDS = [
  * @returns {boolean} true = NGワードを含む
  */
 function containsNgWord(name) {
-    // 正規化：小文字化 → 全角英数→半角 → カタカナ→ひらがな → スペース・記号除去
-    var normalized = String(name).toLowerCase()
+    // 正規化：NFKC（半角ｶﾅ→全角＋濁点合成・全角英数→半角・装飾文字分解）→ 小文字化
+    //        → 全角英数→半角 → カタカナ→ひらがな → スペース・記号・長音除去
+    var raw = String(name);
+    if (String.prototype.normalize) raw = raw.normalize('NFKC'); // 「ｶｽ」「ﾊﾞｶ」等の半角カナすり抜けを防ぐ
+    var normalized = raw.toLowerCase()
         .replace(/[\uff21-\uff3a]/g, function(c) { return String.fromCharCode(c.charCodeAt(0) - 0xfee0); }) // Ａ→a
         .replace(/[\uff41-\uff5a]/g, function(c) { return String.fromCharCode(c.charCodeAt(0) - 0xfee0); }) // ａ→a
         .replace(/[\uff10-\uff19]/g, function(c) { return String.fromCharCode(c.charCodeAt(0) - 0xfee0); }) // ０→0
         .replace(/[\u30a1-\u30f6]/g, function(c) { return String.fromCharCode(c.charCodeAt(0) - 0x60); })   // カタカナ→ひらがな
-        .replace(/[\s\u3000._\-!@#$%^&*=+~`|:;,\/\\'"?。、！？・\u200b\u00a0]/g, '');  // スペース・記号除去
+        .replace(/[\s\u3000._\-!@#$%^&*=+~`|:;,\/\\'"?。、！？・\u200b\u00a0\u30fc\u301c\uff5e]/g, '');  // スペース・記号・長音(「ばーか」対策)除去
 
     // ホワイトリスト: 該当部分をプレースホルダに置換してからNGチェック
     var checked = normalized;
@@ -3884,6 +3919,7 @@ function showRanking() {
     document.body.appendChild(el);
     el.style.cssText = 'position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;background:rgba(0,0,0,0.9)!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-items:center!important;z-index:999999!important;padding:calc(1vh + env(safe-area-inset-top,0px)) calc(6px + env(safe-area-inset-right,0px)) calc(0.5vh + env(safe-area-inset-bottom,0px)) calc(6px + env(safe-area-inset-left,0px))!important;overflow:hidden!important;';
     el.classList.remove('hidden');
+    setRankingReportMode(false); // 開くたびに通常モードから
     showRankingByType('score');
 
     if (!rankingListenersAdded) {
@@ -3893,6 +3929,7 @@ function showRanking() {
                 list.addEventListener('touchstart', stopProp);
                 list.addEventListener('touchmove', stopProp);
                 list.addEventListener('touchend', stopProp);
+                list.addEventListener('click', handleRankingListTap); // 通報モード時のみ反応
             }
             rankingListenersAdded = true;
         }, 100);
@@ -3925,8 +3962,11 @@ function showRankingByType(type) {
         for (var i = 0; i < rankings.length; i++) {
             var rank = i + 1;
             var color = rank <= 3 ? '#ffd700' : '#fff';
-            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.3);color:#fff;font-size:1.5vw;">' +
-                '<span style="color:' + color + ';">' + rank + '. ' + escapeHtml(rankings[i].name || '???') + '</span>' +
+            var rawName = String(rankings[i].name || '???');
+            // 表示側の防御: 入力チェックを迂回してDBへ直接投入された不適切名も表示しない（通報用にdata-nameへは原文を保持）
+            var dispName = containsNgWord(rawName) ? '＊＊＊' : rawName;
+            html += '<div class="rank-row" data-name="' + escapeHtml(rawName) + '" data-value="' + (Number(rankings[i][type]) || 0) + '" style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.3);color:#fff;font-size:1.5vw;">' +
+                '<span style="color:' + color + ';">' + rank + '. ' + escapeHtml(dispName) + '</span>' +
                 '<span style="color:#ffd700;font-weight:bold;">' + escapeHtml(rankings[i][type] || 0) + t(unitKeys[type]) + '</span></div>';
         }
         list.innerHTML = html;
@@ -3959,7 +3999,58 @@ function closeRanking() {
 }
 
 function hideRankingDirect() {
+    setRankingReportMode(false); // どの経路で閉じても通報モードは解除した状態に戻す
     hideScreenEl('rankingScreen');
+}
+
+// ─── ランキング通報（Phase4: リリース済みアプリ「14番地」と同方式） ───
+// 通報ボタン→通報モード（案内表示+行がタップ対象）→名前タップ→確認→ reports/ へ送信。
+// 閲覧・削除はクライアント不可（Firebaseコンソールのみ）。DBルールはHANDOFF参照。
+var rankingReportMode = false;
+function setRankingReportMode(on) {
+    rankingReportMode = !!on;
+    var btn = document.getElementById('rankingReportBtn');
+    var hint = document.getElementById('rankingReportHint');
+    var list = document.getElementById('rankingList');
+    if (btn) {
+        btn.textContent = t(rankingReportMode ? 'ranking_report_cancel' : 'ranking_report');
+        btn.style.background = rankingReportMode
+            ? 'linear-gradient(180deg, #9aa0a8 0%, #6b7178 60%, #4d5359 100%)'
+            : 'linear-gradient(180deg, #ff5a5a 0%, #d81a2c 60%, #a80f1f 100%)';
+        btn.style.boxShadow = rankingReportMode ? '0 3px 10px rgba(0,0,0,0.35)' : '0 3px 10px rgba(216,26,44,0.45)';
+    }
+    if (hint) hint.style.display = rankingReportMode ? 'block' : 'none';
+    if (list) list.classList.toggle('report-mode', rankingReportMode);
+}
+function toggleRankingReport() {
+    setRankingReportMode(!rankingReportMode);
+    if (soundManager) soundManager.playCursorMove();
+}
+function handleRankingListTap(e) {
+    if (!rankingReportMode) return;
+    var row = e.target && e.target.closest ? e.target.closest('.rank-row') : null;
+    if (!row) return;
+    var name = row.getAttribute('data-name') || '';
+    if (!name) return;
+    reportRankingName(name, Number(row.getAttribute('data-value')) || 0);
+}
+function reportRankingName(name, value) {
+    showConfirmModal(t('report_confirm').replace('{name}', name)).then(function(yes) {
+        if (!yes) return;
+        if (!database) { showGameModal(t('report_fail')); return; }
+        var data = {
+            name: String(name).substring(0, 16),
+            type: String(currentRankingType || 'score'),
+            value: Number(value) || 0,
+            ts: Date.now()
+        };
+        database.ref('reports').push().set(data).then(function() {
+            setRankingReportMode(false);
+            showGameModal(t('report_done'));
+        }).catch(function() {
+            showGameModal(t('report_fail'));
+        });
+    });
 }
 
 // ─── 設定画面 ───
