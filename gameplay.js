@@ -154,6 +154,7 @@ function finishTutorial() {
     }
     var tsb = document.getElementById('tutorialSkipBtn');
     if (tsb) tsb.style.display = 'none';
+    updateStockUI(); // gameStarted=false になったのでストック枠を隠す（クリア画面に残さない）
     showScreenEl('tutorialClearScreen');
     if (soundManager) { try { soundManager.playBGM('tutorial'); } catch (_) {} } // クリア画面のBGMは はじまりの地の曲
 }
@@ -2095,9 +2096,10 @@ function updateStockUI() {
             }
         }
     }
-    // 所持している永久型アップグレードのアイコンを枠の下にまとめて表示（ゲーム中・両ショップで一貫表示）
+    // 所持している永久型アップグレードのアイコンを枠の下にまとめて表示（ゲーム中・両ショップで一貫表示）。
+    // チュートリアルはサンドボックス＝アップグレード効果なしなので表示しない（実所持と画面の食い違い防止・1.430）
     var ownedHtml = '';
-    var ownedUps = gameSettings.upgrades || {};
+    var ownedUps = tutorialState.active ? {} : (gameSettings.upgrades || {});
     for (var u = 0; u < TITLE_SHOP_UPGRADES.length; u++) {
         var up = TITLE_SHOP_UPGRADES[u];
         var upLv = ownedUps[up.id] || 0;

@@ -1396,11 +1396,14 @@ function drawTerrain(t) {
 function drawPlatform(p) {
     // 土管ボーナス部屋の入口（縦土管）: 専用スプライトで描く＋上に下向き矢印（乗って下スワイプ＝もぐる、の示唆）
     if (p.type === 'pipe') {
-        // item_pipe.png は上13%/下10%が透明余白のため、素直に p.y へ描くと見える管が下がって
-        // プレイヤーが浮いて見える。見える管の上端を衝突上端(=足元)に、下端を地面に合わせるよう
-        // 上へ16pxずらし＋高さを+25して描く（余白ぶんを相殺）。足場は地形より後に描かれるので下は草に馴染む。
+        // item_pipe.png は上13%/下10%に加え左右21.9%ずつも透明余白（実測: 192px中 可視x=42..149=108px）。
+        // 素直に p.width で描くと見える管が当たり判定(176px)の約6割になり「土管に接していないのに乗れる」
+        // 見た目のズレが出る（1.429ユーザー報告）。可視部分が判定幅ちょうどに広がるよう横も相殺して描く。
+        // 縦は従来どおり: 上へ16pxずらし＋高さ+25（見える管の上端=足元・下端=地面）。
         if (pipeImg.complete && pipeImg.naturalWidth) {
-            ctx.drawImage(pipeImg, p.x, p.y - 16, p.width, p.height + 25);
+            var _pw = p.width * (192 / 108);            // 全体描画幅（可視108pxが p.width になる倍率）
+            var _px = p.x - p.width * (42 / 108);       // 左余白42pxぶん左へ
+            ctx.drawImage(pipeImg, _px, p.y - 16, _pw, p.height + 25);
         } else {
             ctx.fillStyle = '#3cb043'; ctx.fillRect(p.x, p.y, p.width, p.height + 12);
         }
