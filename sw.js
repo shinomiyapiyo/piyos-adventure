@@ -1,4 +1,4 @@
-var CACHE_NAME = 'piyo-adventure-v1.421';
+var CACHE_NAME = 'piyo-adventure-v1.422';
 var STATIC_ASSETS = [
     './',
     './index.html',
@@ -23,6 +23,7 @@ var STATIC_ASSETS = [
     './sounds/stage3.mp3',
     './sounds/stage4.mp3',
     './sounds/stage5.mp3',
+    './sounds/tutorial.mp3',
     './sounds/protect.mp3',
     './sounds/warning.mp3',
     './sounds/select.mp3',

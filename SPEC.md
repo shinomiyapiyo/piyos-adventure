@@ -736,6 +736,7 @@
 | stage4.mp3 | NullPo Works (Suno生成) | 自社制作 |
 | stage5.mp3 | NullPo Works (Suno生成) | 自社制作 |
 | bonus.mp3 | NullPo Works (Suno生成) | 自社制作 |
+| tutorial.mp3（元タイトル: Pixel Picnic Parade） | NullPo Works (Suno生成・2026-07-08・タグ/カバー画像除去済み) | 自社制作 |
 | flash.mp3 | OtoLogic | CC BY 4.0 |
 | or.mp3 | OtoLogic | CC BY 4.0 |
 | select.mp3 | OtoLogic | CC BY 4.0 |

@@ -19,6 +19,7 @@ class SoundManager {
         this.stage3BGM   = this._createBGM('sounds/stage3.mp3',   0.5);
         this.stage4BGM   = this._createBGM('sounds/stage4.mp3',   0.5);
         this.stage5BGM   = this._createBGM('sounds/stage5.mp3',   0.5);
+        this.tutorialBGM = this._createBGM('sounds/tutorial.mp3', 0.5); // チュートリアル「はじまりの地」（Suno生成・タグ除去済み）
         this.gameoverBGM = this._createBGM('sounds/gameover.mp3', 0.7);
         this.rankingBGM  = this._createBGM('sounds/ranking.mp3',  0.6);
         this.bossBGM     = this._createBGM('sounds/boss.mp3',     0.6);
@@ -272,7 +273,7 @@ class SoundManager {
     }
 
     stopAllBGM() {
-        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.stage4BGM, this.stage5BGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.bonusBGM, this.winBGM];
+        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.stage4BGM, this.stage5BGM, this.tutorialBGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.bonusBGM, this.winBGM];
         for (var i = 0; i < bgms.length; i++) {
             if (bgms[i]) { bgms[i].pause(); bgms[i].currentTime = 0; }
         }

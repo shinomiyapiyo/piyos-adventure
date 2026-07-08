@@ -8,8 +8,10 @@
 // ─── ショップシステム ロジック ───
 
 // ラウンドに応じたステージBGMを再生（stage→stage2→stage3→stage→...）
+// チュートリアル「はじまりの地」は専用BGM（土管部屋から戻る時もここを通るので自動で復帰する）
 function playStageBGM() {
     if (!soundManager) return;
+    if (tutorialState.active) { soundManager.playBGM('tutorial'); return; }
     var cycle = ((gameRound - 1) % 5); // 5ラウンド/1周に対応: 0=stage,1=stage2,2=stage3,3=stage4,4=stage5
     var bgmType = cycle === 0 ? 'stage' : 'stage' + (cycle + 1);
     soundManager.playBGM(bgmType);
