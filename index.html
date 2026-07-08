@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.430";
+                content: "Ver.1.431";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.430</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.431</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -820,6 +820,7 @@
                     <button class="game-button" id="shopButton"><img src="images/icon_cart.png" class="ui-icon"> <span data-i18n="title_shop">SHOP</span></button>
                     <button class="game-button" id="missionButton" style="position:relative;"><img src="images/icon_flag.png" class="ui-icon"> <span data-i18n="title_mission">MISSION</span><span id="missionBadge" style="display:none; position:absolute; top:-5px; right:-5px; width:13px; height:13px; background:#ff3344; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(255,51,68,0.9);"></span></button>
                     <button class="game-button" id="achievementButton" style="position:relative;"><img src="images/icon_celebrate.png" class="ui-icon"> <span data-i18n="title_achievement">TROPHY</span><span id="achievementBadge" style="display:none; position:absolute; top:-5px; right:-5px; width:13px; height:13px; background:#ff3344; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(255,51,68,0.9);"></span></button>
+                    <button class="game-button" id="badgeButton" style="position:relative;"><img src="images/icon_trophy.png" class="ui-icon"> <span data-i18n="title_badge">BADGE</span><span id="badgeNotifyDot" style="display:none; position:absolute; top:-5px; right:-5px; width:13px; height:13px; background:#c9a0ff; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(201,160,255,0.9);"></span></button>
                     <button class="game-button" id="skinButton"><img src="images/skin_maid_idle.png" class="ui-icon"> <span data-i18n="title_skin">きせかえ</span></button>
                     <!-- 課金ストアボタン（課金実装完了時に display:'' に戻す） -->
                     <button class="game-button" id="storeButton" style="
@@ -1418,6 +1419,33 @@
             </div>
         </div>
 
+        <!-- バッジ（称号）画面 Phase3.6 P3 -->
+        <div id="badgeScreen" class="hidden" style="
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            box-sizing: border-box; z-index: 9999;
+            background: linear-gradient(160deg, #1a0d32, #0d0520);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            padding: 10px calc(env(safe-area-inset-right,0px) + 12px) 10px calc(env(safe-area-inset-left,0px) + 12px);
+            overflow: hidden;">
+            <div style="width: min(94vw, 580px); max-height: 96vh; display: flex; flex-direction: column;
+                background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
+                border: 2px solid rgba(201,160,255,0.5); border-radius: 14px;
+                box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(201,160,255,0.12);
+                padding: 7px 14px; box-sizing: border-box;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0;">
+                    <span id="badgeTitle" style="color:#c9a0ff; font-size:clamp(13px,3vw,20px); font-weight:800;
+                        font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(201,160,255,0.4);"><img src="images/icon_trophy.png" class="ui-icon"> バッジ</span>
+                </div>
+                <div id="badgeHint" style="color:rgba(255,255,255,0.5); font-size:clamp(8px,1.5vw,11px);
+                    font-family:'M PLUS Rounded 1c',sans-serif; margin:2px 0 5px;">あつめた しょうごう</div>
+                <div id="badgeList" style="display:flex; flex-direction:column; gap:5px;
+                    overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto; min-height:0;"></div>
+                <button class="game-button" id="badgeBackBtn" data-i18n="btn_back" style="margin-top:7px; flex-shrink:0;
+                    min-height:40px; font-size:clamp(11px,2.4vw,16px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
+            </div>
+        </div>
+
         <!-- きせかえ（アバタースキン）画面 -->
         <div id="skinScreen" class="hidden" style="
             position: fixed; top: 0; left: 0;
@@ -1733,7 +1761,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.430
+ * ぴよ氏の冒険 v1.431
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2257,6 +2285,7 @@ var gameSettings = {
     dailyMissions: { date: '', plays: 0, distance: 0, kills: 0, coins: 0, boss: 0, special: 0, claimed: [false, false, false], bonusClaimed: false, ts: 0 },
     achievementStats: { totalKills: 0, totalDistance: 0, totalPlays: 0, bestDistance: 0, ts: 0 }, // 実績用の生涯累計（リセットなし）
     achievements: { claimed: {} },  // 実績の受取済み（id別マップ）
+    badges: {},                     // 獲得済みバッジ（称号）id別マップ（値=獲得時刻ms）。実績達成/チュートリアルクリアで自動解放
     tshopAdCooldown: 0,    // タイトルショップ広告のクールダウン（timestamp, 永続化）
     // ── 課金関連 ──
     purchased: {},         // { productId: true } 買い切り商品
@@ -2318,6 +2347,9 @@ var gameSettings = {
             }
             if (parsed.achievements && typeof parsed.achievements === 'object' && parsed.achievements.claimed && typeof parsed.achievements.claimed === 'object') {
                 gameSettings.achievements.claimed = parsed.achievements.claimed;
+            }
+            if (parsed.badges && typeof parsed.badges === 'object') {
+                gameSettings.badges = parsed.badges;
             }
             // ── 広告クールダウン ──
             if (typeof parsed.tshopAdCooldown === 'number') gameSettings.tshopAdCooldown = parsed.tshopAdCooldown;
@@ -2757,6 +2789,102 @@ var ACHIEVEMENTS = [
     { id: 'best_5000',   stat: 'bestDistance',  target: 5000,   reward: 0, eggReward: 3, nameKey: 'ach_best_5000',   iconImg: 'images/icon_progress.png' }
 ];
 
+// ─── バッジ（称号）システム ───
+// 実績連動: achId を持つバッジは その実績が達成(complete)された瞬間に自動解放。
+// special を持つバッジは個別条件（例: tutorial=チュートリアルクリア）。獲得は集めるだけ（装備は将来）。
+// checkBadges() をタイトル表示・実績受取・チュートリアルクリア後に呼ぶ＝取りこぼしなく付与。
+var BADGES = [
+    { id: 'tutorial_master', nameKey: 'badge_tutorial_master', descKey: 'badge_tutorial_master_d', iconImg: 'images/icon_play.png',     special: 'tutorial' },
+    { id: 'first_run',       nameKey: 'badge_first_run',       descKey: 'badge_first_run_d',       iconImg: 'images/icon_progress.png', achId: 'best_1000' },
+    { id: 'runner',          nameKey: 'badge_runner',          descKey: 'badge_runner_d',          iconImg: 'images/icon_speedup.png',  achId: 'best_3000' },
+    { id: 'hunter',          nameKey: 'badge_hunter',          descKey: 'badge_hunter_d',          iconImg: 'images/icon_kills.png',    achId: 'kills_100' },
+    { id: 'slayer',          nameKey: 'badge_slayer',          descKey: 'badge_slayer_d',          iconImg: 'images/icon_kills.png',    achId: 'kills_1000' },
+    { id: 'traveler',        nameKey: 'badge_traveler',        descKey: 'badge_traveler_d',        iconImg: 'images/icon_distance.png', achId: 'dist_5000' },
+    { id: 'wanderer',        nameKey: 'badge_wanderer',        descKey: 'badge_wanderer_d',        iconImg: 'images/icon_distance.png', achId: 'dist_50000' },
+    { id: 'regular',         nameKey: 'badge_regular',         descKey: 'badge_regular_d',         iconImg: 'images/icon_play.png',     achId: 'plays_10' },
+    { id: 'devoted',         nameKey: 'badge_devoted',         descKey: 'badge_devoted_d',         iconImg: 'images/icon_celebrate.png', achId: 'plays_50' }
+];
+function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
+function isBadgeEarned(b) { return !!(gameSettings.badges && gameSettings.badges[b.id]); }
+// 現在その称号の解放条件を満たしているか（未獲得でも true になり得る＝checkBadgesで付与される）
+function isBadgeUnlockable(b) {
+    if (b.special === 'tutorial') return !!gameSettings.tutorialCleared;
+    if (b.achId) { var a = achById(b.achId); return a ? isAchievementComplete(a) : false; }
+    return false;
+}
+// 未獲得で条件を満たしたバッジを付与。新規解放があればトーストで知らせ、true を返す
+function checkBadges(silent) {
+    if (!gameSettings.badges) gameSettings.badges = {};
+    var newly = [];
+    for (var i = 0; i < BADGES.length; i++) {
+        var b = BADGES[i];
+        if (!isBadgeEarned(b) && isBadgeUnlockable(b)) {
+            gameSettings.badges[b.id] = Date.now();
+            newly.push(b);
+        }
+    }
+    if (newly.length > 0) {
+        saveSettings();
+        if (!silent) for (var n = 0; n < newly.length; n++) showBadgeToast(newly[n]);
+        updateBadgeNotify();
+    }
+    return newly.length > 0;
+}
+function showBadgeToast(b) {
+    showRewardToast('<img src="' + b.iconImg + '" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' +
+        escapeHtml(t('badge_earned_toast')) + '「' + escapeHtml(t(b.nameKey)) + '」',
+        'linear-gradient(180deg,#c9a0ff,#7a3fd0)', '#fff');
+}
+function earnedBadgeCount() { var c = 0; for (var i = 0; i < BADGES.length; i++) if (isBadgeEarned(BADGES[i])) c++; return c; }
+// 「未獲得だが今まさに解放可能」なバッジがあれば通知ドット（タイトルのバッジ入口に付ける）
+function hasUnnotifiedBadge() {
+    for (var i = 0; i < BADGES.length; i++) if (!isBadgeEarned(BADGES[i]) && isBadgeUnlockable(BADGES[i])) return true;
+    return false;
+}
+function updateBadgeNotify() {
+    var dot = document.getElementById('badgeNotifyDot');
+    if (dot) dot.style.display = hasUnnotifiedBadge() ? 'block' : 'none';
+}
+function renderBadgeRow(b) {
+    var earned = isBadgeEarned(b);
+    var iconStyle = 'image-rendering:pixelated; flex-shrink:0;' + (earned ? '' : ' filter:grayscale(1) brightness(0.5); opacity:0.6;');
+    var nameColor = earned ? '#fff' : 'rgba(255,255,255,0.5)';
+    var stateHtml = earned
+        ? '<div style="color:#c9a0ff; font-weight:800; font-size:clamp(9px,1.8vw,13px); white-space:nowrap;">' + t('badge_owned') + '</div>'
+        : '<div style="color:rgba(255,255,255,0.35); font-weight:700; font-size:clamp(9px,1.7vw,12px); white-space:nowrap;">' + t('badge_locked') + '</div>';
+    return '<div style="display:flex; align-items:center; gap:9px; background:rgba(0,0,40,0.55); border:1px solid ' + (earned ? 'rgba(201,160,255,0.4)' : 'rgba(255,255,255,0.1)') + '; border-radius:9px; padding:6px 10px;">' +
+        '<img src="' + b.iconImg + '" width="30" height="30" style="' + iconStyle + '">' +
+        '<div style="flex:1 1 auto; min-width:0;">' +
+            '<div style="color:' + nameColor + '; font-size:clamp(11px,2.2vw,15px); font-weight:800; font-family:\'M PLUS Rounded 1c\',sans-serif; margin-bottom:1px;">' + escapeHtml(t(b.nameKey)) + '</div>' +
+            '<div style="color:rgba(255,255,255,0.6); font-size:clamp(8px,1.6vw,11px); font-family:\'M PLUS Rounded 1c\',sans-serif;">' + escapeHtml(t(b.descKey)) + '</div>' +
+        '</div>' +
+        '<div style="flex-shrink:0;">' + stateHtml + '</div>' +
+    '</div>';
+}
+function renderBadges() {
+    checkBadges(true); // 開いた時点で解放可能なものは付与（トーストなし）
+    var titleEl = document.getElementById('badgeTitle');
+    if (titleEl) titleEl.innerHTML = _ic('icon_trophy.png') + ' ' + t('badge_title');
+    var hintEl = document.getElementById('badgeHint');
+    if (hintEl) hintEl.textContent = t('badge_hint', { earned: earnedBadgeCount(), total: BADGES.length });
+    var listEl = document.getElementById('badgeList');
+    if (!listEl) return;
+    var html = '';
+    for (var i = 0; i < BADGES.length; i++) html += renderBadgeRow(BADGES[i]);
+    listEl.innerHTML = html;
+}
+function showBadgeScreen() {
+    showScreenEl('badgeScreen');
+    history.pushState({ screen: 'badge' }, '');
+    renderBadges();
+    updateBadgeNotify();
+    if (soundManager) soundManager.playConfirmSelect();
+}
+function hideBadgeScreen() {
+    hideScreenEl('badgeScreen');
+    if (soundManager) soundManager.playCursorMove();
+}
+
 function achStatValue(stat) { return (gameSettings.achievementStats && gameSettings.achievementStats[stat]) || 0; }
 function isAchievementComplete(a) { return achStatValue(a.stat) >= a.target; }
 function isAchievementClaimed(a) { return !!(gameSettings.achievements.claimed && gameSettings.achievements.claimed[a.id]); }
@@ -2786,6 +2914,7 @@ function claimAchievement(id) {
     if (soundManager) soundManager.playCoin();
     if (a.skinReward) showSkinUnlockToast();
     if (a.eggReward) showEggRewardToast(a.eggReward);
+    checkBadges(); // 実績達成に連動する称号を解放（トーストで通知）
     renderAchievements();
     updateAchievementBadge();
 }
@@ -2876,6 +3005,10 @@ function hideAchievementScreen() {
 }
 function closeAchievementScreen() {
     hideAchievementScreen();
+    history.back();
+}
+function closeBadgeScreen() {
+    hideBadgeScreen();
     history.back();
 }
 
@@ -3395,6 +3528,8 @@ function startApp() {
     updateMissionBadge();
     updateAchievementBadge();
     updateZukanBadge();
+    checkBadges(true); // 既存プレイヤーが条件達成済みなら起動時に静かに付与（大量トースト回避）
+    updateBadgeNotify();
 }
 
 function handleTitleScreenClick(e) {
@@ -3503,6 +3638,8 @@ function showStartScreen() {
     updateMissionBadge();
     updateAchievementBadge();
     updateZukanBadge();
+    checkBadges(true); // ラン後にタイトルへ戻った時、達成した実績の称号を付与
+    updateBadgeNotify();
 
     if (soundManager) { try { soundManager.playBGM('title'); } catch (_) {} }
 }

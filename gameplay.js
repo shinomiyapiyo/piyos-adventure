@@ -154,6 +154,7 @@ function finishTutorial() {
     }
     var tsb = document.getElementById('tutorialSkipBtn');
     if (tsb) tsb.style.display = 'none';
+    if (typeof checkBadges === 'function') checkBadges(); // 「操作方法マスター」称号を解放（トースト通知）
     updateStockUI(); // gameStarted=false になったのでストック枠を隠す（クリア画面に残さない）
     showScreenEl('tutorialClearScreen');
     if (soundManager) { try { soundManager.playBGM('tutorial'); } catch (_) {} } // クリア画面のBGMは はじまりの地の曲

@@ -130,6 +130,7 @@ var BACK_HANDLERS = [
     { isOpen: function() { return isScreenVisible('titleShopScreen'); }, onBack: function() { titleShopOnBack(); } },
     { isOpen: function() { return isScreenVisible('missionScreen'); }, onBack: function() { hideMissionScreen(); } },
     { isOpen: function() { return isScreenVisible('achievementScreen'); }, onBack: function() { hideAchievementScreen(); } },
+    { isOpen: function() { return isScreenVisible('badgeScreen'); }, onBack: function() { hideBadgeScreen(); } },
     { isOpen: function() { return isScreenVisible('skinScreen'); }, onBack: function() { hideSkinScreen(); } },
     { isOpen: function() { return isScreenVisible('zukanScreen'); }, onBack: function() { hideZukanScreen(); } },
     { isOpen: function() { return isScreenVisible('guideScreen'); }, onBack: function() { hideGuide(); } },

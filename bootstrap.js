@@ -532,7 +532,7 @@ window.addEventListener('orientationchange', function() {
 document.addEventListener('touchmove', function(e) {
     // INPUT要素とオーバーレイ画面内のスクロールは許可
     if (e.target.tagName === 'INPUT') return;
-    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #missionScreen, #skinScreen, #zukanScreen')) return;
+    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen')) return;
     e.preventDefault();
 }, { passive: false });
 document.addEventListener('visibilitychange', function() {
@@ -596,6 +596,18 @@ function initialize() {
     if (achListEl) {
         achListEl.addEventListener('click', handleAchievementClick);
         achListEl.addEventListener('touchend', function(e) { if (handleAchievementClick(e)) e.preventDefault(); });
+    }
+
+    // バッジ（称号）ボタン（タイトル画面）＋バッジ画面
+    var badgeBtn = document.getElementById('badgeButton');
+    if (badgeBtn) {
+        badgeBtn.addEventListener('touchend', function(e) { e.preventDefault(); e.stopPropagation(); showBadgeScreen(); });
+        badgeBtn.addEventListener('click', function(e) { e.stopPropagation(); showBadgeScreen(); });
+    }
+    var badgeBackBtn = document.getElementById('badgeBackBtn');
+    if (badgeBackBtn) {
+        badgeBackBtn.addEventListener('touchend', function(e) { e.preventDefault(); e.stopPropagation(); closeBadgeScreen(); });
+        badgeBackBtn.addEventListener('click', function(e) { e.stopPropagation(); closeBadgeScreen(); });
     }
 
     // きせかえボタン（タイトル画面）＋きせかえ画面
