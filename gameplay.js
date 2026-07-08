@@ -95,6 +95,9 @@ function enterPipeRoom() {
     if (pipeRoomState.active || pipeRoomState.visited) return; // 入室中・このラウンド入室済みは弾く（再入室防止）
     pipeRoomState.active = true;
     pipeRoomState.visited = true;
+    // Android戻る用に履歴を積む（無いと部屋内で戻る=即アプリ離脱）。戻る→BACK_HANDLERSがexitPipeRoom()＝pushと相殺。
+    // 横土管から歩いて出た場合はこのstateが1つ余るが、余りは次の戻るでポーズになるだけ（無害）。
+    history.pushState({ screen: 'pipeRoom' }, '');
     if (typeof markZukanSeen === 'function') markZukanSeen('biome:bonus'); // ずかん(ステージ): ボーナス部屋を発見
     pipeRoomState.exitHold = 0; // 退室ゲージを初期化
     pipeRoomState.introTimer = 90; // 入場「BONUS!」演出（約1.5秒）
@@ -252,6 +255,14 @@ function openStageShop() {
 
 var shopClosing = false; // 退店確認中フラグ
 var shopDepositing = false; // 貯金確認中フラグ
+
+// Android戻る(popstate)専用: ショップは「買う/売る→メニュー→退店確認」と多段UIなのに履歴pushは
+// 開店時の1つだけ。popstateで消費された分をここで積み直し、店内に居る限り戻る=1段戻るを維持する
+// （積み直さないと2回目の戻るでアプリごと離脱してしまう）。UIの「もどる」ボタンは従来どおり closeStageShop 直呼び。
+function stageShopOnBack() {
+    closeStageShop();
+    if (shopState.active) history.pushState({ screen: 'stageShop' }, '');
+}
 
 function closeStageShop() {
     if (shopClosing) return;
@@ -1228,6 +1239,13 @@ function tshopBack() {
     if (tshopMode !== 'menu') { returnToTshopMenu(); return; }
     requestTshopLeave();
 }
+// Android戻る(popstate)専用: ステージショップ同様、1段戻して消費された履歴を積み直す
+// （従来は hideTitleShop 直呼び＝どの階層からでも即閉店で、画面の「もどる」と挙動が食い違っていた）。
+// 退店確認で「はい」→closeTitleShop が history.back() するので、積み直した分もそこで相殺される。
+function titleShopOnBack() {
+    tshopBack();
+    if (isScreenVisible('titleShopScreen')) history.pushState({ screen: 'titleShop' }, '');
+}
 function selectTshopSell(key) {
     if (tshopConfirmingItem) return;
     var itemId = tshopSellItemId(key);
@@ -1594,6 +1612,7 @@ function addToStock(itemId) {
 }
 
 function useStockItem(displayIndex) {
+    if (gameState.gamePaused) return false; // ポーズ中の誤タップで消費しない（表示は読み取り専用だが二重ガード）
     var pl = permaLevel();
     if (displayIndex < pl) {
         // 永続枠: 使っても枠は残す（used=true）。翌ラン resetGame で used=false に補充される。
@@ -1639,6 +1658,7 @@ function rejectPermaToast() {
 // ドラッグでストック枠の中身を入替（perma/通常どちらも可）。永続枠へ復活薬は不可。
 // a,b は表示スロット index。used中の永続枠はロック（対象外）。
 function swapStockSlots(a, b) {
+    if (gameState.gamePaused) return false; // ポーズ中はドラッグ入替も無効（読み取り専用の二重ガード）
     var pl = permaLevel();
     var maxN = stockState.maxSlots;
     if (a < 0 || b < 0 || a >= maxN || b >= maxN || a === b) return false;
@@ -1698,7 +1718,7 @@ function updateStockUI() {
     // タイトルショップ(z-index:9999・不透明)中は枠を前面に出す。それ以外は通常の100(ポーズ画面等の下に隠れる)。
     container.style.zIndex = inTitleShop ? '10000' : '100';
     var inShop = shopState.active || inTitleShop; // どちらのショップ中も枠・アイテムを見せるが使用不可（購入判断の参考用）
-    var readOnly = inShop || inPipeRoom; // ショップ中＋ボーナス部屋中は 表示のみ（タップ使用/ドラッグ入替を無効化）
+    var readOnly = inShop || inPipeRoom || gameState.gamePaused; // ショップ/部屋/ポーズ中は 表示のみ（タップ使用/ドラッグ入替を無効化）
     container.classList.toggle('stock-panel', inShop); // ショップ中のみ背景パネルで視認性UP（ゲーム中・部屋では付けず視界を塞がない）
     var html = '';
     var pl = permaLevel();

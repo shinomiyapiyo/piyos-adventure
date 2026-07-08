@@ -112,11 +112,22 @@ function isScreenVisible(id) {
 // 配列の順序＝優先順位（例: ショップ中はショップの退店処理が最優先）。
 // 画面を追加したらここに1エントリ追加すること（popstateハンドラの変更は不要）。
 var BACK_HANDLERS = [
+    // モーダル(z:99999)は全画面の最前面なので最優先で閉じる。素の display:none だとはい/いいえの
+    // リスナーと「いいえ」ボタンが残留して次のモーダルを汚染するため、show側が公開する正規の閉じ処理を呼ぶ
+    // （確認モーダルは「いいえ」扱い＝進行中のセーブ削除チェーン等を安全に中断）。
+    { isOpen: function() { var m = document.getElementById('gameModal'); return !!m && m.style.display === 'flex'; },
+      onBack: function() {
+          if (typeof window._gameModalClose === 'function') { window._gameModalClose(); }
+          else { document.getElementById('gameModal').style.display = 'none'; }
+      } },
+    // データ引き継ぎの発行/入力オーバーレイ(z:20000・動的生成)。従来は未登録で、下の設定画面が先に閉じていた
+    { isOpen: function() { return !!document.querySelector('.transferOverlay'); },
+      onBack: function() { var o = document.querySelector('.transferOverlay'); if (o) o.remove(); } },
     { isOpen: function() { return pipeRoomState.active; }, onBack: function() { exitPipeRoom(); } },
-    { isOpen: function() { return shopState.active; }, onBack: function() { closeStageShop(); } },
+    { isOpen: function() { return shopState.active; }, onBack: function() { stageShopOnBack(); } },
     { isOpen: function() { var el = document.getElementById('storeScreen'); return !!el && el.style.display !== 'none'; },
       onBack: function() { hideStore(); } },
-    { isOpen: function() { return isScreenVisible('titleShopScreen'); }, onBack: function() { hideTitleShop(); } },
+    { isOpen: function() { return isScreenVisible('titleShopScreen'); }, onBack: function() { titleShopOnBack(); } },
     { isOpen: function() { return isScreenVisible('missionScreen'); }, onBack: function() { hideMissionScreen(); } },
     { isOpen: function() { return isScreenVisible('achievementScreen'); }, onBack: function() { hideAchievementScreen(); } },
     { isOpen: function() { return isScreenVisible('skinScreen'); }, onBack: function() { hideSkinScreen(); } },
@@ -124,12 +135,13 @@ var BACK_HANDLERS = [
     { isOpen: function() { return isScreenVisible('guideScreen'); }, onBack: function() { hideGuide(); } },
     { isOpen: function() { return isScreenVisible('tutorialScreen'); }, onBack: function() { tutorialCancel(); } },
     { isOpen: function() { return isScreenVisible('settingsScreen'); }, onBack: function() { hideSettings(); } },
-    { isOpen: function() { var m = document.getElementById('gameModal'); return !!m && m.style.display === 'flex'; },
-      onBack: function() { document.getElementById('gameModal').style.display = 'none'; } },
     { isOpen: function() { return isScreenVisible('nameInputScreen'); }, onBack: function() { hideNameInputDirect(); resetGame(); } },
     { isOpen: function() { return isScreenVisible('gameOverScreen'); }, onBack: function() { goToTitle(); } },
     { isOpen: function() { return isScreenVisible('rankingScreen'); }, onBack: function() { hideRanking(); } },
-    { isOpen: function() { return gameState && gameState.gameStarted && !gameState.gamePaused; }, onBack: function() { pauseGame(); } }
+    // ラン中の戻る=ポーズ⇔再開のトグル。消費した履歴をここで積み直すので連打してもアプリ離脱しない
+    // （startGame が {screen:'game'} を1つ積むのが起点。pauseGame は遷移クールダウン中は何もしないが積み直しは行う）。
+    { isOpen: function() { return gameState && gameState.gameStarted; },
+      onBack: function() { pauseGame(); history.pushState({ screen: 'game' }, ''); } }
 ];
 
 // ─── ゲーム状態 ───

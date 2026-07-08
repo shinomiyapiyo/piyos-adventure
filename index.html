@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.404";
+                content: "Ver.1.405";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.404</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.405</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1684,9 +1684,25 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.404
+ * ぴよ氏の冒険 v1.405
  * © 2026 Created by NullPo Works
  * ============================================================ */
+
+// ─── Canvas roundRect ポリフィル ───
+// 旧WebKit(iOS 16.3以下など)には ctx.roundRect が無く、パワーアップHUD描画(render.js)で
+// TypeError → requestAnimationFrame が再登録されず画面が完全停止する。数値半径のみ対応（本作の呼び出しは全て数値）。
+if (window.CanvasRenderingContext2D && !CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+        r = Math.max(0, Math.min((typeof r === 'number' ? r : 0), Math.abs(w) / 2, Math.abs(h) / 2));
+        this.moveTo(x + r, y);
+        this.arcTo(x + w, y, x + w, y + h, r);
+        this.arcTo(x + w, y + h, x, y + h, r);
+        this.arcTo(x, y + h, x, y, r);
+        this.arcTo(x, y, x + w, y, r);
+        this.closePath();
+        return this;
+    };
+}
 
 // ─── スプライト生成の共通処理（putImageDataで一括描画） ───
 // frame(各pxがパレットindexの2D配列) + palette から、塗り済みcanvasを返す。
@@ -2999,11 +3015,15 @@ function showGameModal(message) {
             modal.style.display = 'none';
             btn.removeEventListener('click', close);
             btn.removeEventListener('touchend', closeTouch);
+            window._gameModalClose = null;
             resolve();
         }
         function closeTouch(e) { e.preventDefault(); close(); }
         btn.addEventListener('click', close);
         btn.addEventListener('touchend', closeTouch);
+        // Android戻る(BACK_HANDLERS)から正規の閉じ処理を呼べるように公開
+        // （素の display:none だとリスナーが残留し、次のモーダルを汚染する）
+        window._gameModalClose = close;
     });
 }
 
@@ -3035,6 +3055,7 @@ function showConfirmModal(message) {
             noBtn.removeEventListener('click', onNo);
             noBtn.removeEventListener('touchend', onNoTouch);
             if (noBtn.parentNode) noBtn.parentNode.removeChild(noBtn);
+            window._gameModalClose = null;
         }
         function onYes() { cleanup(); resolve(true); }
         function onYesTouch(e) { e.preventDefault(); onYes(); }
@@ -3044,6 +3065,8 @@ function showConfirmModal(message) {
         okBtn.addEventListener('touchend', onYesTouch);
         noBtn.addEventListener('click', onNo);
         noBtn.addEventListener('touchend', onNoTouch);
+        // Android戻る(BACK_HANDLERS)からは「いいえ」として正規クリーンアップ（残留リスナー/いいえボタン汚染の防止）
+        window._gameModalClose = onNo;
     });
 }
 
@@ -3327,6 +3350,9 @@ function startGame() {
     buildPermaSlots();
     gameState.gameStarted = true;
     gameState.gamePaused  = false;
+    // ラン中のAndroid戻る/ブラウザバック用に履歴を1つ積む（無いと戻る=即アプリ離脱）。
+    // BACK_HANDLERS 側で消費時に積み直すので、ラン中は戻る=ポーズ⇔再開のトグルになる。
+    if (!history.state || history.state.screen !== 'game') history.pushState({ screen: 'game' }, '');
 
     var ss = document.getElementById('startScreen');
     ss.classList.add('hidden');
@@ -3498,6 +3524,9 @@ function pauseGame() {
         document.getElementById('pauseScreen').classList.add('hidden');
         document.getElementById('pauseButton').innerHTML = _ic('icon_pause.png');
     }
+    // ポーズ中はストック枠を読み取り専用で再描画（枠(z:100)はポーズ幕より上にあり、
+    // 放置するとポーズ中のタップでアイテムを誤使用できてしまう）。再開時は操作可能に戻す。
+    if (typeof updateStockUI === 'function') updateStockUI();
 }
 
 // ─── ランキング ───
@@ -4078,7 +4107,7 @@ function submitScore() {
         score: Number(finalGameStats.score) || 0,
         distance: Number(finalGameStats.distance) || 0,
         enemyKills: Number(finalGameStats.enemyKills) || 0,
-        speedLevel: Number(finalGameStats.speedLevel) || 1,
+        speedLevel: Math.min(100, Number(finalGameStats.speedLevel) || 1), // DBルール上限100（超長距離ランでの送信失敗を防ぐ）
         timestamp: Date.now(),
         date: new Date().toLocaleDateString('ja-JP')
     };
@@ -4117,7 +4146,7 @@ function skipSubmit() {
         score: Number(finalGameStats.score) || 0,
         distance: Number(finalGameStats.distance) || 0,
         enemyKills: Number(finalGameStats.enemyKills) || 0,
-        speedLevel: Number(finalGameStats.speedLevel) || 1,
+        speedLevel: Math.min(100, Number(finalGameStats.speedLevel) || 1), // DBルール上限100（超長距離ランでの送信失敗を防ぐ）
         timestamp: Date.now(),
         date: new Date().toLocaleDateString('ja-JP')
     };

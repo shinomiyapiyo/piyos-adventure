@@ -113,6 +113,7 @@ function checkOrientation() {
         if (ps) ps.classList.remove('hidden');
         var pb = document.getElementById('pauseButton');
         if (pb) pb.innerHTML = _ic('icon_play.png');
+        if (typeof updateStockUI === 'function') updateStockUI(); // ストック枠も読み取り専用へ
     }
 }
 
@@ -477,6 +478,10 @@ function bindTapDelegate(container, attrName, handler) {
             case 'ArrowLeft': case 'a': case 'A': gameState.input.left = true; break;
             case 'ArrowRight': case 'd': case 'D': gameState.input.right = true; break;
             case 'ArrowDown': case 's': case 'S':
+                if (pipeRoomState.active) break; // 部屋内では下入力の特殊動作なし（タッチと同等）
+                // 土管の上なら入室（タッチの下スワイプと同等。従来はキーボードから部屋に入れなかった）
+                var pfKey = findPlatformUnder();
+                if (pfKey && pfKey.type === 'pipe') { enterPipeRoom(); break; }
                 if (isOnPlatform()) {
                     gameState.input.down = true;
                     gameState.downSwipeActive = true;
