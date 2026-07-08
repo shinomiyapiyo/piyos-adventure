@@ -362,7 +362,7 @@ var EGG_SHOP_ITEMS = [
     { id: 'perma_stock', type: 'pouch', nameKey: 'egg_pouch', descKey: 'egg_pouch_desc',
       iconImg: 'images/item_pouch.png', eggPrice: 10 },
     { id: 'skin_kigurumi', type: 'skin', skinId: 'kigurumi', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc',
-      iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 5 }
+      iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 10 } // 1.424で🥚5→10（入手が簡単すぎたため）
 ];
 // 永続化できないストック品（一度きりの奇跡＝復活薬）。理由はi18n egg_perma_no_revive で表示。
 var PERMA_STOCK_EXCLUDE = ['revive_potion'];

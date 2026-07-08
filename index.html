@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.423";
+                content: "Ver.1.424";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.423</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.424</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1723,7 +1723,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.423
+ * ぴよ氏の冒険 v1.424
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1956,7 +1956,7 @@ function pickDailyMissions(dateStr) {
 }
 
 // ─── ぴよフラッシュ（必殺技・内部ID special_move） ───
-var SPECIAL_MOVE_DAMAGE = [30, 50, 80];   // ボスへのダメージ（L1/L2/L3・HP100スケール）
+var SPECIAL_MOVE_DAMAGE = [20, 40, 60];   // ボスへのダメージ（L1/L2/L3・HP100スケール。1.424で30/50/80→弱体化）
 var SPECIAL_GAUGE_PER_KILL = 4;        // 敵1体で+4% → 25体で満タン
 var SPECIAL_GAUGE_PER_METER = 0.08;    // 走行距離でも加算: 0.08%/m → 距離だけなら約1250mで満タン(高速で倒せなくても貯まる・撃破で更に加速)
 var SPECIAL_CUTIN_FRAMES = 96;         // カットイン演出の長さ（約1.6秒・チャージ音に合わせる）
