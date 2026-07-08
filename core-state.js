@@ -222,15 +222,17 @@ function runActiveSkin() {
 }
 // 台本: 到達距離(m)で案内を出す。slow=一時減速 / spawn=敵をその場で湧かせる /
 // gate=達成待ち（その行動を実行するまで世界停止・updateTutorialが判定）
+// テロップは対象が「画面に見え始めた時点」で出す（1.429）: 先読み≈(GAME_WIDTH-150)/10 ≒ 67m ＝対象の約80m手前で発火
 var TUTORIAL_SCRIPT = [
     { atM: 10,  key: 'tut_welcome',   dur: 300 },
-    { atM: 60,  key: 'tut_move',      dur: 300 },
-    { atM: 120, key: 'tut_jump',      dur: 300, gate: 'jump' },   // 穴150m: ジャンプするまで停止
-    { atM: 220, key: 'tut_stomp',     dur: 330, spawn: 'chick', gate: 'stomp' }, // 踏むまで停止
-    { atM: 320, key: 'tut_coin',      dur: 240 },                 // コイン列340m〜
+    { atM: 50,  key: 'tut_move',      dur: 240 },
+    { atM: 72,  key: 'tut_jump',      dur: 300, gate: 'jump' },   // 穴150m: 見えた時点で案内+ジャンプするまで停止
+    { atM: 220, key: 'tut_stomp',     dur: 330, spawn: 'chick', gate: 'stomp' }, // 湧きと同時に案内＝踏むまで停止
+    { atM: 258, key: 'tut_coin',      dur: 300 },                 // コイン列340m〜（見えた時点）
     { atM: 400, key: 'tut_stock',     dur: 330, gate: 'stock' },  // おためしバリアを使うまで停止
-    { atM: 480, key: 'tut_pipe',      dur: 420, gate: 'pipe' },   // 土管530m: 入るまで停止（歩いて届く距離で止める）
-    { atM: 600, key: 'tut_shop',      dur: 300 },                 // おみせ640m
+    { atM: 450, key: 'tut_pipe',      dur: 420 },                 // 土管530m: 見えた時点で案内
+    { atM: 490, key: 'tut_pipe',      dur: 420, gate: 'pipe' },   // 近づいたら入るまで停止（歩いて届く距離）
+    { atM: 560, key: 'tut_shop',      dur: 300 },                 // おみせ640m（見えた時点）
     { atM: 700, key: 'tut_boss_warn', dur: 240 }
 ];
 

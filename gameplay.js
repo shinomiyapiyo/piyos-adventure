@@ -155,7 +155,7 @@ function finishTutorial() {
     var tsb = document.getElementById('tutorialSkipBtn');
     if (tsb) tsb.style.display = 'none';
     showScreenEl('tutorialClearScreen');
-    if (soundManager) { try { soundManager.playBGM('title'); } catch (_) {} }
+    if (soundManager) { try { soundManager.playBGM('tutorial'); } catch (_) {} } // クリア画面のBGMは はじまりの地の曲
 }
 
 // スキップ（二度押し確認）: クリア扱い（報酬なし）にしてタイトルへ
@@ -2388,8 +2388,8 @@ function updateBoss() {
                 score: BOSS_DEFEAT_SCORE
             });
         }
-        // 5秒後に移行
-        if (bossState.defeatedTimer >= 300) {
+        // 5秒後に移行（チュートリアルは勝利ファンファーレ win.mp3≈7.8秒 が鳴り終わるまで待ってから完了画面へ）
+        if (bossState.defeatedTimer >= (tutorialState.active ? 480 : 300)) {
             if (tutorialState.active) { finishTutorial(); return; } // チュートリアル: 次ラウンドへ行かず完了画面へ
             bossState.phase = 5;
             bossState.roundTextTimer = 180;
