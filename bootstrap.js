@@ -104,6 +104,16 @@ function checkOrientation() {
     if (screen.orientation && screen.orientation.lock) {
         screen.orientation.lock('landscape').catch(function() {});
     }
+    // 縦向きになったらラン中は自動ポーズ。縦画面中はCSSオーバーレイでゲームが見えないのに
+    // 進行だけ続き、見えないまま穴/敵で死ぬのを防ぐ。pauseGame()はトグル式＋画面遷移
+    // クールダウンで弾かれる可能性があるため、ここでは直接ポーズ状態にする（再開は通常のポーズ画面から）。
+    if (window.innerHeight > window.innerWidth && gameState.gameStarted && !gameState.gamePaused) {
+        gameState.gamePaused = true;
+        var ps = document.getElementById('pauseScreen');
+        if (ps) ps.classList.remove('hidden');
+        var pb = document.getElementById('pauseButton');
+        if (pb) pb.innerHTML = _ic('icon_play.png');
+    }
 }
 
 // ─── タイトル画像（固定1枚: title.jpg） ───

@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.403";
+                content: "Ver.1.404";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.403</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.404</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1027,6 +1027,15 @@
                        style="color: rgba(255,255,255,0.5); font-size: clamp(7px, 1.6vw, 11px); text-decoration: underline;
                            font-family: 'M PLUS Rounded 1c', sans-serif;"
                        data-i18n="terms_link_short">利用規約</a>
+                </div>
+
+                <!-- 素材クレジット（OtoLogic は CC BY 4.0 ＝帰属表示が必須） -->
+                <div style="display: flex; justify-content: center; align-items: center; padding: 0 0 6px;">
+                    <a href="https://otologic.jp" target="_blank" rel="noopener"
+                       onclick="event.stopPropagation();" ontouchend="event.stopPropagation();"
+                       style="color: rgba(255,255,255,0.5); font-size: clamp(7px, 1.6vw, 11px); text-decoration: underline;
+                           font-family: 'M PLUS Rounded 1c', sans-serif; text-align: center;"
+                       data-i18n="credit_otologic">効果音素材：OtoLogic（https://otologic.jp）/ CC BY 4.0</a>
                 </div>
 
                 <!-- 広告非表示（課金実装時に display:flex に戻す） -->
@@ -1675,7 +1684,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.403
+ * ぴよ氏の冒険 v1.404
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -5601,7 +5610,9 @@ function resetPlayerPosition() {
     player.y = -50; player.velX = 0; player.velY = 0;
     gameState.recentlyDropped = false; gameState.dropFromY = 0; // 落下死/リスポーンでフラグ残留を防ぐ
     gameState.isRespawning = true;
-    gameState.camera.x = Math.max(100, gameState.camera.x - 200);
+    // ボス戦中はカメラを巻き戻さない。アリーナ壁は setupBossArena 時のカメラ位置に固定されており、
+    // 巻き戻すとボスの巡回域が画面外へ出る／復活が重なるとプレイヤーが画面外に固定される。
+    if (!bossState.active) gameState.camera.x = Math.max(100, gameState.camera.x - 200);
 }
 
 </script>

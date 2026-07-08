@@ -231,6 +231,7 @@ ja: {
     privacy_url: 'https://nullpoworks.pages.dev/privacy-policy.html',
     privacy_link_short: 'プライバシーポリシー',
     terms_link_short: '利用規約',
+    credit_otologic: '効果音素材：OtoLogic（https://otologic.jp）/ CC BY 4.0',
     terms_url: 'https://nullpoworks.pages.dev/terms-piyo-adventure.html',
     // ── ステージショップ ──
     shop_swipe_up: '↑スワイプで入店',
@@ -673,6 +674,7 @@ en: {
     privacy_url: 'https://nullpoworks.pages.dev/privacy-policy-en.html',
     privacy_link_short: 'Privacy Policy',
     terms_link_short: 'Terms of Service',
+    credit_otologic: 'Sound effects: OtoLogic (https://otologic.jp) / CC BY 4.0',
     terms_url: 'https://nullpoworks.pages.dev/terms-piyo-adventure-en.html',
     // ── Stage Shop ──
     shop_swipe_up: 'Swipe up to enter',

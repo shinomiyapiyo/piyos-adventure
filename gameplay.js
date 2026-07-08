@@ -255,6 +255,7 @@ var shopDepositing = false; // 貯金確認中フラグ
 
 function closeStageShop() {
     if (shopClosing) return;
+    if (Date.now() < shopInputCooldown) return; // 退店あいさつ中などの再入力を無視（タップ貫通と同じガード）
     if (soundManager) soundManager.playCursorMove();
     // buy/sellモードではメニューに戻る
     if (shopMode !== 'menu') {
@@ -264,6 +265,10 @@ function closeStageShop() {
     // メニューモードでは退店確認ダイアログ表示
     shopConfirmingItem = null;
     shopHighlightedItem = null;
+    // 貯金/売却の確認中にAndroid戻るで来た場合のフラグ残留を防ぐ
+    // （shopDepositing が残ると、次の任意の「はい」が購入ではなく貯金として実行されてしまう）
+    shopDepositing = false;
+    shopSellingIndex = null;
     shopClosing = true;
     setKeeperText('shop_keeper_leave_confirm');
     showShopConfirm(true);
@@ -273,6 +278,9 @@ function confirmCloseShop() {
     if (soundManager) soundManager.playCursorMove();
     showShopConfirm(false);
     shopClosing = false;
+    // 退店あいさつ(2秒)〜フェード完了まで入力を無効化。この間に「出る」を再タップされると
+    // shopClosing が立ったまま画面が閉じ、次回訪問の最初の「はい」が即退店になってしまうのを防ぐ。
+    shopInputCooldown = Date.now() + 3200;
     setKeeperText('shop_keeper_close');
     setTimeout(function() {
         shopExitSequence(function() {
@@ -393,6 +401,7 @@ function showStageShopScreen() {
     shopSellingIndex = null;
     shopSellHighlightIndex = null;
     shopDepositing = false;
+    shopClosing = false; // 前回訪問の退店確認フラグが残ると「はい」が即退店になるため必ずリセット
     shopInputCooldown = Date.now() + 350;
     setShopBg('shop01');
     showScreenEl('stageShopScreen');
