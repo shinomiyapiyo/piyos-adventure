@@ -114,6 +114,16 @@ function updateTutorial() {
                 var maxPX = gPipe.x + gPipe.width - player.width;
                 if (player.x > maxPX) { player.x = maxPX; if (player.velX > 0) player.velX = 0; }
             }
+        } else if (g === 'shop') {
+            // 入店（openStageShopがvisitedを立てる）まで停止（1.443）
+            cleared = shopState.visited || shopState.active;
+            if (!cleared && shopState.buildingPlaced) {
+                // ゲート中はドアを通り過ぎられない（pipeゲートと同じ置き去り防止）。
+                // クランプ位置＝中心がドア+60px（入店判定は中心がドア±80px以内）＝止まった場所がそのまま上スワイプの練習位置になる
+                var doorX = shopState.buildingX + 90;
+                var maxSX = doorX + 60 - player.width / 2;
+                if (player.x > maxSX) { player.x = maxSX; if (player.velX > 0) player.velX = 0; }
+            }
         }
         if (cleared) {
             tutorialState.gate = '';

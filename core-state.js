@@ -237,7 +237,8 @@ var TUTORIAL_SCRIPT = [
     { atM: 400, key: 'tut_stock',     dur: 330, gate: 'stock' },  // おためしバリアを使うまで停止
     { atM: 465, key: 'tut_pipe',      dur: 420 },                 // 土管530m: 近づいたら案内
     { atM: 490, key: 'tut_pipe',      dur: 420, gate: 'pipe' },   // 入るまで停止（歩いて届く距離）
-    { atM: 585, key: 'tut_shop',      dur: 300 },                 // おみせ640m
+    { atM: 585, key: 'tut_shop',      dur: 300 },                 // おみせ640m: 近づいたら案内
+    { atM: 610, key: 'tut_shop',      dur: 420, gate: 'shop' },   // 入店するまで停止（ドア649mが画面内・歩いて届く距離）
     { atM: 700, key: 'tut_boss_warn', dur: 240 }
 ];
 
