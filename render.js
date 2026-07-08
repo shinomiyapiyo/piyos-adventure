@@ -505,7 +505,7 @@ function spawnLifeUpEffect(worldX, worldY) {
 var EFFECT_RENDERERS = {
     lifeup_text: function(ef, wx, progress) {
             // テキスト浮上 + フェードアウト + スケール
-            ef.offsetY += 1.2;
+            ef.offsetY += 1.2 * frameSteps;
             var alpha = progress < 0.7 ? 1 : (1 - progress) / 0.3;
             var scale = progress < 0.15 ? 0.5 + progress / 0.15 * 0.5 : 1.0;
             var sy = ef.worldY - ef.offsetY;
@@ -530,7 +530,7 @@ var EFFECT_RENDERERS = {
         },
     damage_text: function(ef, wx, progress) {
             // -1 テキスト浮上 + 赤グロー
-            ef.offsetY += 1.0;
+            ef.offsetY += 1.0 * frameSteps;
             var da = progress < 0.6 ? 1 : (1 - progress) / 0.4;
             var ds = progress < 0.1 ? 0.5 + progress / 0.1 * 0.8 : (progress < 0.2 ? 1.3 - (progress - 0.1) / 0.1 * 0.3 : 1.0);
             var dy = ef.worldY - ef.offsetY;
@@ -548,10 +548,10 @@ var EFFECT_RENDERERS = {
             ctx.restore();
         },
     damage_particle: function(ef, wx, progress) {
-            ef.worldX += ef.vx;
-            ef.worldY += ef.vy;
-            ef.vy += 0.07;
-            ef.vx *= 0.97;
+            ef.worldX += ef.vx * frameSteps;
+            ef.worldY += ef.vy * frameSteps;
+            ef.vy += 0.07 * frameSteps;
+            ef.vx *= Math.pow(0.97, frameSteps);
             var dpA = progress < 0.2 ? progress / 0.2 : (1 - progress) / 0.8;
             dpA *= 0.85;
             ctx.save();
@@ -564,7 +564,7 @@ var EFFECT_RENDERERS = {
         },
     // ── 復活テキスト ──
     revival_text: function(ef, wx, progress) {
-            ef.offsetY += 0.8;
+            ef.offsetY += 0.8 * frameSteps;
             var ra = progress < 0.7 ? 1 : (1 - progress) / 0.3;
             var rs = progress < 0.1 ? 0.5 + progress / 0.1 * 0.8 : (progress < 0.25 ? 1.3 - (progress - 0.1) / 0.15 * 0.3 : 1.0);
             var ry = ef.worldY - ef.offsetY;
@@ -583,10 +583,10 @@ var EFFECT_RENDERERS = {
         },
     // ── 復活パーティクル（金色） ──
     revival_particle: function(ef, wx, progress) {
-            ef.worldX += ef.vx;
-            ef.worldY += ef.vy;
-            ef.vy += 0.05;
-            ef.vx *= 0.97;
+            ef.worldX += ef.vx * frameSteps;
+            ef.worldY += ef.vy * frameSteps;
+            ef.vy += 0.05 * frameSteps;
+            ef.vx *= Math.pow(0.97, frameSteps);
             var rpA = progress < 0.2 ? progress / 0.2 : (1 - progress) / 0.8;
             rpA *= 0.9;
             ctx.save();
@@ -601,9 +601,9 @@ var EFFECT_RENDERERS = {
             ctx.restore();
         },
     heart_particle: function(ef, wx, progress) {
-            ef.worldX += ef.vx;
-            ef.worldY += ef.vy;
-            ef.vy += 0.06; // 軽い重力
+            ef.worldX += ef.vx * frameSteps;
+            ef.worldY += ef.vy * frameSteps;
+            ef.vy += 0.06 * frameSteps; // 軽い重力
             var pa = progress < 0.3 ? progress / 0.3 : (1 - progress) / 0.7;
             pa *= 0.85;
             ctx.save();
@@ -635,10 +635,10 @@ var EFFECT_RENDERERS = {
             ctx.restore();
         },
     explosion_particle: function(ef, wx, progress) {
-            ef.worldX += ef.vx;
-            ef.worldY += ef.vy;
-            ef.vy += 0.08;
-            ef.vx *= 0.97;
+            ef.worldX += ef.vx * frameSteps;
+            ef.worldY += ef.vy * frameSteps;
+            ef.vy += 0.08 * frameSteps;
+            ef.vx *= Math.pow(0.97, frameSteps);
             var epA = progress < 0.2 ? progress / 0.2 : (1 - progress) / 0.8;
             epA *= 0.9;
             ctx.save();
@@ -690,7 +690,7 @@ var EFFECT_RENDERERS = {
             ctx.restore();
         },
     combo_text: function(ef, wx, progress) {
-            ef.offsetY += 1.5;
+            ef.offsetY += 1.5 * frameSteps;
             var ctAlpha = progress < 0.7 ? 1 : (1 - progress) / 0.3;
             var ctScale = progress < 0.1 ? 0.5 + progress / 0.1 * 0.5 : 1.0;
             // 高コンボでスケールをさらにポップさせる
@@ -774,9 +774,9 @@ var EFFECT_RENDERERS = {
             ctx.restore();
         },
     combo_spark: function(ef, wx, progress) {
-            ef.worldX += ef.vx;
-            ef.worldY += ef.vy;
-            ef.vy += 0.06;
+            ef.worldX += ef.vx * frameSteps;
+            ef.worldY += ef.vy * frameSteps;
+            ef.vy += 0.06 * frameSteps;
             var csA = progress < 0.3 ? progress / 0.3 : (1 - progress) / 0.7;
             csA *= 0.8;
             var csHue = ef.hue !== undefined ? ef.hue : (40 + Math.floor(ef.size * 8));
@@ -813,7 +813,7 @@ var EFFECT_RENDERERS = {
         },
     // ボス撃破テキスト（ワールド座標系）
     boss_defeated_text: function(ef, wx, progress) {
-            ef.offsetY += 0.5;
+            ef.offsetY += 0.5 * frameSteps;
             var bdAlpha = progress < 0.8 ? 1 : (1 - progress) / 0.2;
             var bdScale = 1 + Math.sin(ef.timer * 0.1) * 0.05;
             ctx.save();
@@ -843,7 +843,7 @@ var EFFECT_RENDERERS = {
         },
     // スコアテキスト（汎用、ボス撃破時も使用）
     score_text: function(ef, wx, progress) {
-            ef.offsetY += 0.8;
+            ef.offsetY += 0.8 * frameSteps;
             var stAlpha = progress < 0.7 ? 1 : (1 - progress) / 0.3;
             ctx.save();
             ctx.globalAlpha = stAlpha;
@@ -860,7 +860,7 @@ var EFFECT_RENDERERS = {
 function drawFloatEffects() {
     for (var i = floatEffects.length - 1; i >= 0; i--) {
         var ef = floatEffects[i];
-        ef.timer++;
+        ef.timer += frameSteps;
         if (ef.timer > ef.duration) { floatEffects.splice(i, 1); continue; }
         var renderer = EFFECT_RENDERERS[ef.type];
         if (renderer) renderer(ef, ef.worldX, ef.timer / ef.duration);
@@ -1008,7 +1008,7 @@ function drawPlayer(x, y) {
     spriteName = (SKIN_FEATURE_ENABLED && gameSettings.activeSkin && spriteManager.cache[skinKey]) ? skinKey : 'player_' + pose;
 
     spriteManager.draw(ctx, spriteName, frameIdx, x, y, player.width, player.height, flipH);
-    player.animFrame++;
+    player.animFrame += frameSteps;
     ctx.restore();
 }
 
@@ -1238,19 +1238,19 @@ function drawEnemy(e) {
 
     var flipH = (e.velX > 0); // 右移動中なら反転して右向きに
     spriteManager.draw(ctx, spriteName, frameIdx, e.x, cy, e.width, e.height, flipH);
-    e.animFrame++;
+    e.animFrame += frameSteps;
 }
 
 function drawFlyingEnemy(e) {
     markZukanSeen(enemyZukanId(e)); // ずかん: 遭遇として発見登録（バイオーム見た目ごとに別エントリ）
-    e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
+    // 上下ふわふわ(e.yの加算)は updateEnemies(index.html) 側へ移設＝当たり判定と描画が常に一致・リフレッシュレート非依存
     var bounce = Math.sin(e.animFrame / 2) * 0.5;
     var cy = e.y + bounce;
     var frameIdx = Math.floor(e.animFrame / 5) % 4;
 
     var flipH = (e.velX < 0); // 左移動中なら反転して左向きに
     spriteManager.draw(ctx, e.flySprite || 'flying_chick_fly', frameIdx, e.x, cy, e.width, e.height, flipH);
-    e.animFrame++;
+    e.animFrame += frameSteps;
 }
 
 function drawGoldenEggSprite(x, y, w, h) {
@@ -1293,7 +1293,7 @@ function drawPowerUp(pu) {
     if (pu.lifetime !== undefined && pu.lifetime <= 180) {
         ctx.globalAlpha = 1;
     }
-    pu.animFrame++;
+    pu.animFrame += frameSteps;
 }
 
 function drawBullet(b) {
@@ -1646,7 +1646,7 @@ function updateAndDrawPipeConfetti() {
     }
     for (var j = 0; j < pipeConfetti.length; j++) {
         var c = pipeConfetti[j];
-        c.y += c.vy; c.sway += c.swaySpd; c.rot += c.vrot; c.x += Math.sin(c.sway) * 0.6;
+        c.y += c.vy * frameSteps; c.sway += c.swaySpd * frameSteps; c.rot += c.vrot * frameSteps; c.x += Math.sin(c.sway) * 0.6 * frameSteps;
         if (c.y > PIPE_ROOM_FLOOR_Y + 8) { c.y = -8; c.x = Math.random() * GAME_WIDTH; }
         ctx.save();
         ctx.translate(c.x, c.y); ctx.rotate(c.rot);
@@ -1674,7 +1674,7 @@ function drawPipeRoomWall(x, w, isLeft) {
 
 // 土管ボーナス部屋の描画（固定カメラ・画面座標）
 function drawPipeRoom() {
-    gameState.time++; // 本編render末尾の time 加算を肩代わり（早期returnのため）
+    gameState.time += frameSteps; // 本編render末尾の time 加算を肩代わり（早期returnのため）
     var tm = Date.now() / 50;
     // 背景: ジャックポット風（深ティール地＋ゆっくり回転する放射光＋紙吹雪）
     var bg = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
@@ -1735,9 +1735,12 @@ function drawPipeRoom() {
     }
     // プレイヤー
     if (gameState.gameStarted) drawPlayer(player.x, player.y);
+    // 取得演出（らいふあっぷ！等）。部屋内のエフェクトは worldX=画面座標で発行されるのでそのまま描ける
+    // （従来はここで描いておらず、部屋でのハート/エッグ取得演出が一切表示されなかった）
+    if (floatEffects.length > 0) drawFloatEffects();
     // 入場演出「BONUS!」（約1.5秒: 大きく飛び出て→ゆらゆら→フェード）
     if (pipeRoomState.introTimer > 0) {
-        pipeRoomState.introTimer--;
+        pipeRoomState.introTimer = Math.max(0, pipeRoomState.introTimer - frameSteps);
         var bIn = 90 - pipeRoomState.introTimer;                      // 経過フレーム
         var bScale = 1 + 1.2 * Math.max(0, 1 - bIn / 12);             // 最初の12Fで2.2→1にポップ
         var bAlpha = pipeRoomState.introTimer < 20 ? pipeRoomState.introTimer / 20 : 1; // 最後の20Fでフェード
@@ -1814,6 +1817,10 @@ function drawOwlDarkness(b) {
 }
 
 function render() {
+    // タイトル/スプラッシュ(不透明オーバーレイ)中はワールド描画を丸ごと省略＝メニュー待機中の電池/発熱を抑える。
+    // 半透明のポーズ/ゲームオーバーは背景が見えるので従来どおり描く。
+    if (isScreenVisible('startScreen') || isScreenVisible('splashScreen')) return;
+
     // nearest-neighbor拡大でドット絵くっきり
     ctx.imageSmoothingEnabled = false;
 
@@ -1823,7 +1830,7 @@ function render() {
     // 画面シェイク適用
     var shaking = screenShake.timer > 0;
     if (shaking) {
-        screenShake.timer--;
+        screenShake.timer = Math.max(0, screenShake.timer - frameSteps);
         var shakeDecay = screenShake.timer / 12;
         ctx.save();
         ctx.translate(
@@ -1981,7 +1988,7 @@ function render() {
 
     // ─── ダメージ赤フラッシュ ───
     if (damageFlashTimer > 0) {
-        damageFlashTimer--;
+        damageFlashTimer = Math.max(0, damageFlashTimer - frameSteps);
         var dfAlpha = damageFlashTimer / 20 * 0.45;
         ctx.fillStyle = 'rgba(255,0,0,' + dfAlpha + ')';
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
@@ -1989,7 +1996,7 @@ function render() {
 
     // ─── 復活ゴールドフラッシュ ───
     if (gameState.revivalFlashTimer > 0) {
-        gameState.revivalFlashTimer--;
+        gameState.revivalFlashTimer = Math.max(0, gameState.revivalFlashTimer - frameSteps);
         var rvAlpha = gameState.revivalFlashTimer / 90 * 0.35;
         ctx.fillStyle = 'rgba(255,215,0,' + rvAlpha + ')';
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
@@ -1997,7 +2004,7 @@ function render() {
 
     // ─── コンボマイルストーンフラッシュ ───
     if (comboFlashTimer > 0) {
-        comboFlashTimer--;
+        comboFlashTimer = Math.max(0, comboFlashTimer - frameSteps);
         var cfAlpha = comboFlashTimer / 15 * 0.25;
         ctx.fillStyle = 'rgba(255,200,0,' + cfAlpha + ')';
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
@@ -2281,7 +2288,7 @@ function render() {
     }
 
     drawSpecialCutin();
-    gameState.time++;
+    gameState.time += frameSteps;
 }
 
 function updateUI() {

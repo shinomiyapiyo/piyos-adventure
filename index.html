@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.405";
+                content: "Ver.1.406";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -794,7 +794,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.405</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.406</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1226,21 +1226,8 @@
                     overflow-y: auto;
                     -webkit-overflow-scrolling: touch;
                     padding: 2px 0;"></div>
-                <!-- 貯金＋閉じるボタン -->
+                <!-- 閉じる（もどる）ボタン。貯金はメニュー項目(_menu_deposit)から＝旧depositBtnは1.406で撤去（常時非表示の死にUIで、確認なし即実行の復活リスクだった） -->
                 <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 3px; flex-shrink: 0;">
-                    <button id="depositBtn" class="game-button" style="
-                        width: 100%; padding: 2px 4px; font-size: clamp(8px, 1.5vw, 11px);
-                        background: linear-gradient(180deg, #2a4a6a, #183048);
-                        border: 1px solid rgba(100,180,255,0.5); border-radius: 3px;
-                        color: #88ccff; font-weight: 700;
-                        font-family: 'DotGothic16', monospace;
-                        text-shadow: 0 1px 2px rgba(0,0,0,0.8);"><img src="images/icon_bank.png" class="ui-icon ui-icon-sm"> 貯金する</button>
-                    <div id="depositInfo" style="
-                        font-family: 'DotGothic16', monospace;
-                        font-size: clamp(7px, 1.3vw, 10px);
-                        color: rgba(136,204,255,0.7); text-align: center;
-                        padding: 1px 0;
-                        text-shadow: 0 1px 2px rgba(0,0,0,0.8);"></div>
                     <button id="stageShopCloseBtn" class="game-button" style="
                         width: 100%; padding: 4px 6px; font-size: clamp(10px, 2vw, 14px);
                         background: rgba(0,0,48,0.9);
@@ -1684,7 +1671,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.405
+ * ぴよ氏の冒険 v1.406
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2271,6 +2258,20 @@ var gameSettings = {
             // ── まほうのポーチ（永続ストック）──
             if (typeof parsed.pouchLevel === 'number') gameSettings.pouchLevel = parsed.pouchLevel;
             if (Array.isArray(parsed.permaStock)) gameSettings.permaStock = parsed.permaStock;
+
+            // ── 範囲外データの無害化（改ざん/破損した引き継ぎコード対策・正常データは不変） ──
+            // pouchLevel と upgrades はループ回数/枠数に直結するため必須（巨大値だと枠構築ループでフリーズする）。
+            gameSettings.pouchLevel = Math.max(0, Math.min(6, Math.floor(gameSettings.pouchLevel) || 0));
+            if (gameSettings.permaStock.length > 6) gameSettings.permaStock.length = 6; // 枠上限=maxSlots最大6
+            if (gameSettings.upgrades && typeof gameSettings.upgrades === 'object') {
+                for (var upK in gameSettings.upgrades) {
+                    var upV = gameSettings.upgrades[upK];
+                    // 全アップグレードの maxLevel は3以下（stock_expand≤3 → maxSlots≤6 を保証）
+                    gameSettings.upgrades[upK] = (typeof upV === 'number' && isFinite(upV)) ? Math.max(0, Math.min(3, Math.floor(upV))) : 0;
+                }
+            }
+            if (!isFinite(gameSettings.savings) || gameSettings.savings < 0) gameSettings.savings = 0;
+            if (!isFinite(gameSettings.goldenEggs) || gameSettings.goldenEggs < 0) gameSettings.goldenEggs = 0;
             if (typeof parsed.tutorialSeen === 'boolean') gameSettings.tutorialSeen = parsed.tutorialSeen;
             // adFree復元: 購入済みなら常にtrue
             if (gameSettings.purchased['ad_free'] || gameSettings.purchased['starter_pack']) gameSettings.adFree = true;
@@ -4070,12 +4071,12 @@ function buildRankMessage(name, ranks) {
         msg += '\n';
         for (var i = 0; i < ranked.length; i++) {
             var r = ranked[i];
-            msg += '\n' + r.label + ' ' + r.rank + t('submit_rank_suffix');
+            msg += '\n' + r.label + ' ' + t('submit_rank_prefix') + r.rank + t('submit_rank_suffix');
         }
     } else {
         // ランク外の場合、最も良い順位を表示
         var best = ranks.reduce(function(a, b) { return a.rank < b.rank ? a : b; });
-        msg += '\n\n' + best.label + ' ' + best.rank + t('submit_rank_suffix');
+        msg += '\n\n' + best.label + ' ' + t('submit_rank_prefix') + best.rank + t('submit_rank_suffix');
     }
     return msg;
 }
@@ -4858,6 +4859,7 @@ function activateSpecialMove() {
     if (gameState.specialGauge < 100) return;
     if (gameState.specialCutinTimer > 0) return;
     if (!gameState.gameStarted || gameState.gamePaused) return;
+    if (pipeRoomState.active) return; // ボーナス部屋では使用不可（敵がいない＝ゲージ浪費＆カットインが退室後に遅延再生されるのを防ぐ）
     gameState.specialGauge = 0;
     gameState.specialUses++;  // デイリーミッション(必殺技使用)用
     gameState.specialCutinActive = true;
@@ -4986,7 +4988,7 @@ function drawSpecialCutin() {
 function updateSpecialMoveUI() {
     var ui = document.getElementById('specialMoveUI');
     if (!ui) return;
-    var show = (gameState.specialMoveLevel || 0) > 0 && gameState.gameStarted && !gameState.gamePaused;
+    var show = (gameState.specialMoveLevel || 0) > 0 && gameState.gameStarted && !gameState.gamePaused && !pipeRoomState.active;
     if (ui._shown !== show) { ui.style.display = show ? 'flex' : 'none'; ui._shown = show; }
     if (!show) return;
     var fill = document.getElementById('specialMoveGaugeFill');
@@ -5155,6 +5157,9 @@ function updateEnemies() {
     for (i = flyingEnemies.length - 1; i >= 0; i--) {
         e = flyingEnemies[i];
         e.x += e.velX - gameState.gameSpeed;
+        // 上下ふわふわ。旧render側(drawFlyingEnemy)から移設＝当たり判定と描画が常に一致し、
+        // 高リフレッシュ端末でも60Hz進行（render側加算だとrAF毎=120Hzで揺れの速度と幅が変わっていた）
+        e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
 
         var stompHitF = aabbShrink(player, e, 4, 12);
         var bodyHitF  = aabbShrink(player, e, 14, 12);
@@ -5271,13 +5276,32 @@ function spawnWeatherParticle(biome, initial) {
     return p;
 }
 
+// ホタルの発光を事前描画した1枚のグロー画像。従来は夜ステージで最大60匹に毎フレーム shadowBlur=8 を
+// 掛けており（Canvasのblurはfillごとにオフスクリーンのぼかしパスが走る）、中級スマホの持続的な
+// フレーム落ち要因だった。radialGradientの画像を drawImage するだけなら1匹あたりほぼタダ。
+var fireflyGlowCanvas = null;
+function getFireflyGlow() {
+    if (fireflyGlowCanvas) return fireflyGlowCanvas;
+    var c = document.createElement('canvas');
+    c.width = 32; c.height = 32;
+    var g = c.getContext('2d');
+    var grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, 'rgba(220,255,190,1)');     // 中心=ほぼ本体色
+    grad.addColorStop(0.3, 'rgba(190,255,170,0.6)'); // 旧shadowBlur=8のにじみ相当
+    grad.addColorStop(1, 'rgba(170,255,170,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 32, 32);
+    fireflyGlowCanvas = c;
+    return c;
+}
+
 function drawWeatherParticles() {
     for (var i = 0; i < weatherParticles.length; i++) {
         var p = weatherParticles[i];
         var fadeIn = Math.min(1, (p.type === 'shootingstar' ? 1 : Math.min(p.life / 30, 1)));
         ctx.save();
         if (p.type === 'leaf') {
-            p.rot += p.rotSpeed;
+            p.rot += p.rotSpeed * frameSteps;
             ctx.globalAlpha = fadeIn * 0.5;
             ctx.translate(p.x, p.y);
             ctx.rotate(p.rot);
@@ -5301,13 +5325,9 @@ function drawWeatherParticles() {
         } else if (p.type === 'firefly') {
             var glow = 0.3 + 0.7 * Math.abs(Math.sin(p.phase + gameState.time * 0.06));
             ctx.globalAlpha = fadeIn * glow;
-            ctx.shadowColor = '#aaffaa';
-            ctx.shadowBlur = 8;
-            ctx.fillStyle = '#ccffaa';
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
+            // 事前描画のグロー画像1枚をdrawImage（旧: 毎フレームshadowBlur=8×最大60匹＝夜ステージの負荷元）
+            var fgSize = (p.size + 8) * 2; // 旧「本体半径+ぼかし8px」の見た目に相当する直径
+            ctx.drawImage(getFireflyGlow(), p.x - fgSize / 2, p.y - fgSize / 2, fgSize, fgSize);
         } else if (p.type === 'shootingstar') {
             var tailAlpha = Math.min(1, p.life / 10);
             ctx.globalAlpha = tailAlpha * 0.9;
@@ -5610,7 +5630,9 @@ function updateBullets() {
         // ボスとの衝突
         if (bossState.boss && bossState.phase === 3 && aabb(b, bossState.boss)) {
             // 装甲卵ボスは弱点露出中のみ弾が通る（それ以外は殻で弾く＝ダメージ0）
-            var _eggArmored = (bossState.boss.kind === 'egg' && !bossState.boss.exposed);
+            // 卵/大蛇は「露出(exposed)中のみダメージが通る」設計（フィールド共用・gameplay.js:1875）。
+            // 従来は卵だけゲートしており、大蛇は非露出中(sweep/spit/strike上昇中)も弾が通っていた。
+            var _eggArmored = ((bossState.boss.kind === 'egg' || bossState.boss.kind === 'snake') && !bossState.boss.exposed);
             if (!_eggArmored) bossState.boss.hp -= (b.dmg || 2) * critMultiplier(bossState.boss.x + bossState.boss.width / 2, bossState.boss.y); // エナジー弾2/電気弾1・メイド服で稀にクリティカル2倍
             spawnExplosionEffect(b.x, b.y);
             bullets.splice(i, 1);

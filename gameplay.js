@@ -98,6 +98,8 @@ function enterPipeRoom() {
     // Android戻る用に履歴を積む（無いと部屋内で戻る=即アプリ離脱）。戻る→BACK_HANDLERSがexitPipeRoom()＝pushと相殺。
     // 横土管から歩いて出た場合はこのstateが1つ余るが、余りは次の戻るでポーズになるだけ（無害）。
     history.pushState({ screen: 'pipeRoom' }, '');
+    // 進行中の演出はワールド座標発行＝部屋(画面座標)では誤った位置に描かれるため破棄（部屋内の取得演出は画面座標で発行される）
+    floatEffects.length = 0;
     if (typeof markZukanSeen === 'function') markZukanSeen('biome:bonus'); // ずかん(ステージ): ボーナス部屋を発見
     pipeRoomState.exitHold = 0; // 退室ゲージを初期化
     pipeRoomState.introTimer = 90; // 入場「BONUS!」演出（約1.5秒）
@@ -123,6 +125,7 @@ function exitPipeRoom() {
     if (!pipeRoomState.active) return;
     pipeRoomState.active = false;
     bonusRoomItems.length = 0;
+    floatEffects.length = 0; // 部屋内の取得演出は画面座標発行＝本編(ワールド座標)では誤った位置に描かれるため破棄
     // プレイヤー状態を復元（本編は同じ位置から再開）
     var sp = pipeRoomState.savedPlayer;
     if (sp) { player.x = sp.x; player.y = sp.y; player.velX = sp.velX; player.velY = sp.velY; player.onGround = sp.onGround; player.facing = sp.facing; }
@@ -654,43 +657,8 @@ function updateStageShopUI() {
     }
 
     container.innerHTML = html;
-
-    // 貯金ボタン＆貯金額の更新（メニューモード以外では非表示）
-    var depBtn = document.getElementById('depositBtn');
-    var depInfo = document.getElementById('depositInfo');
-    var depAmount = Math.floor(gameState.score * 0.5);
-    if (shopMode !== 'menu') {
-        if (depBtn) { depBtn.style.display = 'none'; }
-        if (depInfo) { depInfo.style.display = 'none'; }
-    } else {
-        if (depBtn) {
-            depBtn.style.display = 'block';
-            if (shopState.deposited) {
-                depBtn.disabled = true;
-                depBtn.style.opacity = '0.4';
-                depBtn.style.pointerEvents = 'none';
-                depBtn.textContent = t('shop_deposited');
-            } else if (gameState.score <= 0) {
-                depBtn.disabled = true;
-                depBtn.style.opacity = '0.4';
-                depBtn.style.pointerEvents = 'none';
-                depBtn.innerHTML = _ic('icon_bank.png', 'ui-icon-sm') + ' ' + t('shop_deposit_btn');
-            } else {
-                depBtn.disabled = false;
-                depBtn.style.opacity = '1';
-                depBtn.style.pointerEvents = 'auto';
-                depBtn.innerHTML = _ic('icon_bank.png', 'ui-icon-sm') + ' ' + t('shop_deposit_btn') + ' (' + depAmount + t('currency_unit') + ')';
-            }
-        }
-        if (depInfo) {
-            depInfo.style.display = 'block';
-            if (!shopState.deposited && gameState.score > 0) {
-                depInfo.textContent = t('shop_deposit_preview', { sf: gameSettings.savings, st: gameSettings.savings + depAmount, cf: gameState.score, ct: gameState.score - depAmount });
-            } else {
-                depInfo.textContent = t('shop_current_savings', { savings: gameSettings.savings + t('currency_unit') });
-            }
-        }
-    }
+    // 旧 #depositBtn/#depositInfo の更新コードは1.406で撤去（1.399のメニュー化以降は常時非表示の死にUIで、
+    // レイアウト変更で再表示されると「確認なしの即貯金」ボタンが復活するリスクだった。貯金は _menu_deposit 項目から）
 }
 
 // DQ風：デスクトップ用ホバープレビュー（マウスオーバーで説明表示）
@@ -2002,6 +1970,11 @@ function updateBoss() {
 
     case 4: // 撃破演出
         bossState.defeatedTimer++;
+        // フクロウ戦: 暗転(darkness)はAI(phase3)でしか更新されないため、暗転中に倒すと
+        // 撃破演出〜ラウンド表示がほぼ真っ暗のまま進んでいた。撃破後は約1秒でフェードアウトさせる。
+        if (bossState.boss && bossState.boss.kind === 'owl' && bossState.boss.darkness > 0) {
+            bossState.boss.darkness = Math.max(0, bossState.boss.darkness - 0.02);
+        }
         // ボス撃破時に全敵消去
         if (bossState.defeatedTimer === 1) {
             for (var ei = 0; ei < enemies.length; ei++) {

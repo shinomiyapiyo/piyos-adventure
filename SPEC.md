@@ -1,8 +1,11 @@
 # ぴよ氏の冒険 — ゲーム仕様書
 
-**バージョン:** Ver.1.271
-**最終更新:** 2026-06-11
+**バージョン:** Ver.1.271（基準仕様）
+**最終更新:** 2026-06-11（§21 素材リストのみ 2026-07-08 / Ver.1.406 時点に更新）
 **開発:** NullPo Works
+
+> ⚠ 本書は Ver.1.271 時点の基準仕様です。以降の変更（ボス5体化・スキン特殊効果・まほうのポーチ・
+> ボーナスステージ・タイトルショップのメニュー化 等）は **HANDOFF.md のバージョン別changelogが正**。
 
 ---
 
@@ -730,9 +733,19 @@
 | ranking.mp3 | NullPo Works (Suno生成) | 自社制作 |
 | win.mp3 | NullPo Works (Suno生成) | 自社制作 |
 | warning.mp3 | NullPo Works (Suno生成) | 自社制作 |
+| stage4.mp3 | NullPo Works (Suno生成) | 自社制作 |
+| stage5.mp3 | NullPo Works (Suno生成) | 自社制作 |
+| bonus.mp3 | NullPo Works (Suno生成) | 自社制作 |
 | flash.mp3 | OtoLogic | CC BY 4.0 |
 | or.mp3 | OtoLogic | CC BY 4.0 |
 | select.mp3 | OtoLogic | CC BY 4.0 |
+| piyoflash.mp3 | ※要確認（出所未記録） | ※要確認 |
+| piyoflash_charge.mp3 | ※要確認（出所未記録） | ※要確認 |
+| protect.mp3 | ※要確認（出所未記録） | ※要確認 |
+| critical.mp3 | ※要確認（出所未記録） | ※要確認 |
+
+> OtoLogic分のクレジット表記は Ver.1.404 で設定画面に追加済み（効果音素材：OtoLogic（https://otologic.jp）/ CC BY 4.0）。
+> ※要確認の4ファイルは出所をこの表に追記すること。OtoLogic以外のCC BY素材だった場合はその規約のクレジット表記も必要。
 
 ### スプライト
 - プレイヤー、敵、ボス、地形、アイテム等は `sprites.js` で定義

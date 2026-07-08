@@ -13,6 +13,9 @@
 var lastFrameTime = 0;
 var accumulator = 0;
 var FIXED_DT = 1000 / 60; // 16.67ms per tick
+// このrAFフレームで実際に進んだ固定ステップ数。render側の演出タイマー/パーティクル積分は
+// 「++」でなく「+= frameSteps」で進める＝90/120Hz端末でも60Hz進行・ポーズ中(0)は凍結。
+var frameSteps = 0;
 
 function gameLoop(timestamp) {
     if (!lastFrameTime) lastFrameTime = timestamp;
@@ -24,8 +27,10 @@ function gameLoop(timestamp) {
 
     accumulator += delta;
 
+    frameSteps = 0;
     while (accumulator >= FIXED_DT) {
         if (gameState.gameStarted && !gameState.gamePaused) {
+            frameSteps++;
             if (pipeRoomState.active) {
                 updatePipeRoom(); // 土管ボーナス部屋中は世界を止め、部屋だけ更新
             } else if (gameState.specialCutinTimer > 0) {
@@ -540,6 +545,9 @@ window.addEventListener('blur', function() {
 function initialize() {
     // 未所持スキンが装備中なら（解放条件導入前に装備していた等）デフォルトへ戻す
     if (gameSettings.activeSkin && !isSkinOwned(gameSettings.activeSkin)) { gameSettings.activeSkin = ''; saveSettings(); }
+    // 所持アップグレードを起動時に反映（stock_expand の maxSlots 等）。従来は初回ラン開始まで反映されず、
+    // 起動直後にタイトルショップを開くと maxSlots=3 のままポーチが誤って「MAX」判定される等の表示ズレがあった
+    applyUpgrades();
     spriteManager.init(function() {
         // 画像スプライト読み込み完了
     });
@@ -688,9 +696,8 @@ function initialize() {
         shopLastHoveredItem = null;
     });
 
-    // ステージショップ閉じるボタン・貯金ボタン
+    // ステージショップ閉じるボタン（貯金はメニュー項目 _menu_deposit から。旧depositBtnは1.406で撤去）
     bindTapButton(document.getElementById('stageShopCloseBtn'), closeStageShop, { stopClickPropagation: true });
-    bindTapButton(document.getElementById('depositBtn'), depositScore, { stopClickPropagation: true });
 
     // DQ風 はい/いいえ確認ボタン（カーソル合わせ→決定の2ステップ）
     bindTapButton(document.getElementById('shopConfirmYes'), handleConfirmYes, { stopClickPropagation: true });

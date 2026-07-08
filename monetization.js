@@ -161,7 +161,9 @@ function adRevive() {
         gameState.invincibleTimer = INVINCIBLE_FRAMES; // 3秒間無敵
         gameState.revivalFlashTimer = 90; // 1.5秒の復活演出
         resetPlayerPosition(); // 上空からリスポーン（死因に関わらず統一）
-        playStageBGM();
+        // ボス戦中の復活は戦闘が続くのでボスBGMを維持（薬/羽の復活=tryReviveがBGMを触らないのと同じ挙動）
+        if (bossState.active && soundManager) { soundManager.playBossBGM(); }
+        else { playStageBGM(); }
         document.getElementById('ui').style.display = 'block';
         document.getElementById('controlBar').style.display = 'flex';
         // gameLoopはrequestAnimationFrameで常時動作しているため呼び不要
