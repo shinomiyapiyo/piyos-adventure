@@ -532,7 +532,7 @@ window.addEventListener('orientationchange', function() {
 document.addEventListener('touchmove', function(e) {
     // INPUT要素とオーバーレイ画面内のスクロールは許可
     if (e.target.tagName === 'INPUT') return;
-    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen')) return;
+    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen, #titleMenuScreen')) return;
     e.preventDefault();
 }, { passive: false });
 document.addEventListener('visibilitychange', function() {
@@ -564,6 +564,11 @@ function initialize() {
     // ボタンはtouchendで即反応（clickより先に発火）+ 二重発火防止
     bindTapButton(rankingBtn, showRanking, { stopClickPropagation: true });
     bindTapButton(document.getElementById('settingsButton'), showSettings, { stopClickPropagation: true });
+
+    // タイトルメニュー（Phase3.6 P4）: ぼうけんスタート/図鑑/もどる
+    bindTapButton(document.getElementById('menuStartButton'), function() { startGame(); }, { stopClickPropagation: true });
+    bindTapButton(document.getElementById('zukanButton'), showZukanScreen, { stopClickPropagation: true });
+    bindTapButton(document.getElementById('menuBackButton'), closeTitleMenu, { stopClickPropagation: true });
 
     // ショップボタン（タイトル画面）
     var shopBtn = document.getElementById('shopButton');
@@ -728,17 +733,16 @@ function initialize() {
     bindTapButton(document.getElementById('shopConfirmYes'), handleConfirmYes, { stopClickPropagation: true });
     bindTapButton(document.getElementById('shopConfirmNo'), handleConfirmNo, { stopClickPropagation: true });
 
-    // タイトル画面の背景タップでゲーム開始
+    // タイトル画面のタップでメニューを開く（Phase3.6 P4: 直接ゲーム開始しない）
     startScreen.addEventListener('click', function(e) {
         handleTitleScreenClick(e);
     });
     startScreen.addEventListener('touchend', function(e) {
-        if (e.target.closest('#titleButtons')) return;
         if (e.target.classList.contains('game-button')) return;
         if (e.target.closest('a')) return;
         if (e.target.closest('#forceUpdateBtn')) return;
         e.preventDefault();
-        startGame();
+        showTitleMenu();
     });
 
     requestAnimationFrame(gameLoop);
@@ -804,9 +808,18 @@ document.addEventListener('DOMContentLoaded', function() {
             // Android戻るボタン/ブラウザバック: BACK_HANDLERS（優先順位付きレジストリ）の
             // 先頭から評価し、最初に「開いている」画面のonBackを1つだけ実行する。
             // 新しい画面を追加する場合はBACK_HANDLERSに1エントリ追加するだけでよい。
-            window.addEventListener('popstate', function() {
+            window.addEventListener('popstate', function(e) {
+                // タイトルメニューの上に重ねた画面（設定/図鑑/ランキング等）を閉じるボタンで閉じると、
+                // 「hide済み→history.back()」のpopstateがここへ届き、走査の先頭ヒットがメニュー自身になる。
+                // その時はメニューへ「戻ってきた」だけなので閉じない。
+                // （ハード戻るで子画面が開いたままの場合は子画面が先にヒットし、従来通り子画面だけ閉じる）
+                var backToMenu = !!(e.state && e.state.screen === 'titleMenu');
                 for (var i = 0; i < BACK_HANDLERS.length; i++) {
-                    if (BACK_HANDLERS[i].isOpen()) { BACK_HANDLERS[i].onBack(); return; }
+                    if (BACK_HANDLERS[i].isOpen()) {
+                        if (backToMenu && BACK_HANDLERS[i].menuSelf) return;
+                        BACK_HANDLERS[i].onBack();
+                        return;
+                    }
                 }
             });
         } catch (err) {

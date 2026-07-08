@@ -139,6 +139,9 @@ var BACK_HANDLERS = [
     { isOpen: function() { return isScreenVisible('nameInputScreen'); }, onBack: function() { hideNameInputDirect(); resetGame(); } },
     { isOpen: function() { return isScreenVisible('gameOverScreen'); }, onBack: function() { goToTitle(); } },
     { isOpen: function() { return isScreenVisible('rankingScreen'); }, onBack: function() { hideRanking(); } },
+    // タイトルメニュー（P4）: 上に重ねて開く各画面より後＝最後に閉じる。
+    // menuSelf: 子画面の閉じるボタン由来のpopstate（titleMenu状態へ戻る）では閉じない目印（bootstrap.jsのpopstate参照）
+    { isOpen: function() { return isScreenVisible('titleMenuScreen'); }, menuSelf: true, onBack: function() { hideTitleMenu(); } },
     // ラン中の戻る=ポーズ⇔再開のトグル。消費した履歴をここで積み直すので連打してもアプリ離脱しない
     // （startGame が {screen:'game'} を1つ積むのが起点。pauseGame は遷移クールダウン中は何もしないが積み直しは行う）。
     { isOpen: function() { return gameState && gameState.gameStarted; },
