@@ -1730,15 +1730,7 @@ function drawPipeRoom() {
     ctx.textAlign = 'right';
     ctx.fillText(t('pipe_room_exit'), exitX, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H - 8 + Math.sin(gameState.time * 0.1) * 3);
     ctx.restore();
-    // 退室ゲージ（口で右を押し続けている間だけ表示・満タンで退室）
-    if (pipeRoomState.exitHold > 0) {
-        var gp = Math.min(pipeRoomState.exitHold / PIPE_EXIT_HOLD_FRAMES, 1);
-        var gw = 92, gh = 10, gx = exitX + SIDE_PIPE_W / 2 - gw / 2, gy = PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H - 34;
-        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(gx - 2, gy - 2, gw + 4, gh + 4);
-        ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(gx, gy, gw, gh);
-        ctx.fillStyle = '#7CFC5A'; ctx.fillRect(gx, gy, gw * gp, gh);
-        ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1; ctx.strokeRect(gx + 0.5, gy + 0.5, gw, gh);
-    }
+    // 退室ゲージ表示は1.410で撤去（判定時間を半減=0.35秒にしたためUI不要。判定自体は updatePipeRoom の exitHold のまま）
     // 報酬
     for (var i = 0; i < bonusRoomItems.length; i++) {
         var it = bonusRoomItems[i];
@@ -1749,10 +1741,21 @@ function drawPipeRoom() {
         else if (it.type === 'shopitem') drawRoomShopItem(it);
     }
     // プレイヤー
-    if (gameState.gameStarted) drawPlayer(player.x, player.y);
-    // 退室演出中は横土管を後描きしてプレイヤーを隠す（Z順トリック・1.408）
-    if (pipeRoomState.anim === 'outRoom' && pipeSideImg.complete && pipeSideImg.naturalWidth) {
-        ctx.drawImage(pipeSideImg, exitX, PIPE_ROOM_FLOOR_Y - SIDE_PIPE_H, SIDE_PIPE_W, SIDE_PIPE_H);
+    if (gameState.gameStarted) {
+        if (pipeRoomState.anim === 'outRoom') {
+            // 退室演出: 「口の内側の縁」ラインより左だけプレイヤーを描く（クリップ方式・1.410）。
+            // 旧「横土管全体を後描き」は口が見える絵柄のため「土管の裏に回った」ように見えた。
+            // クリップなら下地の口(暗部)と手前の縁が残り、口に入っていく見た目になる（本編側1.409と同方式）。
+            var _mouthX = exitX + SIDE_PIPE_MOUTH_LINE;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(-100, -100, _mouthX + 100, GAME_HEIGHT + 200);
+            ctx.clip();
+            drawPlayer(player.x, player.y);
+            ctx.restore();
+        } else {
+            drawPlayer(player.x, player.y);
+        }
     }
     // 取得演出（らいふあっぷ！等）。部屋内のエフェクトは worldX=画面座標で発行されるのでそのまま描ける
     // （従来はここで描いておらず、部屋でのハート/エッグ取得演出が一切表示されなかった）

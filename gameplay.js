@@ -304,7 +304,8 @@ function updatePipeRoom() {
         player.y = PIPE_ROOM_FLOOR_Y - player.height; // 床に固定
         player.x += 2.4;                              // 一定速度で口の奥へ
         player.animFrame++;                           // 歩きモーション
-        if (player.x > pipeRoomExitX() + 56) {        // 体がほぼ土管に収まる位置まで入った
+        // 体の左端が「口の内側の縁」ラインを越えたら完全に見えなくなる（クリップ方式・1.410）
+        if (player.x >= pipeRoomExitX() + SIDE_PIPE_MOUTH_LINE + 4) {
             pipeRoomState.anim = 'none';
             _exitPipeRoomNow();
             _startPipeRiseOut();
