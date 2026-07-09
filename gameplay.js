@@ -89,13 +89,14 @@ function tutorialGatePreCleared(g) {
 // 毎フレーム呼ばれる台本進行（bootstrapのgameLoopから・非アクティブ時は即return）
 function updateTutorial() {
     if (!tutorialState.active) return;
-    // 台本より先へ走り込めないようにする前進クランプ（1.444→1.446）:
+    // 台本より先へ走り込めないようにする前進クランプ（1.444→1.446→1.448）:
     // テロップ/ゲートはスクロール距離（camera）基準で発火するため、走り込みすぎると案内タイミングがずれる。
-    // 656px＝画面(820px)の右側8割の位置（ユーザー指定・1.446で 420→656 に緩和）。通常時のプレイヤー可動域
-    // (camera+25〜camera+795)の内側で、少し先の課題まで近づけるが台本を大きく追い越さない距離。
+    // 738px＝画面(820px)の右側9割の位置（ユーザー指定・420→656→738 と段階的に緩和）。通常時のプレイヤー
+    // 可動域(camera+25〜camera+795)の内側で、課題のかなり手前まで近づけるが台本を追い越さない。
+    // この前進クランプがあるので、土管/ショップ個別の通り過ぎ防止クランプは不要（1.448で撤去）。
     // ボス戦はアリーナ全域を使うため対象外。
     if (!bossState.active && !bossState.bossTriggered) {
-        var tutMaxX = gameState.camera.x + 656;
+        var tutMaxX = gameState.camera.x + 738;
         if (player.x > tutMaxX) { player.x = tutMaxX; if (player.velX > 0) player.velX = 0; }
     }
     while (tutorialState.stepIdx < TUTORIAL_SCRIPT.length &&
@@ -130,29 +131,17 @@ function updateTutorial() {
                       !stockState.items.some(function(it) { return it.id === 'barrier'; });
         } else if (g === 'pipe') {
             cleared = pipeRoomState.visited || pipeRoomState.active || pipeRoomState.anim !== 'none';
+            // 保険: 土管が消えていたら前方に出し直す（stompの再湧きと同思想・ゲートが詰まないように）。
+            // 通り過ぎ防止の個別クランプは前進クランプ(738px)があるため撤去（1.448）＝土管の手前で必ず止まる。
             if (!cleared) {
-                // 保険1: 土管が消えていたら前方に出し直す（stompの再湧きと同思想・ゲートが詰まないように）
-                var gPipe = null;
-                for (var pi = 0; pi < platforms.length; pi++) { if (platforms[pi].type === 'pipe') { gPipe = platforms[pi]; break; } }
-                if (!gPipe) {
-                    gPipe = { x: gameState.camera.x + 500, y: GROUND_Y - PIPE_H, width: PIPE_W, height: PIPE_H, type: 'pipe' };
-                    platforms.push(gPipe);
-                }
-                // 保険2: ゲート中は土管の右端より先へ行けない（テロップ前にジャンプで飛び越える→置き去りで詰み を防ぐ・1.442）。
-                // クランプ位置は「土管の右端に立てる位置」＝飛び越えようとすると土管の上に着地して、そのまま下スワイプの練習になる
-                var maxPX = gPipe.x + gPipe.width - player.width;
-                if (player.x > maxPX) { player.x = maxPX; if (player.velX > 0) player.velX = 0; }
+                var hasPipe = false;
+                for (var pi = 0; pi < platforms.length; pi++) { if (platforms[pi].type === 'pipe') { hasPipe = true; break; } }
+                if (!hasPipe) platforms.push({ x: gameState.camera.x + 500, y: GROUND_Y - PIPE_H, width: PIPE_W, height: PIPE_H, type: 'pipe' });
             }
         } else if (g === 'shop') {
-            // 入店（openStageShopがvisitedを立てる）まで停止（1.443）
+            // 入店（openStageShopがvisitedを立てる）まで停止（1.443）。
+            // ドア通り過ぎ防止の個別クランプは前進クランプ(738px)があるため撤去（1.448）。
             cleared = shopState.visited || shopState.active;
-            if (!cleared && shopState.buildingPlaced) {
-                // ゲート中はドアを通り過ぎられない（pipeゲートと同じ置き去り防止）。
-                // クランプ位置＝中心がドア+60px（入店判定は中心がドア±80px以内）＝止まった場所がそのまま上スワイプの練習位置になる
-                var doorX = shopState.buildingX + 90;
-                var maxSX = doorX + 60 - player.width / 2;
-                if (player.x > maxSX) { player.x = maxSX; if (player.velX > 0) player.velX = 0; }
-            }
         }
         if (cleared) {
             tutorialState.gate = '';
