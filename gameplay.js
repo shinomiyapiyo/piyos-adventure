@@ -344,6 +344,39 @@ function getEnterablePipe() {
     return null;
 }
 
+// 「土管そのものに対し下スワイプ」で入場（1.449）: 上に乗っていなくても、スワイプ地点(ワールド座標)が土管の絵の上で、
+// プレイヤーが土管の近く（横に約1.5土管幅）なら入場。入場アニメが中央へ吸い付くので横からでも綺麗に入る。
+function tryEnterPipeAtWorld(wx, wy) {
+    if (pipeRoomState.active || pipeRoomState.visited || pipeRoomState.anim !== 'none') return false;
+    if (!player.onGround) return false; // 空中からの割り込み入場は避ける（接地時のみ）
+    var pcx = player.x + player.width / 2;
+    for (var i = 0; i < platforms.length; i++) {
+        var p = platforms[i];
+        if (p.type !== 'pipe') continue;
+        if (wx >= p.x - 20 && wx <= p.x + p.width + 20 && wy >= p.y - 20 && wy <= p.y + p.height + 20 &&
+            Math.abs(pcx - (p.x + p.width / 2)) < p.width * 1.5 + 40) {
+            enterPipeRoom(p);
+            return true;
+        }
+    }
+    return false;
+}
+
+// 「お店の入り口に対し上スワイプ」で入店（1.449）: スワイプ地点(ワールド座標)が建物の絵の上で、プレイヤーがドアの近く
+// （±160px＝checkShopTriggerの±80より寛容）なら入店。建物サイズは render.js の描画(180×131)に合わせる。
+function tryEnterShopAtWorld(wx, wy) {
+    if (!shopState.buildingPlaced || shopState.visited || shopState.active) return false;
+    if (!player.onGround) return false;
+    var bx = shopState.buildingX, bw = 180, bh = 131, by = GROUND_Y - bh;
+    var doorX = bx + 90;
+    if (wx >= bx - 20 && wx <= bx + bw + 20 && wy >= by - 20 && wy <= GROUND_Y + 20 &&
+        Math.abs((player.x + player.width / 2) - doorX) < 160) {
+        openStageShop();
+        return true;
+    }
+    return false;
+}
+
 // ── 土管タイム（入場アシスト・1.407） ──
 // 土管に乗った瞬間から一定時間、世界のスクロールを大幅減速（updateGameSpeed が pipeAssistTimer>0 で乗算）。
 // 高速域では狭い土管上で下スワイプする猶予がほぼ無いための救済。1つの土管につき1回だけ（離れると即解除・再発動なし）。
@@ -372,9 +405,9 @@ function updatePipeAssist() {
 var PIPE_ANIM_SNAP = 9;   // 中央スナップのフレーム数
 var PIPE_ANIM_MOVE = 30;  // 沈む/上昇のフレーム数（66px≒0.5秒）
 
-function enterPipeRoom() { // 公開API（下スワイプ/キーボード↓から。呼び出し元は従来のまま）
+function enterPipeRoom(targetPipe) { // 公開API（下スワイプ/キーボード↓から）。targetPipe省略時は土管上に立っている前提
     if (pipeRoomState.active || pipeRoomState.visited || pipeRoomState.anim !== 'none') return;
-    var pipe = getEnterablePipe();
+    var pipe = (targetPipe && targetPipe.type === 'pipe') ? targetPipe : getEnterablePipe();
     if (!pipe) return;
     pipeRoomState.visited = true;               // 演出開始時点で消費（多重開始・再入場防止）
     pipeAssistTimer = 0; pipeAssistPipe = null; // 土管タイム解除（速度はupdateGameSpeedが次tickで復帰）

@@ -208,6 +208,16 @@ function bindTapDelegate(container, attrName, handler) {
         }
     }
 
+    // タッチ座標(clientX/Y)をゲームのワールド座標へ変換（canvasの実表示矩形基準・スケール/セーフエリアに追従）。1.449
+    function touchToWorld(touch) {
+        var r = canvas.getBoundingClientRect();
+        if (!r.width || !r.height) return null;
+        return {
+            x: gameState.camera.x + ((touch.clientX - r.left) / r.width) * GAME_WIDTH,
+            y: ((touch.clientY - r.top) / r.height) * GAME_HEIGHT
+        };
+    }
+
     // ─ 下スワイプ（足場貫通）/ 上スワイプ（ショップ入店）共通処理 ─
     function handleSwipeDown(e) {
         if (moveSwiped) return;
@@ -225,6 +235,14 @@ function bindTapDelegate(container, attrName, handler) {
                 highlightControl(null);
                 return;
             }
+            // 土管そのものに対し下スワイプ → 横にいても入場（1.449）
+            var wpd = touchToWorld(touch);
+            if (wpd && tryEnterPipeAtWorld(wpd.x, wpd.y)) {
+                moveSwiped = true;
+                gameState.input.left = false; gameState.input.right = false;
+                highlightControl(null);
+                return;
+            }
             if (isOnPlatform()) {
                 moveSwiped = true;
                 gameState.input.down = true;
@@ -236,8 +254,12 @@ function bindTapDelegate(container, attrName, handler) {
         } else if (dy < -20 && dt < 500) {
             // 上スワイプ: ショップ入店用
             moveSwiped = true;
-            gameState.input.up = true;
-            setTimeout(function() { gameState.input.up = false; }, 200);
+            // お店の入り口に対し上スワイプ → 直接入店（1.449）。外れたら従来どおり input.up（nearDoor判定）
+            var wpu = touchToWorld(touch);
+            if (!(wpu && tryEnterShopAtWorld(wpu.x, wpu.y))) {
+                gameState.input.up = true;
+                setTimeout(function() { gameState.input.up = false; }, 200);
+            }
         }
     }
 
@@ -294,13 +316,24 @@ function bindTapDelegate(container, attrName, handler) {
     }, { passive: true });
     gameContainer.addEventListener('touchmove', function(e) {
         if (!gameState.gameStarted || gameState.gamePaused) return;
-        if (!shopState.buildingPlaced || shopState.visited || shopState.active) return;
-        var dy = e.touches[0].clientY - shopSwipeStartY;
+        if (pipeRoomState.active) return;
+        var touch = e.touches[0];
+        var dy = touch.clientY - shopSwipeStartY;
         var dt = Date.now() - shopSwipeStartTime;
-        if (dy < -20 && dt < 500) {
-            gameState.input.up = true;
-            setTimeout(function() { gameState.input.up = false; }, 200);
+        if (dt >= 500 || shopSwipeStartY === 0) return;
+        if (dy < -20) {
+            // 上スワイプ: お店の入り口に対してなら直接入店、外れたら従来どおり input.up（nearDoor判定）
+            var wpu = touchToWorld(touch);
+            if (!(wpu && tryEnterShopAtWorld(wpu.x, wpu.y))) {
+                if (!shopState.buildingPlaced || shopState.visited || shopState.active) return;
+                gameState.input.up = true;
+                setTimeout(function() { gameState.input.up = false; }, 200);
+            }
             shopSwipeStartY = 0; // 一度だけ発火
+        } else if (dy > 20) {
+            // 下スワイプ: 土管そのものに対してなら入場（デッドゾーン/ジャンプエリアから土管を狙った時の保険・1.449）
+            var wpd = touchToWorld(touch);
+            if (wpd && tryEnterPipeAtWorld(wpd.x, wpd.y)) shopSwipeStartY = 0;
         }
     }, { passive: true });
 
