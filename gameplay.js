@@ -547,7 +547,8 @@ var ROOM_TYPES = [
     { id: 'treasure', weight: 40, build: buildTreasureRoom }, // たからの間（現状＝バランス・基準）
     { id: 'coin',     weight: 20, build: buildCoinRoom },     // コインの間（金貨ざくざく・ハート/在庫なし）
     { id: 'potion',   weight: 15, build: buildPotionRoom },   // ポーションの間（在庫補給・満杯ならコイン振替）
-    { id: 'heal',     weight: 10, build: buildHealRoom }      // おやすみの間（ハート2確定・満タンは既存で+1000点変換）
+    { id: 'heal',     weight: 10, build: buildHealRoom },     // おやすみの間（ハート2確定・満タンは既存で+1000点変換）
+    { id: 'lucky',    weight: 15, build: buildLuckyRoom }     // ラッキーの間（宝箱3つから1つ踏んで開封→ランダム報酬・残り2つ消滅）
 ];
 
 function pipeRoomBounds() {
@@ -617,6 +618,60 @@ function buildHealRoom() {
     for (var k = 0; k < cn; k++) addRoomCoin(cx0 + (cx1 - cx0) * (k / (cn - 1)), b.floorY - 72);
 }
 
+// ラッキーの間（1.452〜）: 床に宝箱3つを等間隔で並べる。プレイヤーは1つを「上から踏んで」開ける（横歩きでは開かない＝3つから選べる）。
+// 開封→中身ランダム[大コイン/ハート/在庫]・残り2つは消滅。ゴールデンエッグは他タイプ同様 initPipeRoom が独立1/20で別途抽選。
+var LUCKY_CHEST_W = 52, LUCKY_CHEST_H = 40;
+function buildLuckyRoom() {
+    var b = pipeRoomBounds();
+    var fxs = [0.26, 0.5, 0.74]; // 左・中央・右
+    for (var i = 0; i < 3; i++) {
+        bonusRoomItems.push({
+            type: 'chest', idx: i,
+            x: b.left + b.span * fxs[i] - LUCKY_CHEST_W / 2,
+            y: b.floorY - LUCKY_CHEST_H,   // 床に置く
+            width: LUCKY_CHEST_W, height: LUCKY_CHEST_H,
+            collected: false, opened: false, vanishing: false,
+            openTimer: 0, vanishTimer: 0, floatOffset: i * 1.1
+        });
+    }
+}
+
+// 宝箱を開封（updatePipeRoom の踏みつけ判定から呼ばれる）: 中身を状態依存で抽選（ハズレを避ける）→付与→残り2つを消滅。
+// ⚠報酬は「大コイン/ハート/在庫」の3種。在庫は空き枠がある時だけ（無ければ大コインに振替＝ハズレ回避）。
+function openLuckyChest(chest) {
+    if (pipeRoomState.chestPicked) return;
+    pipeRoomState.chestPicked = true;
+    chest.opened = true; chest.openTimer = 0;
+    var canStock = stockState.items.length < normalMaxSlots(); // 見える通常枠に空きがある時だけ在庫報酬
+    var r = Math.random();
+    var reward = (r < 0.40) ? 'bigcoin' : (r < 0.70) ? 'heart' : (canStock ? 'stock' : 'bigcoin');
+    // 調整ノブ: 抽選確率(大コイン40%/ハート30%/在庫30%)・大コイン価値(1000)・在庫プールは下記
+    chest.reward = reward;
+    var cx = chest.x + chest.width / 2, cy = chest.y;
+    if (typeof spawnChestRewardEffect === 'function') spawnChestRewardEffect(cx, cy - 8);
+    if (reward === 'bigcoin') {
+        gainScore(1000);
+        floatEffects.push({ type: 'score_text', worldX: cx, worldY: cy - 22, timer: 0, duration: 70, offsetY: 0, score: 1000 });
+        if (soundManager) soundManager.playCoin();
+    } else if (reward === 'heart') {
+        if (gameState.lives < 10) gameState.lives++; else gainScore(1000);
+        spawnLifeUpEffect(cx, cy - 18);
+        if (soundManager) soundManager.playItem();
+    } else { // stock（たからの間と同じ＝アイコンのある3種のみ）
+        var pool = ['barrier', 'lemon_special', 'full_charge'];
+        var id = pool[Math.floor(Math.random() * pool.length)];
+        if (addToStock(id)) markZukanSeen('item:' + id);
+        floatEffects.push({ type: 'chest_item', worldX: cx, worldY: cy - 28, timer: 0, duration: 80, itemId: id });
+        if (soundManager) soundManager.playItem();
+    }
+    // 残り2つの宝箱を消滅（開いた宝箱は開状態のまま残す＝どれを選んだか分かる）
+    for (var k = 0; k < bonusRoomItems.length; k++) {
+        var o = bonusRoomItems[k];
+        if (o.type === 'chest' && o !== chest && !o.opened) { o.vanishing = true; o.vanishTimer = 0; }
+    }
+    player.velY = JUMP_FORCE * 0.35; player.onGround = false; // 開封の小さなホップ（気持ちよさ）
+}
+
 // 入室時に部屋タイプを重み付き抽選（有効な weight>0 のみ）。将来、状態依存のフォールバックはここか各buildで。
 function pickPipeRoomType() {
     var pool = ROOM_TYPES.filter(function(rt) { return rt.weight > 0; });
@@ -629,6 +684,7 @@ function pickPipeRoomType() {
 // 部屋の報酬生成: タイプ別 build を呼ぶ＋ゴールデンエッグは全タイプ共通で独立1/20。
 function initPipeRoom() {
     bonusRoomItems.length = 0;
+    pipeRoomState.chestPicked = false; // ラッキーの間の3択を毎入室リセット
     var rt = null;
     for (var i = 0; i < ROOM_TYPES.length; i++) { if (ROOM_TYPES[i].id === pipeRoomState.roomType) { rt = ROOM_TYPES[i]; break; } }
     if (!rt) rt = ROOM_TYPES[0];
@@ -705,6 +761,19 @@ function updatePipeRoom() {
     var rightWallX = GAME_WIDTH - PIPE_ROOM_WALL_W;
     if (player.x + player.width > rightWallX) { player.x = rightWallX - player.width; if (player.velX > 0) player.velX = 0; }
     player.animFrame++;
+    // ラッキーの間: 宝箱は「上から踏んで」開ける（横歩きでは開かない＝3つから1つを選べる）。1入室1回だけ。
+    if (!pipeRoomState.chestPicked) {
+        for (var ci = 0; ci < bonusRoomItems.length; ci++) {
+            var ch = bonusRoomItems[ci];
+            if (ch.type !== 'chest' || ch.opened || ch.vanishing) continue;
+            var chFeet = player.y + player.height, chPrevFeet = chFeet - player.velY;
+            var chOverX = (player.x + player.width > ch.x + 6) && (player.x < ch.x + ch.width - 6);
+            if (chOverX && player.velY >= 0 && chPrevFeet <= ch.y + 4 && chFeet >= ch.y) {
+                openLuckyChest(ch);
+                break;
+            }
+        }
+    }
     // 報酬取得
     for (var i = 0; i < bonusRoomItems.length; i++) {
         var it = bonusRoomItems[i];

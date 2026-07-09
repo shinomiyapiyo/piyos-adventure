@@ -1036,6 +1036,21 @@ var EFFECT_RENDERERS = {
             ctx.stroke();
             ctx.restore();
         },
+    // 宝箱から出た在庫アイテムのアイコンを一瞬上へ見せる（ラッキーの間・1.452〜）
+    chest_item: function(ef, wx, progress) {
+            var img = roomItemImg[ef.itemId];
+            var rise = progress * 24;
+            var ciAlpha = progress < 0.65 ? 1 : (1 - progress) / 0.35;
+            var sz = 36;
+            ctx.save();
+            ctx.globalAlpha = ciAlpha;
+            if (img && img.complete && img.naturalWidth) {
+                ctx.drawImage(img, wx - sz / 2, ef.worldY - rise - sz / 2, sz, sz);
+            } else {
+                ctx.fillStyle = '#88ccff'; ctx.fillRect(wx - sz / 2, ef.worldY - rise - sz / 2, sz, sz);
+            }
+            ctx.restore();
+        },
     // スコアテキスト（汎用、ボス撃破時も使用）
     score_text: function(ef, wx, progress) {
             ef.offsetY += 0.8 * frameSteps;
@@ -1931,6 +1946,108 @@ function drawRoomShopItem(it) {
     }
 }
 
+// ラッキーの間の宝箱（手続き描画・1.452〜）。閉=ぷかぷか＋グロー＋"?"、開=フタが後ろへ持ち上がり中身が光る、消滅=縮んでフェード。
+// 素材差し替え時はこの関数を drawImage 1枚に置き換えるだけ（判定/配置は gameplay 側で不変）。
+function drawChest(it) {
+    var x = it.x, y = it.y, w = it.width, h = it.height;
+    if (it.vanishing) { // 選ばれなかった2つ: 縮んでフェード
+        it.vanishTimer += frameSteps;
+        var vp = Math.min(1, it.vanishTimer / 22);
+        if (vp >= 1) { it.collected = true; return; } // 消滅完了（collected=trueで両ループがスキップ）
+        ctx.save();
+        ctx.globalAlpha = 1 - vp;
+        var sc = 1 - vp * 0.5;
+        ctx.translate(x + w / 2, y + h);
+        ctx.scale(sc, sc);
+        ctx.translate(-(x + w / 2), -(y + h));
+        drawChestBody(x, y, w, h, 0);
+        ctx.restore();
+        return;
+    }
+    var lidOpen = 0;
+    if (it.opened) { it.openTimer += frameSteps; lidOpen = Math.min(1, it.openTimer / 12); }
+    var bob = it.opened ? 0 : Math.sin(gameState.time * 0.08 + (it.floatOffset || 0)) * 3;
+    // 未開封は誘目グロー
+    if (!it.opened && !pipeRoomState.chestPicked) {
+        var gl = 0.28 + Math.sin(gameState.time * 0.1 + (it.floatOffset || 0)) * 0.14;
+        ctx.save(); ctx.globalAlpha = gl;
+        var rg = ctx.createRadialGradient(x + w / 2, y + h / 2 + bob, 4, x + w / 2, y + h / 2 + bob, w * 0.85);
+        rg.addColorStop(0, 'rgba(255,225,130,0.85)'); rg.addColorStop(1, 'rgba(255,225,130,0)');
+        ctx.fillStyle = rg; ctx.fillRect(x - w * 0.4, y - h * 0.6 + bob, w * 1.8, h * 1.9); ctx.restore();
+    }
+    drawChestBody(x, y + bob, w, h, lidOpen);
+    // 未開封は "?" を上でチカチカ
+    if (!it.opened && !pipeRoomState.chestPicked) {
+        ctx.save();
+        ctx.font = "bold 20px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.55 + Math.sin(gameState.time * 0.12 + (it.floatOffset || 0)) * 0.3).toFixed(2) + ')';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3;
+        ctx.fillText('?', x + w / 2, y - 14 + bob);
+        ctx.restore();
+    }
+}
+
+// 宝箱本体の描画（lidOpen 0..1 でフタが後ろへ持ち上がる）。
+function drawChestBody(x, y, w, h, lidOpen) {
+    var lidH = h * 0.42;
+    var bodyY = y + lidH * 0.5, bodyH = h - lidH * 0.5;
+    // 接地影
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(x + w / 2, y + h + 2, w * 0.5, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // 本体（木箱）
+    ctx.fillStyle = '#7a4a24'; ctx.fillRect(x, bodyY, w, bodyH);
+    ctx.fillStyle = '#5e3717'; ctx.fillRect(x, bodyY + bodyH - 6, w, 6);      // 底の暗がり
+    ctx.fillStyle = '#8a5a2e'; ctx.fillRect(x, bodyY, w, 4);                   // 上辺ハイライト
+    // 縦の金具
+    ctx.fillStyle = '#e9b23a'; ctx.fillRect(x + 7, bodyY, 6, bodyH); ctx.fillRect(x + w - 13, bodyY, 6, bodyH);
+    // 開いた中身（光）＋光の柱
+    if (lidOpen > 0) {
+        var glowY = bodyY + 2;
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,242,175,' + (0.5 + 0.5 * lidOpen).toFixed(2) + ')';
+        ctx.fillRect(x + 9, glowY, w - 18, 8 + lidOpen * 6);
+        ctx.globalAlpha = 0.5 * lidOpen;
+        var lg = ctx.createLinearGradient(0, glowY - 46, 0, glowY);
+        lg.addColorStop(0, 'rgba(255,242,175,0)'); lg.addColorStop(1, 'rgba(255,242,175,0.85)');
+        ctx.fillStyle = lg;
+        ctx.beginPath(); ctx.moveTo(x + 10, glowY); ctx.lineTo(x + w - 10, glowY); ctx.lineTo(x + w - 2, glowY - 46); ctx.lineTo(x + 2, glowY - 46); ctx.closePath(); ctx.fill();
+        ctx.restore();
+    }
+    // フタ（開くと後ろへ持ち上がる＝上へ移動＆薄くなる）
+    var lidTopY = y - lidOpen * (lidH + 6);
+    var lidCurH = lidH * (1 - lidOpen * 0.55);
+    ctx.fillStyle = '#8a5a2e'; ctx.fillRect(x - 2, lidTopY, w + 4, lidCurH);
+    ctx.beginPath();                                                          // フタの丸み（上辺）
+    ctx.fillStyle = '#8a5a2e';
+    ctx.moveTo(x - 2, lidTopY);
+    ctx.quadraticCurveTo(x + w / 2, lidTopY - 8 * (1 - lidOpen * 0.5), x + w + 2, lidTopY);
+    ctx.fill();
+    ctx.fillStyle = '#e9b23a';                                               // フタの金具
+    ctx.fillRect(x + 7, lidTopY, 6, lidCurH); ctx.fillRect(x + w - 13, lidTopY, 6, lidCurH);
+    ctx.fillRect(x - 2, lidTopY + lidCurH - 4, w + 4, 4);                    // フタ下辺の帯
+    // 錠前（ほぼ閉じている時だけ）
+    if (lidOpen < 0.25) {
+        ctx.fillStyle = '#ffd766'; ctx.fillRect(x + w / 2 - 6, bodyY - 3, 12, 12);
+        ctx.fillStyle = '#7a5310'; ctx.fillRect(x + w / 2 - 2, bodyY + 2, 4, 5); // 鍵穴
+    }
+}
+
+// 宝箱開封の演出（リング＋金スパーク）。lifeup_ring / combo_spark を再利用（新レンダラー不要）。
+function spawnChestRewardEffect(x, y) {
+    floatEffects.push({ type: 'lifeup_ring', worldX: x, worldY: y, timer: 0, duration: 40 });
+    for (var i = 0; i < 16; i++) {
+        var a = (i / 16) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        var sp = 2.5 + Math.random() * 3;
+        floatEffects.push({
+            type: 'combo_spark', worldX: x, worldY: y,
+            vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5,
+            timer: 0, duration: 36 + Math.floor(Math.random() * 18),
+            size: 2.5 + Math.random() * 3, hue: 42 + Math.floor(Math.random() * 14)
+        });
+    }
+}
+
 // 土管ボーナス部屋の背景：紙吹雪（ジャックポット感）。アイテムより奥に描く。
 var PIPE_CONFETTI_COLORS = ['#ff5a7a', '#4fd1e5', '#ffd34d', '#7ee081', '#c98cff'];
 function updateAndDrawPipeConfetti() {
@@ -1980,7 +2097,8 @@ var PIPE_ROOM_THEMES = {
     treasure: { bg0: '#103038', bg1: '#0a1f26', ray: 'rgba(255,255,255,0.05)',  floor: '#3a2a18', floorLine: '#241a10', confetti: true,  titleKey: 'room_treasure', props: null },
     coin:     { bg0: '#3a2c08', bg1: '#25190a', ray: 'rgba(255,214,90,0.07)',   floor: '#4a3410', floorLine: '#32220a', confetti: true,  titleKey: 'room_coin',     props: null },
     potion:   { bg0: '#2a1840', bg1: '#17092a', ray: 'rgba(200,150,255,0.06)',  floor: '#2e2038', floorLine: '#20142c', confetti: true,  titleKey: 'room_potion',   props: 'shelf' },
-    heal:     { bg0: '#163524', bg1: '#0c2016', ray: 'rgba(150,255,190,0.06)',  floor: '#243a2a', floorLine: '#1a2c1f', confetti: false, titleKey: 'room_heal',     props: 'flowers' }
+    heal:     { bg0: '#163524', bg1: '#0c2016', ray: 'rgba(150,255,190,0.06)',  floor: '#243a2a', floorLine: '#1a2c1f', confetti: false, titleKey: 'room_heal',     props: 'flowers' },
+    lucky:    { bg0: '#3a1030', bg1: '#1a0818', ray: 'rgba(255,120,200,0.07)',  floor: '#38243a', floorLine: '#261628', confetti: true,  titleKey: 'room_lucky',    props: null }
 };
 
 // タイプ別の小物（手続き描画・床の後/アイテムより奥に描く）。1.451
@@ -2064,6 +2182,17 @@ function drawPipeRoom() {
         else if (it.type === 'heart') drawPowerUp(it);
         else if (it.type === 'golden_egg') drawGoldenEggSprite(it.x, it.y + Math.sin(gameState.time * 0.1 + (it.floatOffset || 0)) * 3, it.width, it.height);
         else if (it.type === 'shopitem') drawRoomShopItem(it);
+        else if (it.type === 'chest') drawChest(it);
+    }
+    // ラッキーの間: 未開封なら「踏んで選ぶ」ヒント（BONUS!演出が消えてから）
+    if (pipeRoomState.roomType === 'lucky' && !pipeRoomState.chestPicked && pipeRoomState.introTimer <= 0) {
+        ctx.save();
+        ctx.fillStyle = '#ffe066';
+        ctx.font = "bold 18px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4;
+        ctx.fillText(t('room_lucky_hint'), GAME_WIDTH / 2, PIPE_ROOM_FLOOR_Y * 0.52 + Math.sin(gameState.time * 0.1) * 3);
+        ctx.restore();
     }
     // プレイヤー
     if (gameState.gameStarted) {
