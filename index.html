@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.454";
+                content: "Ver.1.455";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -826,7 +826,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.454</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.455</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1832,7 +1832,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.454
+ * ぴよ氏の冒険 v1.455
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2366,7 +2366,8 @@ var gameSettings = {
     ownedSkins: [],        // 所持スキン一覧
     activeSkin: '',        // 装備中スキン
     goldenEggs: 0,                // ゴールデンエッグ所持数（レア通貨）
-    lastGoldenEggDate: '',        // 最後に2500m日次エッグを取得した日付
+    lastGoldenEggDate: '',        // 最後に日次エッグを取得した日付（記録用）
+    goldenEggDrawDate: '',        // 日次エッグの抽選を消費した日付（1日1回限りのゲート・1.455〜）
     lastGoldenEggTimestamp: 0,    // 時計巻き戻しガード用
     zukan: { seen: {}, kills: {}, new: {}, claimed: {} }, // ずかん: seen[id]=1(発見済み)/kills[id]=撃破数/new[id]=1(未閲覧の新規=NEW!)/claimed[key]=1(コンプ報酬受取済み)
     pouchLevel: 0,                // まほうのポーチ所持数＝永続ストック枠の数（上から順に永続化）
@@ -2435,6 +2436,7 @@ var gameSettings = {
             // ── ゴールデンエッグ（レア通貨） ──
             if (typeof parsed.goldenEggs === 'number') gameSettings.goldenEggs = parsed.goldenEggs;
             if (typeof parsed.lastGoldenEggDate === 'string') gameSettings.lastGoldenEggDate = parsed.lastGoldenEggDate;
+            if (typeof parsed.goldenEggDrawDate === 'string') gameSettings.goldenEggDrawDate = parsed.goldenEggDrawDate;
             if (typeof parsed.lastGoldenEggTimestamp === 'number') gameSettings.lastGoldenEggTimestamp = parsed.lastGoldenEggTimestamp;
             // ── ずかん（発見・撃破数）──
             if (parsed.zukan && typeof parsed.zukan === 'object') {
@@ -2626,12 +2628,25 @@ function showTransferImport() {
 }
 
 // ── ゴールデンエッグ（レア通貨）: 2500m日次ドロップの可否判定＆取得 ──
-function canDropGoldenEggToday() {
+// 日次エッグの抽選が今日まだ可能か（1日1回限り＝抽選を消費したら goldenEggDrawDate に当日を記録してブロック・1.455〜）
+function canDrawDailyEggToday() {
     var now = Date.now();
     var today = getDateString();
-    if (gameSettings.lastGoldenEggDate === today) return false;            // 今日はもう取得済み
+    if (gameSettings.goldenEggDrawDate === today) return false;            // 今日はもう抽選を消費した（farm防止）
     if (gameSettings.lastGoldenEggTimestamp && now < gameSettings.lastGoldenEggTimestamp) return false; // 時計巻き戻しガード
     return true;
+}
+// 日次ゴールデンエッグを画面外(右)の平地に出す（穴の上を避ける）。一次抽選/救済抽選の両方から呼ぶ。
+function spawnDailyGoldenEgg() {
+    var eggX = gameState.camera.x + GAME_WIDTH + 60;
+    var eggScanEnd = eggX + 400; // terrain生成範囲(+500)内で前方の平地を探す
+    var eggFooting = function(x) { return isFlatGroundAt(x - 4) && isFlatGroundAt(x + 20) && isFlatGroundAt(x + 44); }; // エッグ幅+足場ぶんの平地
+    while (eggX < eggScanEnd && !eggFooting(eggX)) eggX += 20;
+    powerUps.push({
+        x: eggX, y: 240,  // 画面外(右)から出してスクロールで入れる＋真下は平地（穴の上に出さない）
+        width: 40, height: 40, type: 'golden_egg', dailyEgg: true,
+        collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2
+    });
 }
 function collectGoldenEgg(isDaily) {
     markZukanSeen('item:golden_egg'); // ずかん: ゴールデンエッグ発見（フィールド/日次/土管部屋の全経路を集約）
@@ -3866,6 +3881,8 @@ function resetGame() {
     gameState.missionPlayCounted = false;
     gameState.coinsCollected = 0;
     gameState.goldenEggFieldSpawned = false;
+    gameState.goldenEggRescueArmed = false;
+    gameState.goldenEggRescueDone = false;
     pipeRoomState.active = false; pipeRoomState.visited = false;
     pipeRoomState.placed = false; pipeRoomState.x = 0; pipeRoomState.savedPlayer = null;
     pipeRoomState.targetDist = 0; pipeRoomState.targetRound = 0;
@@ -4966,23 +4983,21 @@ function manageObjects() {
     cullByX(powerUps, lb, rb, false);
     cullByX(bullets, lb, rb, false);
 
-    // ゴールデンエッグ: 2500m を最初に超えたら 1日1回・30%でフィールドに出す（取得で日付確定）。
-    // 希少価値の担保のため「必ず出る」→「30%」に変更(1.454)。30%が外れてもこのランの試行は済み扱い
-    // (goldenEggFieldSpawned=true で再湧きループ防止)だが、日付は取得時のみ確定＝外れた日は別ランで再挑戦できる（当日分を無駄にしない）。
-    if (!gameState.goldenEggFieldSpawned && gameState.distance >= 2500 && canDropGoldenEggToday()) {
+    // ゴールデンエッグ（日次・1日1回限りの一発抽選・1.455〜）: 2500mで30% → 外したらR4(≒4800m)で80%救済 → 両方外れたらその日は無し(farm不可)。
+    // 一次抽選(2500m)を行った時点で当日の抽選を消費(goldenEggDrawDate)＝別ランでの再挑戦なし。救済はこのラン限定(per-run)。
+    // 調整ノブ: 一次=2500m/30% ・ 救済=4800m(R4開始)/80%。
+    if (!gameState.goldenEggFieldSpawned && gameState.distance >= 2500 && canDrawDailyEggToday()) {
         gameState.goldenEggFieldSpawned = true;
-        if (Math.random() < 0.30) {                                       // 30%で出現（希少価値の担保）
-            // 案A: 穴の上=取れない位置を回避。既定x〜前方を走査し、真下が平地(穴でない)の最初のxに置く（既定が平地ならそのまま）。
-            var eggX = gameState.camera.x + GAME_WIDTH + 60;
-            var eggScanEnd = eggX + 400; // terrain生成範囲(+500)内で前方の平地を探す
-            var eggFooting = function(x) { return isFlatGroundAt(x - 4) && isFlatGroundAt(x + 20) && isFlatGroundAt(x + 44); }; // エッグ幅+足場ぶんの平地
-            while (eggX < eggScanEnd && !eggFooting(eggX)) eggX += 20;
-            powerUps.push({
-                x: eggX, y: 240,  // 画面外(右)から出してスクロールで入れる＋真下は平地（穴の上に出さない）
-                width: 40, height: 40, type: 'golden_egg', dailyEgg: true,
-                collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2
-            });
-        }
+        gameSettings.goldenEggDrawDate = getDateString();     // 当日の抽選を消費（1日1回・farm防止）
+        gameSettings.lastGoldenEggTimestamp = Date.now();     // 時計巻き戻しガードの基準
+        saveSettings();
+        if (Math.random() < 0.30) spawnDailyGoldenEgg();      // 一次抽選 30%
+        else gameState.goldenEggRescueArmed = true;           // 外し→R4で救済抽選を保留（このランのみ）
+    }
+    // 救済抽選: R4(≒4800m)到達＋一次を外していたら 80%（このラン限定＝R4前に力尽きたら消失＝1日1回限り）
+    if (gameState.goldenEggRescueArmed && !gameState.goldenEggRescueDone && gameState.distance >= 4800) {
+        gameState.goldenEggRescueDone = true;
+        if (Math.random() < 0.80) spawnDailyGoldenEgg();      // 救済抽選 80%
     }
 
     // ボス戦中は通常スポーン停止

@@ -171,7 +171,9 @@ var gameState = {
     hasRecordedHighScore: false,
     missionCountedDistance: 0, missionCountedKills: 0, missionPlayCounted: false,
     coinsCollected: 0, bossKills: 0, specialUses: 0,
-    goldenEggFieldSpawned: false,  // 2500m日次エッグをこのランで出したか（per-run）
+    goldenEggFieldSpawned: false,  // 2500m日次エッグの一次抽選をこのランで行ったか（per-run）
+    goldenEggRescueArmed: false,   // 一次抽選(2500m/30%)を外し、R4での救済抽選(80%)が保留中か（per-run・1.455〜）
+    goldenEggRescueDone: false,    // R4の救済抽選をこのランで行ったか（per-run・1.455〜）
     missionCountedCoins: 0, missionCountedBoss: 0, missionCountedSpecial: 0,
     specialGauge: 0, specialMoveLevel: 0, specialCutinTimer: 0, specialCutinActive: false
 };
@@ -272,7 +274,7 @@ var pipeRoomState = {
     targetRound: 0,      // targetDist を算出したラウンド（ラウンド変化検出用）
     exitHold: 0,         // 出口土管の口で右を押し続けているフレーム数（退室ゲージ・継続が切れたら0に戻す）
     introTimer: 0,       // 入場時「BONUS!」演出の残りフレーム
-    roomType: 'treasure', // 部屋タイプ（1.450〜・入室時に重み付き抽選）: 'treasure'|'coin'|…（背景色/小物/報酬が変わる。エッグ抽選2%は全タイプ共通・部屋タイプ非依存）
+    roomType: 'treasure', // 部屋タイプ（1.450〜・入室時に重み付き抽選）: 'treasure'|'coin'|…（背景色/小物/報酬が変わる。エッグ抽選1%は全タイプ共通・部屋タイプ非依存）
     chestPicked: false,   // ラッキーの間（1.452〜）: このラン入室で宝箱を1つ開封済みか（3択を1回に制限・入室毎にinitPipeRoomでfalse）
     // ── マリオ風 出入り演出（1.408）──
     anim: 'none',        // 'none'|'in'(本編:土管へ沈む)|'outRoom'(部屋:横土管へ歩き込む)|'outWorld'(本編:土管から上昇)
