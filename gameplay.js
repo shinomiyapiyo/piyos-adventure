@@ -68,26 +68,46 @@ function tutorialChick() {
              velX: -0.6, velY: 0, onGround: false, type: 'chick', animFrame: 0, walkSprite: 'chick_walk' };
 }
 
+// テロップが出る前にプレイヤーが自力で課題を済ませてしまったか（1.446）。
+// クランプ緩和(656px)で少し先の課題に先取りで着手できるようになったため、状態が残る課題は事前クリアを検知して褒める。
+// stompはゲート発火と同時に練習ひよこが湧く＝事前クリア不可のためfalse。
+function tutorialGatePreCleared(g) {
+    if (g === 'stock') return (gameState.puShield > 0) ||
+        !stockState.items.some(function(it) { return it.id === 'barrier'; }); // バリア使用済み or 持っていない
+    if (g === 'pipe')  return pipeRoomState.visited || pipeRoomState.active || pipeRoomState.anim !== 'none'; // 既に土管へ
+    if (g === 'shop')  return shopState.visited || shopState.active; // 既に入店済み
+    if (g === 'jump') { // 練習用の穴を既に跳び越えている（穴の右端がプレイヤーより後方＝クリア済み）
+        for (var i = 0; i < terrain.length; i++) {
+            var h = terrain[i];
+            if (h.type === 'hole' && h.x + h.width < player.x && h.x + h.width > player.x - 500) return true;
+        }
+        return false;
+    }
+    return false;
+}
+
 // 毎フレーム呼ばれる台本進行（bootstrapのgameLoopから・非アクティブ時は即return）
 function updateTutorial() {
     if (!tutorialState.active) return;
-    // 台本より先へ走り込めないようにする前進クランプ（1.444）:
-    // テロップ/ゲートはスクロール距離（camera）基準で発火するため、プレイヤーが画面右へ走り込むと
-    // 「穴を跳び越えた後に穴の案内が出て世界が止まる」等のタイミングずれが起きる（ユーザー報告）。
-    // 420px＝画面(820px)の約半分。全ての案内対象（穴500px先/土管400px先/ドア390px先）より手前に収まる。
+    // 台本より先へ走り込めないようにする前進クランプ（1.444→1.446）:
+    // テロップ/ゲートはスクロール距離（camera）基準で発火するため、走り込みすぎると案内タイミングがずれる。
+    // 656px＝画面(820px)の右側8割の位置（ユーザー指定・1.446で 420→656 に緩和）。通常時のプレイヤー可動域
+    // (camera+25〜camera+795)の内側で、少し先の課題まで近づけるが台本を大きく追い越さない距離。
     // ボス戦はアリーナ全域を使うため対象外。
     if (!bossState.active && !bossState.bossTriggered) {
-        var tutMaxX = gameState.camera.x + 420;
+        var tutMaxX = gameState.camera.x + 656;
         if (player.x > tutMaxX) { player.x = tutMaxX; if (player.velX > 0) player.velX = 0; }
     }
     while (tutorialState.stepIdx < TUTORIAL_SCRIPT.length &&
            gameState.distance >= TUTORIAL_SCRIPT[tutorialState.stepIdx].atM) {
         var st = TUTORIAL_SCRIPT[tutorialState.stepIdx++];
-        tutorialState.hintKey = st.key;
+        // テロップが出るより先に課題をクリア済みなら、ゲートを張らず褒めるだけ（1.446・クランプ緩和で先取り可能に）
+        var preCleared = st.gate ? tutorialGatePreCleared(st.gate) : false;
+        tutorialState.hintKey = preCleared ? 'tut_already_done' : st.key;
         tutorialState.hintTimer = st.dur;
-        if (st.slow) tutorialState.slowTimer = 150; // 2.5秒だけゆっくり＝読んで構えられる
-        if (st.spawn === 'chick') enemies.push(tutorialChick());
-        if (st.gate) { // 達成待ちゲート開始（1.427）: その行動を実行するまで世界停止
+        if (st.slow && !preCleared) tutorialState.slowTimer = 150; // 2.5秒だけゆっくり＝読んで構えられる
+        if (st.spawn === 'chick' && !preCleared) enemies.push(tutorialChick());
+        if (st.gate && !preCleared) { // 達成待ちゲート開始（1.427）: その行動を実行するまで世界停止
             tutorialState.gate = st.gate;
             tutorialState.gateKills = gameState.enemyKills;
         }
@@ -222,8 +242,13 @@ function tapTutorialSkip() {
 // 最初のボスを半分の距離(1200m)に前倒し。以降のラウンド境界も同じ量だけ手前にずれる＝ラウンド間隔2400mは不変。
 // ショップ配置・安全地帯・土管抽選・バイオーム遷移抑制はすべて本関数経由なので自動で連動する。
 function bossDistanceFor(round) {
-    var shift = (gameState.isFirstRun ? BOSS_TRIGGER_DISTANCE / 2 : 0);
-    return BOSS_TRIGGER_DISTANCE * round - shift;
+    // ボス出現距離スケジュール（ユーザー指定・1.446）:
+    //   ラウンド1・2は1200mごと（R1=1200m, R2=2400m）、ラウンド3以降は2400mごと（R3=4800m, R4=7200m…）。
+    // これで新規プレイヤーは1200mで最初のボスに会える（旧・初回ラン圧縮 isFirstRun 分岐は本スケジュールに統合＝廃止）。
+    // 返り値は絶対距離(m)。bossDistanceFor(0)=0（ラウンド起点・ショップ/土管配置の基準に使用）。
+    if (round <= 0) return 0;
+    if (round === 1) return 1200;
+    return BOSS_TRIGGER_DISTANCE * (round - 1); // R2=2400, R3=4800, R4=7200 …（2400mごと）
 }
 
 // ── ステージショップ ──
