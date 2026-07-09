@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.453";
+                content: "Ver.1.454";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -826,7 +826,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.453</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.454</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1832,7 +1832,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.453
+ * ぴよ氏の冒険 v1.454
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -4966,19 +4966,23 @@ function manageObjects() {
     cullByX(powerUps, lb, rb, false);
     cullByX(bullets, lb, rb, false);
 
-    // ゴールデンエッグ: 2500m を最初に超えたら 1日1回フィールドに出す（取得で日付確定）
+    // ゴールデンエッグ: 2500m を最初に超えたら 1日1回・30%でフィールドに出す（取得で日付確定）。
+    // 希少価値の担保のため「必ず出る」→「30%」に変更(1.454)。30%が外れてもこのランの試行は済み扱い
+    // (goldenEggFieldSpawned=true で再湧きループ防止)だが、日付は取得時のみ確定＝外れた日は別ランで再挑戦できる（当日分を無駄にしない）。
     if (!gameState.goldenEggFieldSpawned && gameState.distance >= 2500 && canDropGoldenEggToday()) {
         gameState.goldenEggFieldSpawned = true;
-        // 案A: 穴の上=取れない位置を回避。既定x〜前方を走査し、真下が平地(穴でない)の最初のxに置く（既定が平地ならそのまま）。
-        var eggX = gameState.camera.x + GAME_WIDTH + 60;
-        var eggScanEnd = eggX + 400; // terrain生成範囲(+500)内で前方の平地を探す
-        var eggFooting = function(x) { return isFlatGroundAt(x - 4) && isFlatGroundAt(x + 20) && isFlatGroundAt(x + 44); }; // エッグ幅+足場ぶんの平地
-        while (eggX < eggScanEnd && !eggFooting(eggX)) eggX += 20;
-        powerUps.push({
-            x: eggX, y: 240,  // 画面外(右)から出してスクロールで入れる＋真下は平地（穴の上に出さない）
-            width: 40, height: 40, type: 'golden_egg', dailyEgg: true,
-            collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2
-        });
+        if (Math.random() < 0.30) {                                       // 30%で出現（希少価値の担保）
+            // 案A: 穴の上=取れない位置を回避。既定x〜前方を走査し、真下が平地(穴でない)の最初のxに置く（既定が平地ならそのまま）。
+            var eggX = gameState.camera.x + GAME_WIDTH + 60;
+            var eggScanEnd = eggX + 400; // terrain生成範囲(+500)内で前方の平地を探す
+            var eggFooting = function(x) { return isFlatGroundAt(x - 4) && isFlatGroundAt(x + 20) && isFlatGroundAt(x + 44); }; // エッグ幅+足場ぶんの平地
+            while (eggX < eggScanEnd && !eggFooting(eggX)) eggX += 20;
+            powerUps.push({
+                x: eggX, y: 240,  // 画面外(右)から出してスクロールで入れる＋真下は平地（穴の上に出さない）
+                width: 40, height: 40, type: 'golden_egg', dailyEgg: true,
+                collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2
+            });
+        }
     }
 
     // ボス戦中は通常スポーン停止

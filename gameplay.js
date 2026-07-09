@@ -540,7 +540,7 @@ function pipeRoomExitX() { return GAME_WIDTH - PIPE_ROOM_WALL_W - SIDE_PIPE_W; }
 
 // ── 土管ボーナス部屋のタイプ（1.450〜）──
 // 「毎回同じ」を解消するため、入室時に部屋タイプを重み付き抽選。タイプごとに背景色/小物/報酬が変わる。
-// ⚠ ゴールデンエッグは全タイプ共通で従来どおり独立に1/20抽選（部屋タイプは一切関与しない＝確率不変）。
+// ⚠ ゴールデンエッグは全タイプ共通で独立に2%(1/50)抽選（部屋タイプは一切関与しない）。1.454で希少化のため5%→2%。
 // build() は bonusRoomItems へ報酬を積む。fallback で「そのタイプの報酬が無意味な状態」（在庫満杯/HP満タン等）はコインに振替。
 // weight=0 は未実装/無効。Phase毎に増やす（Phase1: treasure, coin）。
 var ROOM_TYPES = [
@@ -619,7 +619,7 @@ function buildHealRoom() {
 }
 
 // ラッキーの間（1.452〜）: 床に宝箱3つを等間隔で並べる。プレイヤーは1つを「上から踏んで」開ける（横歩きでは開かない＝3つから選べる）。
-// 開封→中身ランダム[大コイン/ハート/在庫]・残り2つは消滅。ゴールデンエッグは他タイプ同様 initPipeRoom が独立1/20で別途抽選。
+// 開封→中身ランダム[大コイン/ハート/在庫]・残り2つは消滅。ゴールデンエッグは他タイプ同様 initPipeRoom が独立2%(1/50)で別途抽選。
 var LUCKY_CHEST_W = 52, LUCKY_CHEST_H = 40;
 function buildLuckyRoom() {
     var b = pipeRoomBounds();
@@ -697,7 +697,7 @@ function pickPipeRoomType() {
     return pool[0];
 }
 
-// 部屋の報酬生成: タイプ別 build を呼ぶ＋ゴールデンエッグは全タイプ共通で独立1/20。
+// 部屋の報酬生成: タイプ別 build を呼ぶ＋ゴールデンエッグは全タイプ共通で独立2%(1/50)。
 function initPipeRoom() {
     bonusRoomItems.length = 0;
     pipeRoomState.chestPicked = false; // ラッキーの間の3択を毎入室リセット
@@ -705,8 +705,8 @@ function initPipeRoom() {
     for (var i = 0; i < ROOM_TYPES.length; i++) { if (ROOM_TYPES[i].id === pipeRoomState.roomType) { rt = ROOM_TYPES[i]; break; } }
     if (!rt) rt = ROOM_TYPES[0];
     rt.build();
-    // ゴールデンエッグ: 1/20（部屋タイプに依存しない・確率不変）。チュートリアルでは出さない（稼ぎ場防止）。
-    if (!tutorialState.active && Math.random() < 0.05) {
+    // ゴールデンエッグ: 2%(1/50・部屋タイプに依存しない)。希少価値の担保のため 5%→2% に変更(1.454)。チュートリアルでは出さない（稼ぎ場防止）。
+    if (!tutorialState.active && Math.random() < 0.02) {
         var b = pipeRoomBounds();
         bonusRoomItems.push({ type: 'golden_egg', x: b.left + b.span * 0.5, y: b.floorY - 215, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
     }
