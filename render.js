@@ -1051,6 +1051,22 @@ var EFFECT_RENDERERS = {
             }
             ctx.restore();
         },
+    // 大当たり／超大当たりの金文字ポップ（ラッキーの間・1.453〜。ef.text は発行時に翻訳済み）
+    lucky_label: function(ef, wx, progress) {
+            ef.offsetY = (ef.offsetY || 0) + 0.5 * frameSteps;
+            var llAlpha = progress < 0.75 ? 1 : (1 - progress) / 0.25;
+            var pop = 1 + 0.7 * Math.max(0, 1 - progress / 0.12); // 序盤にポップ
+            ctx.save();
+            ctx.globalAlpha = llAlpha;
+            ctx.translate(wx, ef.worldY - ef.offsetY);
+            ctx.scale(pop, pop);
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.font = "bold 26px 'M PLUS Rounded 1c', sans-serif";
+            ctx.lineWidth = 5; ctx.strokeStyle = '#7a4a00'; ctx.strokeText(ef.text, 0, 0);
+            ctx.shadowColor = 'rgba(255,200,40,0.9)'; ctx.shadowBlur = 14;
+            ctx.fillStyle = '#ffe23a'; ctx.fillText(ef.text, 0, 0);
+            ctx.restore();
+        },
     // スコアテキスト（汎用、ボス撃破時も使用）
     score_text: function(ef, wx, progress) {
             ef.offsetY += 0.8 * frameSteps;
@@ -2033,17 +2049,20 @@ function drawChestBody(x, y, w, h, lidOpen) {
     }
 }
 
-// 宝箱開封の演出（リング＋金スパーク）。lifeup_ring / combo_spark を再利用（新レンダラー不要）。
-function spawnChestRewardEffect(x, y) {
-    floatEffects.push({ type: 'lifeup_ring', worldX: x, worldY: y, timer: 0, duration: 40 });
-    for (var i = 0; i < 16; i++) {
-        var a = (i / 16) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
-        var sp = 2.5 + Math.random() * 3;
+// 宝箱開封の演出（リング＋金スパーク）。lifeup_ring / combo_spark / goldenegg_ring を再利用（新レンダラー不要）。
+// big=true（やくそう/ふっかつやくの大当たり）は二重リング＋スパーク増量で豪華に。
+function spawnChestRewardEffect(x, y, big) {
+    floatEffects.push({ type: 'lifeup_ring', worldX: x, worldY: y, timer: 0, duration: big ? 52 : 40 });
+    if (big) floatEffects.push({ type: 'goldenegg_ring', worldX: x, worldY: y, timer: 0, duration: 46 });
+    var n = big ? 28 : 16;
+    for (var i = 0; i < n; i++) {
+        var a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        var sp = (big ? 3 : 2.5) + Math.random() * 3;
         floatEffects.push({
             type: 'combo_spark', worldX: x, worldY: y,
-            vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5,
-            timer: 0, duration: 36 + Math.floor(Math.random() * 18),
-            size: 2.5 + Math.random() * 3, hue: 42 + Math.floor(Math.random() * 14)
+            vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (big ? 2 : 1.5),
+            timer: 0, duration: 36 + Math.floor(Math.random() * (big ? 26 : 18)),
+            size: (big ? 3 : 2.5) + Math.random() * 3, hue: 42 + Math.floor(Math.random() * 14)
         });
     }
 }

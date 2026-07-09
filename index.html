@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.452";
+                content: "Ver.1.453";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -826,7 +826,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.452</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.453</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1832,7 +1832,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.452
+ * ぴよ氏の冒険 v1.453
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2085,10 +2085,12 @@ pipeSideImg.src = 'images/item_pipe_side.png';
 var goldenEggImg = new Image();        // ゴールデンエッグ（レア通貨）
 goldenEggImg.src = 'images/item_golden_egg.png';
 // 土管部屋でドロップする販売アイテム（≤5000円）のアイコン（canvas描画用）
-var roomItemImg = { barrier: new Image(), lemon_special: new Image(), full_charge: new Image() };
+var roomItemImg = { barrier: new Image(), lemon_special: new Image(), full_charge: new Image(), heal_stock: new Image(), revive_potion: new Image() };
 roomItemImg.barrier.src = 'images/icon_barrier.png';
 roomItemImg.lemon_special.src = 'images/icon_lemon_special.png';
 roomItemImg.full_charge.src = 'images/icon_full_charge.png';
+roomItemImg.heal_stock.src = 'images/icon_heal_stock.png';       // やくそう（ラッキーの間 大当たり・ポーションの間）
+roomItemImg.revive_potion.src = 'images/icon_revive_potion.png'; // ふっかつやく（ラッキーの間 超大当たり）
 
 var loginBonusPending = null; // { day, amount } or null
 

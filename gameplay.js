@@ -636,33 +636,49 @@ function buildLuckyRoom() {
     }
 }
 
-// 宝箱を開封（updatePipeRoom の踏みつけ判定から呼ばれる）: 中身を状態依存で抽選（ハズレを避ける）→付与→残り2つを消滅。
-// ⚠報酬は「大コイン/ハート/在庫」の3種。在庫は空き枠がある時だけ（無ければ大コインに振替＝ハズレ回避）。
+// 宝箱を開封（updatePipeRoom の踏みつけ判定から呼ばれる）: 中身を抽選（1.453〜 大当たり枠つき）→付与→残り2つを消滅。
+// 報酬5段: ふっかつやく(超大当たり)/やくそう(大当たり)/在庫3種/ハート/大コイン。在庫系(revive/herb/stock)は満杯でも
+// addToStock が貯金へ自動換算＝ハズレなし（convertItemToSavings が独自トーストを出す）。ハート満タンは既存で+1000点。
+// 調整ノブ: 下記 r のしきい値（revive4%/herb12%/stock24%/heart22%/大コイン38%）・大コイン価値(1500)・在庫プール。
 function openLuckyChest(chest) {
     if (pipeRoomState.chestPicked) return;
     pipeRoomState.chestPicked = true;
     chest.opened = true; chest.openTimer = 0;
-    var canStock = stockState.items.length < normalMaxSlots(); // 見える通常枠に空きがある時だけ在庫報酬
     var r = Math.random();
-    var reward = (r < 0.40) ? 'bigcoin' : (r < 0.70) ? 'heart' : (canStock ? 'stock' : 'bigcoin');
-    // 調整ノブ: 抽選確率(大コイン40%/ハート30%/在庫30%)・大コイン価値(1000)・在庫プールは下記
+    var reward = (r < 0.04) ? 'revive' : (r < 0.16) ? 'herb' : (r < 0.40) ? 'stock' : (r < 0.62) ? 'heart' : 'bigcoin';
     chest.reward = reward;
     var cx = chest.x + chest.width / 2, cy = chest.y;
-    if (typeof spawnChestRewardEffect === 'function') spawnChestRewardEffect(cx, cy - 8);
-    if (reward === 'bigcoin') {
-        gainScore(1000);
-        floatEffects.push({ type: 'score_text', worldX: cx, worldY: cy - 22, timer: 0, duration: 70, offsetY: 0, score: 1000 });
-        if (soundManager) soundManager.playCoin();
+
+    // 在庫アイテム付与（満杯時は addToStock が貯金換算＝非ハズレ）。枠に入った時だけアイコンを見せる。
+    function grantStockReward(id) {
+        var before = stockState.items.length;
+        var ok = addToStock(id);
+        if (ok) markZukanSeen('item:' + id);
+        if (ok && stockState.items.length > before) {
+            floatEffects.push({ type: 'chest_item', worldX: cx, worldY: cy - 28, timer: 0, duration: 80, itemId: id });
+        }
+        if (soundManager) soundManager.playItem();
+    }
+
+    if (reward === 'revive' || reward === 'herb') { // 大当たり／超大当たり
+        spawnChestRewardEffect(cx, cy - 8, true);
+        floatEffects.push({ type: 'lucky_label', worldX: cx, worldY: cy - 48, timer: 0, duration: 95, offsetY: 0,
+            text: t(reward === 'revive' ? 'lucky_superjackpot' : 'lucky_jackpot') });
+        grantStockReward(reward === 'revive' ? 'revive_potion' : 'heal_stock');
+    } else if (reward === 'stock') {
+        spawnChestRewardEffect(cx, cy - 8, false);
+        var pool = ['barrier', 'lemon_special', 'full_charge'];
+        grantStockReward(pool[Math.floor(Math.random() * pool.length)]);
     } else if (reward === 'heart') {
+        spawnChestRewardEffect(cx, cy - 8, false);
         if (gameState.lives < 10) gameState.lives++; else gainScore(1000);
         spawnLifeUpEffect(cx, cy - 18);
         if (soundManager) soundManager.playItem();
-    } else { // stock（たからの間と同じ＝アイコンのある3種のみ）
-        var pool = ['barrier', 'lemon_special', 'full_charge'];
-        var id = pool[Math.floor(Math.random() * pool.length)];
-        if (addToStock(id)) markZukanSeen('item:' + id);
-        floatEffects.push({ type: 'chest_item', worldX: cx, worldY: cy - 28, timer: 0, duration: 80, itemId: id });
-        if (soundManager) soundManager.playItem();
+    } else { // bigcoin
+        spawnChestRewardEffect(cx, cy - 8, false);
+        gainScore(1500);
+        floatEffects.push({ type: 'score_text', worldX: cx, worldY: cy - 22, timer: 0, duration: 70, offsetY: 0, score: 1500 });
+        if (soundManager) soundManager.playCoin();
     }
     // 残り2つの宝箱を消滅（開いた宝箱は開状態のまま残す＝どれを選んだか分かる）
     for (var k = 0; k < bonusRoomItems.length; k++) {
