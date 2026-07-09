@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.446";
+                content: "Ver.1.447";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -826,7 +826,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.446</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.447</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1046,18 +1046,7 @@
                         -webkit-tap-highlight-color: transparent;">▶</button>
                 </div>
 
-                <!-- ずかん（図鑑） -->
-                <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
-                    <span data-i18n="settings_zukan" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;">ずかん</span>
-                    <button onclick="showZukanScreen()" id="zukanOpenBtn" style="position: relative;
-                        min-width: 60px; min-height: 36px; padding: 6px 14px; border-radius: 18px; border: none;
-                        font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
-                        font-family: 'M PLUS Rounded 1c', sans-serif;
-                        background: linear-gradient(180deg, #d4a017, #9c7409);
-                        color: #fff; transition: background 0.15s ease;
-                        -webkit-tap-highlight-color: transparent;">▶<span id="zukanBadgeRow" style="display:none; position:absolute; top:-5px; right:-5px; width:13px; height:13px; background:#ff3344; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(255,51,68,0.9);"></span></button>
-                </div>
+                <!-- ずかんはタイトルメニューへ移設済み（1.434）。設定内の重複行は撤去（1.447） -->
 
                 <!-- データ引き継ぎ（機種変更/ブラウザ変更時のセーブ移行） -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
@@ -1843,7 +1832,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.446
+ * ぴよ氏の冒険 v1.447
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2729,6 +2718,57 @@ function recordMissionProgress() {
     updateMissionBadge();
     updateAchievementBadge();
     updateZukanBadge();
+}
+
+// 案D（1.447）: デイリーミッション進捗のHUDトースト。
+// ミッション進捗の確定は recordMissionProgress（ゲームオーバー時の一括加算）だが、こちらはラン中の
+// ライブ進捗（確定済み＋今のランの差分）を見て「あと少し」「達成」の瞬間だけミニトーストを出す。
+// うるさくならない調整: 各ミッション×各種別を1ラン1回に間引き＋トースト間2秒クールダウン＋12フレーム毎評価。
+var MISSION_NEAR_THRESHOLD = { kills: 3, coins: 5, distance: 100, boss: 1, special: 1 }; // 「あと○」を出す残り量
+
+function getMissionLiveProgress(type) {
+    var dm = gameSettings.dailyMissions;
+    if (type === 'distance') return dm.distance + Math.max(0, gameState.distance - (gameState.missionCountedDistance || 0));
+    if (type === 'kills')    return dm.kills + Math.max(0, gameState.enemyKills - (gameState.missionCountedKills || 0));
+    if (type === 'coins')    return (dm.coins || 0) + Math.max(0, gameState.coinsCollected - (gameState.missionCountedCoins || 0));
+    if (type === 'boss')     return (dm.boss || 0) + Math.max(0, gameState.bossKills - (gameState.missionCountedBoss || 0));
+    if (type === 'special')  return (dm.special || 0) + Math.max(0, gameState.specialUses - (gameState.missionCountedSpecial || 0));
+    return 0; // plays はラン中に増えない＝トースト対象外
+}
+
+function updateMissionToasts() {
+    if (tutorialState.active) return;                    // チュートリアルはミッション対象外
+    if (gameState.missionToastCooldown > 0) { gameState.missionToastCooldown--; return; }
+    gameState.missionToastTick = (gameState.missionToastTick || 0) + 1;
+    if (gameState.missionToastTick % 12 !== 0) return;   // 12フレーム毎に評価（負荷と頻度の抑制）
+    var dm = gameSettings.dailyMissions;
+    var tm = dm && dm.todayMissions;
+    if (!tm || !tm.length) return;
+    var shown = gameState.missionToastShown || (gameState.missionToastShown = {});
+    for (var i = 0; i < tm.length; i++) {
+        var m = tm[i];
+        if (m.type === 'plays' || dm.claimed[i]) continue;
+        var remaining = m.target - getMissionLiveProgress(m.type);
+        var doneKey = i + ':done', nearKey = i + ':near';
+        if (remaining <= 0) {
+            if (shown[doneKey]) continue;
+            shown[doneKey] = 1; shown[nearKey] = 1;      // 達成したら「あと少し」も抑止
+            showRewardToast('<img src="' + m.iconImg + '" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' + escapeHtml(t('mission_toast_done')),
+                'linear-gradient(180deg,#7ee081,#2ba84f)', '#06340f');
+            if (soundManager) soundManager.playCoin();
+            gameState.missionToastCooldown = 120;        // 2秒は次のトーストを出さない
+            return;
+        }
+        var nearTh = MISSION_NEAR_THRESHOLD[m.type] || 0;
+        if (nearTh && remaining <= nearTh && m.target > nearTh && !shown[nearKey]) {
+            shown[nearKey] = 1;
+            showRewardToast('<img src="' + m.iconImg + '" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' +
+                escapeHtml(t('mission_toast_near', { n: remaining, unit: t('mission_unit_' + m.type) })),
+                'linear-gradient(180deg,#ffe07a,#ff9d2e)', '#5a3d00');
+            gameState.missionToastCooldown = 120;
+            return;
+        }
+    }
 }
 
 function claimMission(i) {
@@ -3834,6 +3874,9 @@ function resetGame() {
     gameState.missionCountedCoins = 0;
     gameState.missionCountedBoss = 0;
     gameState.missionCountedSpecial = 0;
+    gameState.missionToastShown = {};      // 案D: ラン毎に「あと少し/達成」トーストの表示済みフラグをリセット
+    gameState.missionToastCooldown = 0;
+    gameState.missionToastTick = 0;
     gameState.specialGauge = 0;
     gameState.specialCutinTimer = 0;
     gameState.specialCutinActive = false;
@@ -4152,10 +4195,8 @@ function zukanNewCount() {
 // 未閲覧の新規発見があれば、タイトルの設定ボタン＋設定内の図鑑ボタンに赤バッジを表示
 function updateZukanBadge() {
     var show = zukanNewCount() > 0;
-    var b1 = document.getElementById('zukanBadgeMenu');
+    var b1 = document.getElementById('zukanBadgeMenu'); // タイトルメニューの「ずかん」通知ドット
     if (b1) b1.style.display = show ? 'block' : 'none';
-    var b2 = document.getElementById('zukanBadgeRow');
-    if (b2) b2.style.display = show ? 'block' : 'none';
 }
 // そのカテゴリに未閲覧の新規発見があるか（タブの未読ドット用）
 function zukanCatHasNew(cat) {

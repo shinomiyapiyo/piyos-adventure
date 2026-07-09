@@ -55,6 +55,7 @@ function gameLoop(timestamp) {
             manageTerrain();
             manageObjects();
             updateWeatherParticles();
+            updateMissionToasts(); // 案D: デイリーミッションの「あと少し/達成」HUDトースト
             }
         }
         accumulator -= FIXED_DT;
