@@ -1974,17 +1974,25 @@ function drawPipeRoomWall(x, w, isLeft) {
 }
 
 // 土管ボーナス部屋の描画（固定カメラ・画面座標）
+// 部屋タイプ別の見た目（背景グラデ2色・放射光色・床色・紙吹雪ON/OFF・タイトル）。1.450〜。
+// 未定義タイプは treasure にフォールバック。
+var PIPE_ROOM_THEMES = {
+    treasure: { bg0: '#103038', bg1: '#0a1f26', ray: 'rgba(255,255,255,0.05)', floor: '#3a2a18', floorLine: '#241a10', confetti: true,  titleKey: 'room_treasure' },
+    coin:     { bg0: '#3a2c08', bg1: '#25190a', ray: 'rgba(255,214,90,0.07)', floor: '#4a3410', floorLine: '#32220a', confetti: true,  titleKey: 'room_coin' }
+};
+
 function drawPipeRoom() {
     gameState.time += frameSteps; // 本編render末尾の time 加算を肩代わり（早期returnのため）
     var tm = Date.now() / 50;
-    // 背景: ジャックポット風（深ティール地＋ゆっくり回転する放射光＋紙吹雪）
+    var theme = PIPE_ROOM_THEMES[pipeRoomState.roomType] || PIPE_ROOM_THEMES.treasure;
+    // 背景: ジャックポット風（タイプ別の地色＋ゆっくり回転する放射光＋紙吹雪）
     var bg = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-    bg.addColorStop(0, '#103038'); bg.addColorStop(1, '#0a1f26');
+    bg.addColorStop(0, theme.bg0); bg.addColorStop(1, theme.bg1);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     // 回転放射光（低コントラストでアイテムの視認性を保つ）
     var scx = GAME_WIDTH / 2, scy = PIPE_ROOM_FLOOR_Y * 0.45;
     var rayR = GAME_WIDTH + GAME_HEIGHT, rayN = 16, rayStep = Math.PI * 2 / rayN, rayRot = gameState.time * 0.004;
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillStyle = theme.ray;
     for (var ri = 0; ri < rayN; ri++) {
         var a0 = rayRot + ri * rayStep, a1 = a0 + rayStep * 0.5;
         ctx.beginPath();
@@ -1994,10 +2002,10 @@ function drawPipeRoom() {
         ctx.closePath(); ctx.fill();
     }
     // 紙吹雪（背景装飾・アイテムより奥）
-    updateAndDrawPipeConfetti();
-    // 床（レンガ）
-    ctx.fillStyle = '#3a2a18'; ctx.fillRect(0, PIPE_ROOM_FLOOR_Y, GAME_WIDTH, GAME_HEIGHT - PIPE_ROOM_FLOOR_Y);
-    ctx.fillStyle = '#241a10';
+    if (theme.confetti) updateAndDrawPipeConfetti();
+    // 床（レンガ・タイプ別色）
+    ctx.fillStyle = theme.floor; ctx.fillRect(0, PIPE_ROOM_FLOOR_Y, GAME_WIDTH, GAME_HEIGHT - PIPE_ROOM_FLOOR_Y);
+    ctx.fillStyle = theme.floorLine;
     for (var fx = 0; fx < GAME_WIDTH; fx += 40) ctx.fillRect(fx + 2, PIPE_ROOM_FLOOR_Y + 5, 36, 6);
     // 左右の壁（見える壁）: プレイヤーはここで止まる（見えない壁をなくす）
     drawPipeRoomWall(0, PIPE_ROOM_WALL_W, true);
@@ -2067,6 +2075,14 @@ function drawPipeRoom() {
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#ffd84a';
         ctx.fillText('BONUS!', 0, 0);
+        // 部屋タイプ名（サブタイトル・1.450〜）
+        if (theme.titleKey) {
+            ctx.font = "bold 22px 'M PLUS Rounded 1c', sans-serif";
+            ctx.lineWidth = 5; ctx.strokeStyle = '#7a4a00';
+            ctx.strokeText(t(theme.titleKey), 0, 40);
+            ctx.fillStyle = '#fff2c0';
+            ctx.fillText(t(theme.titleKey), 0, 40);
+        }
         ctx.restore();
     }
 }

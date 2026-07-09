@@ -272,6 +272,7 @@ var pipeRoomState = {
     targetRound: 0,      // targetDist を算出したラウンド（ラウンド変化検出用）
     exitHold: 0,         // 出口土管の口で右を押し続けているフレーム数（退室ゲージ・継続が切れたら0に戻す）
     introTimer: 0,       // 入場時「BONUS!」演出の残りフレーム
+    roomType: 'treasure', // 部屋タイプ（1.450〜・入室時に重み付き抽選）: 'treasure'|'coin'|…（背景色/小物/報酬が変わる。エッグ1/20は全タイプ共通で不変）
     // ── マリオ風 出入り演出（1.408）──
     anim: 'none',        // 'none'|'in'(本編:土管へ沈む)|'outRoom'(部屋:横土管へ歩き込む)|'outWorld'(本編:土管から上昇)
     animTimer: 0,        // 演出の経過フレーム
