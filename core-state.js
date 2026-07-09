@@ -34,6 +34,9 @@ const GAME_HEIGHT         = 450;
 const GRAVITY             = 0.7;
 const JUMP_FORCE          = -16;
 const MOVE_SPEED          = 6;
+// 魔女ぴよ グライド滞空（1.456〜・空中で落下中にジャンプ長押し）。調整ノブ:
+const WITCH_GLIDE_GRAVITY = 0.20;  // グライド中の重力（通常0.7の約1/3.5＝ふわっと落ちる）
+const WITCH_GLIDE_MAXFALL = 2.4;   // グライド中の最大落下速度（通常15＝ゆっくり降下で頭打ち）
 const BASE_SCROLL_SPEED   = 1.2;
 const INVINCIBLE_FRAMES   = 180;   // 3s @ 60fps
 const SPEED_UP_INTERVAL   = 300;   // 300mごと
@@ -388,7 +391,9 @@ var EGG_SHOP_ITEMS = [
       iconImg: 'images/icon_coin_master.png', eggPrice: 100 },
     // 忍者ぴよ: 2段ジャンプ+1秒毎の自動手裏剣(ダメージ1)。（1.440・課金前提価格）
     { id: 'skin_ninja', type: 'skin', skinId: 'ninja', nameKey: 'skin_ninja', descKey: 'egg_item_ninja_desc',
-      iconImg: 'images/skin_ninja_idle.png', eggPrice: 200 }
+      iconImg: 'images/skin_ninja_idle.png', eggPrice: 200 },
+    { id: 'skin_witch', type: 'skin', skinId: 'witch', nameKey: 'skin_witch', descKey: 'egg_item_witch_desc',
+      iconImg: 'images/player_idle_v1.png', eggPrice: 200 }  // 1.456。iconImg は仮=デフォルト→ TODO: skin_witch_idle.png をアート生成後に差替
 ];
 // 永続化できないストック品（一度きりの奇跡＝復活薬）。理由はi18n egg_perma_no_revive で表示。
 var PERMA_STOCK_EXCLUDE = ['revive_potion'];

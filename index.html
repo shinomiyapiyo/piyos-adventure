@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.455";
+                content: "Ver.1.456";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -826,7 +826,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.455</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.456</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1832,7 +1832,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.455
+ * ぴよ氏の冒険 v1.456
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3162,7 +3162,8 @@ var SKINS = [
     { id: '',     nameKey: 'skin_default', preview: 'images/player_idle_v1.png' }, // デフォルト
     { id: 'maid', nameKey: 'skin_maid',    preview: 'images/skin_maid_idle.png', unlockAch: 'dist_5000', effectKey: 'skin_effect_maid' },  // 実績「合計5,000m走る」で解放
     { id: 'kigurumi', nameKey: 'skin_kigurumi', preview: 'images/skin_kigurumi_idle.png', eggItem: true, effectKey: 'skin_effect_kigurumi' },  // タイトルショップの「エッグこうかん」で解放
-    { id: 'ninja', nameKey: 'skin_ninja', preview: 'images/skin_ninja_idle.png', eggItem: true, effectKey: 'skin_effect_ninja' }    // エッグこうかん🥚200（1.440・課金前提価格）
+    { id: 'ninja', nameKey: 'skin_ninja', preview: 'images/skin_ninja_idle.png', eggItem: true, effectKey: 'skin_effect_ninja' },    // エッグこうかん🥚200（1.440・課金前提価格）
+    { id: 'witch', nameKey: 'skin_witch', preview: 'images/player_idle_v1.png', eggItem: true, effectKey: 'skin_effect_witch' }    // エッグこうかん🥚200（1.456）。preview は仮=デフォルト立ち絵→ TODO: skin_witch_idle.png をアート生成後に差替
 ];
 function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
 function isSkinOwned(id) {
@@ -5208,10 +5209,19 @@ function updatePlayer() {
     }
     if (!gameState.input.jump) gameState.input.jumpPressed = false;
 
-    // 重力（復活中は1/5）
+    // 重力（復活中は1/5）＋魔女ぴよのグライド滞空（空中で落下中にジャンプ長押し→ふわふわ）
     var grav = gameState.isRespawning ? GRAVITY / 5 : GRAVITY;
+    var gliding = SKIN_FEATURE_ENABLED && runActiveSkin() === 'witch' && !player.onGround
+        && !gameState.isRespawning && gameState.input.jump && player.velY > 0;
+    if (gliding) grav = WITCH_GLIDE_GRAVITY;                       // 落下をゆるめる
     player.velY += grav;
-    if (player.velY > 15) player.velY = 15;
+    var _vcap = gliding ? WITCH_GLIDE_MAXFALL : 15;               // グライド中は落下速度も低めに頭打ち
+    if (player.velY > _vcap) player.velY = _vcap;
+    if (gliding && Math.random() < 0.35) {                        // 魔法のきらめき（グライド演出）
+        floatEffects.push({ type: 'combo_spark', worldX: player.x + player.width * (0.3 + Math.random() * 0.4),
+            worldY: player.y + player.height * 0.65, vx: (Math.random() - 0.5) * 1.2, vy: 0.4 + Math.random() * 0.9,
+            timer: 0, duration: 22 + Math.floor(Math.random() * 12), size: 2 + Math.random() * 2, hue: 278 + Math.floor(Math.random() * 44) });
+    }
 
     player.x += player.velX;
     player.y += player.velY;
