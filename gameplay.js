@@ -545,7 +545,9 @@ function pipeRoomExitX() { return GAME_WIDTH - PIPE_ROOM_WALL_W - SIDE_PIPE_W; }
 // weight=0 は未実装/無効。Phase毎に増やす（Phase1: treasure, coin）。
 var ROOM_TYPES = [
     { id: 'treasure', weight: 40, build: buildTreasureRoom }, // たからの間（現状＝バランス・基準）
-    { id: 'coin',     weight: 20, build: buildCoinRoom }      // コインの間（金貨ざくざく・ハート/在庫なし）
+    { id: 'coin',     weight: 20, build: buildCoinRoom },     // コインの間（金貨ざくざく・ハート/在庫なし）
+    { id: 'potion',   weight: 15, build: buildPotionRoom },   // ポーションの間（在庫補給・満杯ならコイン振替）
+    { id: 'heal',     weight: 10, build: buildHealRoom }      // おやすみの間（ハート2確定・満タンは既存で+1000点変換）
 ];
 
 function pipeRoomBounds() {
@@ -580,6 +582,39 @@ function buildCoinRoom() {
         var y = b.floorY - 66 - arc * 150;            // 床上66px〜最高216px（ジャンプ圏内）
         addRoomCoin(x0 + (x1 - x0) * f, y);
     }
+}
+
+// ポーションの間: 在庫アイテムを棚に2〜3個（空き枠分だけ）＋床にコイン。在庫満杯ならハズレ防止でコインに振替。
+// ※取得は addToStock が満杯時 false を返す＝空き分しか取れないので、出す数を空き枠に合わせる。
+function buildPotionRoom() {
+    var b = pipeRoomBounds();
+    var freeSlots = Math.max(0, stockState.maxSlots - stockState.items.length);
+    var nPotion = Math.min(3, freeSlots);
+    if (nPotion === 0) { // 在庫満杯 → コイン振替（15枚横一列）
+        var n = 15, x0 = b.left + 55, x1 = b.right - 25;
+        for (var c = 0; c < n; c++) addRoomCoin(x0 + (x1 - x0) * (c / (n - 1)), b.floorY - 72);
+        return;
+    }
+    // 棚の上に在庫アイテムを重複なく配置
+    var pool = ['barrier', 'lemon_special', 'full_charge', 'heal_stock'];
+    for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp; }
+    var shelfY = b.floorY - 150;
+    for (var p = 0; p < nPotion; p++) {
+        var fx = (nPotion === 1) ? 0.5 : (0.3 + 0.4 * (p / (nPotion - 1))); // 中央寄せに等間隔
+        bonusRoomItems.push({ type: 'shopitem', itemId: pool[p], x: b.left + b.span * fx, y: shelfY, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
+    }
+    // 床に少しコイン（部屋を空にしない）
+    var cn = 6, cx0 = b.left + 70, cx1 = b.right - 40;
+    for (var k = 0; k < cn; k++) addRoomCoin(cx0 + (cx1 - cx0) * (k / (cn - 1)), b.floorY - 72);
+}
+
+// おやすみの間: ハート2確定（ジャンプで取る）＋床にコイン。HP満タン時は既存のハート取得処理が +1000点へ自動変換＝ハズレにならない。
+function buildHealRoom() {
+    var b = pipeRoomBounds();
+    addRoomHeart(b.left + b.span * 0.38, b.floorY - 150);
+    addRoomHeart(b.left + b.span * 0.62, b.floorY - 150);
+    var cn = 6, cx0 = b.left + 70, cx1 = b.right - 40;
+    for (var k = 0; k < cn; k++) addRoomCoin(cx0 + (cx1 - cx0) * (k / (cn - 1)), b.floorY - 72);
 }
 
 // 入室時に部屋タイプを重み付き抽選（有効な weight>0 のみ）。将来、状態依存のフォールバックはここか各buildで。

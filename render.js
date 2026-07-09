@@ -1977,9 +1977,38 @@ function drawPipeRoomWall(x, w, isLeft) {
 // 部屋タイプ別の見た目（背景グラデ2色・放射光色・床色・紙吹雪ON/OFF・タイトル）。1.450〜。
 // 未定義タイプは treasure にフォールバック。
 var PIPE_ROOM_THEMES = {
-    treasure: { bg0: '#103038', bg1: '#0a1f26', ray: 'rgba(255,255,255,0.05)', floor: '#3a2a18', floorLine: '#241a10', confetti: true,  titleKey: 'room_treasure' },
-    coin:     { bg0: '#3a2c08', bg1: '#25190a', ray: 'rgba(255,214,90,0.07)', floor: '#4a3410', floorLine: '#32220a', confetti: true,  titleKey: 'room_coin' }
+    treasure: { bg0: '#103038', bg1: '#0a1f26', ray: 'rgba(255,255,255,0.05)',  floor: '#3a2a18', floorLine: '#241a10', confetti: true,  titleKey: 'room_treasure', props: null },
+    coin:     { bg0: '#3a2c08', bg1: '#25190a', ray: 'rgba(255,214,90,0.07)',   floor: '#4a3410', floorLine: '#32220a', confetti: true,  titleKey: 'room_coin',     props: null },
+    potion:   { bg0: '#2a1840', bg1: '#17092a', ray: 'rgba(200,150,255,0.06)',  floor: '#2e2038', floorLine: '#20142c', confetti: true,  titleKey: 'room_potion',   props: 'shelf' },
+    heal:     { bg0: '#163524', bg1: '#0c2016', ray: 'rgba(150,255,190,0.06)',  floor: '#243a2a', floorLine: '#1a2c1f', confetti: false, titleKey: 'room_heal',     props: 'flowers' }
 };
+
+// タイプ別の小物（手続き描画・床の後/アイテムより奥に描く）。1.451
+function drawPipeRoomProps(kind) {
+    var floorY = PIPE_ROOM_FLOOR_Y;
+    if (kind === 'shelf') {
+        // ポーション棚: アイテム(y=floorY-150,高40)の真下に木の棚板を1枚
+        var shelfTop = floorY - 150 + 40 + 4, sx = GAME_WIDTH * 0.24, sw = GAME_WIDTH * 0.52;
+        ctx.fillStyle = '#5a3d22'; ctx.fillRect(sx, shelfTop, sw, 10);
+        ctx.fillStyle = '#3c2814'; ctx.fillRect(sx, shelfTop + 10, sw, 5);           // 棚の影
+        ctx.fillStyle = '#4a3018'; ctx.fillRect(sx + 8, shelfTop + 15, 8, floorY - (shelfTop + 15)); // 左脚
+        ctx.fillRect(sx + sw - 16, shelfTop + 15, 8, floorY - (shelfTop + 15));      // 右脚
+    } else if (kind === 'flowers') {
+        // おやすみの間: 床沿いに小さな花を点々と
+        var cols = ['#ff9ec4', '#ffd36b', '#a7e0ff', '#c9a0ff'];
+        for (var i = 0; i < 7; i++) {
+            var fx = GAME_WIDTH * (0.1 + 0.8 * (i / 6)) + Math.sin(i * 2.3) * 10;
+            var fy = floorY - 6, col = cols[i % cols.length];
+            ctx.fillStyle = '#3a7d4a'; ctx.fillRect(fx - 1, fy - 14, 2, 14);          // 茎
+            ctx.fillStyle = col;                                                     // 花びら4枚＋芯
+            ctx.beginPath();
+            ctx.arc(fx - 4, fy - 16, 3, 0, Math.PI * 2); ctx.arc(fx + 4, fy - 16, 3, 0, Math.PI * 2);
+            ctx.arc(fx, fy - 20, 3, 0, Math.PI * 2); ctx.arc(fx, fy - 12, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff3b0'; ctx.beginPath(); ctx.arc(fx, fy - 16, 2, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+}
 
 function drawPipeRoom() {
     gameState.time += frameSteps; // 本編render末尾の time 加算を肩代わり（早期returnのため）
@@ -2007,6 +2036,8 @@ function drawPipeRoom() {
     ctx.fillStyle = theme.floor; ctx.fillRect(0, PIPE_ROOM_FLOOR_Y, GAME_WIDTH, GAME_HEIGHT - PIPE_ROOM_FLOOR_Y);
     ctx.fillStyle = theme.floorLine;
     for (var fx = 0; fx < GAME_WIDTH; fx += 40) ctx.fillRect(fx + 2, PIPE_ROOM_FLOOR_Y + 5, 36, 6);
+    // タイプ別の小物（棚/花・アイテムより奥）
+    if (theme.props) drawPipeRoomProps(theme.props);
     // 左右の壁（見える壁）: プレイヤーはここで止まる（見えない壁をなくす）
     drawPipeRoomWall(0, PIPE_ROOM_WALL_W, true);
     drawPipeRoomWall(GAME_WIDTH - PIPE_ROOM_WALL_W, PIPE_ROOM_WALL_W, false);
