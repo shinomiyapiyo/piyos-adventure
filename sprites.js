@@ -52,6 +52,17 @@ var IMAGE_SPRITES = {
     // 忍者の手裏剣弾（グレー=夜ステージでも視認可・drawBulletで回転描画）
     shuriken: { files: ['images/shuriken.png'] },
 
+    // 魔女ぴよスキン（エッグ交換🥚200・1.457／立ち絵=OpenAI・歩行=Veo veo_witch_walk.mp4 f_22/30/38/46・fall=ほうき滑空ポーズ）
+    skin_witch_idle: { files: ['images/skin_witch_idle.png'] },
+    skin_witch_walk: { files: [
+        'images/skin_witch_walk_1.png',
+        'images/skin_witch_walk_2.png',
+        'images/skin_witch_walk_3.png',
+        'images/skin_witch_walk_4.png'
+    ]},
+    skin_witch_jump: { files: ['images/skin_witch_jump.png'] },
+    skin_witch_fall: { files: ['images/skin_witch_fall.png'] },
+
     // 敵 (左向き固定 - 元画像が右向きのものだけflip:trueで反転)
     chick_walk:        { files: [
         'images/enemy_chick_walk_1.png',

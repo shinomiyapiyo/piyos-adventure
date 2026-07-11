@@ -37,19 +37,21 @@ const ANCHOR_FILE = getArg('anchorFile') || 'witch_anchor_1_1024.png';
 
 // 魔女ぴよの意匠（アンカー・全ポーズ共通のidentity）。黄色系スキンと被らないよう紫を基調に。
 const WITCH_IDENTITY = [
-  'The character is the SAME chibi pixel-art girl as the input image (same face, same big eyes, same proportions,',
-  'same chunky pixel-art style, same scale, same side-view stance facing right), but her outfit is replaced with a',
-  'cute LITTLE WITCH costume in PURPLE/VIOLET tones: a big pointed WITCH HAT (deep purple with a darker band) tilted',
-  'slightly, a short purple witch DRESS with a small collar, a flowing dark-purple CAPE/CLOAK trailing behind her,',
-  'purple-and-black striped stockings and small black boots, and she HOLDS A WOODEN BROOM (light-brown handle,',
-  'straw bristles) in one hand. Her cute face and a wisp of black hair stay clearly visible under the hat.',
-  'Keep the same dusky pixel-art shading and bold outline style as the input image.',
+  'The character is the SAME chibi pixel-art girl as the input image (same cute face, same big eyes, same 2-heads-tall',
+  'chibi proportions, same chunky pixel-art style, same scale, same side-view stance facing right), but her outfit is',
+  'replaced with a cute LITTLE WITCH costume in BRIGHT VIVID VIOLET/PURPLE: a big pointed WITCH HAT (bright violet with',
+  'a lighter lavender band) tilted slightly, a short violet witch DRESS with a small collar, a flowing purple CAPE',
+  'trailing behind her, lavender-and-white striped stockings and small dark boots, and she HOLDS A WOODEN BROOM',
+  '(light-brown handle, tan straw bristles) in one hand. Her cute face and a wisp of black hair stay clearly visible',
+  'under the hat. Use BRIGHT, saturated, HIGH-CONTRAST colors with clear light highlights and clean bold outlines',
+  '(well-lit and readable, NOT dark, NOT muddy, NOT dusky, no heavy shadows). Keep the clean chunky pixel-art style of the input.',
 ].join(' ');
 
 const ANCHOR_OUTPUT = [
-  'Same pose as the input (calm standing side view facing right, holding the broom at her side), single character only,',
-  'same size and position in frame as the input, fully TRANSPARENT background, no scenery, no ground, no shadow,',
-  'no text, no border.',
+  'Same calm standing side view facing right (holding the broom at her side), single character only, same 2-heads-tall',
+  'scale and same position in frame as the input image. The background MUST be FULLY TRANSPARENT (alpha) — absolutely',
+  'NO background, NO scenery, NO ground, NO shadow, NO glow, NO gradient, NO colored backdrop; only the character',
+  'pixels on transparency. No text, no border.',
 ].join(' ');
 
 // jump/fall 用（kigurumi/ninja方式: [アンカー, player_<pose>.png] の2枚渡し。2枚目はポーズのヒントのみ）

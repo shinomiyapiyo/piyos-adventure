@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.456";
+                content: "Ver.1.457";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1832,7 +1832,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.456
+ * ぴよ氏の冒険 v1.457
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3163,7 +3163,7 @@ var SKINS = [
     { id: 'maid', nameKey: 'skin_maid',    preview: 'images/skin_maid_idle.png', unlockAch: 'dist_5000', effectKey: 'skin_effect_maid' },  // 実績「合計5,000m走る」で解放
     { id: 'kigurumi', nameKey: 'skin_kigurumi', preview: 'images/skin_kigurumi_idle.png', eggItem: true, effectKey: 'skin_effect_kigurumi' },  // タイトルショップの「エッグこうかん」で解放
     { id: 'ninja', nameKey: 'skin_ninja', preview: 'images/skin_ninja_idle.png', eggItem: true, effectKey: 'skin_effect_ninja' },    // エッグこうかん🥚200（1.440・課金前提価格）
-    { id: 'witch', nameKey: 'skin_witch', preview: 'images/player_idle_v1.png', eggItem: true, effectKey: 'skin_effect_witch' }    // エッグこうかん🥚200（1.456）。preview は仮=デフォルト立ち絵→ TODO: skin_witch_idle.png をアート生成後に差替
+    { id: 'witch', nameKey: 'skin_witch', preview: 'images/skin_witch_idle.png', eggItem: true, effectKey: 'skin_effect_witch' }    // エッグこうかん🥚200（1.456・アート1.457=立ち絵OpenAI/歩行Veo）
 ];
 function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
 function isSkinOwned(id) {
