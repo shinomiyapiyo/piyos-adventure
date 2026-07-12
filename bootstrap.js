@@ -219,9 +219,8 @@ function bindTapDelegate(container, attrName, handler) {
     }
 
     // ─ 下スワイプ（足場貫通）/ 上スワイプ（ショップ入店）共通処理 ─
-    function handleSwipeDown(e) {
-        if (moveSwiped) return;
-        var touch = e.touches[0];
+    function handleSwipeDown(touch) {
+        if (moveSwiped || !touch) return;
         var dy = touch.clientY - moveStartY;
         var dt = Date.now() - moveStartTime;
         if (dy > 15 && dt < 500) {
@@ -267,15 +266,20 @@ function bindTapDelegate(container, attrName, handler) {
     function onMoveStart(e) {
         if (!gameState.gameStarted || gameState.gamePaused) return;
         e.preventDefault();
-        var touch = e.touches[0];
+        // このエリアで今始まった指を使う（touches[0]=画面最初の指だと、ジャンプ長押し中は
+        // ジャンプ指[右側]を誤参照して左押しが右になる＝滑空中にLが効かない不具合の原因）。1.459
+        var touch = e.changedTouches[0];
+        if (!touch) return;
         moveStartY = touch.clientY; moveStartTime = Date.now(); moveSwiped = false;
         updateMoveFromTouch(touch);
     }
     function onMoveMove(e) {
         if (!gameState.gameStarted || gameState.gamePaused) return;
         e.preventDefault();
-        handleSwipeDown(e);
-        if (!moveSwiped) updateMoveFromTouch(e.touches[0]);
+        var touch = e.targetTouches[0]; // このエリア上の指だけを見る（他指=ジャンプを拾わない＝滑空中も左右が効く）
+        if (!touch) return;
+        handleSwipeDown(touch);
+        if (!moveSwiped) updateMoveFromTouch(touch);
     }
     function onMoveEnd(e) {
         e.preventDefault();
