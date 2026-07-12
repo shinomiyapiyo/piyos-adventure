@@ -37,6 +37,9 @@ const MOVE_SPEED          = 6;
 // 魔女ぴよ グライド滞空（1.456〜・空中で落下中にジャンプ長押し）。調整ノブ:
 const WITCH_GLIDE_GRAVITY = 0.20;  // グライド中の重力（通常0.7の約1/3.5＝ふわっと落ちる）
 const WITCH_GLIDE_MAXFALL = 2.4;   // グライド中の最大落下速度（通常15＝ゆっくり降下で頭打ち）
+// 操作フィール（1.460・fixed 60Hz update のフレーム数）。調整ノブ:
+const COYOTE_FRAMES      = 6;      // 足場を離れてからジャンプを受け付ける猶予（約0.1秒）
+const JUMP_BUFFER_FRAMES = 6;      // 着地の少し前に押したジャンプを覚えておく猶予（約0.1秒）
 const BASE_SCROLL_SPEED   = 1.2;
 const INVINCIBLE_FRAMES   = 180;   // 3s @ 60fps
 const SPEED_UP_INTERVAL   = 300;   // 300mごと
@@ -184,7 +187,8 @@ var gameState = {
 var player = {
     x: 150, y: 286, width: 48, height: 48,
     velX: 0, velY: 0, onGround: false, groundType: 'normal',
-    facing: 'right', animFrame: 0
+    facing: 'right', animFrame: 0,
+    coyoteTimer: 0, jumpBufferTimer: 0  // 操作フィール(1.460): コヨーテタイム/ジャンプ先行入力
 };
 
 var coins = [], enemies = [], platforms = [];
