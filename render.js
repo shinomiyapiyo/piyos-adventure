@@ -7,6 +7,34 @@
 // ============================================================
 // ─── 描画 ───
 
+// 描画パフォーマンス: グラデ/グローのキャッシュ（毎フレームの再生成/影処理を避ける・監査LOW）
+var _auraShieldGrad = null; // シールドオーラの外側グロー（色停止は定数・半径はpulseで一様scale＝見た目一致）
+var _flameEggGrad = null;   // 闇の炎弾の外側オーラ（中心均一・半径はflickerでscale）
+var _glowBulletCache = {};  // 弾のグロー焼き込みスプライト（type×サイズ別に1度だけ生成）
+// スプライトにグローを焼き込んだ offscreen canvas を返す。未ロード時は null（呼び出し側が従来の shadowBlur にフォールバック）。
+function getGlowBulletSprite(name, w, h, glowColor, blur) {
+    var frames = spriteManager.cache[name];
+    if (!frames || !frames[0] || !frames[0].normal) return null;
+    var key = name + '|' + Math.round(w) + 'x' + Math.round(h) + '|' + glowColor + '|' + blur;
+    var hit = _glowBulletCache[key];
+    if (hit) return hit;
+    var pad = Math.ceil(blur) + 2;
+    function bake(src) {
+        var cnv = document.createElement('canvas');
+        cnv.width = Math.round(w) + pad * 2;
+        cnv.height = Math.round(h) + pad * 2;
+        var g = cnv.getContext('2d');
+        g.imageSmoothingEnabled = false;
+        g.shadowColor = glowColor;
+        g.shadowBlur = blur;
+        g.drawImage(src, pad, pad, w, h);
+        return cnv;
+    }
+    hit = { normal: bake(frames[0].normal), flipped: bake(frames[0].flipped), pad: pad };
+    _glowBulletCache[key] = hit;
+    return hit;
+}
+
 function drawPlayerAura(x, y, t) {
     var cx = x + player.width / 2, cy = y + player.height / 2;
     var pw = player.width, ph = player.height;
@@ -17,14 +45,19 @@ function drawPlayerAura(x, y, t) {
         var pulse = 0.85 + Math.sin(t * 0.12) * 0.15;
         var r = sr * pulse;
 
-        // 外側グロー
-        var glow = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r * 1.3);
-        glow.addColorStop(0, 'rgba(65,105,225,0)');
-        glow.addColorStop(0.6, 'rgba(65,105,225,0.08)');
-        glow.addColorStop(0.85, 'rgba(100,149,237,0.2)');
-        glow.addColorStop(1, 'rgba(65,105,225,0)');
-        ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(cx, cy, r * 1.3, 0, Math.PI * 2); ctx.fill();
+        // 外側グロー（色停止は定数・内外半径とも pulse で一様に変わる＝原点に1度だけ生成し translate+scale で再利用。見た目一致・監査LOW）
+        if (!_auraShieldGrad) {
+            _auraShieldGrad = ctx.createRadialGradient(0, 0, sr * 0.5, 0, 0, sr * 1.3);
+            _auraShieldGrad.addColorStop(0, 'rgba(65,105,225,0)');
+            _auraShieldGrad.addColorStop(0.6, 'rgba(65,105,225,0.08)');
+            _auraShieldGrad.addColorStop(0.85, 'rgba(100,149,237,0.2)');
+            _auraShieldGrad.addColorStop(1, 'rgba(65,105,225,0)');
+        }
+        ctx.save();
+        ctx.translate(cx, cy); ctx.scale(pulse, pulse);
+        ctx.fillStyle = _auraShieldGrad;
+        ctx.beginPath(); ctx.arc(0, 0, sr * 1.3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
 
         // メインシールド円
         ctx.strokeStyle = 'rgba(100,149,237,' + (0.5 + Math.sin(t * 0.15) * 0.2) + ')';
@@ -1634,17 +1667,29 @@ function drawBullet(b) {
         ctx.shadowBlur = 8; ctx.fillStyle = '#eaf6ff';
         ctx.beginPath(); ctx.arc(zx, zy, 2.6, 0, Math.PI * 2); ctx.fill();
     } else if (b.isShuriken) {
-        // 忍者の手裏剣（グレー・回転・薄い発光=夜ステージでの視認性）
+        // 忍者の手裏剣（グレー・回転・薄い発光=夜ステージでの視認性）。グローを焼き込んだスプライトを再利用（毎フレームのshadowBlur回避・監査LOW）
         var shx = b.x + b.width / 2, shy = b.y + b.height / 2;
-        ctx.shadowColor = '#dfe7ee'; ctx.shadowBlur = 7;
         ctx.translate(shx, shy);
         ctx.rotate(b.spin || 0);
-        spriteManager.draw(ctx, 'shuriken', 0, -b.width / 2, -b.height / 2, b.width, b.height, false);
+        var gsh = getGlowBulletSprite('shuriken', b.width, b.height, '#dfe7ee', 7);
+        if (gsh) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(gsh.normal, -b.width / 2 - gsh.pad, -b.height / 2 - gsh.pad);
+        } else {
+            ctx.shadowColor = '#dfe7ee'; ctx.shadowBlur = 7;
+            spriteManager.draw(ctx, 'shuriken', 0, -b.width / 2, -b.height / 2, b.width, b.height, false);
+        }
     } else {
-        // エナジー弾（発光）
-        ctx.shadowColor = '#ff6600';
-        ctx.shadowBlur = 12;
-        spriteManager.draw(ctx, 'bullet_energy', 0, b.x, b.y, b.width, b.height, b.dir < 0);
+        // エナジー弾（発光）。グローを焼き込んだスプライトを再利用（監査LOW）
+        var ge = getGlowBulletSprite('bullet_energy', b.width, b.height, '#ff6600', 12);
+        if (ge) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(b.dir < 0 ? ge.flipped : ge.normal, b.x - ge.pad, b.y - ge.pad);
+        } else {
+            ctx.shadowColor = '#ff6600';
+            ctx.shadowBlur = 12;
+            spriteManager.draw(ctx, 'bullet_energy', 0, b.x, b.y, b.width, b.height, b.dir < 0);
+        }
     }
     ctx.restore();
 }
@@ -1821,15 +1866,19 @@ function drawEggProjectiles() {
             var fx = egg.x + egg.width / 2;
             var fy = egg.y + egg.height / 2;
             var flicker = Math.sin(egg.timer * 0.5) * 2;
-            // 外側の闇オーラ
-            var grd = ctx.createRadialGradient(fx, fy, 2, fx, fy, 14 + flicker);
-            grd.addColorStop(0, 'rgba(180,60,255,0.9)');
-            grd.addColorStop(0.5, 'rgba(80,0,160,0.6)');
-            grd.addColorStop(1, 'rgba(30,0,50,0)');
-            ctx.fillStyle = grd;
-            ctx.beginPath();
-            ctx.arc(fx, fy, 14 + flicker, 0, Math.PI * 2);
-            ctx.fill();
+            // 外側の闇オーラ（色停止定数・中心均一→原点に1度だけ生成し translate+scale で再利用。flickerの膨張も保持・監査LOW）
+            if (!_flameEggGrad) {
+                _flameEggGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 14);
+                _flameEggGrad.addColorStop(0, 'rgba(180,60,255,0.9)');
+                _flameEggGrad.addColorStop(0.5, 'rgba(80,0,160,0.6)');
+                _flameEggGrad.addColorStop(1, 'rgba(30,0,50,0)');
+            }
+            var _fs = (14 + flicker) / 14;
+            ctx.save();
+            ctx.translate(fx, fy); ctx.scale(_fs, _fs);
+            ctx.fillStyle = _flameEggGrad;
+            ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
             // 内側の炎コア
             ctx.fillStyle = '#cc44ff';
             ctx.beginPath();
