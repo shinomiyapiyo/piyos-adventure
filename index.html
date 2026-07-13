@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.464";
+                content: "Ver.1.465";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.464</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.465</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1830,7 +1830,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.464
+ * ぴよ氏の冒険 v1.465
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -1995,7 +1995,6 @@ var spriteManager = {
                         onImageDone();
                     };
                     img.onerror = function() {
-                        console.warn('Sprite load failed: ' + filePath);
                         onImageDone();
                     };
                     img.src = filePath;
@@ -3983,6 +3982,11 @@ function pauseGame() {
     } else {
         document.getElementById('pauseScreen').classList.add('hidden');
         document.getElementById('pauseButton').innerHTML = _ic('icon_pause.png');
+        // 再開時にWebAudioを復帰。バックグラウンドでOSがAudioContextをsuspendすると、
+        // 戻ってきてもSEが無音のままになるため、再開タップ（ユーザー操作）で resume する（監査LOW）。
+        if (soundManager && soundManager.ctx && soundManager.ctx.state !== 'running' && gameSettings.soundEnabled) {
+            try { soundManager.ctx.resume(); } catch (_) {}
+        }
     }
     // ポーズ中はストック枠を読み取り専用で再描画（枠(z:100)はポーズ幕より上にあり、
     // 放置するとポーズ中のタップでアイテムを誤使用できてしまう）。再開時は操作可能に戻す。

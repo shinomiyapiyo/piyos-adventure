@@ -3780,7 +3780,7 @@ function buildResultCard() {
             // スコア / 撃破 / Lv
             c.fillStyle = '#ffffff';
             c.font = 'bold 46px "M PLUS Rounded 1c", sans-serif';
-            c.fillText('スコア ' + finalGameStats.score + '　撃破 ' + finalGameStats.enemyKills + '　Lv' + finalGameStats.speedLevel, 540, 474);
+            c.fillText(t('share_card_score') + ' ' + finalGameStats.score + '　' + t('share_card_kills') + ' ' + finalGameStats.enemyKills + '　Lv' + finalGameStats.speedLevel, 540, 474);
             // 装備スキンのキャラ立ち絵（ドット維持で拡大）
             try {
                 var spriteName = ((typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED && gameSettings.activeSkin === 'maid') ? 'skin_maid_' : 'player_') + 'idle';

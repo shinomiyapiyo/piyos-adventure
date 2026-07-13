@@ -538,6 +538,11 @@ document.addEventListener('visibilitychange', function() {
     if (document.hidden && gameState.gameStarted) {
         if (typeof clearHeldInput === 'function') clearHeldInput();
         if (!gameState.gamePaused) pauseGame();
+    } else if (!document.hidden) {
+        // 復帰時にWebAudioを再開（バックグラウンドでOSがsuspend→SE無音化の対策。監査LOW）
+        if (soundManager && soundManager.ctx && soundManager.ctx.state !== 'running' && gameSettings.soundEnabled) {
+            try { soundManager.ctx.resume(); } catch (_) {}
+        }
     }
 });
 window.addEventListener('blur', function() {
