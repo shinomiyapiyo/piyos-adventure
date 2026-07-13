@@ -1074,7 +1074,9 @@ en: {
 };
 
 function t(key, replacements) {
-    var txt = (LANG[gameSettings.language] && LANG[gameSettings.language][key]) || LANG.ja[key] || key;
+    // en の値が空文字('')でも尊重する（従来は || で falsy 扱い→日本語へフォールバックし、英語UIに「円」「体」「」で解放」等が混入していた。1.462で存在判定に修正）
+    var _L = LANG[gameSettings.language];
+    var txt = (_L && key in _L) ? _L[key] : (key in LANG.ja ? LANG.ja[key] : key);
     if (replacements) {
         for (var k in replacements) {
             txt = txt.replace('{' + k + '}', replacements[k]);
