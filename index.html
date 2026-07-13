@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.466";
+                content: "Ver.1.467";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.466</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.467</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1830,7 +1830,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.466
+ * ぴよ氏の冒険 v1.467
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2388,7 +2388,7 @@ var gameSettings = {
             // ── ログインボーナス ──
             if (typeof parsed.loginStreak === 'number') gameSettings.loginStreak = parsed.loginStreak;
             if (typeof parsed.lastLoginDate === 'string') gameSettings.lastLoginDate = parsed.lastLoginDate;
-            if (Array.isArray(parsed.pendingStockItems)) gameSettings.pendingStockItems = parsed.pendingStockItems;
+            if (Array.isArray(parsed.pendingStockItems)) gameSettings.pendingStockItems = parsed.pendingStockItems.filter(function(x) { return typeof x === 'string'; });
             if (typeof parsed.lastLoginTimestamp === 'number') gameSettings.lastLoginTimestamp = parsed.lastLoginTimestamp;
             if (Array.isArray(parsed.loginBonusHistory)) gameSettings.loginBonusHistory = parsed.loginBonusHistory;
             // ── デイリーミッション ──
@@ -2444,7 +2444,7 @@ var gameSettings = {
             }
             // ── まほうのポーチ（永続ストック）──
             if (typeof parsed.pouchLevel === 'number') gameSettings.pouchLevel = parsed.pouchLevel;
-            if (Array.isArray(parsed.permaStock)) gameSettings.permaStock = parsed.permaStock;
+            if (Array.isArray(parsed.permaStock)) gameSettings.permaStock = parsed.permaStock.filter(function(x) { return typeof x === 'string'; });
             // ── 通報済み名のローカル非表示リスト（文字列のみ・上限50に無害化）──
             if (Array.isArray(parsed.reportedNames)) gameSettings.reportedNames = parsed.reportedNames.filter(function(n) { return typeof n === 'string'; }).slice(-50);
 
@@ -2461,6 +2461,24 @@ var gameSettings = {
             }
             if (!isFinite(gameSettings.savings) || gameSettings.savings < 0) gameSettings.savings = 0;
             if (!isFinite(gameSettings.goldenEggs) || gameSettings.goldenEggs < 0) gameSettings.goldenEggs = 0;
+            // その他の数値フィールドも savings/goldenEggs と同じ規律で無害化（NaN/Infinity/負→0）。∞/NaN の画面表示や
+            // クールダウン/ストリーク破損（loginStreak が NaN だと報酬index参照でクラッシュ）を防ぐ。正常値は不変・監査LOW。
+            var _hn = function(v) { return (typeof v === 'number' && isFinite(v) && v >= 0) ? v : 0; };
+            gameSettings.loginStreak = Math.min(7, Math.floor(_hn(gameSettings.loginStreak)));
+            gameSettings.lastLoginTimestamp = _hn(gameSettings.lastLoginTimestamp);
+            gameSettings.loginPassExpiry = _hn(gameSettings.loginPassExpiry);
+            gameSettings.lastGoldenEggTimestamp = _hn(gameSettings.lastGoldenEggTimestamp);
+            gameSettings.tshopAdCooldown = _hn(gameSettings.tshopAdCooldown);
+            if (gameSettings.dailyMissions) {
+                var _dm = gameSettings.dailyMissions;
+                _dm.plays = _hn(_dm.plays); _dm.distance = _hn(_dm.distance); _dm.kills = _hn(_dm.kills);
+                _dm.coins = _hn(_dm.coins); _dm.boss = _hn(_dm.boss); _dm.special = _hn(_dm.special); _dm.ts = _hn(_dm.ts);
+            }
+            if (gameSettings.achievementStats) {
+                var _as = gameSettings.achievementStats;
+                _as.totalKills = _hn(_as.totalKills); _as.totalDistance = _hn(_as.totalDistance);
+                _as.totalPlays = _hn(_as.totalPlays); _as.bestDistance = _hn(_as.bestDistance); _as.ts = _hn(_as.ts);
+            }
             if (typeof parsed.tutorialSeen === 'boolean') gameSettings.tutorialSeen = parsed.tutorialSeen;
             if (typeof parsed.tutorialCleared === 'boolean') gameSettings.tutorialCleared = parsed.tutorialCleared;
             // adFree復元: 購入済みなら常にtrue

@@ -407,6 +407,7 @@ var PIPE_ANIM_MOVE = 30;  // 沈む/上昇のフレーム数（66px≒0.5秒）
 
 function enterPipeRoom(targetPipe) { // 公開API（下スワイプ/キーボード↓から）。targetPipe省略時は土管上に立っている前提
     if (pipeRoomState.active || pipeRoomState.visited || pipeRoomState.anim !== 'none') return;
+    if (gameState.specialCutinTimer > 0) return; // 必殺カットイン中は入室しない（カットインが凍結し演出が飛ぶのを防ぐ。activateSpecialMoveと対称・監査LOW）
     var pipe = (targetPipe && targetPipe.type === 'pipe') ? targetPipe : getEnterablePipe();
     if (!pipe) return;
     pipeRoomState.visited = true;               // 演出開始時点で消費（多重開始・再入場防止）

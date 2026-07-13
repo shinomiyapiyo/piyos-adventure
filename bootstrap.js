@@ -330,18 +330,25 @@ function bindTapDelegate(container, attrName, handler) {
 
     // ─ 画面全体の上スワイプ検出（ショップ入店用） ─
     // デッドゾーン・ジャンプエリアでも上スワイプで入店できるように
-    var shopSwipeStartY = 0, shopSwipeStartTime = 0;
+    var shopSwipeStartY = 0, shopSwipeStartTime = 0, shopSwipeStartId = -1;
     var gameContainer = document.getElementById('gameContainer');
     gameContainer.addEventListener('touchstart', function(e) {
         if (tutorialHintsActive) dismissTutorialHints(); // 初回ヒントは最初の操作で消す
         if (!gameState.gameStarted || gameState.gamePaused) return;
-        shopSwipeStartY = e.touches[0].clientY;
+        // 今この touchstart で触れた指を追跡。e.touches[0]（画面で最初の指）だと、ジャンプ長押し中は
+        // ジャンプ指を誤参照してスワイプ入店が成立しない（移動系のv1.459と同型のバグ・監査LOW）。
+        var st = e.changedTouches[0];
+        shopSwipeStartId = st.identifier;
+        shopSwipeStartY = st.clientY;
         shopSwipeStartTime = Date.now();
     }, { passive: true });
     gameContainer.addEventListener('touchmove', function(e) {
         if (!gameState.gameStarted || gameState.gamePaused) return;
         if (pipeRoomState.active) return;
-        var touch = e.touches[0];
+        // touchstartで記録した指だけを見る（gameContainerは全指を含むので targetTouches では絞れない）
+        var touch = null;
+        for (var _ti = 0; _ti < e.touches.length; _ti++) { if (e.touches[_ti].identifier === shopSwipeStartId) { touch = e.touches[_ti]; break; } }
+        if (!touch) return;
         var dy = touch.clientY - shopSwipeStartY;
         var dt = Date.now() - shopSwipeStartTime;
         if (dt >= 500 || shopSwipeStartY === 0) return;
@@ -531,13 +538,24 @@ document.addEventListener('touchmove', function(e) {
     if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen, #titleMenuScreen')) return;
     e.preventDefault();
 }, { passive: false });
+
+// 割り込み由来の自動ポーズ（フォーカス喪失/縦向き）。pauseGame() は画面遷移クールダウン(300ms)で弾かれ得るため、
+// 直接ポーズ状態にして確実に止める。ラン開始/再開の直後に背景化すると「止まらず生存→復帰時に被弾」になる問題を防ぐ（監査M-13/LOW）。再開は通常のポーズ画面から。
+function pauseForInterrupt() {
+    if (!gameState.gameStarted || gameState.gamePaused) return;
+    gameState.gamePaused = true;
+    var ps = document.getElementById('pauseScreen'); if (ps) ps.classList.remove('hidden');
+    var pb = document.getElementById('pauseButton'); if (pb) pb.innerHTML = _ic('icon_play.png');
+    if (typeof updateStockUI === 'function') updateStockUI();
+}
+
 // フォーカス喪失(タブ非表示/別窓/OS)時は、押しっぱなしの入力を必ずクリアしてから自動ポーズ。
 // フォーカス喪失中に離したキーの keyup が届かず、再開後に「走りっぱなし」になるのを防ぐ（監査M-4）。
-// pauseGame は遷移クールダウンで弾かれ得るため、入力クリアはポーズ成否と独立に実行する。
+// pauseForInterrupt は遷移クールダウンを迂回して確実にポーズする（監査M-13）。
 document.addEventListener('visibilitychange', function() {
     if (document.hidden && gameState.gameStarted) {
         if (typeof clearHeldInput === 'function') clearHeldInput();
-        if (!gameState.gamePaused) pauseGame();
+        pauseForInterrupt();
     } else if (!document.hidden) {
         // 復帰時にWebAudioを再開（バックグラウンドでOSがsuspend→SE無音化の対策。監査LOW）
         if (soundManager && soundManager.ctx && soundManager.ctx.state !== 'running' && gameSettings.soundEnabled) {
@@ -548,7 +566,7 @@ document.addEventListener('visibilitychange', function() {
 window.addEventListener('blur', function() {
     if (gameState.gameStarted) {
         if (typeof clearHeldInput === 'function') clearHeldInput();
-        if (!gameState.gamePaused) pauseGame();
+        pauseForInterrupt();
     }
 });
 
