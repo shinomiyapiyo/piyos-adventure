@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.462";
+                content: "Ver.1.463";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.462</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.463</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1830,7 +1830,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.462
+ * ぴよ氏の冒険 v1.463
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3959,6 +3959,16 @@ function resetGame() {
     document.getElementById('startMessage').style.display = 'block';
 
     if (soundManager) { try { soundManager.playBGM('title'); } catch (_) {} }
+}
+
+// ラン中断時(フォーカス喪失/縦向き)に押しっぱなしの入力をクリア。フォーカス喪失中に離したキーや、
+// OSに奪われたタッチの keyup/touchend が届かず、再開後に「走りっぱなし/ジャンプ固着」になるのを防ぐ（監査M-4）。
+function clearHeldInput() {
+    if (!gameState || !gameState.input) return;
+    gameState.input.left = false; gameState.input.right = false;
+    gameState.input.jump = false; gameState.input.jumpPressed = false;
+    gameState.input.up = false; gameState.input.down = false;
+    gameState.downSwipeActive = false; gameState.downSwipeTimer = 0;
 }
 
 function pauseGame() {

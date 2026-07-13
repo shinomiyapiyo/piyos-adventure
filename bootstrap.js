@@ -281,19 +281,35 @@ function bindTapDelegate(container, attrName, handler) {
         handleSwipeDown(touch);
         if (!moveSwiped) updateMoveFromTouch(touch);
     }
+    // touchend/touchcancel 後も L/R エリア上に指が残っていれば、その指で方向を再判定する。
+    // 従来は両方向を無条件クリア → 2本指で方向を切り替え中に片方を離すと、残っている指の方向
+    // まで消え、静止した指では touchmove が出ず復帰せず停止していた（監査M-3）。
+    function remainingMoveTouch(e) {
+        var rL = leftArea.getBoundingClientRect(), rR = rightArea.getBoundingClientRect();
+        for (var i = 0; i < e.touches.length; i++) {
+            var tx = e.touches[i].clientX, ty = e.touches[i].clientY;
+            if ((tx >= rL.left && tx <= rL.right && ty >= rL.top && ty <= rL.bottom) ||
+                (tx >= rR.left && tx <= rR.right && ty >= rR.top && ty <= rR.bottom)) return e.touches[i];
+        }
+        return null;
+    }
     function onMoveEnd(e) {
         e.preventDefault();
+        var rem = remainingMoveTouch(e);
+        if (rem) { moveSwiped = false; updateMoveFromTouch(rem); return; } // 残った指の方向を維持
         highlightControl(null);
         gameState.input.left = false; gameState.input.right = false;
     }
 
-    // ─ 左・右エリア: 指スライドで左右切替 ─
+    // ─ 左・右エリア: 指スライドで左右切替 ─（touchcancel=OS割込みで指が奪われた時も必ず解除。監査M-2）
     leftArea.addEventListener('touchstart', onMoveStart);
     leftArea.addEventListener('touchmove',  onMoveMove);
     leftArea.addEventListener('touchend',   onMoveEnd);
+    leftArea.addEventListener('touchcancel', onMoveEnd);
     rightArea.addEventListener('touchstart', onMoveStart);
     rightArea.addEventListener('touchmove',  onMoveMove);
     rightArea.addEventListener('touchend',   onMoveEnd);
+    rightArea.addEventListener('touchcancel', onMoveEnd);
 
     // ─ ジャンプエリア（右側） ─
     jumpArea.addEventListener('touchstart', function(e) {
@@ -302,11 +318,15 @@ function bindTapDelegate(container, attrName, handler) {
         if (ctrlJump) ctrlJump.classList.add('active');
         gameState.input.jump = true;
     });
-    jumpArea.addEventListener('touchend', function(e) {
+    // touchend と touchcancel(OS割込み)の両方でジャンプ解除。touchcancelを拾わないと、長押し
+    // ジャンプ中にOS割込みで input.jump が true 固着し、以後 jumpJustPressed が発火せずジャンプ不可になる（監査M-2）。
+    function onJumpEnd(e) {
         e.preventDefault();
         if (ctrlJump) ctrlJump.classList.remove('active');
         gameState.input.jump = false;
-    });
+    }
+    jumpArea.addEventListener('touchend', onJumpEnd);
+    jumpArea.addEventListener('touchcancel', onJumpEnd);
 
     // ─ 画面全体の上スワイプ検出（ショップ入店用） ─
     // デッドゾーン・ジャンプエリアでも上スワイプで入店できるように
@@ -511,11 +531,20 @@ document.addEventListener('touchmove', function(e) {
     if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen, #titleMenuScreen')) return;
     e.preventDefault();
 }, { passive: false });
+// フォーカス喪失(タブ非表示/別窓/OS)時は、押しっぱなしの入力を必ずクリアしてから自動ポーズ。
+// フォーカス喪失中に離したキーの keyup が届かず、再開後に「走りっぱなし」になるのを防ぐ（監査M-4）。
+// pauseGame は遷移クールダウンで弾かれ得るため、入力クリアはポーズ成否と独立に実行する。
 document.addEventListener('visibilitychange', function() {
-    if (document.hidden && gameState.gameStarted && !gameState.gamePaused) pauseGame();
+    if (document.hidden && gameState.gameStarted) {
+        if (typeof clearHeldInput === 'function') clearHeldInput();
+        if (!gameState.gamePaused) pauseGame();
+    }
 });
 window.addEventListener('blur', function() {
-    if (gameState.gameStarted && !gameState.gamePaused) pauseGame();
+    if (gameState.gameStarted) {
+        if (typeof clearHeldInput === 'function') clearHeldInput();
+        if (!gameState.gamePaused) pauseGame();
+    }
 });
 
 // ─── 初期化 ───
