@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.463";
+                content: "Ver.1.464";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.463</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.464</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1830,7 +1830,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.463
+ * ぴよ氏の冒険 v1.464
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -5345,8 +5345,11 @@ function updatePlayer() {
         // 着地判定: 前フレームで足がプラットフォーム上端以上にあったか
         var prevFeetY = player.y + player.height - player.velY;
         var landingFromAbove = player.velY > 0 && prevFeetY <= p.y + 4;
+        // 動く床の着地は「上から接近した時のみ」に統一（監査M-1）。旧 player.y<p.y の"またぎ"判定だと、
+        // 真下からジャンプで頭だけ上端を越えた瞬間(足は未通過=飛距離不足)でも吸着でき、片側通行則を破っていた。
+        // prevFeetY<=p.y+6 ＝ 前フレームで足が上端以上（6px猶予で、下降してくる床が乗っている人を拾う分は維持）。
         var movingPlatLand = p.special === 'moving' && player.velY >= 0 &&
-            player.y + player.height > p.y && player.y < p.y;
+            prevFeetY <= p.y + 6 && player.y + player.height > p.y;
 
         if (landingFromAbove || movingPlatLand) {
             // バネ足場: 空中から落下着地 + プレイヤー中心がバネ中央付近にある時のみ発動

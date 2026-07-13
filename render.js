@@ -654,13 +654,11 @@ var EFFECT_RENDERERS = {
             rpA *= 0.9;
             ctx.save();
             ctx.globalAlpha = rpA;
-            ctx.shadowColor = 'rgba(255,215,0,0.6)';
-            ctx.shadowBlur = 6;
+            // shadowBlur 撤去（監査M-5・モバイルで最も重い描画。復活演出の粒子も explosion と同様に glow なしで十分）。
             ctx.fillStyle = 'rgba(255,' + (200 + Math.floor(Math.random() * 55)) + ',0,1)';
             ctx.beginPath();
             ctx.arc(ef.worldX, ef.worldY, ef.size * (1 - progress * 0.4), 0, Math.PI * 2);
             ctx.fill();
-            ctx.shadowBlur = 0;
             ctx.restore();
         },
     heart_particle: function(ef, wx, progress) {
@@ -706,13 +704,12 @@ var EFFECT_RENDERERS = {
             epA *= 0.9;
             ctx.save();
             ctx.globalAlpha = epA;
-            ctx.shadowColor = 'hsl(' + ef.hue + ',100%,60%)';
-            ctx.shadowBlur = 6;
+            // shadowBlur はモバイルで最も重い Canvas2D 描画。コンボ/ボス撃破時に大量の粒子×毎フレームで
+            // フレーム落ちの主因だったため撤去（監査M-5）。フェードする小ドットに glow はほぼ見えない。
             ctx.fillStyle = 'hsl(' + ef.hue + ',100%,60%)';
             ctx.beginPath();
             ctx.arc(ef.worldX, ef.worldY, ef.size * (1 - progress * 0.5), 0, Math.PI * 2);
             ctx.fill();
-            ctx.shadowBlur = 0;
             ctx.restore();
         },
     explosion_flash: function(ef, wx, progress) {
