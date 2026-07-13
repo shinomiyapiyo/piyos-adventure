@@ -523,34 +523,4 @@ function zukanProgress(cat) {
     return { seen: seen, total: total };
 }
 
-// ─── デバッグモード ───
-var debugMode = false;
-var debugTapCount = 0;
-var debugTapTimer = 0;
-
-function handleDebugTap() {
-    var now = Date.now();
-    if (now - debugTapTimer > 3000) debugTapCount = 0; // 3秒リセット
-    debugTapCount++;
-    debugTapTimer = now;
-    if (debugTapCount >= 10) {
-        debugTapCount = 0;
-        debugMode = !debugMode;
-        if (debugMode) {
-            gameState.lives = 99;
-            gameState.score = 50000;
-            gameState.rankScore = 50000;
-            gameSettings.goldenEggs = 50; // エッグこうかんの動作チェック用（永続保存に書く点に注意）
-            saveSettings();
-        } else {
-            gameState.lives = 5;
-            // お金(score)とゴールデンエッグはお店/交換所の動作チェックのため保持する（0にしない）
-            gameState.rankScore = 0; // ランキング用スコアだけは水増しデバッグ値を残さず0に戻す
-        }
-        // ポーズタイトルに状態表示
-        var titleEl = document.getElementById('pauseTitle');
-        if (titleEl) {
-            titleEl.innerHTML = debugMode ? 'DEBUG MODE ON' : t('pause_title');
-        }
-    }
-}
+// （デバッグモードはネイティブ提出前に撤去済み — Ver.1.461）

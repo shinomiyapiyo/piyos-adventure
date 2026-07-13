@@ -452,69 +452,7 @@ function bindTapDelegate(container, attrName, handler) {
         if (e.target === document.getElementById('pauseScreen')) pauseGame();
     });
 
-    // ─ デバッグモード: ポーズタイトルを3秒以内に10回タップ ─
-    var pauseTitleEl = document.getElementById('pauseTitle');
-    pauseTitleEl.addEventListener('touchend', function(e) {
-        e.preventDefault(); e.stopPropagation();
-        handleDebugTap();
-    });
-    pauseTitleEl.addEventListener('click', function(e) {
-        e.stopPropagation();
-        handleDebugTap();
-    });
-
-    // ─ デバッグ: ボス戦即開始ボタン ─
-    function triggerDebugBoss() {
-        if (bossState.active || bossState.bossTriggered) return;
-        bossState.bossTriggered = true;
-        bossState.active = true;
-        bossState.phase = 1;
-        bossState.warningTimer = BOSS_WARNING_DURATION;
-        if (soundManager) soundManager.playBossWarning();
-    }
-    // BOSS FIGHTボタン（DOM版）クリック/タッチハンドラ
-    var debugBossBtnEl = document.getElementById('debugBossBtn');
-    if (debugBossBtnEl) {
-        debugBossBtnEl.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (debugMode && gameState.gameStarted && !gameState.gamePaused) triggerDebugBoss();
-        });
-        debugBossBtnEl.addEventListener('touchend', function(e) {
-            e.preventDefault(); e.stopPropagation();
-            if (debugMode && gameState.gameStarted && !gameState.gamePaused) triggerDebugBoss();
-        });
-    }
-
-    // SHOP WARPボタン（デバッグ用：ショップ出現地点にワープ）
-    var debugShopBtnEl = document.getElementById('debugShopBtn');
-    if (debugShopBtnEl) {
-        function triggerDebugShopWarp() {
-            if (!debugMode || !gameState.gameStarted || gameState.gamePaused) return;
-            if (bossState.active || shopState.active) return;
-            // ボス出現の200m手前（≒2200m・初回ラン圧縮中は連動して手前）にワープ
-            var targetDist = bossDistanceFor(gameRound) - 200;
-            var warpDelta = targetDist - gameState.distance;
-            if (warpDelta > 0) {
-                gameState.camera.x += warpDelta * 10;
-                gameState.distance = targetDist;
-                player.x = gameState.camera.x + 150;
-            }
-            // ワープ時に即座にショップ建物を配置
-            if (!shopState.buildingPlaced) {
-                var bossDistance = bossDistanceFor(gameRound);
-                shopState.buildingPlaced = true;
-                shopState.buildingX = (bossDistance - SHOP_BUILDING_OFFSET) * 10;
-            }
-        }
-        debugShopBtnEl.addEventListener('click', function(e) {
-            e.stopPropagation();
-            triggerDebugShopWarp();
-        });
-        debugShopBtnEl.addEventListener('touchend', function(e) {
-            e.preventDefault(); e.stopPropagation();
-            triggerDebugShopWarp();
-        });
-    }
+    // （デバッグモードの配線=ポーズタイトル連打/BOSS FIGHT/SHOP WARP はネイティブ提出前に撤去済み — Ver.1.461）
 
     window.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { e.preventDefault(); pauseGame(); return; }

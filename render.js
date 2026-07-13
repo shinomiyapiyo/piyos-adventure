@@ -2658,28 +2658,7 @@ function render() {
         ctx.restore();
     }
 
-    // ─── デバッグモード表示 ───
-    // デバッグボタン表示切り替え（DOM版）
-    var bossBtn = document.getElementById('debugBossBtn');
-    if (bossBtn) {
-        bossBtn.style.display = (debugMode && !bossState.active && gameState.gameStarted && !gameState.gamePaused) ? 'block' : 'none';
-    }
-    var shopWarpBtn = document.getElementById('debugShopBtn');
-    if (shopWarpBtn) {
-        shopWarpBtn.style.display = (debugMode && !bossState.active && !shopState.active && gameState.gameStarted && !gameState.gamePaused) ? 'block' : 'none';
-    }
-    if (debugMode) {
-        var dbX = 8, dbY = GAME_HEIGHT - 28;
-        ctx.save();
-        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameState.time * 0.15);
-        ctx.fillStyle = 'rgba(255,50,50,0.75)';
-        ctx.beginPath(); ctx.roundRect(dbX, dbY, 110, 22, 4); ctx.fill();
-        ctx.font = "bold 12px 'DotGothic16', monospace";
-        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#fff';
-        ctx.fillText('DEBUG MODE', dbX + 6, dbY + 11);
-        ctx.restore();
-    }
+    // （デバッグモード表示はネイティブ提出前に撤去済み — Ver.1.461）
 
     if (gameState.speedUpNotification) {
         var a = Math.min(1.0, gameState.speedUpNotificationTimer / 30);
