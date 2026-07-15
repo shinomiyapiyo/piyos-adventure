@@ -240,14 +240,14 @@ function runActiveSkin() {
 var TUTORIAL_SCRIPT = [
     { atM: 10,  key: 'tut_welcome',   dur: 300 },
     { atM: 50,  key: 'tut_move',      dur: 240 },
-    { atM: 100, key: 'tut_jump',      dur: 300, gate: 'jump' },   // 穴150m: 穴と先の地面が両方見えてから停止
-    { atM: 220, key: 'tut_stomp',     dur: 330, spawn: 'chick', gate: 'stomp' }, // 湧きと同時に案内＝踏むまで停止
+    { atM: 100, key: 'tut_jump',      dur: 300, gate: 'jump',  doneKey: 'tut_jump_done' },   // 穴150m: 穴と先の地面が両方見えてから停止
+    { atM: 220, key: 'tut_stomp',     dur: 330, spawn: 'chick', gate: 'stomp', doneKey: 'tut_stomp_done' }, // 湧きと同時に案内＝踏むまで停止
     { atM: 295, key: 'tut_coin',      dur: 300 },                 // コイン列340m〜
-    { atM: 400, key: 'tut_stock',     dur: 330, gate: 'stock' },  // おためしバリアを使うまで停止
+    { atM: 400, key: 'tut_stock',     dur: 330, gate: 'stock', doneKey: 'tut_stock_done' },  // おためしバリアを使うまで停止
     { atM: 465, key: 'tut_pipe',      dur: 420 },                 // 土管530m: 近づいたら案内
-    { atM: 490, key: 'tut_pipe',      dur: 420, gate: 'pipe' },   // 入るまで停止（歩いて届く距離）
+    { atM: 490, key: 'tut_pipe',      dur: 420, gate: 'pipe',  doneKey: 'tut_pipe_done' },   // 入るまで停止（歩いて届く距離）
     { atM: 585, key: 'tut_shop',      dur: 300 },                 // おみせ640m: 近づいたら案内
-    { atM: 610, key: 'tut_shop',      dur: 420, gate: 'shop' },   // 入店するまで停止（ドア649mが画面内・歩いて届く距離）
+    { atM: 610, key: 'tut_shop',      dur: 420, gate: 'shop',  doneKey: '' },   // 入店するまで停止（ドア649m）。事前入店なら褒めを出さない＝退店後の重複テロップ防止（ユーザー指摘）
     { atM: 700, key: 'tut_boss_warn', dur: 240 }
 ];
 

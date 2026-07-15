@@ -104,8 +104,10 @@ function updateTutorial() {
         var st = TUTORIAL_SCRIPT[tutorialState.stepIdx++];
         // テロップが出るより先に課題をクリア済みなら、ゲートを張らず褒めるだけ（1.446・クランプ緩和で先取り可能に）
         var preCleared = st.gate ? tutorialGatePreCleared(st.gate) : false;
-        tutorialState.hintKey = preCleared ? 'tut_already_done' : st.key;
-        tutorialState.hintTimer = st.dur;
+        // 事前クリア時はゲート別の具体的な褒め(doneKey)を表示。doneKey='' の課題(ショップ等)は褒めを出さない。
+        // ＝汎用「もうできてましたね」を「もうジャンプをマスターしましたね」等に、ショップ退店後の重複テロップも抑止（ユーザー指摘）。
+        tutorialState.hintKey = preCleared ? (st.doneKey !== undefined ? st.doneKey : 'tut_already_done') : st.key;
+        tutorialState.hintTimer = tutorialState.hintKey ? st.dur : 0;
         if (st.slow && !preCleared) tutorialState.slowTimer = 150; // 2.5秒だけゆっくり＝読んで構えられる
         if (st.spawn === 'chick' && !preCleared) enemies.push(tutorialChick());
         if (st.gate && !preCleared) { // 達成待ちゲート開始（1.427）: その行動を実行するまで世界停止
