@@ -2482,7 +2482,8 @@ function setupBossArena() {
         bossState.boss.y = GROUND_Y - BOSS_HEIGHT - 80;
     }
     if (tutorialState.active && bossState.boss.kind === 'rooster') bossState.boss.hiyoko = true; // ひよこ大王（見た目/図鑑だけ専用・AIはニワトリ）
-    markZukanSeen(bossState.boss.hiyoko ? 'boss:hiyoko' : 'boss:' + bossState.boss.kind); // ずかん: ボス遭遇を発見
+    // ずかん: ボスは「撃破時のみ」登録する（zukanAddKill・ボス撃破報酬ブロック内）。倒していないのに図鑑に載る/コンプできるのは
+    // 設計ミスのため、遭遇時の登録は撤去（1.474・ユーザー指摘）。チュートリアルは死なず ひよこ大王に必ず勝てる＝確実に登録される。
     bossState.phase = 2; // entering
     bossState.summonTimer = BOSS_SUMMON_INTERVAL;
     bossState.itemSpawnTimer = 480; // ボス戦アイテム初回出現まで8秒（ショップ導入で抑制）
