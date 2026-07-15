@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.467";
+                content: "Ver.1.468";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.467</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.468</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1830,7 +1830,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.467
+ * ぴよ氏の冒険 v1.468
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3291,6 +3291,8 @@ var NG_WORDS = [
     'くたばれ','ちょん','チョン','にがー',
     'かたわ','カタワ','めくら','つんぼ','おし',
     'ぶらく','えた','ひにん',
+    // ── 日本語：性的指向・性自認への蔑称（正規化後の部分一致。カタカナ/半角カナ入力も捕捉。長音ーはNG語側に書かない） ──
+    'ほも','おかま','れず','げい',
     // ── 日本語：暴言・侮辱（強度の高いもの） ──
     'くそやろう','くそがき','きもい','キモい','しねよ','くず','カス',
     'ばか','バカ','あほ','アホ','うんこ','ウンコ','うんち',
@@ -3303,6 +3305,7 @@ var NG_WORDS = [
     // ── 英語：差別・ヘイト ──
     'nigger','nigga','faggot','fag','retard','chink','spic',
     'kike','cunt','whore','slut','bitch',
+    'homo','tranny','shemale','dyke',
     // ── 英語：暴力 ──
     'kill you','die','murder',
     // ── 英語：なりすまし ──
