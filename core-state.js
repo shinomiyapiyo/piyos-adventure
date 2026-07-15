@@ -454,6 +454,8 @@ var ZUKAN_ENTRIES = [
     // ── アイテム：きせかえ（所持から発見を派生）──
     { id: 'item:skin_maid',     cat: 'item', nameKey: 'skin_maid',     descKey: 'zukan_i_skin_maid_d',   img: 'images/skin_maid_idle.png',     seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('maid') >= 0; } },
     { id: 'item:skin_kigurumi', cat: 'item', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc', img: 'images/skin_kigurumi_idle.png', seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('kigurumi') >= 0; } },
+    { id: 'item:skin_ninja',    cat: 'item', nameKey: 'skin_ninja',    descKey: 'egg_item_ninja_desc',  img: 'images/skin_ninja_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('ninja') >= 0; } },
+    { id: 'item:skin_witch',    cat: 'item', nameKey: 'skin_witch',    descKey: 'egg_item_witch_desc',  img: 'images/skin_witch_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('witch') >= 0; } },
     // ── ステージ（バイオーム＋ボーナス部屋）──
     { id: 'biome:grassland', cat: 'biome', nameKey: 'zukan_bio_grass',  descKey: 'zukan_bio_grass_d' },
     { id: 'biome:desert',    cat: 'biome', nameKey: 'zukan_bio_desert', descKey: 'zukan_bio_desert_d' },
