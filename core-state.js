@@ -247,7 +247,7 @@ var TUTORIAL_SCRIPT = [
     { atM: 465, key: 'tut_pipe',      dur: 420 },                 // 土管530m: 近づいたら案内
     { atM: 490, key: 'tut_pipe',      dur: 420, gate: 'pipe',  doneKey: 'tut_pipe_done' },   // 入るまで停止（歩いて届く距離）
     { atM: 585, key: 'tut_shop',      dur: 300 },                 // おみせ640m: 近づいたら案内
-    { atM: 610, key: 'tut_shop',      dur: 420, gate: 'shop',  doneKey: '' },   // 入店するまで停止（ドア649m）。事前入店なら褒めを出さない＝退店後の重複テロップ防止（ユーザー指摘）
+    { atM: 610, key: 'tut_shop',      dur: 420, gate: 'shop',  doneKey: 'tut_shop_done' },   // 入店するまで停止（ドア649m）。事前入店時も他課題と同様に具体文言で褒める（汎用「もうできてましたね」は使わない・ユーザー指摘）
     { atM: 700, key: 'tut_boss_warn', dur: 240 }
 ];
 
