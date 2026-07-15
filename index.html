@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.474";
+                content: "Ver.1.475";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.474</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.475</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1830,7 +1830,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.474
+ * ぴよ氏の冒険 v1.475
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -2346,7 +2346,7 @@ function showUrlChangeNotice() {
 
 // ─── ゲーム設定 (localStorage永続化) ───
 var gameSettings = {
-    dataVersion: 2,    // セーブデータ構造バージョン（将来の移行処理用）
+    dataVersion: 3,    // セーブデータ構造バージョン（移行処理用。v3=1.474: ボス遭遇のみseenを撃破済み扱いへ）
     soundEnabled: true, language: 'ja', adFree: false, savings: 0, upgrades: {},
     tutorialSeen: false,   // 初回チュートリアル（操作カード）を表示済みか
     tutorialCleared: false, // チュートリアル「はじまりの地」クリア済みか（クリアまで新規は毎回チュートリアル）
@@ -2441,6 +2441,16 @@ var gameSettings = {
                 if (parsed.zukan.kills && typeof parsed.zukan.kills === 'object') gameSettings.zukan.kills = parsed.zukan.kills;
                 if (parsed.zukan.new && typeof parsed.zukan.new === 'object') gameSettings.zukan.new = parsed.zukan.new;
                 if (parsed.zukan.claimed && typeof parsed.zukan.claimed === 'object') gameSettings.zukan.claimed = parsed.zukan.claimed;
+            }
+            // ── セーブ移行 v3（1.474・一度きり）: 旧仕様で「遭遇済み(seen)」だが撃破数0のボスを「撃破済み(kills=1)」扱いにする。
+            //    ボスは1.474で撃破時のみ登録＝seenとkillsが常に同期するため、旧セーブの"遭遇のみ"ボスを新方式へ合わせる（ユーザー指示）。
+            //    敵/アイテムは従来から撃破/取得時登録のため対象外。撃破済み(kills>0)のボスは不変。
+            if (savedDataVersion < 3 && gameSettings.zukan && gameSettings.zukan.seen && gameSettings.zukan.kills) {
+                var _zSeen = gameSettings.zukan.seen, _zKills = gameSettings.zukan.kills, _bossMigrated = false;
+                for (var _bid in _zSeen) {
+                    if (_bid.indexOf('boss:') === 0 && _zSeen[_bid] && !(_zKills[_bid] > 0)) { _zKills[_bid] = 1; _bossMigrated = true; }
+                }
+                if (_bossMigrated) saveSettings(); // dataVersion=3(既定)＋killsを永続化＝次回以降は本移行をスキップ
             }
             // ── まほうのポーチ（永続ストック）──
             if (typeof parsed.pouchLevel === 'number') gameSettings.pouchLevel = parsed.pouchLevel;
