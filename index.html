@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.472";
+                content: "Ver.1.473";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.472</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.473</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1830,7 +1830,7 @@
 <script src="audio.js"></script>
 <script>
 /* ============================================================
- * ぴよ氏の冒険 v1.472
+ * ぴよ氏の冒険 v1.473
  * © 2026 Created by NullPo Works
  * ============================================================ */
 
@@ -3803,7 +3803,9 @@ function startGame() {
     buildPermaSlots();
     var _tsb = document.getElementById('tutorialSkipBtn');
     if (_tsb) {
-        _tsb.style.display = tutorialState.active ? 'block' : 'none';
+        // スキップは設定からの再プレイ時(forced)のみ表示。初回の必須チュートリアルはスキップ不可にして、
+        // ボス「ひよこ大王」に必ず到達＝boss:hiyoko を図鑑へ確実に登録する（ユーザー選択1.473・チュートリアルは死なない＋ゲートに保険があり詰みなし）。
+        _tsb.style.display = (tutorialState.active && tutorialState.forced) ? 'block' : 'none';
         _tsb.textContent = t('tut_skip');
     }
     // 初回ランのおためしストック（Phase3 案B-1）: バリア1個を配布して
