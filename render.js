@@ -1491,7 +1491,9 @@ function drawPlatform(p) {
         ctx.restore();
         return;
     }
-    var pBiome = getBiomeIndex(gameState.distance);
+    // ボス戦中は夜(3)固定＝ブロックも通常タイル(platform_ground/cloud・夜パレット)にして地面/背景と揃える
+    // （R1は getBiomeIndex が雪山を返し氷ブロックになってしまうため）
+    var pBiome = bossState.active ? BOSS_BIOME : getBiomeIndex(gameState.distance);
     var tileName;
     if (p.type === 'cloud') {
         // 雲足場: バイオーム別カラー（砂漠=茶, 冬=グレー）

@@ -305,4 +305,13 @@ class SoundManager {
         if (!gameSettings.soundEnabled) return;
         this._playSE(this.specialFireSE);
     }
+
+    // ─── バックグラウンド/ATT/広告からの復帰: 音を確実に戻す ───
+    // iOSは前面を離れるとHTML5のBGMを一時停止し、AudioContextもsuspendする。前面復帰やユーザー操作時に両方戻す。
+    resume() {
+        if (!gameSettings.soundEnabled) return;
+        if (this.ctx && this.ctx.state !== 'running') { try { this.ctx.resume(); } catch (_) {} }
+        var b = this.currentBGM;
+        if (b && b.paused && !b.ended) { b.play().then(function(){}).catch(function(){}); }
+    }
 }

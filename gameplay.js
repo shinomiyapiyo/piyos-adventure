@@ -389,14 +389,20 @@ function updatePipeAssist() {
         pipeAssistTimer = 0; pipeAssistPipe = null; return;
     }
     var onPipe = getEnterablePipe();
+    // 消費済みの土管から離れたら used を解除＋減速も終了（同じ土管に再び乗ったら再発動できるように）。
+    // 乗り続けている間は pipeAssistPipe===onPipe なので解除されず＝「乗っている間は1回だけ」が保たれる。
+    if (pipeAssistPipe && pipeAssistPipe !== onPipe) {
+        pipeAssistPipe.assistUsed = false;
+        pipeAssistPipe = null;
+        pipeAssistTimer = 0;
+    }
     if (onPipe && !onPipe.assistUsed && pipeAssistTimer === 0) {
-        onPipe.assistUsed = true; // 1土管1回
+        onPipe.assistUsed = true; // 乗っている間は1回だけ（離れると上のブロックで解除され、再乗車で再発動）
         pipeAssistPipe = onPipe;
         pipeAssistTimer = PIPE_ASSIST_FRAMES;
     }
     if (pipeAssistTimer > 0) {
         pipeAssistTimer--;
-        if (pipeAssistPipe !== onPipe) { pipeAssistTimer = 0; pipeAssistPipe = null; } // 土管から離れたら即解除
     }
 }
 
@@ -2145,7 +2151,8 @@ function stockHasRoom(itemId) {
     // 未割当の永続枠（復活薬など永続化不可品は永続枠に入れられない）
     if (PERMA_STOCK_EXCLUDE.indexOf(itemId) === -1) {
         for (var p = 0; p < stockState.perma.length; p++) {
-            if (!stockState.perma[p].id) return true;
+            // 未割当の空き枠、または今ラン使用済み（表示は空の金枠）の枠には入る余地がある
+            if (!stockState.perma[p].id || stockState.perma[p].used) return true;
         }
     }
     // 通常枠の空き
@@ -2170,14 +2177,24 @@ function convertItemToSavings(itemId) {
 }
 
 function addToStock(itemId) {
-    // ① 未割当の永続枠へ自動割当（復活薬など永続化不可品は除外）→ 毎ラン補充される金枠に定着
+    // ① 永続枠（まほうのポーチ）へ。復活薬など永続化不可品は除外
     if (PERMA_STOCK_EXCLUDE.indexOf(itemId) === -1) {
+        // 1) 未割当の空き枠に自動割当 → 毎ラン補充される金枠に定着（保存）
         for (var p = 0; p < stockState.perma.length; p++) {
             if (!stockState.perma[p].id) {
                 stockState.perma[p] = { id: itemId, used: false };
                 if (!gameSettings.permaStock) gameSettings.permaStock = [];
                 gameSettings.permaStock[p] = itemId;
                 saveSettings();
+                updateStockUI();
+                return true;
+            }
+        }
+        // 2) 今ラン使用済みで空いている枠に「今回かぎり」補充（保存しない＝翌ランは元の永続品に戻り、設定した
+        //    ポーチ内容は保持）。使用済み枠は表示が空の金枠なので「空きなのに拾えず売却」バグの修正。
+        for (var q = 0; q < stockState.perma.length; q++) {
+            if (stockState.perma[q].id && stockState.perma[q].used) {
+                stockState.perma[q] = { id: itemId, used: false };
                 updateStockUI();
                 return true;
             }
@@ -2490,6 +2507,13 @@ function setupBossArena() {
     bossState.flashAttackTimer = 0; // 閃光攻撃タイマー
     bossState.edgeSpawnTimer = 180; // 画面外雑魚スポーンタイマー
     bossState.flyingEdgeSpawnTimer = 240; // 画面外飛行敵スポーンタイマー
+    // ボス戦は常に夜(3)の見た目に固定（R1は砂漠/雪山の境界で凍結し地面=砂漠・ブロック=氷でちぐはぐ＝ユーザー指摘。
+    // R2以降は元々夜なので実質無変化）。地面パレット/背景/ブロックタイル/物理を夜のBOSS_SKYと揃える。撃破後は
+    // updateBiome が通常の遷移で次バイオーム（R1後=雪山）へ戻す。
+    biomeState.previous = biomeState.current = BOSS_BIOME;
+    biomeState.transition = 0;
+    biomeState._lastStep = -1;
+    applyBiomePalette(BOSS_BIOME);
     bgCache = null; // ボス戦背景に切り替え
     if (soundManager) soundManager.playBossBGM();
 }
@@ -3706,8 +3730,8 @@ function gameOver() {
     if (typeof saveSettings === 'function') saveSettings(); // ずかん撃破数など今回ランの記録を確定保存
     if (soundManager) soundManager.playBGM('gameover');
 
-    // 広告表示（インタースティシャル）
-    showAd('interstitial');
+    // インタースティシャルは「死亡毎」ではなくリトライ時(retryGame)に表示する。
+    // 死亡毎だと黒画面が頻発し、直後の復活リワードとも競合するため（ユーザー指摘）。
 
     finalGameStats = {
         score: gameState.rankScore,
@@ -3825,9 +3849,13 @@ function shareResult() {
 
 function retryGame() {
     if (isInTransitionCooldown()) return;
-    hideGameOverScreen();
-    resetGame();
-    startGame();
+    // インタースティシャルはセッションの区切り（リトライ）で表示。広告が閉じてから再開する
+    // （死亡毎の黒画面＆復活リワードとの競合を回避）。広告が無ければ即再開。
+    showAd('interstitial', function () {
+        hideGameOverScreen();
+        resetGame();
+        startGame();
+    });
 }
 
 function goToTitle() {

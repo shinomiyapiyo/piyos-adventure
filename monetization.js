@@ -6,16 +6,142 @@
 // 依存: gameSettings/saveSettings/soundManager/各UI関数 等のグローバルを実行時参照。
 // 読み込み順: スプライト定義の後・ゲーム本体ロジックの前（元の実行順を保持）。
 // ============================================================
-// ─── 広告ブリッジ (Capacitor/ネイティブ側で上書きする) ───
-// showAd(type, callback) : 'interstitial'=インタースティシャル, 'reward'=リワード
-// callback(success) : リワード広告の視聴完了/キャンセルを通知
-// ネイティブ未接続時は何もしない。Capacitor導入時にこの関数をプラグイン呼び出しに差し替える。
-window.showAd = window.showAd || function(type, callback) {
-    if (gameSettings.adFree) { if (callback) callback(true); return; }
-    // stub: ネイティブ広告SDK未接続
-    // リワード広告のstub: 常に成功扱い（テスト用）
-    if (type === 'reward' && callback) callback(true);
-};
+// ─── 広告ブリッジ（AdMob / Capacitor 統合）───
+// showAd(type, callback): 'interstitial'=インタースティシャル(callback不要) / 'reward'=リワード(callback(success))
+//  - ネイティブ(iOS/Android): @capacitor-community/admob を Capacitor.Plugins.AdMob 経由で使用
+//  - Web/PWA: 従来どおりの簡易フォールバック（reward=成功扱い / interstitial=無し）
+//  - gameSettings.adFree（広告非表示を購入済み）は常に広告をスキップして成功扱い
+(function () {
+    var Cap = window.Capacitor;
+    var isNative = !!(Cap && typeof Cap.isNativePlatform === 'function' && Cap.isNativePlatform());
+    var AdMob = (isNative && Cap.Plugins) ? Cap.Plugins.AdMob : null;
+
+    // ★★ リリースビルドでは必ず false（本番の広告ユニットIDを使う）。開発中は true = Googleのテスト広告 ★★
+    var AD_TEST = true;
+
+    // Google公式テスト広告ユニットID（iOS/Android共通で使用可）
+    var TEST_IDS = {
+        interstitial: 'ca-app-pub-3940256099942544/4411468910',
+        reward:       'ca-app-pub-3940256099942544/1712485313'
+    };
+    // 本番の広告ユニットID（プラットフォーム別・AdMobコンソールで発行済み）
+    var PROD_IDS = {
+        ios:     { interstitial: 'ca-app-pub-4148293353679224/7011611961', reward: 'ca-app-pub-4148293353679224/3275426791' },
+        android: { interstitial: 'ca-app-pub-4148293353679224/8133121941', reward: 'ca-app-pub-4148293353679224/7418806070' }
+    };
+    function adUnit(kind) {
+        if (AD_TEST) return TEST_IDS[kind];
+        var plat = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'ios';
+        return (PROD_IDS[plat] || PROD_IDS.ios)[kind];
+    }
+
+    // プラグインのイベント名（@capacitor-community/admob v8）
+    var EV = {
+        interLoaded:   'interstitialAdLoaded',
+        interDismiss:  'interstitialAdDismissed',
+        interFailShow: 'interstitialAdFailedToShow',
+        rewLoaded:     'onRewardedVideoAdLoaded',
+        rewFailLoad:   'onRewardedVideoAdFailedToLoad',
+        rewReward:     'onRewardedVideoAdReward',
+        rewDismiss:    'onRewardedVideoAdDismissed',
+        rewFailShow:   'onRewardedVideoAdFailedToShow'
+    };
+
+    var interReady = false, rewardReady = false;
+    var pendingReward = null;      // 視聴中リワードのcallback（1本のみ・解決で即null）
+    var rewardWantShow = false;    // リワード未ロード時「ロード完了で表示」の予約
+    var pendingInterDone = null;   // インタースティシャルを閉じたら呼ぶ（リトライの順序制御）
+
+    function prepareInterstitial() {
+        if (!AdMob) return;
+        AdMob.prepareInterstitial({ adId: adUnit('interstitial') })
+            .then(function () { interReady = true; })
+            .catch(function () { interReady = false; });
+    }
+    function prepareReward() {
+        if (!AdMob) return;
+        AdMob.prepareRewardVideoAd({ adId: adUnit('reward') })
+            .then(function () { rewardReady = true; })
+            .catch(function () { rewardReady = false; });
+    }
+
+    // リワード結果を「1回だけ」解決。Reward発火＝成功で即解決、Dismiss/失敗は未解決時のみ失敗で解決。
+    // iOSの Reward と Dismiss の発火順に依存せず視聴完了を取りこぼさない（復活が効かない不具合の対策）。
+    function settleReward(result) {
+        var cb = pendingReward;
+        if (!cb) return;
+        pendingReward = null;
+        rewardReady = false;
+        prepareReward();            // 次のリワードを事前ロード
+        cb(result);
+    }
+
+    function initAds() {
+        if (!AdMob) return;
+        // ATT（トラッキング許可ダイアログ）→ 初期化 → 事前ロード。失敗しても広告表示は続行
+        Promise.resolve(AdMob.requestTrackingAuthorization()).catch(function () {})
+            .then(function () { return AdMob.initialize({ initializeForTesting: AD_TEST }); })
+            .then(function () {
+                // 永続リスナー（初期化後に1回だけ登録）
+                AdMob.addListener(EV.rewReward,     function () { settleReward(true); });   // 報酬確定＝即成功
+                AdMob.addListener(EV.rewDismiss,    function () { settleReward(false); });  // 未獲得で閉じた＝失敗（獲得済みなら無視）
+                AdMob.addListener(EV.rewFailShow,   function () { settleReward(false); });
+                AdMob.addListener(EV.rewLoaded,     function () {
+                    rewardReady = true;
+                    // 復活タップ時に未ロードだったら、ロード完了したこの瞬間に表示する
+                    if (rewardWantShow) { rewardWantShow = false; rewardReady = false; AdMob.showRewardVideoAd().catch(function () { settleReward(false); }); }
+                });
+                AdMob.addListener(EV.rewFailLoad,   function () {
+                    rewardReady = false;
+                    if (rewardWantShow) { rewardWantShow = false; settleReward(false); }
+                });
+                AdMob.addListener(EV.interLoaded,   function () { interReady = true; });
+                AdMob.addListener(EV.interDismiss,  function () { interReady = false; prepareInterstitial(); var d = pendingInterDone; pendingInterDone = null; if (d) d(); });
+                AdMob.addListener(EV.interFailShow, function () { interReady = false; prepareInterstitial(); var d = pendingInterDone; pendingInterDone = null; if (d) d(); });
+                prepareInterstitial();
+                prepareReward();
+            })
+            .catch(function () {});
+    }
+
+    // onDone: 広告が閉じた後（または表示できなかった時）に呼ぶ。リトライで「広告→終わってから再開」を順序通りに。
+    function showInterstitial(onDone) {
+        if (!interReady) { prepareInterstitial(); if (onDone) onDone(); return; }
+        interReady = false;
+        pendingInterDone = onDone || null;
+        AdMob.showInterstitial().catch(function () { var d = pendingInterDone; pendingInterDone = null; prepareInterstitial(); if (d) d(); });
+    }
+
+    function showReward(callback) {
+        pendingReward = callback || function () {};
+        if (rewardReady) {
+            rewardReady = false;
+            AdMob.showRewardVideoAd().catch(function () { settleReward(false); });
+            return;
+        }
+        // 未ロード: 準備してロード完了(rewLoaded)で表示。数秒で用意できなければ失敗解決（無音で失敗しない）。
+        rewardWantShow = true;
+        prepareReward();
+        setTimeout(function () { if (rewardWantShow) { rewardWantShow = false; settleReward(false); } }, 6000);
+    }
+
+    window.showAd = function (type, callback) {
+        if (typeof gameSettings !== 'undefined' && gameSettings.adFree) { if (callback) callback(true); return; }
+        if (!AdMob) {
+            // Web/PWA・未統合環境: 広告なしで即続行（interstitial=callback即実行 / reward=成功扱い）
+            if (callback) callback(true);
+            return;
+        }
+        if (type === 'interstitial') showInterstitial(callback);
+        else if (type === 'reward') showReward(callback);
+    };
+
+    // ネイティブのみ初期化（Web/PWAでは何もしない）
+    if (AdMob) {
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAds);
+        else initAds();
+    }
+})();
 
 // ─── 課金ブリッジ (Capacitor/ネイティブ側で上書きする) ───
 // purchaseItem(productId, callback) : アプリ内課金を実行

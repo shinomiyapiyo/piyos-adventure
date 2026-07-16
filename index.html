@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.475";
+                content: "Ver.1.481";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -117,17 +117,17 @@
             font-weight: 700;
             font-family: 'M PLUS Rounded 1c', sans-serif;
             z-index: 100;
-            line-height: 1.35;
-            background: linear-gradient(135deg, rgba(0,0,0,0.55), rgba(20,0,30,0.45));
-            padding: 8px 12px;
+            line-height: 1.22;
+            background: linear-gradient(135deg, rgba(0,0,0,0.4), rgba(20,0,30,0.28));
+            padding: 7px 10px;
             border-radius: 12px;
             border: 1px solid rgba(255,105,180,0.3);
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
             text-shadow: 0 1px 3px rgba(0,0,0,0.8);
         }
-        #ui div { padding: 1px 0; }
-        @media (min-width: 600px) { #ui { font-size: 14px; padding: 10px 14px; } }
+        #ui div { padding: 0; }
+        @media (min-width: 600px) { #ui { font-size: 12px; padding: 6px 9px; } }
 
         /* --- ポーズボタン --- */
         #pauseButton {
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.475</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.481</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -3818,10 +3818,10 @@ function startGame() {
         _tsb.style.display = (tutorialState.active && tutorialState.forced) ? 'block' : 'none';
         _tsb.textContent = t('tut_skip');
     }
-    // 初回ランのおためしストック（Phase3 案B-1）: バリア1個を配布して
-    // 「ストック＝タップで使う」を最初のランで体験させる（ストック→ポーチ導線の学習）。
-    // チュートリアルには「たてをタップ」の練習台本があるため、再プレイ時も必ず配布する
-    if ((gameState.isFirstRun || tutorialState.active) && !gameState.trialGiftGiven) {
+    // おためしストック（Phase3 案B-1）: バリア1個を配布して「ストック＝タップで使う」を体験させる。
+    // 配布はチュートリアル中のみ（「たてをタップ」の練習台本がある）。チュートリアルは初回必須なので新規は必ず学べる。
+    // 旧: isFirstRun も条件に入れていたため、チュートリアル後の初回通常ラン(totalPlays=0のまま)で二重配布されていた（ユーザー指摘・修正）。
+    if (tutorialState.active && !gameState.trialGiftGiven) {
         gameState.trialGiftGiven = true;
         addToStock('barrier');
         showRewardToast('<img src="images/icon_barrier.png" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' + escapeHtml(t('first_run_gift_toast')),
@@ -4822,7 +4822,9 @@ function initTerrain() {
 
 function isInSafeZone(distanceM) {
     var bossDistance = bossDistanceFor(gameRound);
-    return distanceM >= bossDistance - SHOP_SAFE_ZONE_START && !bossState.active;
+    // ショップ建物が出る位置（bossDistance - SHOP_SAFE_ZONE_START - 100・checkShopTrigger と一致）から安全地帯にする。
+    // これで R1 のショップ直前の砂漠(流砂)区間も平地・低速の安全地帯になり、R2以降と挙動が揃う（ユーザー指摘）。
+    return distanceM >= bossDistance - SHOP_SAFE_ZONE_START - 100 && !bossState.active;
 }
 
 function generateTerrain() {
@@ -5234,11 +5236,12 @@ function updatePlayer() {
     var moveAccel = 1.2 * speedMul;
     var moveMax = MOVE_SPEED * speedMul;
     var moveFriction = 0.85;
-    if (player.onGround && player.groundType === 'quicksand') {
+    // ボス戦中は地形ギミック（流砂の減速・氷の滑り）を無効化＝ボスアリーナは常に通常の足場（ユーザー指摘）
+    if (!bossState.active && player.onGround && player.groundType === 'quicksand') {
         moveAccel = 0.6 * speedMul;
         moveMax = MOVE_SPEED * 0.55 * speedMul;
         moveFriction = 0.7;
-    } else if (player.onGround && player.groundType === 'ice') {
+    } else if (!bossState.active && player.onGround && player.groundType === 'ice') {
         moveAccel = 0.4;
         moveFriction = 0.97;
     }
@@ -5254,7 +5257,7 @@ function updatePlayer() {
 
     // ジャンプ（流砂上はジャンプ力低下）＋操作フィール: コヨーテタイム＆ジャンプ先行入力（1.460・fixed 60Hz）
     var jf = JUMP_FORCE;
-    if (player.groundType === 'quicksand') jf *= 0.9;  // 高さ約80% (√0.8≈0.9)
+    if (!bossState.active && player.groundType === 'quicksand') jf *= 0.9;  // 高さ約80% (√0.8≈0.9)・ボス戦は無効
     if (gameState.puLemon > 0) jf *= 1.3;
     // コヨーテタイム: 接地でリセット、足場を離れても数フレームは地上ジャンプ可（＋着地で2段ジャンプ回復）
     if (player.onGround) { player.coyoteTimer = COYOTE_FRAMES; player.doubleJumpUsed = false; }

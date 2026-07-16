@@ -106,6 +106,9 @@ function resizeCanvas() {
 }
 
 function requestFullscreen() {
+    // ネイティブ(Capacitor)は元々全画面。Fullscreen APIを呼ぶと iOS の「swipe down to exit」バナー＋×ボタンが出る上、
+    // 全画面モード中は safe-area-inset が 0 になりHUDがダイナミックアイランドに被るため、ネイティブでは呼ばない。
+    if (isNativeApp()) return;
     var el = document.documentElement;
     (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen || function(){}).call(el);
 }
@@ -117,7 +120,7 @@ function checkOrientation() {
     // 縦向きになったらラン中は自動ポーズ。縦画面中はCSSオーバーレイでゲームが見えないのに
     // 進行だけ続き、見えないまま穴/敵で死ぬのを防ぐ。pauseGame()はトグル式＋画面遷移
     // クールダウンで弾かれる可能性があるため、ここでは直接ポーズ状態にする（再開は通常のポーズ画面から）。
-    if (window.innerHeight > window.innerWidth && gameState.gameStarted && !gameState.gamePaused) {
+    if (!isNativeApp() && window.innerHeight > window.innerWidth && gameState.gameStarted && !gameState.gamePaused) {
         gameState.gamePaused = true;
         var ps = document.getElementById('pauseScreen');
         if (ps) ps.classList.remove('hidden');
@@ -539,6 +542,12 @@ document.addEventListener('touchmove', function(e) {
     e.preventDefault();
 }, { passive: false });
 
+// ネイティブ(Capacitor/WKWebView)判定。ネイティブでは広告/ATT/システムUIで blur が頻発して誤ポーズの原因になるため、
+// blur由来の自動ポーズと「縦向きポーズ」を無効化する（向きは Info.plist で OS が横固定するので縦検知は不要）。
+function isNativeApp() {
+    return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+}
+
 // 割り込み由来の自動ポーズ（フォーカス喪失/縦向き）。pauseGame() は画面遷移クールダウン(300ms)で弾かれ得るため、
 // 直接ポーズ状態にして確実に止める。ラン開始/再開の直後に背景化すると「止まらず生存→復帰時に被弾」になる問題を防ぐ（監査M-13/LOW）。再開は通常のポーズ画面から。
 function pauseForInterrupt() {
@@ -557,22 +566,30 @@ document.addEventListener('visibilitychange', function() {
         if (typeof clearHeldInput === 'function') clearHeldInput();
         pauseForInterrupt();
     } else if (!document.hidden) {
-        // 復帰時にWebAudioを再開（バックグラウンドでOSがsuspend→SE無音化の対策。監査LOW）
-        if (soundManager && soundManager.ctx && soundManager.ctx.state !== 'running' && gameSettings.soundEnabled) {
-            try { soundManager.ctx.resume(); } catch (_) {}
-        }
+        // 復帰時にWebAudio＋BGMを再開（iOSはバックグラウンド/ATTでHTML5 BGMを一時停止＋AudioContextをsuspendする）
+        if (soundManager && typeof soundManager.resume === 'function') soundManager.resume();
     }
 });
 window.addEventListener('blur', function() {
+    if (isNativeApp()) return; // ネイティブは広告/ATT/システムUIでblurが頻発＝誤ポーズになるため無視（本当の背景化はvisibilitychangeで捕捉）
     if (gameState.gameStarted) {
         if (typeof clearHeldInput === 'function') clearHeldInput();
         pauseForInterrupt();
     }
 });
+// ATT/広告のあとに音が戻らない対策: 次のユーザー操作(タッチ)で音を確実に復帰（iOSはユーザー操作時のみ再生を許可）
+document.addEventListener('pointerdown', function() {
+    if (soundManager && typeof soundManager.resume === 'function') soundManager.resume();
+}, { passive: true });
 
 // ─── 初期化 ───
 
 function initialize() {
+    // ネイティブ(アプリ)ではタイトルのUPDATEボタン（PWA用の強制更新）を隠す＝アプリ更新はストア経由で不要
+    if (isNativeApp()) {
+        var _ub = document.getElementById('forceUpdateBtn');
+        if (_ub) _ub.style.display = 'none';
+    }
     // 未所持スキンが装備中なら（解放条件導入前に装備していた等）デフォルトへ戻す
     if (gameSettings.activeSkin && !isSkinOwned(gameSettings.activeSkin)) { gameSettings.activeSkin = ''; saveSettings(); }
     // 所持アップグレードを起動時に反映（stock_expand の maxSlots 等）。従来は初回ラン開始まで反映されず、
@@ -785,8 +802,20 @@ document.addEventListener('DOMContentLoaded', function() {
             checkOrientation();
             setTimeout(function() { window.scrollTo(0, 1); }, 100);
 
-            // Service Worker登録
-            if ('serviceWorker' in navigator) {
+            // Service Worker登録（Web/PWAのみ）。ネイティブ(Capacitor)ではキャッシュ不要な上に、
+            // 更新後に古いコードを配信してしまうため登録せず、既存のSW/キャッシュがあれば掃除する。
+            if (isNativeApp()) {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(regs) {
+                        regs.forEach(function(r) { r.unregister(); });
+                    }).catch(function() {});
+                }
+                if (window.caches && caches.keys) {
+                    caches.keys().then(function(keys) {
+                        keys.forEach(function(k) { caches.delete(k); });
+                    }).catch(function() {});
+                }
+            } else if ('serviceWorker' in navigator) {
                 // updateViaCache:'none' で sw.js 自体のHTTPキャッシュ(max-age=600)を無効化し、
                 // 起動時の update() で新バージョンを確実に検知できるようにする
                 navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(function(reg) {
