@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.481";
+                content: "Ver.1.482";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.481</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.482</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -3943,6 +3943,18 @@ function resetGame() {
     gameState.missionCountedBoss = 0;
     gameState.missionCountedSpecial = 0;
     gameState.missionToastShown = {};      // 案D: ラン毎に「あと少し/達成」トーストの表示済みフラグをリセット
+    // ラン開始時点で既に達成済み/あと少し圏内（日次累計が到達済み）のミッションは、新ランで再びトーストしないよう
+    // 表示済み扱いにしておく。ラン中に新規に達成/接近したものだけトーストする（前ラン達成分が毎スタート再表示される不具合の修正）。
+    (function () {
+        var _dm = gameSettings.dailyMissions, _tm = _dm && _dm.todayMissions;
+        if (_tm) for (var _i = 0; _i < _tm.length; _i++) {
+            var _m = _tm[_i];
+            if (_m.type === 'plays') continue;
+            var _rem = _m.target - (_dm[_m.type] || 0);
+            if (_rem <= 0) { gameState.missionToastShown[_i + ':done'] = 1; gameState.missionToastShown[_i + ':near'] = 1; }
+            else { var _nt = MISSION_NEAR_THRESHOLD[_m.type] || 0; if (_nt && _rem <= _nt) gameState.missionToastShown[_i + ':near'] = 1; }
+        }
+    })();
     gameState.missionToastCooldown = 0;
     gameState.missionToastTick = 0;
     gameState.specialGauge = 0;
