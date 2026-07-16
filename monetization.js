@@ -276,7 +276,7 @@ var REWARD_AD_TSHOP_COOLDOWN = 14400000; // タイトルショップ: クール�
 function adRevive() {
     if (rewardAdState.reviveUsedThisRun) return;
     showAd('reward', function(success) {
-        if (!success) return;
+        if (!success) { if (typeof showRewardToast === 'function') showRewardToast(t('ad_load_failed'), 'linear-gradient(180deg,#666,#333)', '#fff'); return; }
         rewardAdState.reviveUsedThisRun = true;
         // 復活処理
         hideGameOverScreen();
@@ -306,7 +306,7 @@ function adShopBonus() {
     rewardAdState.shopAdUsedThisVisit = true;
     updateStageShopUI();
     showAd('reward', function(success) {
-        if (!success) return;
+        if (!success) { setKeeperText('ad_load_failed'); return; }
         var bonus = Math.min(REWARD_AD_SHOP_BONUS_MAX, Math.max(REWARD_AD_SHOP_BONUS_MIN, Math.floor(gameState.score * REWARD_AD_SHOP_BONUS_RATE)));
         gameState.score += bonus;
         if (soundManager) soundManager.playItem();
@@ -323,7 +323,7 @@ function adTshopBonus() {
         return;
     }
     showAd('reward', function(success) {
-        if (!success) return;
+        if (!success) { setTshopKeeperText('ad_load_failed'); return; }
         gameSettings.tshopAdCooldown = Date.now() + REWARD_AD_TSHOP_COOLDOWN;
         gameSettings.savings += REWARD_AD_TSHOP_BONUS;
         saveSettings();

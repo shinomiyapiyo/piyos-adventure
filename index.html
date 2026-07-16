@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.486";
+                content: "Ver.1.487";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.486</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.487</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -5012,9 +5012,11 @@ function biomeFlyingSprite() {
     }
 }
 
-// ボス戦の雑魚: 見た目を全バイオームからランダムに（行動/判定は不変・「フクロウばかり」を解消）
+// ボス戦の雑魚: 見た目のみ変更（行動/判定は不変）。R1(ひよこ大王)=チキン一家3種(草原ひよこ/ゴールデン/ニワトリ)、R2以降=全バイオームからランダム
 function randomBossWalkSprite() {
-    var s = ['chick_walk', 'quail_walk', 'enaga_walk', 'owl_walk'];
+    var s = (gameRound === 1)
+        ? ['chick_walk', 'golden_chick_walk', 'mama_chick_walk']
+        : ['chick_walk', 'quail_walk', 'enaga_walk', 'owl_walk'];
     return s[Math.floor(Math.random() * s.length)];
 }
 function randomBossFlySprite() {

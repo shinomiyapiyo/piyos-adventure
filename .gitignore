@@ -4,3 +4,6 @@
 # Capacitor / native
 node_modules/
 www/
+
+# App Store提出用スクショ（アプリには同梱しない・リポジトリ管理外）
+スクショ用/
