@@ -17,7 +17,7 @@
     var AdMob = (isNative && Cap.Plugins) ? Cap.Plugins.AdMob : null;
 
     // ★★ リリースビルドでは必ず false（本番の広告ユニットIDを使う）。開発中は true = Googleのテスト広告 ★★
-    var AD_TEST = true;
+    var AD_TEST = false;
 
     // Google公式テスト広告ユニットID（iOS/Android共通で使用可）
     var TEST_IDS = {
@@ -52,13 +52,6 @@
     var rewardWantShow = false;    // リワード未ロード時「ロード完了で表示」の予約
     var pendingInterDone = null;   // インタースティシャルを閉じたら呼ぶ（リトライの順序制御）
 
-    // ★診断用（リリース前に adDbg/adDbgToast の定義と呼び出しごと削除すること）: リワード広告のイベント列を画面トーストで可視化。
-    // 復活/ショップ広告の動作確認が取れたため false。原因特定済み（Reward発火→settle=true で復活・ショップとも正常）。
-    var AD_DBG = false;
-    var adDbgLog = [];
-    function adDbg(m) { if (AD_DBG) adDbgLog.push(m); }
-    function adDbgToast() { if (AD_DBG && typeof showRewardToast === 'function') showRewardToast('🐞 ' + adDbgLog.join(' → '), 'linear-gradient(180deg,#444,#111)', '#fff'); }
-
     function prepareInterstitial() {
         if (!AdMob) return;
         AdMob.prepareInterstitial({ adId: adUnit('interstitial') })
@@ -76,8 +69,7 @@
     // iOSの Reward と Dismiss の発火順に依存せず視聴完了を取りこぼさない（復活が効かない不具合の対策）。
     function settleReward(result) {
         var cb = pendingReward;
-        if (!cb) { adDbg('settle(' + result + ')但しcb無し'); adDbgToast(); return; }
-        adDbg('settle=' + result); adDbgToast();
+        if (!cb) { return; }
         pendingReward = null;
         rewardReady = false;
         prepareReward();            // 次のリワードを事前ロード
@@ -91,16 +83,16 @@
             .then(function () { return AdMob.initialize({ initializeForTesting: AD_TEST }); })
             .then(function () {
                 // 永続リスナー（初期化後に1回だけ登録）
-                AdMob.addListener(EV.rewReward,     function () { adDbg('REWARD'); settleReward(true); });   // 報酬確定＝即成功
-                AdMob.addListener(EV.rewDismiss,    function () { adDbg('dismiss'); settleReward(false); });  // 未獲得で閉じた＝失敗（獲得済みなら無視）
-                AdMob.addListener(EV.rewFailShow,   function () { adDbg('failShow'); settleReward(false); });
+                AdMob.addListener(EV.rewReward,     function () { settleReward(true); });   // 報酬確定＝即成功
+                AdMob.addListener(EV.rewDismiss,    function () { settleReward(false); });  // 未獲得で閉じた＝失敗（獲得済みなら無視）
+                AdMob.addListener(EV.rewFailShow,   function () { settleReward(false); });
                 AdMob.addListener(EV.rewLoaded,     function () {
-                    adDbg('loaded'); rewardReady = true;
+                    rewardReady = true;
                     // 復活タップ時に未ロードだったら、ロード完了したこの瞬間に表示する
                     if (rewardWantShow) { rewardWantShow = false; rewardReady = false; AdMob.showRewardVideoAd().catch(function () { settleReward(false); }); }
                 });
                 AdMob.addListener(EV.rewFailLoad,   function () {
-                    adDbg('failLoad'); rewardReady = false;
+                    rewardReady = false;
                     if (rewardWantShow) { rewardWantShow = false; settleReward(false); }
                 });
                 AdMob.addListener(EV.interLoaded,   function () { interReady = true; });
@@ -121,7 +113,6 @@
     }
 
     function showReward(callback) {
-        adDbgLog = []; adDbg('show(ready=' + rewardReady + ')');
         pendingReward = callback || function () {};
         if (rewardReady) {
             rewardReady = false;
