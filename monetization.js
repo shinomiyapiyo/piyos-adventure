@@ -310,9 +310,12 @@ function adRevive() {
 // ステージショップでのリワード広告ボーナス
 function adShopBonus() {
     if (rewardAdState.shopAdUsedThisVisit) return;
+    // 表示した時点で消費＝ショップ訪問につき1回のみ（選択肢も即消える）。報酬の有無に関わらず再視聴不可。
+    // 旧: 成功時のみ消費→報酬イベント不発(2本目以降)で選択肢が残り何度でも見られる不具合があった。
+    rewardAdState.shopAdUsedThisVisit = true;
+    updateStageShopUI();
     showAd('reward', function(success) {
         if (!success) return;
-        rewardAdState.shopAdUsedThisVisit = true;
         var bonus = Math.min(REWARD_AD_SHOP_BONUS_MAX, Math.max(REWARD_AD_SHOP_BONUS_MIN, Math.floor(gameState.score * REWARD_AD_SHOP_BONUS_RATE)));
         gameState.score += bonus;
         if (soundManager) soundManager.playItem();
