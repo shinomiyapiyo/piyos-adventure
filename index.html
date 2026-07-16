@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.482";
+                content: "Ver.1.483";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.482</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.483</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -4961,7 +4961,8 @@ function spawnCoin() {
 // バイオーム連動の雑魚見た目（行動/判定/出現率は不変・スポーン時に確定し以後変わらない）
 // 草原=ひよこ / 砂漠=うずらのヒナ / 雪山=シマエナガ / 夜=ふくろうのヒナ
 function biomeChickSprite() {
-    switch (getBiomeIndex(gameState.distance)) {
+    // ボス戦中はアリーナと同じ夜(BOSS_BIOME)に揃える（R1は距離が雪山判定でシマエナガになり夜アリーナと不一致だった）
+    switch (bossState.active ? BOSS_BIOME : getBiomeIndex(gameState.distance)) {
         case 1:  return 'quail_walk';
         case 2:  return 'enaga_walk';
         case 3:  return 'owl_walk';
@@ -4971,7 +4972,8 @@ function biomeChickSprite() {
 
 // 飛行雑魚のバイオーム見た目（行動/当たり/出現率は不変・見た目のみ）。草原は飛行ひよこ据置。
 function biomeFlyingSprite() {
-    switch (getBiomeIndex(gameState.distance)) {
+    // ボス戦中はアリーナと同じ夜(BOSS_BIOME)に揃える
+    switch (bossState.active ? BOSS_BIOME : getBiomeIndex(gameState.distance)) {
         case 1:  return 'vulture_fly';       // 砂漠=ハゲタカ
         case 2:  return 'snowowl_fly';       // 雪山=白フクロウ
         case 3:  return 'bat_fly';           // 夜=コウモリ
