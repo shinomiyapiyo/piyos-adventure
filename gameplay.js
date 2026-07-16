@@ -3624,7 +3624,7 @@ function spawnBossChick(boss) {
         velX: dir * 1.5,
         type: 'chick',
         animFrame: Math.floor(Math.random() * 100),
-        walkSprite: biomeChickSprite() // バイオーム見た目（行動は不変）
+        walkSprite: randomBossWalkSprite() // ボス戦は全バイオームの見た目をランダムに（行動は不変）
     });
 }
 
@@ -3639,7 +3639,7 @@ function spawnEdgeEnemy() {
         velX: dir * (1.2 + Math.random() * 0.8),
         type: 'chick',
         animFrame: Math.floor(Math.random() * 100),
-        walkSprite: biomeChickSprite() // バイオーム見た目（行動は不変）
+        walkSprite: randomBossWalkSprite() // ボス戦は全バイオームの見た目をランダムに（行動は不変）
     });
 }
 
@@ -3653,7 +3653,8 @@ function spawnEdgeFlyingEnemy() {
         width: 56, height: 50,
         velX: dir * (1.0 + Math.random() * 0.5),
         type: 'flying_chick',
-        flySprite: biomeFlyingSprite(), // バイオーム見た目（行動/判定は不変）
+        // R6以降のボス戦は空中雑魚も全バイオームの見た目をランダムに（R1〜5は従来どおり夜=コウモリ）
+        flySprite: (gameRound >= 6 ? randomBossFlySprite() : biomeFlyingSprite()), // 見た目のみ（行動/判定は不変）
         animFrame: Math.floor(Math.random() * 100),
         waveOffset: Math.random() * Math.PI * 2
     });
