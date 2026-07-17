@@ -97,6 +97,8 @@ ja: {
     reward_ad_tshop_savings_ok: '貯金ボーナス {amount}円\nゲットしたのだ！',
     reward_ad_cooldown: '次の広告ボーナスまで\nしばらく待ってほしいのだ',
     ad_load_failed: '広告を読み込めませんでした\n時間をおいてお試しください',
+    ad_preparing: '広告を準備中です\nもう少し待ってね',
+    ad_preparing_btn: '広告を準備中…',
     // リタイア
     retire_confirm: 'タイトル画面に戻りますか？',
     // Canvas HUD
@@ -639,6 +641,8 @@ en: {
     reward_ad_tshop_savings_ok: 'Got {amount} savings bonus!',
     reward_ad_cooldown: 'Please wait a moment\nfor the next ad bonus',
     ad_load_failed: "Couldn't load an ad.\nPlease try again later.",
+    ad_preparing: 'Preparing an ad...\nPlease wait a moment.',
+    ad_preparing_btn: 'Preparing ad…',
     retire_confirm: 'Return to title?',
     hud_jump: 'Jump Boost',
     hud_shield: 'Shield',

@@ -1249,9 +1249,10 @@ function updateStageShopUI() {
             depLabel = depLabel + ' (' + depAmt + t('currency_unit') + ')';
         }
         if (!tutorialState.active) html += renderShopMenuItem('_menu_deposit', _ic('icon_bank.png'), depLabel); // チュートリアルでは貯金を隠す（永続資産の稼ぎ場防止）
-        // リワード広告ボーナス（チュートリアルでは出さない）
+        // リワード広告ボーナス（チュートリアルでは出さない）。未ロード時は「準備中…」表示（A案・押下は可）
         if (!rewardAdState.shopAdUsedThisVisit && !gameSettings.adFree && !tutorialState.active) {
-            html += renderShopMenuItem('_menu_reward_ad', _ic('icon_money.png'), t('reward_ad_shop_money'));
+            var _adRdy = (typeof window.isRewardReady !== 'function') || window.isRewardReady();
+            html += renderShopMenuItem('_menu_reward_ad', _ic('icon_money.png'), _adRdy ? t('reward_ad_shop_money') : t('ad_preparing_btn'));
         }
         // 貯金プレビュー情報
         if (!shopState.deposited && gameState.score > 0 && !tutorialState.active) {
@@ -2058,7 +2059,8 @@ function updateTitleShopUI() {
         html += renderTshopMenuItem('_tmenu_buy', _ic('icon_cart.png'), t('shop_menu_buy'));
         html += renderTshopMenuItem('_tmenu_sell', _ic('icon_money.png'), t('shop_menu_sell'));
         if (!gameSettings.adFree) {
-            html += renderTshopMenuItem('_tmenu_reward_ad', _ic('icon_bank.png'), t('reward_ad_shop_money'));
+            var _tAdRdy = (typeof window.isRewardReady !== 'function') || window.isRewardReady();
+            html += renderTshopMenuItem('_tmenu_reward_ad', _ic('icon_bank.png'), _tAdRdy ? t('reward_ad_shop_money') : t('ad_preparing_btn'));
         }
         html += renderTshopMenuItem('_tmenu_leave', _ic('icon_door.png'), t('shop_close').replace('&gt; ', '').replace('> ', ''));
         if (backBtn) backBtn.style.display = 'none'; // メニューでは「出る」項目から退店
@@ -3757,6 +3759,35 @@ function gameOver() {
     }
 }
 
+// リワード広告「準備中」表示（A案）。ロード済み＝通常の光るボタン／未ロード＝淡色＋「準備中…」。
+// 未ロードでも押せる（adRevive内で裏ロード→間に合えば表示）。isRewardReady未定義(旧/Web環境)は表示可能扱い。
+function updateAdReviveBtnState() {
+    var btn = document.getElementById('adReviveBtn');
+    if (!btn) return;
+    var ready = (typeof window.isRewardReady !== 'function') || window.isRewardReady();
+    if (ready) {
+        btn.innerHTML = t('gameover_ad_revive');
+        btn.style.opacity = '1';
+        btn.style.filter = 'none';
+        btn.style.animation = 'adRevivePulse 2s ease-in-out infinite';
+        btn.style.background = 'linear-gradient(180deg, #ffb347 0%, #ff6723 50%, #cc4400 100%)';
+    } else {
+        btn.innerHTML = _ic('icon_retry.png') + ' ' + t('ad_preparing_btn');
+        btn.style.opacity = '0.6';
+        btn.style.filter = 'grayscale(0.55)';
+        btn.style.animation = 'none';
+        btn.style.background = 'linear-gradient(180deg, #999 0%, #777 50%, #555 100%)';
+    }
+}
+
+// 広告の準備状態が変わった時に monetization.js から呼ばれる（window.onRewardReadyChange）。
+// 表示中の復活ボタン／ショップメニューだけを更新（確認ダイアログ中のショップは触らない）。
+function refreshRewardButtons() {
+    if (isScreenVisible('gameOverScreen')) updateAdReviveBtnState();
+    if (isScreenVisible('stageShopScreen') && shopMode === 'menu' && !shopClosing && !shopDepositing) updateStageShopUI();
+    if (isScreenVisible('titleShopScreen') && tshopMode === 'menu' && !tshopLeaving) updateTitleShopUI();
+}
+
 function showGameOverScreen() {
     markScreenTransition();
     // スタッツ表示
@@ -3771,6 +3802,7 @@ function showGameOverScreen() {
     if (adReviveContainer) {
         adReviveContainer.style.display = (!rewardAdState.reviveUsedThisRun && !gameSettings.adFree) ? 'block' : 'none';
     }
+    updateAdReviveBtnState(); // 広告のロード状態に応じて「準備中」/「広告を見て復活」を切り替え（A案）
     // 初回ランのゲームオーバーだけ「まほうのポーチ」予告カードを見せる（Phase3 案B-2・継続動機の注入）
     var pouchTeaser = document.getElementById('firstRunPouchTeaser');
     if (pouchTeaser) pouchTeaser.style.display = gameState.isFirstRun ? 'block' : 'none';
