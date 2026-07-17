@@ -99,6 +99,10 @@ ja: {
     ad_load_failed: '広告を読み込めませんでした\n時間をおいてお試しください',
     ad_preparing: '広告を準備中です\nもう少し待ってね',
     ad_preparing_btn: '広告を準備中…',
+    house_ad_pr: 'PR ・ NullPo Works',
+    house_ad_get: 'App Store で入手（任意）',
+    house_ad_wait: 'あと {n} 秒…',
+    house_ad_reward: '報酬を受け取る',
     // リタイア
     retire_confirm: 'タイトル画面に戻りますか？',
     // Canvas HUD
@@ -643,6 +647,10 @@ en: {
     ad_load_failed: "Couldn't load an ad.\nPlease try again later.",
     ad_preparing: 'Preparing an ad...\nPlease wait a moment.',
     ad_preparing_btn: 'Preparing ad…',
+    house_ad_pr: 'Ad ・ NullPo Works',
+    house_ad_get: 'Get on the App Store (optional)',
+    house_ad_wait: '{n}s…',
+    house_ad_reward: 'Get reward',
     retire_confirm: 'Return to title?',
     hud_jump: 'Jump Boost',
     hud_shield: 'Shield',

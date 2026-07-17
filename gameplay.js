@@ -3788,6 +3788,90 @@ function refreshRewardButtons() {
     if (isScreenVisible('titleShopScreen') && tshopMode === 'menu' && !tshopLeaving) updateTitleShopUI();
 }
 
+// ── 自社ゲーム紹介カード（実広告が出せない時の代替・視聴で報酬付与。config駆動・ローテーション） ──
+// リリース時は魂の共鳴(4+)のみ。14番地(12+)はApp Store公開後に配列へ1要素追加で有効化（本作9+との年齢整合のため）。
+// アイコン/スクショ画像は images/promo/ に配置（未配置でも onerror で崩れずカードは成立）。
+var HOUSE_AD_GAMES = [
+    {
+        id: 'tamashii',
+        storeUrl: 'https://apps.apple.com/app/id6783816824',
+        icon: 'images/promo/tamashii_icon.png',
+        shot: 'images/promo/tamashii_shot.png',
+        title:   { ja: '魂の共鳴',      en: 'Tamashii no Kyomei' },
+        sub:     { ja: '〜私を信じて〜',  en: '~Believe in Me~' },
+        genre:   { ja: '色合わせパズル',  en: 'Color-match Puzzle' },
+        tagline: { ja: '同じ色をそろえて消す爽快パズル。コンボでフィーバー！', en: 'Match colors to clear — combo into Fever!' }
+    }
+];
+var houseAdRotIndex = 0;
+var houseAdDoneCb = null;
+var houseAdTimer = null;
+
+function houseAdLang() { return (typeof gameSettings !== 'undefined' && gameSettings.language === 'en') ? 'en' : 'ja'; }
+function houseAdText(g, field) { var v = g && g[field]; return v ? (v[houseAdLang()] || v.ja || '') : ''; }
+function pickHouseAdGame() {
+    if (!HOUSE_AD_GAMES.length) return null;
+    var g = HOUSE_AD_GAMES[houseAdRotIndex % HOUSE_AD_GAMES.length];
+    houseAdRotIndex = (houseAdRotIndex + 1) % HOUSE_AD_GAMES.length;
+    return g;
+}
+
+// monetization.js の settleReward から呼ばれる: 実広告が無い時にカードを表示→3秒視聴→onDone(true)で報酬付与。
+function showHouseAd(onDone) {
+    var g = pickHouseAdGame();
+    var card = document.getElementById('houseAdCard');
+    if (!g || !card) { if (onDone) onDone(true); return; } // カード無し=そのまま報酬（実務上は起きない）
+    houseAdDoneCb = onDone || function() {};
+    var shotHtml = g.shot ? '<div style="text-align:center; margin-bottom:10px;"><img src="' + g.shot + '" alt="" onerror="this.parentNode.style.display=\'none\'" style="max-height:130px; max-width:100%; border-radius:8px; border:1px solid rgba(255,255,255,0.12);"></div>' : '';
+    card.innerHTML =
+        '<div style="color:rgba(255,255,255,0.55); font-size:clamp(9px,1.7vw,12px); font-family:\'M PLUS Rounded 1c\',sans-serif; margin-bottom:8px;">' + escapeHtml(t('house_ad_pr')) + '</div>' +
+        '<div style="display:flex; gap:12px; align-items:center;">' +
+            '<img src="' + g.icon + '" alt="" onerror="this.style.visibility=\'hidden\'" style="width:64px; height:64px; border-radius:14px; flex-shrink:0; border:1px solid rgba(255,255,255,0.15);">' +
+            '<div style="flex:1; min-width:0; text-align:left;">' +
+                '<div style="color:#fff; font-size:clamp(15px,3.4vw,22px); font-weight:800; font-family:\'M PLUS Rounded 1c\',sans-serif;">' + escapeHtml(houseAdText(g, 'title')) + '</div>' +
+                '<div style="color:rgba(255,255,255,0.55); font-size:clamp(9px,1.7vw,12px);">' + escapeHtml(houseAdText(g, 'sub')) + '</div>' +
+                '<div style="color:#ffd77a; font-size:clamp(9px,1.6vw,12px); margin-top:2px;">' + escapeHtml(houseAdText(g, 'genre')) + '</div>' +
+            '</div>' +
+        '</div>' +
+        '<div style="color:#eee; font-size:clamp(11px,2.1vw,15px); margin:10px 2px; font-family:\'M PLUS Rounded 1c\',sans-serif; text-align:left; line-height:1.5;">' + escapeHtml(houseAdText(g, 'tagline')) + '</div>' +
+        shotHtml +
+        '<button id="houseAdStoreBtn" class="game-button" style="width:100%; margin-bottom:8px; padding:7px 12px; font-size:clamp(10px,2.1vw,14px); background:linear-gradient(180deg,#4ec0ca,#2a9db0); -webkit-tap-highlight-color:transparent;">' + t('house_ad_get') + '</button>' +
+        '<button id="houseAdRewardBtn" class="game-button" disabled style="width:100%; padding:9px 12px; font-size:clamp(11px,2.3vw,15px); background:linear-gradient(180deg,#888,#555); opacity:0.65; -webkit-tap-highlight-color:transparent;"></button>';
+    var storeBtn = document.getElementById('houseAdStoreBtn');
+    if (storeBtn) storeBtn.onclick = function() { openExternalUrl(g.storeUrl); };
+    var rewardBtn = document.getElementById('houseAdRewardBtn');
+    var remain = 3;
+    if (rewardBtn) rewardBtn.innerHTML = t('house_ad_wait', { n: remain });
+    if (houseAdTimer) clearInterval(houseAdTimer);
+    houseAdTimer = setInterval(function() {
+        remain--;
+        if (!rewardBtn) { clearInterval(houseAdTimer); houseAdTimer = null; return; }
+        if (remain > 0) { rewardBtn.innerHTML = t('house_ad_wait', { n: remain }); return; }
+        clearInterval(houseAdTimer); houseAdTimer = null;
+        rewardBtn.disabled = false;
+        rewardBtn.style.opacity = '1';
+        rewardBtn.style.background = 'linear-gradient(180deg,#ffb347,#ff6723)';
+        rewardBtn.innerHTML = t('house_ad_reward');
+        rewardBtn.onclick = finishHouseAd;
+    }, 1000);
+    showScreenEl('houseAdScreen');
+}
+
+function finishHouseAd() {
+    if (houseAdTimer) { clearInterval(houseAdTimer); houseAdTimer = null; }
+    hideScreenEl('houseAdScreen');
+    var cb = houseAdDoneCb; houseAdDoneCb = null;
+    if (soundManager) soundManager.playItem();
+    if (cb) cb(true);
+}
+
+function openExternalUrl(url) {
+    try {
+        if (typeof isNativeApp === 'function' && isNativeApp()) window.open(url, '_system');
+        else window.open(url, '_blank');
+    } catch (e) { try { window.open(url, '_blank'); } catch (e2) {} }
+}
+
 function showGameOverScreen() {
     markScreenTransition();
     // スタッツ表示

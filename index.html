@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.488";
+                content: "Ver.1.489";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.488</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.489</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -1615,6 +1615,19 @@
                         -webkit-tap-highlight-color: transparent;" data-i18n="btn_back"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
                 </div>
             </div>
+        </div>
+
+        <!-- 自社ゲーム紹介カード（実広告が無い時の代替・monetization.js の showHouseAd が中身を差し込む） -->
+        <div id="houseAdScreen" class="hidden" style="
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.82);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 2147483000; padding: 12px; box-sizing: border-box;">
+            <div id="houseAdCard" style="
+                background: linear-gradient(160deg, rgba(30,15,50,0.98), rgba(15,5,30,0.98));
+                border: 2px solid rgba(255,165,0,0.4); border-radius: 16px;
+                padding: 14px 16px; max-width: 92vw; width: 440px; max-height: 90vh; overflow-y: auto;
+                box-shadow: 0 6px 30px rgba(0,0,0,0.5); box-sizing: border-box;"></div>
         </div>
 
         <!-- ゲームオーバー画面 -->

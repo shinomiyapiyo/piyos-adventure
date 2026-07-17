@@ -56,8 +56,10 @@
     var REWARD_WATCHDOG_MS = 60000;   // 表示後この時間イベントが来なければ失敗解決
     var REWARD_RELOAD_DELAY_MS = 30000; // ロード失敗後の再ロード間隔（在庫回復待ち）
 
-    // リワード広告が「今すぐ表示できるか」。Web/PWA(AdMob無し)は常に表示可能（成功フォールバック）＝ボタン常時有効。
-    function rewardAvailable() { return !AdMob || rewardReady; }
+    // 自社ゲーム紹介カードが使えるか（実広告が無くても報酬を出せる backstop）。
+    function houseAdReady() { return typeof window.showHouseAd === 'function' && !!(window.HOUSE_AD_GAMES && window.HOUSE_AD_GAMES.length); }
+    // リワードが「今すぐ実行できるか」。Web/PWA(AdMob無し)＝常にtrue／実広告ready／自社カードbackstopがあればtrue＝ボタン常時有効。
+    function rewardAvailable() { return !AdMob || rewardReady || houseAdReady(); }
     window.isRewardReady = rewardAvailable;
 
     // rewardReady が変化したら UI(復活/ショップの「準備中」表示)へ通知。同値なら何もしない。
@@ -106,6 +108,12 @@
         pendingReward = null;
         setRewardReady(false);
         prepareReward();            // 次のリワードを事前ロード
+        // 実広告が表示されなかった(在庫ゼロ/ロード失敗)＝ユーザーに非がない → 自社ゲーム紹介カードを見せて報酬を出す。
+        // ③実広告を途中で閉じた(wasShown:true)は対象外＝報酬なしのまま。
+        if (result === false && wasShown === false && houseAdReady()) {
+            window.showHouseAd(function (viewed) { cb(!!viewed, { shown: !!viewed, house: true }); });
+            return;
+        }
         cb(result, { shown: !!wasShown });
     }
 
