@@ -3796,7 +3796,7 @@ var HOUSE_AD_GAMES = [
         id: 'tamashii',
         storeUrl: 'https://apps.apple.com/app/id6783816824',
         icon: 'images/promo/tamashii_icon.png',
-        shot: 'images/promo/tamashii_shot.png',
+        shot: 'images/promo/tamashii_shot.jpg',
         title:   { ja: '魂の共鳴',      en: 'Tamashii no Kyomei' },
         sub:     { ja: '〜私を信じて〜',  en: '~Believe in Me~' },
         genre:   { ja: '色合わせパズル',  en: 'Color-match Puzzle' },
@@ -3822,21 +3822,27 @@ function showHouseAd(onDone) {
     var card = document.getElementById('houseAdCard');
     if (!g || !card) { if (onDone) onDone(true); return; } // カード無し=そのまま報酬（実務上は起きない）
     houseAdDoneCb = onDone || function() {};
-    var shotHtml = g.shot ? '<div style="text-align:center; margin-bottom:10px;"><img src="' + g.shot + '" alt="" onerror="this.parentNode.style.display=\'none\'" style="max-height:130px; max-width:100%; border-radius:8px; border:1px solid rgba(255,255,255,0.12);"></div>' : '';
+    // 横向きゲーム＝縦に短いので、スクショは info の横に置く（縦積みだと landscape で収まらない）。
+    // 画像が無い/読めない時は img が display:none になり、info だけの1カラムになる。
+    var shotHtml = g.shot ? '<img src="' + g.shot + '" alt="" onerror="this.style.display=\'none\'" style="height:min(240px,52vh); width:auto; max-width:42vw; border-radius:8px; border:1px solid rgba(255,255,255,0.12); flex-shrink:0;">' : '';
     card.innerHTML =
         '<div style="color:rgba(255,255,255,0.55); font-size:clamp(9px,1.7vw,12px); font-family:\'M PLUS Rounded 1c\',sans-serif; margin-bottom:8px;">' + escapeHtml(t('house_ad_pr')) + '</div>' +
-        '<div style="display:flex; gap:12px; align-items:center;">' +
-            '<img src="' + g.icon + '" alt="" onerror="this.style.visibility=\'hidden\'" style="width:64px; height:64px; border-radius:14px; flex-shrink:0; border:1px solid rgba(255,255,255,0.15);">' +
-            '<div style="flex:1; min-width:0; text-align:left;">' +
-                '<div style="color:#fff; font-size:clamp(15px,3.4vw,22px); font-weight:800; font-family:\'M PLUS Rounded 1c\',sans-serif;">' + escapeHtml(houseAdText(g, 'title')) + '</div>' +
-                '<div style="color:rgba(255,255,255,0.55); font-size:clamp(9px,1.7vw,12px);">' + escapeHtml(houseAdText(g, 'sub')) + '</div>' +
-                '<div style="color:#ffd77a; font-size:clamp(9px,1.6vw,12px); margin-top:2px;">' + escapeHtml(houseAdText(g, 'genre')) + '</div>' +
+        '<div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; justify-content:center;">' +
+            shotHtml +
+            '<div style="flex:1 1 200px; min-width:180px; text-align:left;">' +
+                '<div style="display:flex; gap:10px; align-items:center; margin-bottom:6px;">' +
+                    '<img src="' + g.icon + '" alt="" onerror="this.style.visibility=\'hidden\'" style="width:52px; height:52px; border-radius:12px; flex-shrink:0; border:1px solid rgba(255,255,255,0.15);">' +
+                    '<div style="min-width:0;">' +
+                        '<div style="color:#fff; font-size:clamp(15px,3.2vw,21px); font-weight:800; font-family:\'M PLUS Rounded 1c\',sans-serif;">' + escapeHtml(houseAdText(g, 'title')) + '</div>' +
+                        '<div style="color:rgba(255,255,255,0.55); font-size:clamp(9px,1.6vw,12px);">' + escapeHtml(houseAdText(g, 'sub')) + '</div>' +
+                        '<div style="color:#ffd77a; font-size:clamp(9px,1.5vw,12px);">' + escapeHtml(houseAdText(g, 'genre')) + '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div style="color:#eee; font-size:clamp(11px,2vw,15px); margin:6px 2px 10px; font-family:\'M PLUS Rounded 1c\',sans-serif; line-height:1.5;">' + escapeHtml(houseAdText(g, 'tagline')) + '</div>' +
+                '<button id="houseAdStoreBtn" class="game-button" style="width:100%; margin-bottom:8px; padding:7px 12px; font-size:clamp(10px,2.1vw,14px); background:linear-gradient(180deg,#4ec0ca,#2a9db0); -webkit-tap-highlight-color:transparent;">' + t('house_ad_get') + '</button>' +
+                '<button id="houseAdRewardBtn" class="game-button" disabled style="width:100%; padding:9px 12px; font-size:clamp(11px,2.3vw,15px); background:linear-gradient(180deg,#888,#555); opacity:0.65; -webkit-tap-highlight-color:transparent;"></button>' +
             '</div>' +
-        '</div>' +
-        '<div style="color:#eee; font-size:clamp(11px,2.1vw,15px); margin:10px 2px; font-family:\'M PLUS Rounded 1c\',sans-serif; text-align:left; line-height:1.5;">' + escapeHtml(houseAdText(g, 'tagline')) + '</div>' +
-        shotHtml +
-        '<button id="houseAdStoreBtn" class="game-button" style="width:100%; margin-bottom:8px; padding:7px 12px; font-size:clamp(10px,2.1vw,14px); background:linear-gradient(180deg,#4ec0ca,#2a9db0); -webkit-tap-highlight-color:transparent;">' + t('house_ad_get') + '</button>' +
-        '<button id="houseAdRewardBtn" class="game-button" disabled style="width:100%; padding:9px 12px; font-size:clamp(11px,2.3vw,15px); background:linear-gradient(180deg,#888,#555); opacity:0.65; -webkit-tap-highlight-color:transparent;"></button>';
+        '</div>';
     var storeBtn = document.getElementById('houseAdStoreBtn');
     if (storeBtn) storeBtn.onclick = function() { openExternalUrl(g.storeUrl); };
     var rewardBtn = document.getElementById('houseAdRewardBtn');
