@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.490";
+                content: "Ver.1.491";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.490</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.491</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -4722,6 +4722,19 @@ function buildRankMessage(name, ranks) {
     return msg;
 }
 
+// スコア送信の共通処理。レベルは真の値(最大9999)を送るが、旧DBルール(speedLevel<=100)で
+// 弾かれた場合は100に丸めて再送＝スコアは必ず記録される（ルール未更新でも損しない）。
+// ※レベル100超を実際にランキングへ表示するにはFirebase側の .validate 上限引き上げが必要。
+function setScoreWithFallback(ref, data) {
+    return ref.set(data).catch(function(err) {
+        if ((Number(data.speedLevel) || 0) > 100) {
+            data.speedLevel = 100;      // 旧ルールでrejected → 丸めて確実に記録
+            return ref.set(data);
+        }
+        throw err;                       // その他のエラーは呼び出し側の catch へ委譲
+    });
+}
+
 function submitScore() {
     var name = document.getElementById('playerNameInput').value.trim().replace(/[<>&"']/g, '').substring(0, 10);
     if (!name) { showGameModal(t('name_empty')); return; }
@@ -4749,7 +4762,7 @@ function submitScore() {
         score: Number(finalGameStats.score) || 0,
         distance: Number(finalGameStats.distance) || 0,
         enemyKills: Number(finalGameStats.enemyKills) || 0,
-        speedLevel: Math.min(100, Number(finalGameStats.speedLevel) || 1), // DBルール上限100（超長距離ランでの送信失敗を防ぐ）
+        speedLevel: Math.min(9999, Number(finalGameStats.speedLevel) || 1), // 真の値を送信（旧ルール≤100で弾かれたら setScoreWithFallback が100で再送）
         timestamp: Date.now(),
         date: new Date().toLocaleDateString('ja-JP')
     };
@@ -4758,7 +4771,7 @@ function submitScore() {
 
     var newRef = database.ref('scores').push();
 
-    newRef.set(scoreData).then(function() {
+    setScoreWithFallback(newRef, scoreData).then(function() {
         gameState.hasRecordedHighScore = true;
         btn.disabled = false;
         btn.innerHTML = t('name_submit');
@@ -4788,13 +4801,13 @@ function skipSubmit() {
         score: Number(finalGameStats.score) || 0,
         distance: Number(finalGameStats.distance) || 0,
         enemyKills: Number(finalGameStats.enemyKills) || 0,
-        speedLevel: Math.min(100, Number(finalGameStats.speedLevel) || 1), // DBルール上限100（超長距離ランでの送信失敗を防ぐ）
+        speedLevel: Math.min(9999, Number(finalGameStats.speedLevel) || 1), // 真の値を送信（旧ルール≤100で弾かれたら setScoreWithFallback が100で再送）
         timestamp: Date.now(),
         date: new Date().toLocaleDateString('ja-JP')
     };
 
     if (database) {
-        database.ref('scores').push().set(scoreData).then(function() {
+        setScoreWithFallback(database.ref('scores').push(), scoreData).then(function() {
             gameState.hasRecordedHighScore = true;
             st.textContent = t('submit_rank_check');
             return fetchAllRanks(scoreData);
@@ -5123,7 +5136,7 @@ function manageObjects() {
     // ゴールデンエッグ（日次・1日1回限りの一発抽選・1.455〜）: 2500mで30% → 外したらR4(≒4800m)で80%救済 → 両方外れたらその日は無し(farm不可)。
     // 一次抽選(2500m)を行った時点で当日の抽選を消費(goldenEggDrawDate)＝別ランでの再挑戦なし。救済はこのラン限定(per-run)。
     // 調整ノブ: 一次=2500m/30% ・ 救済=4800m(R4開始)/80%。
-    if (!gameState.goldenEggFieldSpawned && gameState.distance >= 2500 && canDrawDailyEggToday()) {
+    if (!gameState.goldenEggFieldSpawned && gameState.distance >= 2500 && !bossState.active && canDrawDailyEggToday()) {
         gameState.goldenEggFieldSpawned = true;
         gameSettings.goldenEggDrawDate = getDateString();     // 当日の抽選を消費（1日1回・farm防止）
         gameSettings.lastGoldenEggTimestamp = Date.now();     // 時計巻き戻しガードの基準
@@ -5131,8 +5144,10 @@ function manageObjects() {
         if (Math.random() < 0.30) spawnDailyGoldenEgg();      // 一次抽選 30%
         else gameState.goldenEggRescueArmed = true;           // 外し→R4で救済抽選を保留（このランのみ）
     }
-    // 救済抽選: R4(≒4800m)到達＋一次を外していたら 80%（このラン限定＝R4前に力尽きたら消失＝1日1回限り）
-    if (gameState.goldenEggRescueArmed && !gameState.goldenEggRescueDone && gameState.distance >= 4800) {
+    // 救済抽選: 一次を外していたら R3ボス(4800m)の手前 4300m で 80%（このラン限定＝到達前に力尽きたら消失＝1日1回限り）。
+    // ⚠4800mちょうどで出すと同フレームでR3ボスがトリガー→setupBossArenaがpowerUpsを全消去し、
+    //   エッグが取れない不具合になる（ユーザー報告・1.491）。手前で出して取得の猶予を確保＋ボス中は湧かせない。
+    if (gameState.goldenEggRescueArmed && !gameState.goldenEggRescueDone && gameState.distance >= 4300 && !bossState.active) {
         gameState.goldenEggRescueDone = true;
         if (Math.random() < 0.80) spawnDailyGoldenEgg();      // 救済抽選 80%
     }
