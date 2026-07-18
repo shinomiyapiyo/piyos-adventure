@@ -397,11 +397,12 @@ var EGG_SHOP_ITEMS = [
     // Lv1のみ＝コイン獲得+30%。付与は upgrades.coin_master=1（applyUpgradesのcoinBonus・図鑑seenIfをそのまま共用）
     { id: 'coin_master', type: 'upgrade', upgradeId: 'coin_master', nameKey: 'tshop_coin_master', descKey: 'tshop_coin_master_desc',
       iconImg: 'images/icon_coin_master.png', eggPrice: 100 },
-    // 忍者ぴよ: 2段ジャンプ+1秒毎の自動手裏剣(ダメージ1)。（1.440・課金前提価格）
-    { id: 'skin_ninja', type: 'skin', skinId: 'ninja', nameKey: 'skin_ninja', descKey: 'egg_item_ninja_desc',
-      iconImg: 'images/skin_ninja_idle.png', eggPrice: 200 },
+    // 魔女ぴよ: ジャンプ長押しでグライド滞空。（1.456・アート1.457・価格1.493で200→80・順序1.495で忍者より前へ）
     { id: 'skin_witch', type: 'skin', skinId: 'witch', nameKey: 'skin_witch', descKey: 'egg_item_witch_desc',
-      iconImg: 'images/skin_witch_idle.png', eggPrice: 80 }  // 1.456・アート1.457・1.493 価格200→80
+      iconImg: 'images/skin_witch_idle.png', eggPrice: 80 },
+    // 忍者ぴよ: 2段ジャンプ+1秒毎の自動手裏剣(ダメージ1)。（1.440・課金前提価格・現状最強のため末尾）
+    { id: 'skin_ninja', type: 'skin', skinId: 'ninja', nameKey: 'skin_ninja', descKey: 'egg_item_ninja_desc',
+      iconImg: 'images/skin_ninja_idle.png', eggPrice: 200 }
 ];
 // 永続化できないストック品（一度きりの奇跡＝復活薬）。理由はi18n egg_perma_no_revive で表示。
 var PERMA_STOCK_EXCLUDE = ['revive_potion'];
