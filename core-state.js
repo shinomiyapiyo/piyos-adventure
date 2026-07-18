@@ -401,7 +401,7 @@ var EGG_SHOP_ITEMS = [
     { id: 'skin_ninja', type: 'skin', skinId: 'ninja', nameKey: 'skin_ninja', descKey: 'egg_item_ninja_desc',
       iconImg: 'images/skin_ninja_idle.png', eggPrice: 200 },
     { id: 'skin_witch', type: 'skin', skinId: 'witch', nameKey: 'skin_witch', descKey: 'egg_item_witch_desc',
-      iconImg: 'images/skin_witch_idle.png', eggPrice: 200 }  // 1.456・アート1.457
+      iconImg: 'images/skin_witch_idle.png', eggPrice: 80 }  // 1.456・アート1.457・1.493 価格200→80
 ];
 // 永続化できないストック品（一度きりの奇跡＝復活薬）。理由はi18n egg_perma_no_revive で表示。
 var PERMA_STOCK_EXCLUDE = ['revive_potion'];
