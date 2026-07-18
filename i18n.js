@@ -575,7 +575,7 @@ en: {
     menu_title: _ic('icon_home.png') + ' MENU',
     menu_start: 'START ADVENTURE',
     menu_back: 'Back',
-    title_zukan: 'Library',
+    title_zukan: 'LIBRARY',
     pause_title: _ic('icon_pause.png') + ' Paused',
     pause_resume: _ic('icon_play.png') + ' Resume',
     pause_retire: _ic('icon_flag.png') + ' Retire',
