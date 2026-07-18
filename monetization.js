@@ -87,13 +87,13 @@
 
     function prepareInterstitial() {
         if (!AdMob) return;
-        AdMob.prepareInterstitial({ adId: adUnit('interstitial') })
+        AdMob.prepareInterstitial({ adId: adUnit('interstitial'), npa: true }) // npa=非パーソナライズ広告（トラッキングなし方針）
             .then(function () { interReady = true; })
             .catch(function () { interReady = false; });
     }
     function prepareReward() {
         if (!AdMob) return;
-        AdMob.prepareRewardVideoAd({ adId: adUnit('reward') })
+        AdMob.prepareRewardVideoAd({ adId: adUnit('reward'), npa: true }) // npa=非パーソナライズ広告（トラッキングなし方針）
             .then(function () { setRewardReady(true); })
             .catch(function () { setRewardReady(false); scheduleRewardReload(); });
     }
@@ -119,9 +119,8 @@
 
     function initAds() {
         if (!AdMob) return;
-        // ATT（トラッキング許可ダイアログ）→ 初期化 → 事前ロード。失敗しても広告表示は続行
-        Promise.resolve(AdMob.requestTrackingAuthorization()).catch(function () {})
-            .then(function () { return AdMob.initialize({ initializeForTesting: AD_TEST }); })
+        // 非パーソナライズ広告(NPA)方針＝ATT(トラッキング許可)は要求しない。初期化→リスナー登録→事前ロード。失敗しても続行。
+        Promise.resolve(AdMob.initialize({ initializeForTesting: AD_TEST }))
             .then(function () {
                 // 永続リスナー（初期化後に1回だけ登録）
                 AdMob.addListener(EV.rewReward,     function () { settleReward(true, true); });   // 報酬確定＝即成功（広告は表示された）
