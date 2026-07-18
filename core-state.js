@@ -425,12 +425,12 @@ var ZUKAN_ENTRIES = [
     { id: 'enemy:flying_snow',   cat: 'enemy', nameKey: 'zukan_e_flying_snow',   descKey: 'zukan_e_flying_snow_d',   sprite: 'snowowl_fly',  kill: true },
     { id: 'enemy:flying_night',  cat: 'enemy', nameKey: 'zukan_e_flying_night',  descKey: 'zukan_e_flying_night_d',  sprite: 'bat_fly',      kill: true },
     // ── ボス（撃破数つき）──
+    { id: 'boss:hiyoko',  cat: 'boss', nameKey: 'zukan_b_hiyoko',  descKey: 'zukan_b_hiyoko_d',  kind: 'hiyoko',  kill: true }, // チュートリアル「はじまりの地」のボス＝最初のボス（図鑑先頭・1.494）
     { id: 'boss:rooster', cat: 'boss', nameKey: 'zukan_b_rooster', descKey: 'zukan_b_rooster_d', kind: 'rooster', kill: true },
     { id: 'boss:hawk',    cat: 'boss', nameKey: 'zukan_b_hawk',    descKey: 'zukan_b_hawk_d',    kind: 'hawk',    kill: true },
     { id: 'boss:egg',     cat: 'boss', nameKey: 'zukan_b_egg',     descKey: 'zukan_b_egg_d',     kind: 'egg',     kill: true },
     { id: 'boss:snake',   cat: 'boss', nameKey: 'zukan_b_snake',   descKey: 'zukan_b_snake_d',   kind: 'snake',   kill: true },
     { id: 'boss:owl',     cat: 'boss', nameKey: 'zukan_b_owl',     descKey: 'zukan_b_owl_d',     kind: 'owl',     kill: true },
-    { id: 'boss:hiyoko',  cat: 'boss', nameKey: 'zukan_b_hiyoko',  descKey: 'zukan_b_hiyoko_d',  kind: 'hiyoko',  kill: true }, // チュートリアル「はじまりの地」のボス
     // ── アイテム：フィールドで拾う ──
     { id: 'item:heart',      cat: 'item', nameKey: 'zukan_i_heart',  descKey: 'zukan_i_heart_d',  img: 'images/icon_lives.png' },
     { id: 'item:coin',       cat: 'item', nameKey: 'zukan_i_coin',   descKey: 'zukan_i_coin_d',   img: 'images/icon_money.png' },
@@ -460,14 +460,14 @@ var ZUKAN_ENTRIES = [
     // ── アイテム：きせかえ（所持から発見を派生）──
     { id: 'item:skin_maid',     cat: 'item', nameKey: 'skin_maid',     descKey: 'zukan_i_skin_maid_d',   img: 'images/skin_maid_idle.png',     seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('maid') >= 0; } },
     { id: 'item:skin_kigurumi', cat: 'item', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc', img: 'images/skin_kigurumi_idle.png', seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('kigurumi') >= 0; } },
-    { id: 'item:skin_ninja',    cat: 'item', nameKey: 'skin_ninja',    descKey: 'egg_item_ninja_desc',  img: 'images/skin_ninja_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('ninja') >= 0; } },
     { id: 'item:skin_witch',    cat: 'item', nameKey: 'skin_witch',    descKey: 'egg_item_witch_desc',  img: 'images/skin_witch_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('witch') >= 0; } },
+    { id: 'item:skin_ninja',    cat: 'item', nameKey: 'skin_ninja',    descKey: 'egg_item_ninja_desc',  img: 'images/skin_ninja_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('ninja') >= 0; } },
     // ── ステージ（バイオーム＋ボーナス部屋）──
+    { id: 'biome:town',      cat: 'biome', nameKey: 'zukan_bio_town',   descKey: 'zukan_bio_town_d' }, // はじまりの地（チュートリアル）＝最初のステージ（図鑑先頭・1.494）
     { id: 'biome:grassland', cat: 'biome', nameKey: 'zukan_bio_grass',  descKey: 'zukan_bio_grass_d' },
     { id: 'biome:desert',    cat: 'biome', nameKey: 'zukan_bio_desert', descKey: 'zukan_bio_desert_d' },
     { id: 'biome:snow',      cat: 'biome', nameKey: 'zukan_bio_snow',   descKey: 'zukan_bio_snow_d' },
     { id: 'biome:night',     cat: 'biome', nameKey: 'zukan_bio_night',  descKey: 'zukan_bio_night_d' },
-    { id: 'biome:town',      cat: 'biome', nameKey: 'zukan_bio_town',   descKey: 'zukan_bio_town_d' }, // はじまりの地（チュートリアル）
     { id: 'biome:bonus',     cat: 'biome', nameKey: 'zukan_bio_bonus',  descKey: 'zukan_bio_bonus_d' }
 ];
 // 図鑑コンプリート報酬（ゴールデンエッグ）。各カテゴリ100%＋全種コンプで付与。gameSettings.zukan.claimed で二重防止。

@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.493";
+                content: "Ver.1.494";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.493</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.494</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -3208,8 +3208,8 @@ var SKINS = [
     { id: '',     nameKey: 'skin_default', preview: 'images/player_idle_v1.png' }, // デフォルト
     { id: 'maid', nameKey: 'skin_maid',    preview: 'images/skin_maid_idle.png', unlockAch: 'dist_5000', effectKey: 'skin_effect_maid' },  // 実績「合計5,000m走る」で解放
     { id: 'kigurumi', nameKey: 'skin_kigurumi', preview: 'images/skin_kigurumi_idle.png', eggItem: true, effectKey: 'skin_effect_kigurumi' },  // タイトルショップの「エッグこうかん」で解放
-    { id: 'ninja', nameKey: 'skin_ninja', preview: 'images/skin_ninja_idle.png', eggItem: true, effectKey: 'skin_effect_ninja' },    // エッグこうかん🥚200（1.440・課金前提価格）
-    { id: 'witch', nameKey: 'skin_witch', preview: 'images/skin_witch_idle.png', eggItem: true, effectKey: 'skin_effect_witch' }    // エッグこうかん🥚200（1.456・アート1.457=立ち絵OpenAI/歩行Veo）
+    { id: 'witch', nameKey: 'skin_witch', preview: 'images/skin_witch_idle.png', eggItem: true, effectKey: 'skin_effect_witch' },    // エッグこうかん🥚80（1.456導入・価格1.493で200→80・魔女を忍者より前に=1.494）
+    { id: 'ninja', nameKey: 'skin_ninja', preview: 'images/skin_ninja_idle.png', eggItem: true, effectKey: 'skin_effect_ninja' }    // エッグこうかん🥚200（1.440・現状最強のため末尾=1.494）
 ];
 function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
 function isSkinOwned(id) {
