@@ -1656,18 +1656,16 @@ function drawPowerUp(pu) {
 function drawBullet(b) {
     ctx.save();
     if (b.isZap) {
-        // きぐるみの電気弾（青白い稲妻＋発光）
-        var zx = b.x + b.width / 2, zy = b.y + b.height / 2, zd = b.dir < 0 ? -1 : 1;
-        ctx.shadowColor = '#8ecbff'; ctx.shadowBlur = 14;
-        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-        ctx.strokeStyle = '#eaf6ff'; ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(zx - zd * 8, zy - 5); ctx.lineTo(zx - zd * 2, zy - 1);
-        ctx.lineTo(zx - zd * 4, zy + 2); ctx.lineTo(zx + zd * 8, zy + 5);
-        ctx.stroke();
-        ctx.strokeStyle = '#5bb8ff'; ctx.lineWidth = 1.3; ctx.stroke();
-        ctx.shadowBlur = 8; ctx.fillStyle = '#eaf6ff';
-        ctx.beginPath(); ctx.arc(zx, zy, 2.6, 0, Math.PI * 2); ctx.fill();
+        // きぐるみのエネルギー弾（水色の発光オーブ）。旧=青白い稲妻の電気弾→1.497でエネルギー攻撃に変更
+        // （「黄色ネズミ＋電気」=ピカチュウ連想の回避。稲妻ビジュアルもオーブに置換）。
+        var zx = b.x + b.width / 2, zy = b.y + b.height / 2;
+        ctx.shadowColor = '#7fe6ff'; ctx.shadowBlur = 14;
+        ctx.fillStyle = 'rgba(127,230,255,0.5)';                 // 外側グロー
+        ctx.beginPath(); ctx.arc(zx, zy, 7.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#bff2ff';                               // 本体
+        ctx.beginPath(); ctx.arc(zx, zy, 4.4, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 6; ctx.fillStyle = '#ffffff';           // 白コア
+        ctx.beginPath(); ctx.arc(zx, zy, 2, 0, Math.PI * 2); ctx.fill();
     } else if (b.isShuriken) {
         // 忍者の手裏剣（グレー・回転・薄い発光=夜ステージでの視認性）。グローを焼き込んだスプライトを再利用（毎フレームのshadowBlur回避・監査LOW）
         var shx = b.x + b.width / 2, shy = b.y + b.height / 2;

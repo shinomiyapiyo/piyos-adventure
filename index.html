@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.496";
+                content: "Ver.1.497";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.496</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.497</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -6298,7 +6298,7 @@ function updateBullets() {
         }
     } else if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
                runActiveSkin() === 'kigurumi' && gameState.gameStarted && !pipeRoomState.active) {
-        // きぐるみの特殊効果: エナジー弾が出ていない時だけ、2秒に1発 青白い電気弾（ダメージ1＝エナジー弾2の半分）。
+        // きぐるみの特殊効果: エナジー弾が出ていない時だけ、2秒に1発 水色のエネルギー弾（ダメージ1＝エナジー弾2の半分）。1.497で「電気弾」から改称（ピカチュウ連想回避）。
         // エナジー弾発動中(上のif)はこちらへ来ないので電気は止まり、終わればまた出続ける。
         gameState.zapFireTimer = (gameState.zapFireTimer || 0) + 1;
         if (gameState.zapFireTimer >= 120) { // 2秒に1発
