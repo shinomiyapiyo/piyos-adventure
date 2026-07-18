@@ -2887,23 +2887,19 @@ function updateUI() {
     if (prevUI.speedLevel !== gameState.speedLevel) { uiElements.speedLevel.textContent = gameState.speedLevel; prevUI.speedLevel = gameState.speedLevel; }
     if (prevUI.pct !== pct) { uiElements.speedPercent.textContent = pct; prevUI.pct = pct; }
     if (prevUI.next !== next) { uiElements.nextSpeedUp.textContent = next; prevUI.next = next; }
-    // 復活の羽 残り回数表示
+    // ふっかつマシーン（永続アップグレード）の所持数を HP の右に表示。
+    // ふっかつやく（復活薬）は消費アイテムでストック枠に表示されるため、ここでは重複表示しない（1.496）。
     var revEl = uiElements.reviveIndicator;
     if (revEl) {
-        // ストック内の復活薬の数もカウント
-        var potionCount = 0;
-        for (var ri = 0; ri < stockState.items.length; ri++) {
-            if (stockState.items[ri].id === 'revive_potion') potionCount++;
-        }
-        var totalRevives = gameState.revivesLeft + potionCount;
-        if (totalRevives > 0 && prevUI.revives !== totalRevives) {
-            var featherStr = '';
-            for (var fi = 0; fi < gameState.revivesLeft; fi++) featherStr += '\u{1FAB6}';
-            for (var pi = 0; pi < potionCount; pi++) featherStr += '\u{1F48A}';
-            revEl.textContent = featherStr;
+        var revCount = gameState.revivesLeft;
+        if (revCount > 0 && prevUI.revives !== revCount) {
+            // 旧: 🪶(羽の絵文字)＝内部名 revival_feather の名残。現在は「ふっかつマシーン」なので実アイコンに。
+            var revIconsHtml = '';
+            for (var fi = 0; fi < revCount; fi++) revIconsHtml += _ic('icon_revival_machine.png', 'ui-icon-sm');
+            revEl.innerHTML = revIconsHtml;
             revEl.style.display = 'inline';
-            prevUI.revives = totalRevives;
-        } else if (totalRevives === 0 && prevUI.revives !== 0) {
+            prevUI.revives = revCount;
+        } else if (revCount === 0 && prevUI.revives !== 0) {
             revEl.style.display = 'none';
             prevUI.revives = 0;
         }
