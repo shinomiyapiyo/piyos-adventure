@@ -162,10 +162,25 @@ function bindTapButton(el, handler, opts) {
 // 属性値をhandlerに渡す。タッチは終了座標から要素を特定（指ずれ対策）。
 function bindTapDelegate(container, attrName, handler) {
     var touchFired = false;
+    // スクロールとタップの区別(1.507): 旧実装はtouchendで無条件に指位置の行を選択していたため、
+    // リストをスクロールして指を離すとその位置のアイテムが選ばれてしまった（ユーザー報告）。
+    // 指の移動量10px超 or リスト自体のスクロール量3px超なら「スクロール操作」としてタップ扱いしない。
+    var tapStartX = 0, tapStartY = 0, tapStartScroll = 0, tapMoved = false;
+    container.addEventListener('touchstart', function(e) {
+        var t = e.touches[0];
+        tapStartX = t.clientX; tapStartY = t.clientY;
+        tapStartScroll = container.scrollTop;
+        tapMoved = false;
+    }, { passive: true });
+    container.addEventListener('touchmove', function(e) {
+        var t = e.touches[0];
+        if (Math.abs(t.clientX - tapStartX) > 10 || Math.abs(t.clientY - tapStartY) > 10) tapMoved = true;
+    }, { passive: true });
     container.addEventListener('touchend', function(e) {
         e.preventDefault();
         e.stopPropagation();
         touchFired = true;
+        if (tapMoved || Math.abs(container.scrollTop - tapStartScroll) > 3) return; // スクロールの指離し＝選択しない
         var touch = e.changedTouches[0];
         var target = document.elementFromPoint(touch.clientX, touch.clientY);
         var itemEl = target ? target.closest('[' + attrName + ']') : null;
