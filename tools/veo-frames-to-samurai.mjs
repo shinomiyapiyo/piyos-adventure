@@ -30,6 +30,8 @@ const HEADFRAC  = getArg('headfrac') ? parseFloat(getArg('headfrac')) : 0.46;
 const SCALEUP   = getArg('scaleup') ? parseFloat(getArg('scaleup')) : 1.0;
 const CROPBOTTOM = getArg('cropbottom') ? parseFloat(getArg('cropbottom')) : 0; // 下端の砂埃等を捨てる割合(0-0.5)
 const DESPECKLE = getArg('despeckle') ? parseInt(getArg('despeckle'), 10) : 0; // この画素数未満の孤立成分を除去（浮遊する砂埃対策）
+const ROT = getArg('rotate') ? parseFloat(getArg('rotate')) : 0; // 時計回り回転(度)。突きポーズ→急降下斬りへの角度付け等（ソース解像度で回転→縮小なので劣化最小）
+const FLOP = hasFlag('flop'); // 左右反転。Veoがキャラを左向きで生成した動画をゲーム標準の右向きに直す
 const COMMIT = hasFlag('commit');
 const OUT = 64;
 
@@ -118,6 +120,8 @@ async function main(){
     }
     const sv = meanSV(keyed);
     let keyedPng = await sharp(keyed.data, { raw: { width:keyed.width, height:keyed.height, channels:keyed.channels } }).png().toBuffer();
+    if(FLOP) keyedPng = await sharp(keyedPng).flop().png().toBuffer();
+    if(ROT !== 0) keyedPng = await sharp(keyedPng).rotate(ROT, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
     if(HEADSCALE !== 1) keyedPng = await enlargeHead(keyedPng, HEADSCALE, HEADFRAC);
     const bb = bboxA(await rawRGBA(keyedPng));
 

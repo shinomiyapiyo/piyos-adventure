@@ -60,20 +60,26 @@ const ACTIONS = {
   dive: {
     prompt: [
       ID,
-      'She DRAWS HER KATANA and performs a dramatic DIVING DOWNWARD SLASH, repeatedly, in clear SIDE VIEW facing right:',
-      'she leaps up, then plunges down-forward head-first-angled, gripping the drawn katana with BOTH hands, blade',
-      'pointed diagonally DOWN-FORWARD in a decisive downward slash, legs together sweeping up behind her, ponytail and',
-      'headband ends streaming upward. A dynamic plunging sword attack, then she lands and repeats. She stays CENTERED in',
-      'the frame. Keep her exact appearance, outfit, colors and chunky pixel-art style identical to the input image.',
+      'She DRAWS HER KATANA and performs a dramatic VERTICAL PLUNGING STAB straight down IN PLACE, repeatedly, in clear',
+      'SIDE VIEW facing right: she leaps STRAIGHT UP, then plunges STRAIGHT DOWN head-first-angled. CRITICAL POSE DETAIL:',
+      'during the plunge BOTH of her ARMS are EXTENDED DOWNWARD IN FRONT of her body, holding the katana with both hands,',
+      'and the BLADE POINTS STRAIGHT DOWN BELOW HER HANDS — the sword tip is the LOWEST point of the whole figure,',
+      'LEADING the dive like a downward stab, with her body following the blade down. The sword is NEVER behind her back,',
+      'NEVER trailing, NEVER raised overhead during the descent. Legs together sweeping up behind her, ponytail and',
+      'headband ends streaming upward. Then she lands softly and repeats. She remains perfectly CENTERED horizontally the',
+      'entire time, NEVER moves left or right, NEVER approaches the frame edges — the jump and dive are purely vertical,',
+      'in place. Keep her exact appearance, outfit, colors and chunky pixel-art style identical to the input image.',
       'Plain flat solid green background, no other objects, no camera movement, no zoom, no panning.',
     ].join(' '),
-    neg: 'walking out of frame, background change, camera motion, panning, zoom, extra characters, text, watermark, blur, realistic 3d render, out of frame, sheathed sword only',
+    neg: 'sword behind the body, sword trailing behind, sword raised overhead while falling, follow-through slash, horizontal slash, moving forward, moving sideways, traveling across the screen, leaving the frame, near frame edge, background change, camera motion, panning, zoom, extra characters, text, watermark, blur, realistic 3d render, out of frame, sheathed sword only',
   },
 };
 
 async function buildSeed() {
   const basePath = path.join(RAW_DIR, BASE);
-  const char = await sharp(basePath).trim({ threshold: 10 }).resize(640, 1000, { fit: 'inside' }).png().toBuffer();
+  // --charscale=0.6 等でキャラを小さく合成＝激しいアクションでも画面端に触れない余白を確保（dive用）
+  const CS = parseFloat(getArg('charscale') || '1');
+  const char = await sharp(basePath).trim({ threshold: 10 }).resize(Math.round(640 * CS), Math.round(1000 * CS), { fit: 'inside' }).png().toBuffer();
   const m = await sharp(char).metadata();
   const left = Math.round((W - m.width) / 2);
   const top = Math.max(0, FOOT_Y - m.height);
