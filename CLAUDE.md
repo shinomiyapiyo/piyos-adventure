@@ -1,7 +1,9 @@
 # CLAUDE.md — Piyo's Adventure（ぴよ氏の冒険）
 
 このリポジトリは「ぴよ氏の冒険」（海外タイトル: Piyo's Adventure）の独立リポジトリです。
-公開URL: https://shinomiyapiyo.github.io/piyos-adventure/
+**ゲーム本編はネイティブアプリ専用**（iOS=App Store公開済み／Android=Playクローズドテスト中・Capacitor）。
+公開URL https://shinomiyapiyo.github.io/piyos-adventure/ は**移行ウォール（`wall/`）のみ**を配信する
+（PWA/Web版は2026-07-23に完全廃止。pages.yml の `path: 'wall'` がその切替・戻すには `'.'`）。
 
 ## プロジェクト構成
 
@@ -10,20 +12,18 @@
 - `audio.js` — SoundManager（BGM/SE）
 - `sprites.js` — スプライト定義
 - `core-state.js` / `gameplay.js` / `render.js` / `bootstrap.js` / `monetization.js` — 分割ロジック
-- `sw.js` — Service Worker（PWAキャッシュ）
-- `manifest.json` — PWA manifest
+- `wall/` — PWA廃止の移行ウォール（Web配信はこれだけ・引き継ぎコード＋ストア誘導・キルスイッチsw.js同梱）
+- `scripts/build-www.mjs` — ネイティブ用 `www/` の組み立て（denylist方式・新フォルダ追加時はSKIP要確認）
 - Firebase（外部CDN: firebase-app-compat / firebase-database-compat）— ランキングのリアルタイムDB
 
-ビルドツールは使わず `<script src>` で読み込む。
+ビルドツールは使わず `<script src>` で読み込む。ネイティブ反映は `npm run build:web && npx cap sync ios|android`。
 
 ## 開発ルール
 
-- 新しい js ファイルを追加したら `sw.js` の STATIC_ASSETS に必ず登録する（忘れるとオフラインで壊れる）
 - js の読み込み順序（index.html の `<script src>` の実際の並び）: Firebase（CDN）→ sprites.js → i18n.js → audio.js → monetization.js → core-state.js → gameplay.js → render.js → bootstrap.js。bootstrap.js が最後＝他が全部定義された後に起動する。新ファイル追加時はこの依存順を壊さない
-- HTML を1行でも変更したらバージョンを +0.001 上げる（自動、確認不要）
-- バージョンを上げたら `sw.js` の CACHE_NAME も必ず同時に更新する（PWAキャッシュ更新に必須）
+- HTML を1行でも変更したらバージョンを +0.001 上げる（自動、確認不要）※ゲームのsw.js/CACHE_NAMEは1.510で廃止済み＝同時更新の儀式は不要になった
 - 回答末尾に現在のバージョンを記載する（形式: （現在のバージョン: Ver.X.XXX））
-- 貯金システムが実装されるまで、タイトルショップはグレーアウト（無効化）を維持
+- ゲーム更新がプレイヤーに届くのはストアビルド（AAB/iOSアーカイブ）のみ。push は「ソース保存＋ウォール配信更新」であって公開ではない
 
 ## 変更禁止
 
@@ -42,8 +42,8 @@
 
 ## リリース方針
 
-- 将来 Capacitor でネイティブアプリ化を予定（ストアリリース）
-- PWA/Web 版はネイティブリリースまでの暫定。ネイティブ化後は削除対象（過度な投資はしない）
+- ネイティブ（Capacitor）: iOS=App Store公開済み（1.0.1審査中含む）／Android=Playクローズドテスト中
+- PWA/Web版は**廃止済み（2026-07-23）**。Web配信は移行ウォール（`wall/`）のみ。ゲーム側のsw.js/manifest.json/UPDATEボタン/旧iOSウォールは1.510で削除済み
 
 ## 素材ライセンス
 

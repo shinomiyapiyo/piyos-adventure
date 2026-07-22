@@ -10,9 +10,6 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#ff69b4">
     
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="manifest.json">
-    
     <!-- iOS / Icon Settings -->
     <link rel="apple-touch-icon" href="images/icon-512.png">
     <link rel="icon" type="image/png" href="images/icon-192.png">
@@ -79,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.509";
+                content: "Ver.1.510";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,22 +821,8 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.509</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.510</span>
                 </div>
-
-                <!-- アップデートボタン：右上 -->
-                <button id="forceUpdateBtn" style="
-                    position: absolute; top: 8px; right: 10px;
-                    z-index: 26; padding: 3px 8px;
-                    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.35);
-                    border-radius: 7px; color: rgba(255,255,255,0.85);
-                    font-size: clamp(8px, 1.3vw, 11px); font-weight: 700;
-                    font-family: 'M PLUS Rounded 1c', sans-serif;
-                    cursor: pointer; -webkit-tap-highlight-color: transparent;
-                    display: flex; align-items: center; gap: 3px;
-                    transition: transform 0.1s, background 0.1s;">
-                    &#x21bb; UPDATE
-                </button>
 
                 <!-- クレジット：右下 -->
                 <div style="
@@ -2336,39 +2319,7 @@ function showSobaScene(healedLives, imgPath) {
 }
 
 // ─── URL移行案内（全画面ブロック） ───
-// 旧URL→新URLのリダイレクトで ?from=old が付いて来た利用者に、PWA/ブックマークの入れ直しを強制案内。
-// 閉じるボタンは無し＝古いアプリのままではプレイさせない。?from=old はURLに残す（リロードでも再表示＝すり抜け防止）。
-// 正しい新PWA（manifestのstart_url＝クエリ無し）で起動すれば ?from=old が付かず、この画面は出ない。
-function showUrlChangeNotice() {
-    var fromOld = false;
-    try { fromOld = new URLSearchParams(location.search).get('from') === 'old'; }
-    catch (_) { fromOld = location.search.indexOf('from=old') !== -1; }
-    if (!fromOld) return;
-    if (document.getElementById('urlMovedOverlay')) return; // 二重表示防止
-
-    var ov = document.createElement('div');
-    ov.id = 'urlMovedOverlay';
-    ov.style.cssText = 'position:fixed; inset:0; z-index:2147483647; display:flex; align-items:center; justify-content:center;' +
-        'padding:20px; box-sizing:border-box; overflow:auto; -webkit-tap-highlight-color:transparent;' +
-        'background:radial-gradient(circle at 50% 28%, #1a0e3a, #0a0518 82%);' +
-        "font-family:'M PLUS Rounded 1c',sans-serif;";
-    var card = document.createElement('div');
-    card.style.cssText = 'max-width:440px; width:100%; text-align:center; color:#fff; box-sizing:border-box;' +
-        'background:linear-gradient(180deg,#2a1550,#160a2e); border:2px solid rgba(255,215,0,0.6);' +
-        'border-radius:18px; box-shadow:0 8px 30px rgba(0,0,0,0.6); padding:24px 20px;';
-    card.innerHTML =
-        '<div style="font-size:44px; line-height:1; margin-bottom:8px;">🔄</div>' +
-        '<div style="font-size:clamp(18px,4.8vw,25px); font-weight:800; color:#ffd84a; margin-bottom:12px; text-shadow:0 2px 6px rgba(0,0,0,0.5);">' + escapeHtml(t('urlmoved_title')) + '</div>' +
-        '<div style="font-size:clamp(12px,3vw,15px); line-height:1.75; margin-bottom:16px;">' + escapeHtml(t('urlmoved_lead')) + '</div>' +
-        '<div style="text-align:left; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:12px 14px; margin-bottom:14px; font-size:clamp(12px,3vw,15px); line-height:2;">' +
-            escapeHtml(t('urlmoved_step1')) + '<br>' + escapeHtml(t('urlmoved_step2')) + '<br>' + escapeHtml(t('urlmoved_step3')) +
-        '</div>' +
-        '<div style="font-size:clamp(11px,2.7vw,13px); color:#ffb4b4; line-height:1.6; font-weight:700;">' + escapeHtml(t('urlmoved_warn')) + '</div>';
-    ov.appendChild(card);
-    // 背後（スプラッシュ/ゲーム）へのタップを完全に遮断＝プレイ不能
-    ov.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
-    document.body.appendChild(ov);
-}
+// （旧URL移行通知 showUrlChangeNotice は PWA廃止に伴い削除 — 1.510。Web配信はウォール[wall/]のみ）
 
 // ─── ゲーム設定 (localStorage永続化) ───
 var gameSettings = {
@@ -2611,75 +2562,7 @@ function showTransferExport() {
     if (soundManager) soundManager.playConfirmSelect();
 }
 
-// ─── iPhone PWA 移行ウォール（iOSアプリ公開に伴いWeb版はアプリへ誘導・ゲームは遊べない） ───
-// 対象: iOSのブラウザ/ホーム画面PWA。ネイティブアプリ内(Capacitor)と他OSは通常起動。
-// 表示するのは「引き継ぎコード（コピー可）」と「App Storeリンク」だけ（ユーザー指定仕様）。
-var IOS_APP_STORE_URL = 'https://apps.apple.com/app/id6791699129';
-function isIosBrowser() {
-    var ua = navigator.userAgent || '';
-    if (/iPad|iPhone|iPod/.test(ua)) return true;
-    // iPadOS13+はMac偽装（MacIntel＋マルチタッチ）で判定
-    return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
-}
-function maybeShowIosPwaMigrationWall() {
-    if (typeof isNativeApp === 'function' && isNativeApp()) return false; // アプリ内は対象外
-    if (!isIosBrowser()) return false;
-    showIosPwaMigrationWall();
-    return true;
-}
-function showIosPwaMigrationWall() {
-    if (document.getElementById('iosPwaWall')) return;
-    var code = '';
-    try { code = buildTransferCode(); } catch (_) {}
-    var ov = document.createElement('div');
-    ov.id = 'iosPwaWall';
-    // z-indexはモーダルと同値の最大＝後着のこのウォールが最前面。閉じるボタンは無し（ゲーム不可仕様）
-    ov.style.cssText = 'position:fixed; inset:0; z-index:2147483647; display:flex; align-items:center; justify-content:center;' +
-        'background:linear-gradient(180deg, rgba(20,8,40,0.98), rgba(5,0,15,0.99)); padding:14px; box-sizing:border-box;' +
-        'overflow:auto; -webkit-tap-highlight-color:transparent;';
-    var card = document.createElement('div');
-    card.style.cssText = 'width:100%; max-width:520px; box-sizing:border-box; color:#fff; text-align:center; margin:auto;' +
-        "font-family:'M PLUS Rounded 1c',sans-serif;" +
-        'background:rgba(255,255,255,0.04); border:2px solid rgba(255,215,0,0.5); border-radius:14px; padding:16px;';
-    card.innerHTML =
-        '<img src="images/icon-192.png" alt="" style="width:56px; height:56px; border-radius:13px; margin-bottom:6px;">' +
-        '<div style="color:#ffd700; font-weight:800; font-size:clamp(15px,4vw,20px); margin-bottom:8px;">' + escapeHtml(t('pwa_wall_title')) + '</div>' +
-        '<div style="font-size:clamp(10px,2.6vw,13px); line-height:1.7; color:rgba(255,255,255,0.9); text-align:left; margin-bottom:10px; white-space:pre-line;">' + escapeHtml(t('pwa_wall_desc')) + '</div>';
-    var ta = document.createElement('textarea');
-    ta.value = code;
-    ta.readOnly = true;
-    ta.rows = 4;
-    ta.style.cssText = 'width:100%; box-sizing:border-box; resize:none; border-radius:8px; padding:8px;' +
-        'font-family:monospace; font-size:11px; word-break:break-all;' +
-        'background:rgba(255,255,255,0.08); color:#cfe8ff; border:1px solid rgba(255,255,255,0.25);';
-    card.appendChild(ta);
-    var col = document.createElement('div');
-    col.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-top:10px;';
-    var copyBtn = document.createElement('button');
-    copyBtn.textContent = t('transfer_copy');
-    copyBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#4488dd,#2255aa)');
-    copyBtn.onclick = function() {
-        function ok() { copyBtn.textContent = t('transfer_copied'); if (soundManager) soundManager.playCoin(); }
-        function fallback() { ta.focus(); ta.select(); try { document.execCommand('copy'); ok(); } catch (_) {} }
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(code).then(ok, fallback);
-        } else fallback();
-    };
-    var storeBtn = document.createElement('button');
-    storeBtn.textContent = t('pwa_wall_store');
-    storeBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#ffb347,#ff6723)');
-    storeBtn.onclick = function() {
-        // ホーム画面PWA(standalone)では window.open が失敗することがある→ location.href へフォールバック
-        var w = null;
-        try { w = window.open(IOS_APP_STORE_URL, '_blank'); } catch (_) {}
-        if (!w) location.href = IOS_APP_STORE_URL;
-    };
-    col.appendChild(copyBtn);
-    col.appendChild(storeBtn);
-    card.appendChild(col);
-    ov.appendChild(card);
-    document.body.appendChild(ov);
-}
+// （旧iPhone PWA移行ウォール[1.501 iosPwaWall]はPWA廃止に伴い削除 — 1.510。全OS対応の新ウォールは wall/index.html）
 
 // セーブデータ削除（貯金・アップグレード・きせかえ・エッグ・記録を全消去）。二段確認＝元に戻せないので誤操作防止。
 // localStorage の piyo_settings を消してリロード＝loadSettings が既定値で初期化する。
@@ -3866,7 +3749,6 @@ function startApp() {
 function handleTitleScreenClick(e) {
     if (e.target.classList.contains('game-button')) return;
     if (e.target.closest('a')) return;
-    if (e.target.closest('#forceUpdateBtn')) return;
     showTitleMenu();
 }
 

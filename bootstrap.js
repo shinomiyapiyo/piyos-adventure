@@ -1,10 +1,9 @@
 // ============================================================
 // bootstrap.js — 起動処理（index.html から分離 / Ver.1.336, Step5・分割の最終ファイル）
 // 内容: gameLoop・リサイズ・タイトル画像・setupInput(入力)・グローバルイベント・
-//       initialize・DOMContentLoaded＋forceUpdate。
+//       initialize・DOMContentLoaded。（PWA用のforceUpdate/SW登録は1.510で撤去=Web配信はウォールのみ）
 // ★必ず最後(render.jsの後)に読み込む。全関数定義後にトップレベル実行
 //   (setupInput IIFE / イベント登録 / DOMContentLoaded)が走る。
-//   setupInput と forceUpdate は同一ファイルに保ち、現状のクロージャ構造を維持(バグ4再発防止)。
 // ============================================================
 
 
@@ -405,11 +404,7 @@ function bindTapDelegate(container, attrName, handler) {
     bindTapButton(document.getElementById('adReviveBtn'), adRevive, { guardTouchStart: true });
     // 広告の準備完了/失敗で「準備中」表示を自動更新（monetization.js から呼ばれる・A案）
     window.onRewardReadyChange = function() { if (typeof refreshRewardButtons === 'function') refreshRewardButtons(); };
-    // UPDATEボタン: 旧onclick(iOSで遅延・指の微動で無効化)→ touchend即時に統一。タイトルの「タップで開始」誤爆も防ぐ。
-    // ※ forceUpdate は後段(DOMContentLoaded内)で window.forceUpdate として定義されるため、
-    //   ここで素の forceUpdate を直接渡すと「未定義参照」でこのIIFE(setupInput)が中断し、
-    //   結果 initialize() の登録まで実行されず起動不能になる。クロージャで包んでタップ時に解決する。
-    bindTapButton(document.getElementById('forceUpdateBtn'), function() { if (window.forceUpdate) window.forceUpdate(); }, { guardTouchStart: true, stopClickPropagation: true });
+    // （UPDATEボタンのバインドはPWA廃止に伴い撤去 — 1.510）
 
     // ストックアイテム: タップ=使用／ドラッグ=枠の中身を入替（永続枠の並べ替え）。枠は動的生成のため委譲。
     // 使用可能枠(data-idx)からドラッグ開始・任意の枠(data-slot)へドロップ。閾値未満の動きはタップ=即使用（iOS遅延/微動回避）。
@@ -565,7 +560,7 @@ window.addEventListener('orientationchange', function() {
 document.addEventListener('touchmove', function(e) {
     // INPUT要素とオーバーレイ画面内のスクロールは許可
     if (e.target.tagName === 'INPUT') return;
-    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen, #titleMenuScreen, #gameModal, #iosPwaWall, .transferOverlay, #houseAdScreen')) return;
+    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen, #titleMenuScreen, #gameModal, .transferOverlay, #houseAdScreen')) return;
     e.preventDefault();
 }, { passive: false });
 
@@ -612,11 +607,6 @@ document.addEventListener('pointerdown', function() {
 // ─── 初期化 ───
 
 function initialize() {
-    // ネイティブ(アプリ)ではタイトルのUPDATEボタン（PWA用の強制更新）を隠す＝アプリ更新はストア経由で不要
-    if (isNativeApp()) {
-        var _ub = document.getElementById('forceUpdateBtn');
-        if (_ub) _ub.style.display = 'none';
-    }
     // 未所持スキンが装備中なら（解放条件導入前に装備していた等）デフォルトへ戻す
     if (gameSettings.activeSkin && !isSkinOwned(gameSettings.activeSkin)) { gameSettings.activeSkin = ''; saveSettings(); }
     // 所持アップグレードを起動時に反映（stock_expand の maxSlots 等）。従来は初回ラン開始まで反映されず、
@@ -812,7 +802,6 @@ function initialize() {
     startScreen.addEventListener('touchend', function(e) {
         if (e.target.classList.contains('game-button')) return;
         if (e.target.closest('a')) return;
-        if (e.target.closest('#forceUpdateBtn')) return;
         e.preventDefault();
         showTitleMenu();
     });
@@ -825,71 +814,21 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         try {
             initialize();
-            // iOSのブラウザ/PWAはアプリ版へ移行（引き継ぎコード＋App Storeリンクのウォール表示・ゲーム不可）。
-            // ネイティブアプリ内と他OSは通常起動（Android版クローズドテスト開始後に全PWAへ拡大予定）
-            if (typeof maybeShowIosPwaMigrationWall === 'function') maybeShowIosPwaMigrationWall();
-            if (typeof showUrlChangeNotice === 'function') showUrlChangeNotice(); // 旧URLからの遷移(?from=old)なら再インストール案内
             checkOrientation();
             setTimeout(function() { window.scrollTo(0, 1); }, 100);
 
-            // Service Worker登録（Web/PWAのみ）。ネイティブ(Capacitor)ではキャッシュ不要な上に、
-            // 更新後に古いコードを配信してしまうため登録せず、既存のSW/キャッシュがあれば掃除する。
-            if (isNativeApp()) {
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistrations().then(function(regs) {
-                        regs.forEach(function(r) { r.unregister(); });
-                    }).catch(function() {});
-                }
-                if (window.caches && caches.keys) {
-                    caches.keys().then(function(keys) {
-                        keys.forEach(function(k) { caches.delete(k); });
-                    }).catch(function() {});
-                }
-            } else if ('serviceWorker' in navigator) {
-                // updateViaCache:'none' で sw.js 自体のHTTPキャッシュ(max-age=600)を無効化し、
-                // 起動時の update() で新バージョンを確実に検知できるようにする
-                navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(function(reg) {
-                    if (reg) { try { reg.update(); } catch (_) {} }
+            // Service Worker: PWA廃止(1.510)に伴い登録は撤去（sw.js自体も削除済み）。
+            // 旧PWA時代のSW/キャッシュが端末に残っていれば掃除だけ行う（ネイティブ旧インストール・開発環境の残骸対策）。
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    regs.forEach(function(r) { r.unregister(); });
                 }).catch(function() {});
             }
-
-            // 強制アップデート関数
-            window.forceUpdate = function() {
-                var btn = document.getElementById('forceUpdateBtn');
-                if (btn) {
-                    btn.textContent = '↻ updating...';
-                    btn.disabled = true;
-                    btn.style.background = 'rgba(50,180,50,0.8)';
-                    btn.style.color = '#fff';
-                    btn.style.transform = 'scale(0.93)';
-                    btn.style.border = '2px solid rgba(100,255,100,0.6)';
-                }
-                // iOSのホーム画面PWAでは caches/SW操作のPromiseが解決せずフリーズする事が
-                // あるため、何があっても一定時間後に必ずリロードする安全網を張る。
-                // go は1度だけ実行（正常終了時は即・ハング時は1.2秒後に発火）。
-                // リロードさえすれば updateViaCache:'none' + cache-buster + cache:'reload' で更新は成立する。
-                var navigated = false;
-                var go = function() {
-                    if (navigated) return;
-                    navigated = true;
-                    // HTTPキャッシュ(max-age=600)を確実にバイパスするためcache-buster付きで再取得
-                    location.replace(location.pathname + '?u=' + Date.now());
-                };
-                setTimeout(go, 1200);
-                var p = Promise.resolve();
-                if ('caches' in window) {
-                    p = caches.keys().then(function(names) {
-                        return Promise.all(names.map(function(n) { return caches.delete(n); }));
-                    });
-                }
-                p.then(function() {
-                    if ('serviceWorker' in navigator) {
-                        return navigator.serviceWorker.getRegistrations().then(function(regs) {
-                            return Promise.all(regs.map(function(r) { return r.unregister(); }));
-                        });
-                    }
-                }).then(go).catch(go);
-            };
+            if (window.caches && caches.keys) {
+                caches.keys().then(function(keys) {
+                    keys.forEach(function(k) { caches.delete(k); });
+                }).catch(function() {});
+            }
 
             // Android戻るボタン対応
             // Android戻るボタン/ブラウザバック: BACK_HANDLERS（優先順位付きレジストリ）の
