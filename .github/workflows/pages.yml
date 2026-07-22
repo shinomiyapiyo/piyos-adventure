@@ -32,10 +32,11 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # ⚠ PWA完全廃止の切替時（Androidクローズドテスト公開後）は '.' → 'wall' に変更する。
-          #   これでWeb配信は移行ウォール(wall/)だけになり、ゲーム本編はネイティブアプリ専用になる。
+          # ✅ PWA完全廃止ウォール稼働中（2026-07-23切替・Androidクローズドテスト公開に伴いGO）。
+          #   Web配信は移行ウォール(wall/)のみ＝ゲーム本編はネイティブアプリ専用。
           #   wall/sw.js がキルスイッチとして旧PWAのキャッシュを掃除する。詳細は wall/index.html 冒頭コメント。
-          path: '.'
+          #   （ロールバックする場合はこの path を '.' に戻すだけ）
+          path: 'wall'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
