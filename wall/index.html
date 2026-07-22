@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>ぴよ氏の冒険 - アプリ版のご案内</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="images/icon-192.png">
+<link rel="apple-touch-icon" href="images/icon-192.png">
+<style>
+/* ぴよ氏の冒険 移行ウォール（Web/PWA配信はこのページのみ・ゲーム本編はネイティブアプリ専用） */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { min-height: 100%; }
+body {
+    font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', sans-serif;
+    background: linear-gradient(180deg, #140828, #050010);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    padding: 14px; min-height: 100vh;
+}
+.card {
+    width: 100%; max-width: 520px; text-align: center; margin: auto;
+    background: rgba(255,255,255,0.04);
+    border: 2px solid rgba(255,215,0,0.5); border-radius: 14px; padding: 18px 16px;
+}
+.icon { width: 56px; height: 56px; border-radius: 13px; margin-bottom: 6px; }
+h1 { color: #ffd700; font-weight: 800; font-size: clamp(15px, 4vw, 20px); margin-bottom: 8px; }
+.desc {
+    font-size: clamp(10px, 2.6vw, 13px); line-height: 1.7; color: rgba(255,255,255,0.9);
+    text-align: left; margin-bottom: 12px; white-space: pre-line;
+}
+.codeLabel { color: #ffd700; font-weight: 800; font-size: clamp(11px, 2.6vw, 14px); margin-bottom: 6px; }
+textarea {
+    width: 100%; resize: none; border-radius: 8px; padding: 8px;
+    font-family: monospace; font-size: 11px; word-break: break-all;
+    background: rgba(255,255,255,0.08); color: #cfe8ff; border: 1px solid rgba(255,255,255,0.25);
+}
+.col { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+button, a.btn {
+    display: block; width: 100%; min-height: 44px; padding: 10px 16px; border-radius: 22px; border: none;
+    cursor: pointer; font-family: inherit; font-weight: 800; font-size: clamp(12px, 2.8vw, 15px);
+    color: #fff; text-decoration: none; line-height: 1.5;
+}
+.btnCopy { background: linear-gradient(180deg, #4488dd, #2255aa); }
+.btnIos { background: linear-gradient(180deg, #ffb347, #ff6723); }
+.btnAndroid { background: linear-gradient(180deg, #44bb77, #228855); }
+.note { font-size: clamp(9px, 2.2vw, 12px); line-height: 1.6; color: rgba(255,255,255,0.7); margin-top: 8px; }
+.note a { color: #8fd0ff; }
+</style>
+</head>
+<body>
+<div class="card">
+    <img class="icon" src="images/icon-192.png" alt="">
+    <h1 id="title"></h1>
+    <div class="desc" id="desc"></div>
+    <div id="codeArea" style="display:none;">
+        <div class="codeLabel" id="codeLabel"></div>
+        <textarea id="codeBox" readonly rows="4"></textarea>
+    </div>
+    <div class="desc" id="noSave" style="display:none; text-align:center;"></div>
+    <div class="col" id="btnCol"></div>
+    <div class="note" id="note"></div>
+</div>
+<script>
+(function() {
+    'use strict';
+    // ─── 設定（リリース段階で切り替える）───
+    var IOS_APP_STORE_URL = 'https://apps.apple.com/app/id6791699129';
+    var ANDROID_MODE = 'beta'; // 'beta'=クローズドテスト中 / 'store'=Play正式公開後（1行切替）
+    var ANDROID_BETA_SIGNUP_URL = 'https://nullpoworks.pages.dev/beta-test';   // テスター登録ページ
+    var ANDROID_BETA_OPTIN_URL = 'https://play.google.com/apps/testing/com.nullpoworks.piyosadventure'; // 登録済みの人の参加ページ
+    var ANDROID_STORE_URL = 'https://play.google.com/store/apps/details?id=com.nullpoworks.piyosadventure';
+
+    // ─── 言語（ゲームの保存設定を優先・無ければブラウザ言語）───
+    var saveRaw = null, saveObj = null;
+    try { saveRaw = localStorage.getItem('piyo_settings'); } catch (_) {}
+    try { saveObj = saveRaw ? JSON.parse(saveRaw) : null; } catch (_) { saveObj = null; }
+    var lang = (saveObj && (saveObj.language === 'ja' || saveObj.language === 'en')) ? saveObj.language
+        : (String(navigator.language || 'ja').toLowerCase().indexOf('ja') === 0 ? 'ja' : 'en');
+    document.documentElement.lang = lang;
+
+    var T = {
+        ja: {
+            title: 'アプリ版へお引っ越しください',
+            desc: '「ぴよ氏の冒険」はアプリになりました！Web版はここで終了です。\n①下の引き継ぎコードを「コピー」\n②お使いの端末のアプリを入手\n③アプリの「設定 → データ引き継ぎ → 入力」に貼り付け\nで、貯金・きせかえ・実績までまるごと続きから遊べます。',
+            descNoSave: '「ぴよ氏の冒険」はアプリになりました！Web版はここで終了です。\n下のボタンからアプリを入手して遊んでください。',
+            codeLabel: 'あなたの引き継ぎコード',
+            copy: 'コピー', copied: 'コピーしました！',
+            noSave: 'この端末にセーブデータは見つかりませんでした。\nそのままアプリで新しく始められます！',
+            ios: 'App Store でアプリを入手（iPhone）',
+            androidBeta: 'Android テスト版に参加（テスター登録）',
+            androidStore: 'Google Play でアプリを入手（Android）',
+            noteBeta: 'Android版はただいまテスト配信中！登録ページでメールアドレスを登録すると参加のご案内が届きます。登録済みの方は<a href="' + ANDROID_BETA_OPTIN_URL + '">こちらの参加ページ</a>からどうぞ。',
+            noteStore: ''
+        },
+        en: {
+            title: "We've Moved to the App Stores!",
+            desc: "Piyo's Adventure is now a native app! The web version ends here.\n1) Copy your transfer code below\n2) Get the app for your device\n3) Paste it in Settings → Data Transfer → Import\nYour savings, skins and achievements all carry over.",
+            descNoSave: "Piyo's Adventure is now a native app! The web version ends here.\nGrab the app below and start playing!",
+            codeLabel: 'Your Transfer Code',
+            copy: 'Copy', copied: 'Copied!',
+            noSave: 'No save data was found on this device.\nJust get the app and start fresh!',
+            ios: 'Get it on the App Store (iPhone)',
+            androidBeta: 'Join the Android Beta (sign up)',
+            androidStore: 'Get it on Google Play (Android)',
+            noteBeta: 'The Android version is in beta! Register your email on the sign-up page and we will send you the invite. Already registered? <a href="' + ANDROID_BETA_OPTIN_URL + '">Join the test here</a>.',
+            noteStore: ''
+        }
+    };
+    var L = T[lang];
+
+    document.getElementById('title').textContent = L.title;
+    document.getElementById('desc').textContent = L.desc;
+    document.title = lang === 'ja' ? 'ぴよ氏の冒険 - アプリ版のご案内' : "Piyo's Adventure - Get the App";
+
+    // ─── 引き継ぎコード（ゲーム本編 buildTransferCode と同一形式: PIYO1.<b64>.<djb2-8> ───
+    function transferChecksum(s) {
+        var h = 5381;
+        for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+        return ('0000000' + h.toString(16)).slice(-8);
+    }
+    function buildTransferCode(d) {
+        var payload = { v: (d && d.dataVersion) || 2, t: Date.now(), d: d };
+        var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+        return 'PIYO1.' + b64 + '.' + transferChecksum(b64);
+    }
+
+    var code = '';
+    if (saveObj && typeof saveObj === 'object') {
+        try { code = buildTransferCode(saveObj); } catch (_) {}
+    }
+    if (code) {
+        document.getElementById('codeArea').style.display = 'block';
+        document.getElementById('codeLabel').textContent = L.codeLabel;
+        var box = document.getElementById('codeBox');
+        box.value = code;
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'btnCopy';
+        copyBtn.textContent = L.copy;
+        copyBtn.onclick = function() {
+            function ok() { copyBtn.textContent = L.copied; }
+            function fallback() { box.focus(); box.select(); try { document.execCommand('copy'); ok(); } catch (_) {} }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(code).then(ok, fallback);
+            } else fallback();
+        };
+        document.getElementById('btnCol').appendChild(copyBtn);
+    } else {
+        // セーブ無し（またはコード生成不能）＝手順①〜③は意味がないので短文へ
+        document.getElementById('desc').textContent = L.descNoSave;
+        var ns = document.getElementById('noSave');
+        ns.style.display = 'block';
+        ns.textContent = L.noSave;
+    }
+
+    // ─── ストアボタン（利用OSを先頭に・両方常時表示）───
+    function storeLink(cls, text, href) {
+        var a = document.createElement('a');
+        a.className = 'btn ' + cls;
+        a.textContent = text;
+        a.href = href;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        // ホーム画面PWA(standalone)では新規タブが開けないことがある → 直接遷移にフォールバック
+        a.onclick = function(e) {
+            try {
+                var w = window.open(href, '_blank');
+                if (!w) location.href = href;
+                e.preventDefault();
+            } catch (_) {}
+        };
+        return a;
+    }
+    var iosBtn = storeLink('btnIos', L.ios, IOS_APP_STORE_URL);
+    var andBtn = ANDROID_MODE === 'beta'
+        ? storeLink('btnAndroid', L.androidBeta, ANDROID_BETA_SIGNUP_URL)
+        : storeLink('btnAndroid', L.androidStore, ANDROID_STORE_URL);
+    var col = document.getElementById('btnCol');
+    var isAndroid = /Android/i.test(navigator.userAgent || '');
+    if (isAndroid) { col.appendChild(andBtn); col.appendChild(iosBtn); }
+    else { col.appendChild(iosBtn); col.appendChild(andBtn); }
+    document.getElementById('note').innerHTML = ANDROID_MODE === 'beta' ? L.noteBeta : L.noteStore;
+
+    // ─── 後始末: このページはSWを登録しない。残存SW/キャッシュがあれば静かに掃除（sw.jsのキルスイッチと二段構え）───
+    try {
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+                regs.forEach(function(r) { r.unregister(); });
+            });
+        }
+        if (window.caches && caches.keys) {
+            caches.keys().then(function(keys) { keys.forEach(function(k) { caches.delete(k); }); });
+        }
+    } catch (_) {}
+})();
+</script>
+</body>
+</html>
