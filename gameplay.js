@@ -3801,6 +3801,17 @@ var HOUSE_AD_GAMES = [
         sub:     { ja: '〜私を信じて〜',  en: '~Believe in Me~' },
         genre:   { ja: '色合わせパズル',  en: 'Color-match Puzzle' },
         tagline: { ja: '同じ色をそろえて消す爽快パズル。コンボでフィーバー！', en: 'Match colors to clear — combo into Fever!' }
+    },
+    {
+        // 14番地は12+のため、カードの文言は9+寄りに抑える（ホラー/恐怖の語は使わない・方針: 本作9+据え置き）
+        id: 'banchi14',
+        storeUrl: 'https://apps.apple.com/app/id6785090823',
+        icon: 'images/promo/14banchi_icon.png',
+        shot: 'images/promo/14banchi_shot.jpg',
+        title:   { ja: '14番地',                en: '14th Block' },
+        sub:     { ja: '〜ぴよ氏の怪異街歩き〜',  en: "Piyo's Night Walk" },
+        genre:   { ja: '異変探しアドベンチャー',  en: 'Anomaly-Spotting Adventure' },
+        tagline: { ja: '夜のまちで「いつもとちがう」を見つけよう。全41種の異変をあつめる探索ゲーム！', en: 'Stroll the night town and spot what\'s different — collect all 41 anomalies!' }
     }
 ];
 var houseAdRotIndex = 0;
@@ -3824,7 +3835,8 @@ function showHouseAd(onDone) {
     houseAdDoneCb = onDone || function() {};
     // 横向きゲーム＝縦に短いので、スクショは info の横に置く（縦積みだと landscape で収まらない）。
     // 画像が無い/読めない時は img が display:none になり、info だけの1カラムになる。
-    var shotHtml = g.shot ? '<img src="' + g.shot + '" alt="" onerror="this.style.display=\'none\'" style="height:min(240px,52vh); width:auto; max-width:42vw; border-radius:8px; border:1px solid rgba(255,255,255,0.12); flex-shrink:0;">' : '';
+    // max-height/max-width の組で縦横比を常に維持（height固定+max-widthだと横長スクショが潰れる）
+    var shotHtml = g.shot ? '<img src="' + g.shot + '" alt="" onerror="this.style.display=\'none\'" style="max-height:min(240px,52vh); max-width:42vw; width:auto; height:auto; border-radius:8px; border:1px solid rgba(255,255,255,0.12); flex-shrink:0;">' : '';
     card.innerHTML =
         '<div style="color:rgba(255,255,255,0.55); font-size:clamp(9px,1.7vw,12px); font-family:\'M PLUS Rounded 1c\',sans-serif; margin-bottom:8px;">' + escapeHtml(t('house_ad_pr')) + '</div>' +
         '<div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; justify-content:center;">' +
