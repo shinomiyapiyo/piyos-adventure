@@ -7,3 +7,7 @@ www/
 
 # App Store提出用スクショ（アプリには同梱しない・リポジトリ管理外）
 スクショ用/
+
+# Android署名鍵（絶対にコミットしない）
+android/upload-keystore.jks
+android/keystore.properties
