@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.508";
+                content: "Ver.1.509";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.508</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.509</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -3284,6 +3284,7 @@ var SKINS = [
     { id: 'maid', nameKey: 'skin_maid',    preview: 'images/skin_maid_idle.png', unlockAch: 'dist_5000', effectKey: 'skin_effect_maid' },  // 実績「合計5,000m走る」で解放
     { id: 'kigurumi', nameKey: 'skin_kigurumi', preview: 'images/skin_kigurumi_idle.png', eggItem: true, effectKey: 'skin_effect_kigurumi' },  // タイトルショップの「エッグこうかん」で解放
     { id: 'witch', nameKey: 'skin_witch', preview: 'images/skin_witch_idle.png', eggItem: true, effectKey: 'skin_effect_witch' },    // エッグこうかん🥚80（1.456導入・価格1.493で200→80・魔女を忍者より前に=1.494）
+    { id: 'samurai', nameKey: 'skin_samurai', preview: 'images/skin_samurai_idle.png', moneyItem: true, effectKey: 'skin_effect_samurai' }, // タイトルショップ100万円（1.509・アートは後続=プレビューはプレースホルダ・ゲーム内は未登録スプライトの自動フォールバックでデフォルト見た目）
     { id: 'ninja', nameKey: 'skin_ninja', preview: 'images/skin_ninja_idle.png', eggItem: true, effectKey: 'skin_effect_ninja' }    // エッグこうかん🥚200（1.440・現状最強のため末尾=1.494）
 ];
 function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
@@ -3306,6 +3307,20 @@ function handleSkinClick(e) {
     if (cb) { e.stopPropagation(); equipSkin(cb.getAttribute('data-skin-equip')); return true; }
     return false;
 }
+
+// ── 侍ぴよ（1.509）: 空中で下スワイプ→急降下斬り。発動したら true（入力側でスワイプ消費の判定に使う）──
+// 地上の下スワイプ（土管入場/ブロックすり抜け）とは入力が衝突しない＝空中限定。
+// 斬り判定は敵衝突ループ側（player.samuraiDive 中の接触は撃破）。ボス/装甲は既存ルールのまま（貫通しない）。
+var SAMURAI_DIVE_SPEED = 16; // 急降下の初速（調整ノブ）
+function startSamuraiDive() {
+    if (!SKIN_FEATURE_ENABLED || runActiveSkin() !== 'samurai') return false;
+    if (!gameState.gameStarted || gameState.gamePaused || pipeRoomState.active) return false;
+    if (player.onGround || player.samuraiDive || gameState.isRespawning) return false;
+    player.samuraiDive = true;
+    player.velY = Math.max(player.velY, SAMURAI_DIVE_SPEED);
+    if (soundManager) soundManager.playCritical(); // 斬撃感のある既存SE流用
+    return true;
+}
 function renderSkinRow(s) {
     var owned = isSkinOwned(s.id);
     var equipped = (gameSettings.activeSkin === s.id);
@@ -3318,6 +3333,7 @@ function renderSkinRow(s) {
         stateHtml = '<span style="color:#ff9ed8; font-weight:800; font-size:clamp(9px,1.8vw,13px); white-space:nowrap;">🔒 ' + t('skin_locked') + '</span>';
         if (s.unlockAch) { var ac = achById(s.unlockAch); if (ac) condHtml = '<div style="color:rgba(255,255,255,0.6); font-size:clamp(8px,1.6vw,11px); margin-top:2px;">' + t('skin_unlock_prefix') + escapeHtml(t(ac.nameKey)) + t('skin_unlock_suffix') + '</div>'; }
         else if (s.eggItem) { condHtml = '<div style="color:rgba(255,255,255,0.6); font-size:clamp(8px,1.6vw,11px); margin-top:2px;">' + escapeHtml(t('skin_unlock_egg')) + '</div>'; }
+        else if (s.moneyItem) { condHtml = '<div style="color:rgba(255,255,255,0.6); font-size:clamp(8px,1.6vw,11px); margin-top:2px;">' + escapeHtml(t('skin_unlock_money')) + '</div>'; }
     }
     var dim = (!owned && !equipped) ? ' filter:grayscale(0.75); opacity:0.65;' : '';
     // 特殊スキルの軽い説明（メイド=クリティカル/きぐるみ=電気攻撃）
@@ -5627,6 +5643,22 @@ function updatePlayer() {
         }
     }
 
+    // 侍ぴよ 急降下斬り（1.509）: 着地で解除（小シェイクの手応え）／降下中は金の斬撃トレイル
+    if (player.samuraiDive) {
+        if (player.onGround) {
+            player.samuraiDive = false;
+            screenShake.intensity = 4; screenShake.timer = 8;
+        } else {
+            floatEffects.push({
+                type: 'combo_spark',
+                worldX: player.x + player.width / 2 + (Math.random() - 0.5) * 12,
+                worldY: player.y + player.height * 0.3,
+                vx: (Math.random() - 0.5) * 1.5, vy: -2 - Math.random() * 2,
+                timer: 0, duration: 14, size: 2 + Math.random() * 2, hue: 48
+            });
+        }
+    }
+
     // 落下死（上から降ってくるリスポーン）
     if (player.y > GAME_HEIGHT + 100) fallDeath();
 }
@@ -5965,6 +5997,12 @@ function updateEnemies() {
             continue;
         }
 
+        // 侍ぴよ 急降下斬り中（1.509）: 触れた敵を斬り伏せる（スコアは踏み同等・バウンドせず降下継続=畳みかけ）
+        if (player.samuraiDive) {
+            killEnemy(enemies, i, e, 200);
+            continue;
+        }
+
         stomped = falling && player.y + player.height <= e.y + e.height * 0.65;
 
         if (stomped) {
@@ -5988,6 +6026,12 @@ function updateEnemies() {
         if (!stompHitF && !bodyHitF) { updateNearMiss(e); continue; }
 
         if (isPlayerProtected()) {
+            killEnemy(flyingEnemies, i, e, 300);
+            continue;
+        }
+
+        // 侍ぴよ 急降下斬り中（1.509）: 空中敵も接触で撃破（降下継続）
+        if (player.samuraiDive) {
             killEnemy(flyingEnemies, i, e, 300);
             continue;
         }
@@ -6531,6 +6575,7 @@ function updateBullets() {
 }
 
 function resetPlayerPosition() {
+    player.samuraiDive = false; // リスポーン/復活時に急降下斬りを解除（1.509）
     var safeX = gameState.camera.x + 150;
     var found = false, gx = safeX;
 

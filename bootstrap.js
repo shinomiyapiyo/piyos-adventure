@@ -267,6 +267,14 @@ function bindTapDelegate(container, attrName, handler) {
                 gameState.downSwipeTimer = DOWN_SWIPE_FRAMES;
                 gameState.input.left = false; gameState.input.right = false;
                 highlightControl(null);
+                return;
+            }
+            // 侍ぴよ（1.509）: 空中で下スワイプ→急降下斬り（非所持/条件外は何もしない）。
+            // 地上系（土管入場/すり抜け）を先に判定するので入力衝突なし。
+            if (typeof startSamuraiDive === 'function' && startSamuraiDive()) {
+                moveSwiped = true;
+                gameState.input.left = false; gameState.input.right = false;
+                highlightControl(null);
             }
         } else if (dy < -20 && dt < 500) {
             // 上スワイプ: ショップ入店用
@@ -516,6 +524,8 @@ function bindTapDelegate(container, attrName, handler) {
                     gameState.input.down = true;
                     gameState.downSwipeActive = true;
                     gameState.downSwipeTimer = DOWN_SWIPE_FRAMES;
+                } else if (typeof startSamuraiDive === 'function') {
+                    startSamuraiDive(); // 侍ぴよ（1.509）: 空中の下キー=急降下斬り（タッチの空中下スワイプと同等）
                 }
                 break;
             case ' ': case 'ArrowUp': case 'w': case 'W':

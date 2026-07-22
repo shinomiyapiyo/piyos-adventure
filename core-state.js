@@ -390,6 +390,10 @@ var TITLE_SHOP_UPGRADES = [
     // 出現率(土管1%/日次一発抽選)は不可侵＝触らない。吸引は index.html updatePowerUps 冒頭。
     { id: 'egg_magnet', nameKey: 'tshop_egg_magnet', descKey: 'tshop_egg_magnet_desc',
       icon: '', iconImg: 'images/icon_egg_magnet.png', maxLevel: 1, prices: [1000000], effectDesc: ['自動回収'], effectDescEn: ['Auto-collect'] },
+    // 侍ぴよ（1.509・高額レーン第4弾/初の金貨建てアバター）: 空中下スワイプ→急降下斬り。
+    // 購入時に grantSkin が ownedSkins へ 'samurai' を付与（handleTshopConfirmYes）＝きせかえに出現。
+    { id: 'samurai_piyo', nameKey: 'skin_samurai', descKey: 'tshop_samurai_desc', grantSkin: 'samurai',
+      icon: '', iconImg: 'images/skin_samurai_idle.png', maxLevel: 1, prices: [1000000], effectDesc: ['急降下斬り'], effectDescEn: ['Dive slash'] },
     // ラッキーチャーム（1.506・高額レーン第2弾）: 土管の期待出現1.5倍（50%で同ラウンド2本目）＋
     // ラッキーの間の当たり枠強化（revive4%→8%/herb12%→20%）。部屋内は世界凍結のため距離ランキングは汚染しない。
     { id: 'lucky_charm', nameKey: 'tshop_lucky_charm', descKey: 'tshop_lucky_charm_desc',
@@ -482,6 +486,7 @@ var ZUKAN_ENTRIES = [
     { id: 'item:skin_maid',     cat: 'item', nameKey: 'skin_maid',     descKey: 'zukan_i_skin_maid_d',   img: 'images/skin_maid_idle.png',     seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('maid') >= 0; } },
     { id: 'item:skin_kigurumi', cat: 'item', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc', img: 'images/skin_kigurumi_idle.png', seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('kigurumi') >= 0; } },
     { id: 'item:skin_witch',    cat: 'item', nameKey: 'skin_witch',    descKey: 'egg_item_witch_desc',  img: 'images/skin_witch_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('witch') >= 0; } },
+    { id: 'item:skin_samurai',  cat: 'item', nameKey: 'skin_samurai',  descKey: 'tshop_samurai_desc',   img: 'images/skin_samurai_idle.png', seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('samurai') >= 0; } },
     { id: 'item:skin_ninja',    cat: 'item', nameKey: 'skin_ninja',    descKey: 'egg_item_ninja_desc',  img: 'images/skin_ninja_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('ninja') >= 0; } },
     // ── ステージ（バイオーム＋ボーナス部屋）──
     { id: 'biome:town',      cat: 'biome', nameKey: 'zukan_bio_town',   descKey: 'zukan_bio_town_d' }, // はじまりの地（チュートリアル）＝最初のステージ（図鑑先頭・1.494）

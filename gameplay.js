@@ -1679,12 +1679,17 @@ function confirmTshopBuy() {
     gameSettings.savings -= price;
     if (!gameSettings.upgrades) gameSettings.upgrades = {};
     gameSettings.upgrades[tshopConfirmingItem] = currentLevel + 1;
+    // アバター商品（1.509 侍ぴよ〜）: 購入でスキン所持を付与（きせかえに出る）。upgradesフラグはMAX表示/図鑑用
+    if (upgrade.grantSkin) {
+        if (!gameSettings.ownedSkins) gameSettings.ownedSkins = [];
+        if (gameSettings.ownedSkins.indexOf(upgrade.grantSkin) < 0) gameSettings.ownedSkins.push(upgrade.grantSkin);
+    }
     saveSettings();
     applyUpgrades(); // 購入効果を即反映（stock_expand の maxSlots 再計算＋updateStockUI）。無いと枠増が再入場まで表示されない
     if (soundManager) soundManager.playItem();
     showTshopConfirm(false);
     tshopConfirmingItem = null;
-    setTshopKeeperText('tshop_keeper_bought');
+    setTshopKeeperText(upgrade.grantSkin ? 'tshop_keeper_egg_bought' : 'tshop_keeper_bought'); // スキンは「きせかえで装備」案内
     updateTitleShopUI();
 }
 
