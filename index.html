@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.500";
+                content: "Ver.1.501";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.500</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.501</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -2604,6 +2604,76 @@ function showTransferExport() {
     row.appendChild(copyBtn); row.appendChild(closeBtn);
     ui.card.appendChild(row);
     if (soundManager) soundManager.playConfirmSelect();
+}
+
+// ─── iPhone PWA 移行ウォール（iOSアプリ公開に伴いWeb版はアプリへ誘導・ゲームは遊べない） ───
+// 対象: iOSのブラウザ/ホーム画面PWA。ネイティブアプリ内(Capacitor)と他OSは通常起動。
+// 表示するのは「引き継ぎコード（コピー可）」と「App Storeリンク」だけ（ユーザー指定仕様）。
+var IOS_APP_STORE_URL = 'https://apps.apple.com/app/id6791699129';
+function isIosBrowser() {
+    var ua = navigator.userAgent || '';
+    if (/iPad|iPhone|iPod/.test(ua)) return true;
+    // iPadOS13+はMac偽装（MacIntel＋マルチタッチ）で判定
+    return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
+}
+function maybeShowIosPwaMigrationWall() {
+    if (typeof isNativeApp === 'function' && isNativeApp()) return false; // アプリ内は対象外
+    if (!isIosBrowser()) return false;
+    showIosPwaMigrationWall();
+    return true;
+}
+function showIosPwaMigrationWall() {
+    if (document.getElementById('iosPwaWall')) return;
+    var code = '';
+    try { code = buildTransferCode(); } catch (_) {}
+    var ov = document.createElement('div');
+    ov.id = 'iosPwaWall';
+    // z-indexはモーダルと同値の最大＝後着のこのウォールが最前面。閉じるボタンは無し（ゲーム不可仕様）
+    ov.style.cssText = 'position:fixed; inset:0; z-index:2147483647; display:flex; align-items:center; justify-content:center;' +
+        'background:linear-gradient(180deg, rgba(20,8,40,0.98), rgba(5,0,15,0.99)); padding:14px; box-sizing:border-box;' +
+        'overflow:auto; -webkit-tap-highlight-color:transparent;';
+    var card = document.createElement('div');
+    card.style.cssText = 'width:100%; max-width:520px; box-sizing:border-box; color:#fff; text-align:center; margin:auto;' +
+        "font-family:'M PLUS Rounded 1c',sans-serif;" +
+        'background:rgba(255,255,255,0.04); border:2px solid rgba(255,215,0,0.5); border-radius:14px; padding:16px;';
+    card.innerHTML =
+        '<img src="images/icon-192.png" alt="" style="width:56px; height:56px; border-radius:13px; margin-bottom:6px;">' +
+        '<div style="color:#ffd700; font-weight:800; font-size:clamp(15px,4vw,20px); margin-bottom:8px;">' + escapeHtml(t('pwa_wall_title')) + '</div>' +
+        '<div style="font-size:clamp(10px,2.6vw,13px); line-height:1.7; color:rgba(255,255,255,0.9); text-align:left; margin-bottom:10px; white-space:pre-line;">' + escapeHtml(t('pwa_wall_desc')) + '</div>';
+    var ta = document.createElement('textarea');
+    ta.value = code;
+    ta.readOnly = true;
+    ta.rows = 4;
+    ta.style.cssText = 'width:100%; box-sizing:border-box; resize:none; border-radius:8px; padding:8px;' +
+        'font-family:monospace; font-size:11px; word-break:break-all;' +
+        'background:rgba(255,255,255,0.08); color:#cfe8ff; border:1px solid rgba(255,255,255,0.25);';
+    card.appendChild(ta);
+    var col = document.createElement('div');
+    col.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-top:10px;';
+    var copyBtn = document.createElement('button');
+    copyBtn.textContent = t('transfer_copy');
+    copyBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#4488dd,#2255aa)');
+    copyBtn.onclick = function() {
+        function ok() { copyBtn.textContent = t('transfer_copied'); if (soundManager) soundManager.playCoin(); }
+        function fallback() { ta.focus(); ta.select(); try { document.execCommand('copy'); ok(); } catch (_) {} }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(code).then(ok, fallback);
+        } else fallback();
+    };
+    var storeBtn = document.createElement('button');
+    storeBtn.textContent = t('pwa_wall_store');
+    storeBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#ffb347,#ff6723)');
+    storeBtn.onclick = function() {
+        // ホーム画面PWA(standalone)では window.open が失敗することがある→ location.href へフォールバック
+        var w = null;
+        try { w = window.open(IOS_APP_STORE_URL, '_blank'); } catch (_) {}
+        if (!w) location.href = IOS_APP_STORE_URL;
+    };
+    col.appendChild(copyBtn);
+    col.appendChild(storeBtn);
+    card.appendChild(col);
+    ov.appendChild(card);
+    document.body.appendChild(ov);
 }
 
 // セーブデータ削除（貯金・アップグレード・きせかえ・エッグ・記録を全消去）。二段確認＝元に戻せないので誤操作防止。

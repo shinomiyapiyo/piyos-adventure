@@ -800,6 +800,9 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         try {
             initialize();
+            // iOSのブラウザ/PWAはアプリ版へ移行（引き継ぎコード＋App Storeリンクのウォール表示・ゲーム不可）。
+            // ネイティブアプリ内と他OSは通常起動（Android版クローズドテスト開始後に全PWAへ拡大予定）
+            if (typeof maybeShowIosPwaMigrationWall === 'function') maybeShowIosPwaMigrationWall();
             if (typeof showUrlChangeNotice === 'function') showUrlChangeNotice(); // 旧URLからの遷移(?from=old)なら再インストール案内
             checkOrientation();
             setTimeout(function() { window.scrollTo(0, 1); }, 100);
