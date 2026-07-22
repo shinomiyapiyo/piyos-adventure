@@ -864,10 +864,13 @@ var EFFECT_RENDERERS = {
             ctx.globalAlpha = alpha;
             ctx.font = "900 24px 'M PLUS Rounded 1c', sans-serif";
             var half = ctx.measureText(label).width / 2;
-            // 取得位置がプレイヤー(=画面左寄り)なので、文字全体(アイコン込み)が画面内に収まるようXをクランプ
+            // 取得位置がプレイヤー(=画面左寄り)なので、文字全体(アイコン込み)が画面内に収まるようXをクランプ。
+            // ⚠クランプ基準は座標系で切替: 本編=translate(-camera.x)内で描くためcamera.x基準／
+            // 土管部屋=無変換の画面座標系のため基準0（camera.xは凍結された本編の値=数万pxでGETテキストが画面外に飛んでいた・1.504修正）
             var halfPx = (half + 40) * scale;
-            var cx = Math.max(gameState.camera.x + halfPx,
-                     Math.min(wx, gameState.camera.x + GAME_WIDTH - halfPx));
+            var camL = pipeRoomState.active ? 0 : gameState.camera.x;
+            var cx = Math.max(camL + halfPx,
+                     Math.min(wx, camL + GAME_WIDTH - halfPx));
             ctx.translate(cx, gy);
             ctx.scale(scale, scale);
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
