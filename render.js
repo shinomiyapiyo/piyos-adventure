@@ -1343,6 +1343,8 @@ function drawPlayer(x, y) {
     // 未登録のスキンID（壊れたセーブ・sprites.js登録漏れ）はポーズ単位でデフォルトへフォールバック（透明プレイヤー防止）。
     // 判定は spriteManager.cache（IMAGE_SPRITES はロード完了後に null 解放されるため使わない）
     var runSkin = runActiveSkin(); // チュートリアル中はデフォルト（サンドボックス）
+    // 侍ぴよ 急降下斬り(1.512): 降下攻撃中は専用ポーズに差し替え（dive登録済みスキンのみ・他スキンは通常のfallのまま）
+    if (player.samuraiDive && runSkin && spriteManager.cache['skin_' + runSkin + '_dive']) pose = 'dive';
     var skinKey = 'skin_' + runSkin + '_' + pose;
     spriteName = (SKIN_FEATURE_ENABLED && runSkin && spriteManager.cache[skinKey]) ? skinKey : 'player_' + pose;
 

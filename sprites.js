@@ -63,6 +63,19 @@ var IMAGE_SPRITES = {
     skin_witch_jump: { files: ['images/skin_witch_jump.png'] },
     skin_witch_fall: { files: ['images/skin_witch_fall.png'] },
 
+    // 侍ぴよスキン（タイトルショップ100万・1.512／立ち絵=OpenAI samurai_anchor_1・歩行=Veo veo_samurai_walk f_22/26/30/33・
+    // jump/fall=Veo veo_samurai_jumpfall f_38/47・dive=急降下斬り専用ポーズ Veo veo_samurai_dive f_37=render.jsがsamuraiDive中に使用）
+    skin_samurai_idle: { files: ['images/skin_samurai_idle.png'] },
+    skin_samurai_walk: { files: [
+        'images/skin_samurai_walk_1.png',
+        'images/skin_samurai_walk_2.png',
+        'images/skin_samurai_walk_3.png',
+        'images/skin_samurai_walk_4.png'
+    ]},
+    skin_samurai_jump: { files: ['images/skin_samurai_jump.png'] },
+    skin_samurai_fall: { files: ['images/skin_samurai_fall.png'] },
+    skin_samurai_dive: { files: ['images/skin_samurai_dive.png'] },
+
     // 敵 (左向き固定 - 元画像が右向きのものだけflip:trueで反転)
     chick_walk:        { files: [
         'images/enemy_chick_walk_1.png',
