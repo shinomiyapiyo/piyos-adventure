@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.501";
+                content: "Ver.1.502";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.501</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.502</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -4768,7 +4768,10 @@ function fetchAllRanks(scoreData) {
             return { key: cat.key, label: cat.label, unit: cat.unit, rank: rank, value: val };
         });
     });
-    return Promise.all(queries).then(function(results) {
+    // モバイル回線で .once('value') が永久に返らないと、名前登録後の画面遷移が止まり
+    // 「何も押せない」状態になる（iPhone実機報告）→ 6秒で必ず打ち切って空ランクで先へ進める
+    var timeout = new Promise(function(resolve) { setTimeout(function() { resolve([]); }, 6000); });
+    return Promise.race([Promise.all(queries), timeout]).then(function(results) {
         return results;
     }).catch(function() { return []; });
 }
@@ -4813,9 +4816,12 @@ function submitScore() {
     var btn = document.getElementById('submitBtn');
     var st = document.getElementById('submitStatus');
 
-    // 二重送信防止
+    // 二重送信防止（スキップ側も同時に封じる）
     if (btn.disabled) return;
     btn.disabled = true;
+    var skipBtnEl = document.getElementById('skipBtn');
+    if (skipBtnEl) skipBtnEl.disabled = true;
+    try { document.getElementById('playerNameInput').blur(); } catch (_) {} // 先にキーボードを閉じる（iOSビューポート対策）
     btn.textContent = t('submit_btn_sending');
     st.textContent = t('submit_connecting');
 
@@ -4843,8 +4849,7 @@ function submitScore() {
 
     setScoreWithFallback(newRef, scoreData).then(function() {
         gameState.hasRecordedHighScore = true;
-        btn.disabled = false;
-        btn.innerHTML = t('name_submit');
+        // ⚠ここでボタンを復活させない: ランク確認中に再タップされると同じスコアが二重登録される
         st.textContent = t('submit_rank_check');
         return fetchAllRanks(scoreData);
     }).then(function(ranks) {
@@ -4856,6 +4861,7 @@ function submitScore() {
         });
     }).catch(function(err) {
         btn.disabled = false;
+        if (skipBtnEl) skipBtnEl.disabled = false;
         btn.innerHTML = t('name_submit');
         st.textContent = t('submit_fail_status');
         showGameModal(t('submit_fail_send'));
@@ -4863,6 +4869,13 @@ function submitScore() {
 }
 
 function skipSubmit() {
+    // 二重タップ防止（登録側も同時に封じる）＋キーボードを先に閉じる（iOSビューポート対策）
+    var skipBtnEl = document.getElementById('skipBtn');
+    if (skipBtnEl && skipBtnEl.disabled) return;
+    if (skipBtnEl) skipBtnEl.disabled = true;
+    var submitBtnEl = document.getElementById('submitBtn');
+    if (submitBtnEl) submitBtnEl.disabled = true;
+    try { document.getElementById('playerNameInput').blur(); } catch (_) {}
     var st = document.getElementById('submitStatus');
     st.textContent = t('submit_btn_sending');
 
@@ -4914,13 +4927,28 @@ function showNameInput() {
     document.getElementById('submitBtn').innerHTML = t('name_submit');
     document.getElementById('submitStatus').textContent = '';
     
+    document.getElementById('skipBtn').disabled = false;
+
     var input = document.getElementById('playerNameInput');
     input.value = '';
-    input.focus();
+    // ネイティブ(iOS)では自動フォーカスしない: 画面遷移と同時にキーボードが開くとWKWebViewの
+    // ビューポート復元が不安定になるため、入力欄タップ（ユーザー操作起点）で開かせる
+    if (typeof isNativeApp !== 'function' || !isNativeApp()) input.focus();
 }
 
 function hideNameInputDirect() {
     hideScreenEl('nameInputScreen');
+    // iOS(WKWebView)のキーボード後遺症対策: キーボードでズレたビューポートを必ず原点へ戻し、
+    // 高さの復元漏れも resizeCanvas で再計算する（本作は touchmove 全面 preventDefault のため
+    // ズレるとユーザーがスワイプで戻せず「何も押せない」ように見える＝iPhone実機報告の対処）
+    var input = document.getElementById('playerNameInput');
+    if (input) { try { input.blur(); } catch (_) {} }
+    setTimeout(function() {
+        try { window.scrollTo(0, 0); } catch (_) {}
+        if (document.body) document.body.scrollTop = 0;
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (typeof resizeCanvas === 'function') resizeCanvas();
+    }, 60);
 }
 
 function checkHighScore(stats) {
