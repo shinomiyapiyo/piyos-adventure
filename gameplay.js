@@ -2092,6 +2092,7 @@ function applyUpgrades() {
     if (tutorialState.active) {
         gameState.coinBonus = 1.0;
         gameState.lives = 5;
+        gameState.crystalLives = 0; // サンドボックス＝クリスタルハートも持ち込まない
         stockState.maxSlots = 3;
         gameState.magnetRange = 200;
         gameState.magnetDurMult = 1;
@@ -2107,6 +2108,8 @@ function applyUpgrades() {
     gameState.coinBonus = coinLv > 0 ? 1.3 : 1.0; // コインマスター（🥚こうかん・Lv1のみ）: コイン獲得+30%
     var toughLv = ups.toughness || 0;
     gameState.lives = 5 + toughLv;
+    // クリスタルハート: 青ハート(Lv=個数)。赤より先に削れ・ラン中は回復不可(ここでの補充のみ)
+    gameState.crystalLives = ups.crystal_heart || 0;
     var stockLv = ups.stock_expand || 0;
     stockState.maxSlots = 3 + stockLv;
     var magnetLv = ups.magnet_boost || 0;

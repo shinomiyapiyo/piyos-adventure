@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.504";
+                content: "Ver.1.505";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -733,7 +733,7 @@
             <div><img src="images/icon_distance.png" class="ui-icon"> <span id="distance">0</span>m</div>
             <div><img src="images/icon_money.png" class="ui-icon"> <span id="score">0</span></div>
             <div><img src="images/item_golden_egg.png" class="ui-icon"> <span id="goldenEggCount">0</span></div>
-            <div><img src="images/icon_lives.png" class="ui-icon"> <span id="lives">5</span> <span id="reviveIndicator" style="display:none; color:#ffd700;"></span></div>
+            <div><img src="images/icon_lives.png" class="ui-icon"> <span id="lives">5</span><span id="crystalLives" style="display:none; color:#5fc0ff; font-weight:700;"></span> <span id="reviveIndicator" style="display:none; color:#ffd700;"></span></div>
             <div><img src="images/icon_kills.png" class="ui-icon"> <span id="enemyKills">0</span><span data-i18n="hud_kills_suffix">体撃破</span></div>
             <div><img src="images/icon_level.png" class="ui-icon"> <span data-i18n="hud_level_prefix">レベル</span><span id="speedLevel">1</span> (<span id="speedPercent">100</span>%)</div>
             <div><img src="images/icon_progress.png" class="ui-icon"> <span data-i18n="hud_next_prefix">次まで</span><span id="nextSpeedUp">300</span>m</div>
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.504</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.505</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -6213,7 +6213,8 @@ function isPlayerProtected() {
 
 function takeDamage() {
     if (gameState.isInvincible) return;
-    gameState.lives--;
+    // クリスタルハート（青）が残っていれば赤より先に消費（回復不可・ラン開始時のみ補充）
+    if (gameState.crystalLives > 0) gameState.crystalLives--; else gameState.lives--;
     if (soundManager) soundManager.playDamage();
     gameState.isInvincible = true;
     gameState.invincibleTimer = INVINCIBLE_FRAMES;
@@ -6244,7 +6245,8 @@ function fallDeath() {
     // 消える」不具合の原因）。無敵は落下ペナルティも免除する従来仕様を保ちつつ、必ず画面内へ
     // 戻す（上空から落ち直す）ことで“消える”を解消する。
     if (gameState.isInvincible || gameState.isRespawning) { resetPlayerPosition(); return; }
-    gameState.lives--;
+    // 落下死もダメージと同順: クリスタルハート（青）から先に消費
+    if (gameState.crystalLives > 0) gameState.crystalLives--; else gameState.lives--;
     if (soundManager) soundManager.playDamage();
     gameState.isInvincible = true;
     gameState.invincibleTimer = INVINCIBLE_FRAMES;

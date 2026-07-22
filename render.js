@@ -1982,6 +1982,7 @@ function cacheUIElements() {
     uiElements.distance = document.getElementById('distance');
     uiElements.score = document.getElementById('score');
     uiElements.lives = document.getElementById('lives');
+    uiElements.crystalLives = document.getElementById('crystalLives');
     uiElements.enemyKills = document.getElementById('enemyKills');
     uiElements.speedLevel = document.getElementById('speedLevel');
     uiElements.speedPercent = document.getElementById('speedPercent');
@@ -2884,6 +2885,13 @@ function updateUI() {
     if (prevUI.score !== gameState.score) { uiElements.score.textContent = gameState.score; prevUI.score = gameState.score; }
     if (uiElements.goldenEggCount && prevUI.eggs !== gameSettings.goldenEggs) { uiElements.goldenEggCount.textContent = (gameSettings.goldenEggs || 0); prevUI.eggs = gameSettings.goldenEggs; }
     if (prevUI.lives !== gameState.lives) { uiElements.lives.textContent = gameState.lives; prevUI.lives = gameState.lives; }
+    // クリスタルハート（青）: 残数を「+N」で赤ライフの隣に表示（0なら非表示）
+    var _cl = gameState.crystalLives || 0;
+    if (prevUI.crystalLives !== _cl) {
+        uiElements.crystalLives.textContent = _cl > 0 ? '+' + _cl : '';
+        uiElements.crystalLives.style.display = _cl > 0 ? '' : 'none';
+        prevUI.crystalLives = _cl;
+    }
     if (prevUI.enemyKills !== gameState.enemyKills) { uiElements.enemyKills.textContent = gameState.enemyKills; prevUI.enemyKills = gameState.enemyKills; }
     if (prevUI.speedLevel !== gameState.speedLevel) { uiElements.speedLevel.textContent = gameState.speedLevel; prevUI.speedLevel = gameState.speedLevel; }
     if (prevUI.pct !== pct) { uiElements.speedPercent.textContent = pct; prevUI.pct = pct; }
