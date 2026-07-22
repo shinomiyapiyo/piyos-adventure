@@ -2118,6 +2118,7 @@ function applyUpgrades() {
         gameState.lives = 5;
         gameState.crystalLives = 0; // サンドボックス＝クリスタルハートも持ち込まない
         gameState.luckyCharm = false; // ラッキーチャームも持ち込まない
+        gameState.eggMagnet = false; // エッグマグネットも持ち込まない
         stockState.maxSlots = 3;
         gameState.magnetRange = 200;
         gameState.magnetDurMult = 1;
@@ -2137,6 +2138,8 @@ function applyUpgrades() {
     gameState.crystalLives = ups.crystal_heart || 0;
     // ラッキーチャーム: 土管の期待出現1.5倍＋ラッキーの間の当たり枠強化(pickPipeTargetDist/openLuckyChest参照)
     gameState.luckyCharm = (ups.lucky_charm || 0) > 0;
+    // エッグマグネット: ゴールデンエッグを全画面から吸い寄せ(updatePowerUps冒頭)＝取り逃し防止
+    gameState.eggMagnet = (ups.egg_magnet || 0) > 0;
     var stockLv = ups.stock_expand || 0;
     stockState.maxSlots = 3 + stockLv;
     var magnetLv = ups.magnet_boost || 0;

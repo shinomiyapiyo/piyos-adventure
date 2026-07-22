@@ -386,6 +386,10 @@ var TITLE_SHOP_UPGRADES = [
     // （ラン開始時のみ補充）。タフネス（回復可能な赤+N）とは別レイヤー。消費は takeDamage/fallDeath。
     { id: 'crystal_heart', nameKey: 'tshop_crystal_heart', descKey: 'tshop_crystal_heart_desc',
       icon: '', iconImg: 'images/icon_crystal_heart.png', maxLevel: 3, prices: [1000000, 2000000, 5000000], effectDesc: ['+1', '+2', '+3'] },
+    // エッグマグネット（1.508・高額レーン第3弾）: ゴールデンエッグを全画面から吸い寄せ＝取り逃しゼロ。
+    // 出現率(土管1%/日次一発抽選)は不可侵＝触らない。吸引は index.html updatePowerUps 冒頭。
+    { id: 'egg_magnet', nameKey: 'tshop_egg_magnet', descKey: 'tshop_egg_magnet_desc',
+      icon: '', iconImg: 'images/icon_egg_magnet.png', maxLevel: 1, prices: [1000000], effectDesc: ['自動回収'], effectDescEn: ['Auto-collect'] },
     // ラッキーチャーム（1.506・高額レーン第2弾）: 土管の期待出現1.5倍（50%で同ラウンド2本目）＋
     // ラッキーの間の当たり枠強化（revive4%→8%/herb12%→20%）。部屋内は世界凍結のため距離ランキングは汚染しない。
     { id: 'lucky_charm', nameKey: 'tshop_lucky_charm', descKey: 'tshop_lucky_charm_desc',
@@ -470,6 +474,7 @@ var ZUKAN_ENTRIES = [
     { id: 'item:swift_feet',      cat: 'item', nameKey: 'tshop_swift_feet',      descKey: 'tshop_swift_feet_desc',      img: 'images/icon_swift_feet.png',      seenIf: function(gs){ return ((gs.upgrades || {}).swift_feet || 0) > 0; } },
     { id: 'item:revival_feather', cat: 'item', nameKey: 'tshop_revival_feather', descKey: 'tshop_revival_feather_desc', img: 'images/icon_revival_machine.png', seenIf: function(gs){ return ((gs.upgrades || {}).revival_feather || 0) > 0; } },
     { id: 'item:crystal_heart',   cat: 'item', nameKey: 'tshop_crystal_heart',   descKey: 'tshop_crystal_heart_desc',   img: 'images/icon_crystal_heart.png',   seenIf: function(gs){ return ((gs.upgrades || {}).crystal_heart || 0) > 0; } },
+    { id: 'item:egg_magnet',      cat: 'item', nameKey: 'tshop_egg_magnet',      descKey: 'tshop_egg_magnet_desc',      img: 'images/icon_egg_magnet.png',      seenIf: function(gs){ return ((gs.upgrades || {}).egg_magnet || 0) > 0; } },
     { id: 'item:lucky_charm',     cat: 'item', nameKey: 'tshop_lucky_charm',     descKey: 'tshop_lucky_charm_desc',     img: 'images/icon_lucky_charm.png',     seenIf: function(gs){ return ((gs.upgrades || {}).lucky_charm || 0) > 0; } },
     // ── アイテム：まほうのポーチ（エッグこうかん・所持=pouchLevel>0 で発見。エッグ商品perma_stock/nameは egg_pouch を流用）──
     { id: 'item:pouch',           cat: 'item', nameKey: 'egg_pouch',             descKey: 'egg_pouch_desc',             img: 'images/item_pouch.png',           seenIf: function(gs){ return (gs.pouchLevel || 0) > 0; } },

@@ -79,7 +79,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.507";
+                content: "Ver.1.508";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -824,7 +824,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.507</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.508</span>
                 </div>
 
                 <!-- アップデートボタン：右上 -->
@@ -6344,6 +6344,18 @@ function updateCoins() {
 function updatePowerUps() {
     for (var i = 0; i < powerUps.length; i++) {
         var pu = powerUps[i];
+        // エッグマグネット(1.508): ゴールデンエッグを全画面から吸い寄せ＝取り逃しゼロ。
+        // 出現抽選(日次一発/土管1%)には一切触らない。係数はコイン磁石(6326)と同型・レンジ無制限。
+        if (gameState.eggMagnet && !pu.collected && pu.type === 'golden_egg') {
+            var edx = player.x + player.width / 2 - (pu.x + pu.width / 2);
+            var edy = player.y + player.height / 2 - (pu.y + pu.height / 2);
+            var edist = Math.sqrt(edx * edx + edy * edy);
+            if (edist > 1) {
+                var estr = 0.10 + Math.max(0, 1 - edist / 900) * 0.15; // 近いほど強く（遠くでも最低0.10で確実に追いつく）
+                pu.x += edx * estr;
+                pu.y += edy * estr;
+            }
+        }
         if (pu.collected || !aabb(player, pu)) continue;
 
         pu.collected = true;
