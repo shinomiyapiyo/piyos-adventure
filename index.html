@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.510";
+                content: "Ver.1.511";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -821,7 +821,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.510</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.511</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3778,7 +3778,13 @@ function closeTitleMenu() {
 
 // ─── 初回チュートリアル ───
 var tutorialHintsActive = false;
-function showTutorialCard() { showScreenEl('tutorialScreen'); }
+function showTutorialCard() {
+    showScreenEl('tutorialScreen');
+    // Android戻る対策(1.511): 履歴を積まないと初回起動直後(履歴が空)の戻る=popstateが発生せず
+    // Capacitor既定動作で即アプリ終了になる（BACK_HANDLERSのtutorialCancelに届かない唯一の登録画面だった）。
+    // 戻る→popstateで相殺。開始時(tutorialBegin)はこの分が残置されるが、後段のラン中トグルが無害に吸収する
+    history.pushState({ screen: 'tutorial' }, '');
+}
 function tutorialBegin(withHints) {
     gameSettings.tutorialSeen = true;
     saveSettings();
