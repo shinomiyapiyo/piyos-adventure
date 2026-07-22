@@ -540,7 +540,7 @@ window.addEventListener('orientationchange', function() {
 document.addEventListener('touchmove', function(e) {
     // INPUT要素とオーバーレイ画面内のスクロールは許可
     if (e.target.tagName === 'INPUT') return;
-    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen, #titleMenuScreen')) return;
+    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen, #titleMenuScreen, #gameModal, #iosPwaWall, .transferOverlay, #houseAdScreen')) return;
     e.preventDefault();
 }, { passive: false });
 
