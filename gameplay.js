@@ -273,6 +273,7 @@ function pickPipeTargetDist() {
     pipeRoomState.placed = false;
     pipeRoomState.visited = false;
     pipeRoomState.x = 0;
+    pipeRoomState.extraDist = 0;
     // 初回ラン圧縮（Phase3 案A-2）: 最初の土管を200〜400mに保証＝ボーナス部屋を最初のランで必ず見せる
     if (gameRound === 1 && gameState.isFirstRun) {
         pipeRoomState.targetDist = 200 + Math.random() * 200;
@@ -282,6 +283,16 @@ function pickPipeTargetDist() {
     var safeStart  = bossDistanceFor(gameRound) - SHOP_SAFE_ZONE_START;
     var lo = roundStart + 150, hi = safeStart - 150;
     pipeRoomState.targetDist = (hi > lo) ? (lo + Math.random() * (hi - lo)) : 0;
+    // ラッキーチャーム(1.506): 期待出現1.5倍＝50%で同ラウンドに2本目を予約。
+    // 窓を前半(1本目)/後半(2本目)に分け最小300m離す＝成立率が窓幅に依存しない（R1-2は窓650mと狭く、
+    // 「1本目+400m以降の空き」方式だと実測17%まで落ちたため方式変更）。
+    // 予約分は checkPipeTrigger が1本目消化後に targetDist へ昇格させる
+    var CHARM_PIPE_GAP = 300; // 2本の最小間隔(m)・調整ノブ
+    if (gameState.luckyCharm && pipeRoomState.targetDist > 0 && hi - lo > CHARM_PIPE_GAP && Math.random() < 0.5) {
+        var mid = (lo + hi) / 2;
+        pipeRoomState.targetDist = lo + Math.random() * (mid - CHARM_PIPE_GAP / 2 - lo);
+        pipeRoomState.extraDist = mid + CHARM_PIPE_GAP / 2 + Math.random() * (hi - mid - CHARM_PIPE_GAP / 2);
+    }
 }
 
 // 平地（穴でも高台でもない GROUND_Y の地面）か判定
@@ -311,6 +322,16 @@ function checkPipeTrigger() {
     if (bossState.active || bossState.bossTriggered || pipeRoomState.active) return;
     // ラウンドが変わったら、このラウンドの目標距離を新規抽選（1ラウンド1回）
     if (pipeRoomState.targetRound !== gameRound) pickPipeTargetDist();
+    // ラッキーチャーム2本目(1.506): 1本目を消化済みで予約距離に達し、1本目の土管が画面後方に消えていたら再武装。
+    // visited も戻すが、1本目は既にカメラ左外＝ヒント描画も入場判定も届かないので再入場は起きない
+    if (pipeRoomState.placed && pipeRoomState.extraDist > 0 &&
+        gameState.distance >= pipeRoomState.extraDist &&
+        pipeRoomState.x + PIPE_W < gameState.camera.x) {
+        pipeRoomState.placed = false;
+        pipeRoomState.visited = false;
+        pipeRoomState.targetDist = pipeRoomState.extraDist;
+        pipeRoomState.extraDist = 0;
+    }
     if (pipeRoomState.placed || pipeRoomState.targetDist <= 0) return;
     if (gameState.distance < pipeRoomState.targetDist) return;
     // 安全地帯に入ってしまったら今ラウンドは見送り（手前の平地に置けなかった）
@@ -654,7 +675,10 @@ function openLuckyChest(chest) {
     pipeRoomState.chestPicked = true;
     chest.opened = true; chest.openTimer = 0;
     var r = Math.random();
-    var reward = (r < 0.04) ? 'revive' : (r < 0.16) ? 'herb' : (r < 0.40) ? 'stock' : (r < 0.62) ? 'heart' : 'bigcoin';
+    // ラッキーチャーム(1.506)所持なら当たり枠を強化: revive4%→8% / herb12%→20%（stock24%/heart22%は据え置き・bigcoinが38%→26%に縮む）
+    var reward = gameState.luckyCharm
+        ? ((r < 0.08) ? 'revive' : (r < 0.28) ? 'herb' : (r < 0.52) ? 'stock' : (r < 0.74) ? 'heart' : 'bigcoin')
+        : ((r < 0.04) ? 'revive' : (r < 0.16) ? 'herb' : (r < 0.40) ? 'stock' : (r < 0.62) ? 'heart' : 'bigcoin');
     chest.reward = reward;
     var cx = chest.x + chest.width / 2, cy = chest.y;
 
@@ -2093,6 +2117,7 @@ function applyUpgrades() {
         gameState.coinBonus = 1.0;
         gameState.lives = 5;
         gameState.crystalLives = 0; // サンドボックス＝クリスタルハートも持ち込まない
+        gameState.luckyCharm = false; // ラッキーチャームも持ち込まない
         stockState.maxSlots = 3;
         gameState.magnetRange = 200;
         gameState.magnetDurMult = 1;
@@ -2110,6 +2135,8 @@ function applyUpgrades() {
     gameState.lives = 5 + toughLv;
     // クリスタルハート: 青ハート(Lv=個数)。赤より先に削れ・ラン中は回復不可(ここでの補充のみ)
     gameState.crystalLives = ups.crystal_heart || 0;
+    // ラッキーチャーム: 土管の期待出現1.5倍＋ラッキーの間の当たり枠強化(pickPipeTargetDist/openLuckyChest参照)
+    gameState.luckyCharm = (ups.lucky_charm || 0) > 0;
     var stockLv = ups.stock_expand || 0;
     stockState.maxSlots = 3 + stockLv;
     var magnetLv = ups.magnet_boost || 0;

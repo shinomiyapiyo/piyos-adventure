@@ -282,6 +282,7 @@ var pipeRoomState = {
     savedGameSpeed: 0,   // 復帰用スクロール速度
     savedPlayer: null,   // 入室前のプレイヤー状態スナップショット
     targetDist: 0,       // このラウンドで土管を出す目標距離(m)。安全地帯手前の通常エリアにランダム
+    extraDist: 0,        // ラッキーチャーム(1.506): 同ラウンド2本目の目標距離(m)。0=無し。50%抽選・窓後半に配置(最小間隔300m)
     targetRound: 0,      // targetDist を算出したラウンド（ラウンド変化検出用）
     exitHold: 0,         // 出口土管の口で右を押し続けているフレーム数（退室ゲージ・継続が切れたら0に戻す）
     introTimer: 0,       // 入場時「BONUS!」演出の残りフレーム
@@ -382,7 +383,11 @@ var TITLE_SHOP_UPGRADES = [
     // クリスタルハート（1.505・高額レーン第1弾）: 青ハート+1/+2/+3。赤ハートより先に削れ、回復不可
     // （ラン開始時のみ補充）。タフネス（回復可能な赤+N）とは別レイヤー。消費は takeDamage/fallDeath。
     { id: 'crystal_heart', nameKey: 'tshop_crystal_heart', descKey: 'tshop_crystal_heart_desc',
-      icon: '', iconImg: 'images/icon_crystal_heart.png', maxLevel: 3, prices: [1000000, 2000000, 5000000], effectDesc: ['+1', '+2', '+3'] }
+      icon: '', iconImg: 'images/icon_crystal_heart.png', maxLevel: 3, prices: [1000000, 2000000, 5000000], effectDesc: ['+1', '+2', '+3'] },
+    // ラッキーチャーム（1.506・高額レーン第2弾）: 土管の期待出現1.5倍（50%で同ラウンド2本目）＋
+    // ラッキーの間の当たり枠強化（revive4%→8%/herb12%→20%）。部屋内は世界凍結のため距離ランキングは汚染しない。
+    { id: 'lucky_charm', nameKey: 'tshop_lucky_charm', descKey: 'tshop_lucky_charm_desc',
+      icon: '', iconImg: 'images/icon_lucky_charm.png', maxLevel: 1, prices: [2000000], effectDesc: ['1.5倍'], effectDescEn: ['1.5x'] }
 ];
 
 // ─── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ───
@@ -461,6 +466,7 @@ var ZUKAN_ENTRIES = [
     { id: 'item:swift_feet',      cat: 'item', nameKey: 'tshop_swift_feet',      descKey: 'tshop_swift_feet_desc',      img: 'images/icon_swift_feet.png',      seenIf: function(gs){ return ((gs.upgrades || {}).swift_feet || 0) > 0; } },
     { id: 'item:revival_feather', cat: 'item', nameKey: 'tshop_revival_feather', descKey: 'tshop_revival_feather_desc', img: 'images/icon_revival_machine.png', seenIf: function(gs){ return ((gs.upgrades || {}).revival_feather || 0) > 0; } },
     { id: 'item:crystal_heart',   cat: 'item', nameKey: 'tshop_crystal_heart',   descKey: 'tshop_crystal_heart_desc',   img: 'images/icon_crystal_heart.png',   seenIf: function(gs){ return ((gs.upgrades || {}).crystal_heart || 0) > 0; } },
+    { id: 'item:lucky_charm',     cat: 'item', nameKey: 'tshop_lucky_charm',     descKey: 'tshop_lucky_charm_desc',     img: 'images/icon_lucky_charm.png',     seenIf: function(gs){ return ((gs.upgrades || {}).lucky_charm || 0) > 0; } },
     // ── アイテム：まほうのポーチ（エッグこうかん・所持=pouchLevel>0 で発見。エッグ商品perma_stock/nameは egg_pouch を流用）──
     { id: 'item:pouch',           cat: 'item', nameKey: 'egg_pouch',             descKey: 'egg_pouch_desc',             img: 'images/item_pouch.png',           seenIf: function(gs){ return (gs.pouchLevel || 0) > 0; } },
     // ── アイテム：きせかえ（所持から発見を派生）──
