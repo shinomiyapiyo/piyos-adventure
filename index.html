@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.516";
+                content: "Ver.1.517";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -821,7 +821,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.516</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.517</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3197,7 +3197,7 @@ function handleSkinClick(e) {
 // 完全同一（ダメージ10/空中ボス5/装甲0・1.516ユーザー確定）＝ボスに当たると踏み同様に跳ねて斬り終了
 // （gameplay.js endSamuraiDiveOnBossStomp）。跳ね中は samuraiDiveLock で再発動不可・着地でリセット。
 var SAMURAI_DIVE_SPEED = 16;    // 急降下の初速（調整ノブ）
-var SAMURAI_DIVE_FORWARD = 3;   // 降下中の前進量px/フレーム（調整ノブ・1.515=垂直落下だと敵に当てにくいため斜め前へ）
+var SAMURAI_DIVE_FORWARD = 5;   // 降下中の前進量px/フレーム（スクリーン基準・調整ノブ。1.517=3→5増量＋facing方向＋gameSpeed補正）
 function startSamuraiDive() {
     if (!SKIN_FEATURE_ENABLED || runActiveSkin() !== 'samurai') return false;
     if (!gameState.gameStarted || gameState.gamePaused || pipeRoomState.active) return false;
@@ -5395,8 +5395,10 @@ function updatePlayer() {
 
     player.x += player.velX;
     player.y += player.velY;
-    // 侍ぴよ急降下斬り（1.515）: 降下しながら少し前進（直後の画面端/アリーナ壁クランプが効くので突き抜けない）
-    if (player.samuraiDive) player.x += SAMURAI_DIVE_FORWARD;
+    // 侍ぴよ急降下斬り（1.515/1.517）: 向いている方向へ滑りながら降下。カメラ前進(gameSpeed)を足して
+    // スクリーン基準の移動量にする＝スクロールに相殺され垂直落下に見えていた問題の修正（後ろ向き時は後方へ滑る）。
+    // 直後の画面端/アリーナ壁クランプが効くので突き抜けない。distanceはcamera.x由来なので距離/Lvに影響なし。
+    if (player.samuraiDive) player.x += ((player.facing === 'left') ? -SAMURAI_DIVE_FORWARD : SAMURAI_DIVE_FORWARD) + gameState.gameSpeed;
 
     // 画面端制限
     if (player.x < gameState.camera.x + 25) player.x = gameState.camera.x + 25;
