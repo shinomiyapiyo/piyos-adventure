@@ -3804,23 +3804,16 @@ function gameOver() {
         score: gameState.rankScore,
         distance: gameState.distance,
         enemyKills: gameState.enemyKills,
-        speedLevel: gameState.speedLevel
+        speedLevel: gameState.speedLevel,
+        // 復活ランキング記録方式(1.523・魂の共鳴v3.799から移植): 広告復活を使ったランは ↺ 付きで記録する。
+        // 対象は広告復活のみ（アイテム=復活ポーション/ふっかつマシーンは対象外＝ユーザー決定）。
+        // ここで値を確定させる＝保存より先に resetGame がフラグを戻しても記録内容が狂わない（仕様書の落とし穴対策）。
+        revived: !!(typeof rewardAdState !== 'undefined' && rewardAdState.reviveUsedThisRun)
     };
 
-    if (gameState.hasRecordedHighScore) {
-        // 既にハイスコア記録済み（復活後の再ゲームオーバー）→ 直接ゲームオーバー画面へ
-        setTimeout(function() { showGameOverScreen(); }, 500);
-    } else {
-        checkHighScore(finalGameStats).then(function(isHigh) {
-            setTimeout(function() {
-                if (isHigh) {
-                    showNameInput();
-                } else {
-                    showGameOverScreen();
-                }
-            }, 500);
-        });
-    }
+    // 記録は「ランが本当に終わったとき」に1回だけ行う＝ここでは記録せず、まず復活の選択肢があるゲームオーバー画面を出す。
+    // 復活を選べばプレイ続行（記録なし）、リトライ/タイトルを選べば finalizeRunAndThen が記録してから遷移する。
+    setTimeout(function() { showGameOverScreen(); }, 500);
 }
 
 // リワード広告「準備中」表示（A案）。ロード済み＝通常の光るボタン／未ロード＝淡色＋「準備中…」。
@@ -4046,19 +4039,25 @@ function shareResult() {
     });
 }
 
+// リトライ/タイトルの押下＝「このランは終わり」の確定（1.523）。先にハイスコア判定・記録を済ませてから遷移する。
+// ⚠resetGame は記録の後に走る＝保存前にフラグが戻る事故を構造的に防ぐ。
 function retryGame() {
     if (isInTransitionCooldown()) return;
-    // インタースティシャルはセッションの区切り（リトライ）で表示。広告が閉じてから再開する
-    // （死亡毎の黒画面＆復活リワードとの競合を回避）。広告が無ければ即再開。
-    showAd('interstitial', function () {
-        hideGameOverScreen();
-        resetGame();
-        startGame();
+    finalizeRunAndThen(function () {
+        // インタースティシャルはセッションの区切り（リトライ）で表示。広告が閉じてから再開する
+        // （死亡毎の黒画面＆復活リワードとの競合を回避）。広告が無ければ即再開。
+        showAd('interstitial', function () {
+            hideGameOverScreen();
+            resetGame();
+            startGame();
+        });
     });
 }
 
 function goToTitle() {
     if (isInTransitionCooldown()) return;
-    hideGameOverScreen();
-    showStartScreen();
+    finalizeRunAndThen(function () {
+        hideGameOverScreen();
+        showStartScreen();
+    });
 }

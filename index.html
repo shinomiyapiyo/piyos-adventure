@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.522";
+                content: "Ver.1.523";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.522</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.523</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4162,6 +4162,7 @@ function showRankingByType(type) {
         var titleKeys = { score: 'ranking_title_score', distance: 'ranking_title_distance', enemyKills: 'ranking_title_kills', speedLevel: 'ranking_title_level' };
         var unitKeys  = { score: 'ranking_unit_score', distance: 'ranking_unit_distance', enemyKills: 'ranking_unit_kills', speedLevel: 'ranking_unit_level' };
         var html = '<div style="text-align:center;color:#ffd700;font-weight:bold;margin-bottom:4px;font-size:1.8vw;">' + t(titleKeys[type]) + '</div>';
+        var anyRevived = false; // 表示中に復活ランが1件でもあれば凡例を出す（1.523）
         for (var i = 0; i < rankings.length; i++) {
             var rank = i + 1;
             var color = rank <= 3 ? '#ffd700' : '#fff';
@@ -4169,9 +4170,16 @@ function showRankingByType(type) {
             // 表示側の防御: 入力チェックを迂回してDBへ直接投入された不適切名と、この端末で通報済みの名前は
             // 表示しない（通報用にdata-nameへは原文を保持）
             var dispName = (containsNgWord(rawName) || isReportedName(rawName)) ? '＊＊＊' : rawName;
+            // 復活マーク: 広告復活を使ったランに ↺（フィールドが無い旧エントリは undefined＝falsy＝無印）。
+            // 名前spanの外に置く＝NGマスク/通報モード(data-name)の処理に干渉しない
+            var revMark = '';
+            if (rankings[i].revived) { anyRevived = true; revMark = '<span style="color:#ffb066;font-size:0.85em;margin-left:4px;">↺</span>'; }
             html += '<div class="rank-row" data-name="' + escapeHtml(rawName) + '" data-value="' + (Number(rankings[i][type]) || 0) + '" style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.3);color:#fff;font-size:1.5vw;">' +
-                '<span style="color:' + color + ';">' + rank + '. ' + escapeHtml(dispName) + '</span>' +
+                '<span style="color:' + color + ';">' + rank + '. ' + escapeHtml(dispName) + revMark + '</span>' +
                 '<span style="color:#ffd700;font-weight:bold;">' + escapeHtml(rankings[i][type] || 0) + t(unitKeys[type]) + '</span></div>';
+        }
+        if (anyRevived) {
+            html += '<div style="text-align:left;color:rgba(255,255,255,0.55);font-size:1.2vw;margin-top:3px;">' + escapeHtml(t('ranking_revived_legend')) + '</div>';
         }
         list.innerHTML = html;
     }).catch(function(err) {
@@ -4778,7 +4786,8 @@ function submitScore() {
         enemyKills: Number(finalGameStats.enemyKills) || 0,
         speedLevel: Math.min(9999, Number(finalGameStats.speedLevel) || 1), // 真の値を送信（旧ルール≤100で弾かれたら setScoreWithFallback が100で再送）
         timestamp: Date.now(),
-        date: new Date().toLocaleDateString('ja-JP')
+        date: new Date().toLocaleDateString('ja-JP'),
+        revived: !!finalGameStats.revived // 広告復活を使ったラン＝ランキングで↺表示（DBルールで任意bool・2026-07-24公開済）
     };
 
     st.textContent = t('submit_sending');
@@ -4795,7 +4804,7 @@ function submitScore() {
         var msg = t('submit_success') + '\n' + buildRankMessage(name, ranks);
         showGameModal(msg).then(function() {
             hideNameInputDirect();
-            showGameOverScreen();
+            runPendingRunEndAction(); // 記録が終わってから本来の遷移（リトライ/タイトル）へ
         });
     }).catch(function(err) {
         btn.disabled = false;
@@ -4824,7 +4833,8 @@ function skipSubmit() {
         enemyKills: Number(finalGameStats.enemyKills) || 0,
         speedLevel: Math.min(9999, Number(finalGameStats.speedLevel) || 1), // 真の値を送信（旧ルール≤100で弾かれたら setScoreWithFallback が100で再送）
         timestamp: Date.now(),
-        date: new Date().toLocaleDateString('ja-JP')
+        date: new Date().toLocaleDateString('ja-JP'),
+        revived: !!finalGameStats.revived // 広告復活を使ったラン＝ランキングで↺表示（スキップ登録でも同じ扱い）
     };
 
     if (database) {
@@ -4837,18 +4847,35 @@ function skipSubmit() {
             hideNameInputDirect();
             var msg = buildRankMessage(t('submit_skip_name'), ranks);
             showGameModal(msg).then(function() {
-                showGameOverScreen();
+                runPendingRunEndAction(); // 記録が終わってから本来の遷移へ
             });
         }).catch(function() {
             st.textContent = '';
             hideNameInputDirect();
-            showGameOverScreen();
+            runPendingRunEndAction(); // 送信失敗でも遷移は止めない（プレイヤーの操作を飲み込まない）
         });
     } else {
         st.textContent = '';
         hideNameInputDirect();
-        showGameOverScreen();
+        runPendingRunEndAction();
     }
+}
+
+// ─── 復活ランキング記録方式（1.523・魂の共鳴v3.799から移植）───
+// 記録は「そのランが本当に終わったとき」に1回だけ。復活を選んだ場合はここを通らずプレイが続き、
+// 復活後の最終ゲームオーバー→リトライ/タイトルで初めて記録される（revived:true ＝ ↺付き）。
+// 1ラン=1エントリ。復活前のスコアを別途記録することはしない。
+var pendingRunEndAction = null; // 記録完了後に実行する遷移（リトライ/タイトル）
+function finalizeRunAndThen(next) {
+    if (!finalGameStats || gameState.hasRecordedHighScore) { next(); return; } // 記録不要/記録済みは素通り
+    checkHighScore(finalGameStats).then(function(isHigh) {
+        if (isHigh) { pendingRunEndAction = next; showNameInput(); } // 送信/スキップ完了後に next が走る
+        else next();                                                 // ランク外＝記録せずそのまま遷移
+    }).catch(function() { next(); });                                // 判定に失敗しても遷移は止めない
+}
+function runPendingRunEndAction() {
+    var act = pendingRunEndAction; pendingRunEndAction = null;
+    if (act) act(); else showGameOverScreen(); // 保険: 単独で名前入力を開いた場合は従来どおり結果画面へ
 }
 
 function showNameInput() {
