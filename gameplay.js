@@ -3490,8 +3490,8 @@ function updateBossCollision_hawk(b) {
     var stompPose = stompHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45;
 
     if (b.stompCooldown <= 0 && stompPose) {
-        // 踏みつけ成功（着地硬直中=フル1.0 / 空中=半分0.5）
-        b.hp -= (grounded ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
+        // 踏みつけ成功（着地硬直中=フル1.0 / 空中=半分0.5。侍ぴよ急降下斬り中は常にフル1.0=1.515）
+        b.hp -= ((grounded || player.samuraiDive) ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
         player.velY = JUMP_FORCE * 0.5;
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);
@@ -3609,7 +3609,7 @@ function updateBossCollision_owl(b) {
     var stompPose = aabbShrink(player, b, 12, 13) && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45;
     if (b.stompCooldown <= 0 && stompPose) {
         var groundStomp = (b.owlMode === 'perch'); // 止まり(地上)=フル10 / 空中=半分5（闇のカラスと同じ）
-        b.hp -= (groundStomp ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
+        b.hp -= ((groundStomp || player.samuraiDive) ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y); // 急降下斬り中は常にフル(1.515)
         player.velY = JUMP_FORCE * 0.5;
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);
