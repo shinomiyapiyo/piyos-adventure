@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.518";
+                content: "Ver.1.519";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -821,7 +821,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.518</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.519</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -5526,6 +5526,10 @@ function updatePlayer() {
                 player.velY = springForce;
                 player.onGround = false;
                 p.springAnim = 15;
+                // 侍ぴよ急降下斬り（1.519）: バネは onGround にならないため着地解除が効かず、斬り状態のまま
+                // 打ち上がっていた→バネ接触を着地扱いで斬り終了＋再発動ロック解除（跳ね上がり中に再度技を出せる）
+                player.samuraiDive = false;
+                player.samuraiDiveLock = false;
                 if (soundManager) soundManager.playJump();
             } else {
                 player.y = p.y - player.height;
