@@ -397,7 +397,13 @@ var TITLE_SHOP_UPGRADES = [
     // ラッキーチャーム（1.506・高額レーン第2弾）: 土管の期待出現1.5倍（50%で同ラウンド2本目）＋
     // ラッキーの間の当たり枠強化（revive4%→8%/herb12%→20%）。部屋内は世界凍結のため距離ランキングは汚染しない。
     { id: 'lucky_charm', nameKey: 'tshop_lucky_charm', descKey: 'tshop_lucky_charm_desc',
-      icon: '', iconImg: 'images/icon_lucky_charm.png', maxLevel: 1, prices: [2000000], effectDesc: ['1.5倍'], effectDescEn: ['1.5x'] }
+      icon: '', iconImg: 'images/icon_lucky_charm.png', maxLevel: 1, prices: [2000000], effectDesc: ['1.5倍'], effectDescEn: ['1.5x'] },
+    // サイバーぴよ（1.520・高額レーン第5弾/金貨建てアバター第2弾・旧称ロボぴよ→白×金サイバースーツに確定）:
+    // ドローンビットが随伴し、約2.5秒ごとに前後の画面内最寄りの敵へ同時ロックオンレーザー（index.html updateBullets）。
+    // 雑魚一撃（弾スコア準拠200/300）・ボスはダメージ1=電気弾と同じ（装甲弾き/空中半減は既存の弾処理準拠）。
+    // 購入時に grantSkin が ownedSkins へ 'cyber' を付与（handleTshopConfirmYes）＝きせかえに出現。
+    { id: 'cyber_piyo', nameKey: 'skin_cyber', descKey: 'tshop_cyber_desc', grantSkin: 'cyber',
+      icon: '', iconImg: 'images/skin_cyber_idle.png', maxLevel: 1, prices: [2000000], effectDesc: ['ドローン'], effectDescEn: ['Drone bit'] }
 ];
 
 // ─── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ───
@@ -487,6 +493,7 @@ var ZUKAN_ENTRIES = [
     { id: 'item:skin_kigurumi', cat: 'item', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc', img: 'images/skin_kigurumi_idle.png', seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('kigurumi') >= 0; } },
     { id: 'item:skin_witch',    cat: 'item', nameKey: 'skin_witch',    descKey: 'egg_item_witch_desc',  img: 'images/skin_witch_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('witch') >= 0; } },
     { id: 'item:skin_samurai',  cat: 'item', nameKey: 'skin_samurai',  descKey: 'tshop_samurai_desc',   img: 'images/skin_samurai_idle.png', seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('samurai') >= 0; } },
+    { id: 'item:skin_cyber',    cat: 'item', nameKey: 'skin_cyber',    descKey: 'tshop_cyber_desc',     img: 'images/skin_cyber_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('cyber') >= 0; } }, // きせかえSKINSと同順（侍→サイバー→忍者・1.520）
     { id: 'item:skin_ninja',    cat: 'item', nameKey: 'skin_ninja',    descKey: 'egg_item_ninja_desc',  img: 'images/skin_ninja_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('ninja') >= 0; } },
     // ── ステージ（バイオーム＋ボーナス部屋）──
     { id: 'biome:town',      cat: 'biome', nameKey: 'zukan_bio_town',   descKey: 'zukan_bio_town_d' }, // はじまりの地（チュートリアル）＝最初のステージ（図鑑先頭・1.494）

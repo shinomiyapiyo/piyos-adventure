@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.519";
+                content: "Ver.1.520";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -821,7 +821,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.519</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.520</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3168,6 +3168,7 @@ var SKINS = [
     { id: 'kigurumi', nameKey: 'skin_kigurumi', preview: 'images/skin_kigurumi_idle.png', eggItem: true, effectKey: 'skin_effect_kigurumi' },  // タイトルショップの「エッグこうかん」で解放
     { id: 'witch', nameKey: 'skin_witch', preview: 'images/skin_witch_idle.png', eggItem: true, effectKey: 'skin_effect_witch' },    // エッグこうかん🥚80（1.456導入・価格1.493で200→80・魔女を忍者より前に=1.494）
     { id: 'samurai', nameKey: 'skin_samurai', preview: 'images/skin_samurai_idle.png', moneyItem: true, effectKey: 'skin_effect_samurai' }, // タイトルショップ100万円（1.509・アートは後続=プレビューはプレースホルダ・ゲーム内は未登録スプライトの自動フォールバックでデフォルト見た目）
+    { id: 'cyber', nameKey: 'skin_cyber', preview: 'images/skin_cyber_idle.png', moneyItem: true, effectKey: 'skin_effect_cyber' }, // タイトルショップ200万円（1.520・ドローンビット・本体モーションはVeo後続=未登録中はデフォルト見た目フォールバック）
     { id: 'ninja', nameKey: 'skin_ninja', preview: 'images/skin_ninja_idle.png', eggItem: true, effectKey: 'skin_effect_ninja' }    // エッグこうかん🥚200（1.440・現状最強のため末尾=1.494）
 ];
 function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
@@ -3197,6 +3198,10 @@ function handleSkinClick(e) {
 // 完全同一（ダメージ10/空中ボス5/装甲0・1.516ユーザー確定）＝ボスに当たると踏み同様に跳ねて斬り終了
 // （gameplay.js endSamuraiDiveOnBossStomp）。跳ね中は samuraiDiveLock で再発動不可・着地でリセット。
 var SAMURAI_DIVE_SPEED = 16;    // 急降下の初速（調整ノブ）
+// ── サイバーぴよ（1.520）: ドローンビット。約2.5秒ごとに前後の画面内最寄りの敵へ同時ロックオンレーザー。
+// 発射・位置更新=updateBullets／描画=render.js drawCyberDrone／弾はbullets共通（装甲/空中半減/クリティカルも既存準拠）。
+var CYBER_DRONE_INTERVAL = 150; // 発射間隔フレーム（150=2.5秒・調整ノブ）
+var CYBER_DRONE_SIZE = 28;      // ドローン描画サイズpx（調整ノブ）
 var SAMURAI_DIVE_FORWARD = 7;   // 降下中の前方向(右)移動量px/f（スクリーン基準・調整ノブ・1.518=5→7）
 var SAMURAI_DIVE_BACKWARD = 10; // 後方向(左)移動量px/f。スクロール中は敵ごと左へ流れるため前より大きく（1.518）。
                                 // 画面固定時(ボス戦=gameSpeed0)は前後対称にSAMURAI_DIVE_FORWARDを使う
@@ -3932,6 +3937,8 @@ function resetGame() {
     gameState.puEnergy = 0;
     gameState.puMagnet = 0;
     gameState.zapFireTimer = 0;   // きぐるみの電気弾タイマーを新ランでリセット
+    gameState.droneFireTimer = 0; // サイバーぴよのドローン発射タイマー（1.520）
+    gameState.droneX = undefined; gameState.droneY = undefined; // ドローン位置は次tickにスナップ初期化
     gameState.isInvincible = false;
     gameState.invincibleTimer = 0;
     gameState.speedLevel = 1;
@@ -6335,6 +6342,17 @@ function updatePowerUps() {
 }
 
 function updateBullets() {
+    // サイバーぴよ（1.520）: ドローンビットの随伴位置を毎tick更新（発射は下のスキン分岐・描画はrender.js drawCyberDrone）。
+    // エナジー弾中も位置は追従し続ける（発射だけ止まる=きぐるみ/忍者と同じ「エナジー優先」設計）。
+    if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED && runActiveSkin() === 'cyber') {
+        var _dTx = player.x - 30, _dTy = player.y - 26;
+        if (gameState.droneX === undefined || Math.abs(gameState.droneX - _dTx) > 400) {
+            gameState.droneX = _dTx; gameState.droneY = _dTy; // 初回/ワープ/リスポーンはスナップ（画面横断飛行を防ぐ）
+        }
+        gameState.droneX += (_dTx - gameState.droneX) * 0.12;
+        gameState.droneY += (_dTy - gameState.droneY) * 0.12;
+    }
+
     // エネルギー弾発射
     if (gameState.puEnergy > 0) {
         gameState.bulletFireTimer++;
@@ -6417,16 +6435,69 @@ function updateBullets() {
                 } catch (_) {}
             }
         }
+    } else if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
+               runActiveSkin() === 'cyber' && gameState.gameStarted && !pipeRoomState.active) {
+        // サイバーぴよの特殊効果（1.520）: ドローンビットが約2.5秒ごとに前後同時ロックオンレーザー。
+        // 前後それぞれ「画面内の最寄りの敵」へ狙い撃ち（いなければその側は撃たない）。ボス(phase3)も対象。
+        // ダメージ1=電気弾と同じ（ボスの装甲弾き/空中半減/クリティカルは既存の弾衝突処理がそのまま適用）。
+        gameState.droneFireTimer = (gameState.droneFireTimer || 0) + 1;
+        if (gameState.droneFireTimer >= CYBER_DRONE_INTERVAL) {
+            gameState.droneFireTimer = 0;
+            var dOx = (gameState.droneX !== undefined ? gameState.droneX : player.x);
+            var dOy = (gameState.droneY !== undefined ? gameState.droneY : player.y - 26);
+            var dCamL = gameState.camera.x - 10, dCamR = gameState.camera.x + GAME_WIDTH + 10;
+            var dPx = player.x + player.width / 2;
+            var dFront = null, dBack = null, dFd = Infinity, dBd = Infinity;
+            var dConsider = function (e) {
+                var ex = e.x + e.width / 2, ey = e.y + e.height / 2;
+                if (ex < dCamL || ex > dCamR) return;
+                var dd = Math.abs(ex - dOx) + Math.abs(ey - dOy);
+                if (ex >= dPx) { if (dd < dFd) { dFd = dd; dFront = { x: ex, y: ey }; } }
+                else if (dd < dBd) { dBd = dd; dBack = { x: ex, y: ey }; }
+            };
+            var dq;
+            for (dq = 0; dq < enemies.length; dq++) dConsider(enemies[dq]);
+            for (dq = 0; dq < flyingEnemies.length; dq++) dConsider(flyingEnemies[dq]);
+            if (bossState.active && bossState.phase === 3 && bossState.boss) dConsider(bossState.boss);
+            var dTargets = [];
+            if (dFront) dTargets.push(dFront);
+            if (dBack) dTargets.push(dBack);
+            for (dq = 0; dq < dTargets.length; dq++) {
+                var dTgt = dTargets[dq];
+                var dVx = dTgt.x - dOx, dVy = dTgt.y - dOy;
+                var dLen = Math.sqrt(dVx * dVx + dVy * dVy) || 1;
+                var dSpd = gameState.gameSpeed + 8;
+                bullets.push({
+                    x: dOx - 8, y: dOy - 8, width: 16, height: 16,
+                    velX: dVx / dLen * dSpd, velY: dVy / dLen * dSpd,
+                    dir: dVx < 0 ? -1 : 1, isDrone: true, dmg: 1
+                });
+            }
+            if (dTargets.length && soundManager && soundManager.ctx && gameSettings.soundEnabled) {
+                try { // レーザー音（短い下降スイープ・エナジー弾より軽い音）
+                    var dao = soundManager.ctx, dosc = dao.createOscillator(), dgn = dao.createGain();
+                    dosc.connect(dgn); dgn.connect(dao.destination);
+                    dosc.type = 'sawtooth';
+                    dosc.frequency.setValueAtTime(1500, dao.currentTime);
+                    dosc.frequency.exponentialRampToValueAtTime(600, dao.currentTime + 0.08);
+                    dgn.gain.setValueAtTime(0.04, dao.currentTime);
+                    dgn.gain.exponentialRampToValueAtTime(0.001, dao.currentTime + 0.08);
+                    dosc.start(dao.currentTime); dosc.stop(dao.currentTime + 0.08);
+                } catch (_) {}
+            }
+        }
     }
 
     // 弾の移動と衝突判定
     for (var i = bullets.length - 1; i >= 0; i--) {
         var b = bullets[i];
         b.x += b.velX;
+        b.y += b.velY || 0; // ドローンのロックオン弾のみ縦成分あり（既存の水平弾はvelY未定義=0・1.520）
         if (b.isShuriken) b.spin = (b.spin || 0) + 0.35 * (b.dir < 0 ? -1 : 1); // 手裏剣は回転
 
-        // 画面外削除
-        if (b.x > gameState.camera.x + GAME_WIDTH + 100 || b.x < gameState.camera.x - 100) {
+        // 画面外削除（縦はロックオン弾の斜め飛びで抜けた分を回収）
+        if (b.x > gameState.camera.x + GAME_WIDTH + 100 || b.x < gameState.camera.x - 100 ||
+            b.y < -120 || b.y > GAME_HEIGHT + 120) {
             bullets.splice(i, 1);
             continue;
         }

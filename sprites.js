@@ -76,6 +76,10 @@ var IMAGE_SPRITES = {
     skin_samurai_fall: { files: ['images/skin_samurai_fall.png'] },
     skin_samurai_dive: { files: ['images/skin_samurai_dive.png'] },
 
+    // サイバーぴよのドローンビット（1.520・随伴機・立ち絵OpenAI cyber_drone_3から32×32）。
+    // skin_cyber_* 本体モーションはVeo歩行が揃ってから登録（未登録中はゲーム内デフォルト見た目フォールバック）
+    cyber_drone: { files: ['images/cyber_drone.png'] },
+
     // 敵 (左向き固定 - 元画像が右向きのものだけflip:trueで反転)
     chick_walk:        { files: [
         'images/enemy_chick_walk_1.png',

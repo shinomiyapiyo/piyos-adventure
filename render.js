@@ -1671,6 +1671,16 @@ function drawBullet(b) {
         ctx.beginPath(); ctx.arc(zx, zy, 4.4, 0, Math.PI * 2); ctx.fill();
         ctx.shadowBlur = 6; ctx.fillStyle = '#ffffff';           // 白コア
         ctx.beginPath(); ctx.arc(zx, zy, 2, 0, Math.PI * 2); ctx.fill();
+    } else if (b.isDrone) {
+        // サイバーぴよのドローンレーザー（金色の発光オーブ・1.520）。ザップ弾の白×金パレット版（スーツとお揃い）
+        var dbx = b.x + b.width / 2, dby = b.y + b.height / 2;
+        ctx.shadowColor = '#ffd75e'; ctx.shadowBlur = 14;
+        ctx.fillStyle = 'rgba(255,215,94,0.5)';                  // 外側グロー
+        ctx.beginPath(); ctx.arc(dbx, dby, 7.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffe9a8';                               // 本体
+        ctx.beginPath(); ctx.arc(dbx, dby, 4.4, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 6; ctx.fillStyle = '#ffffff';           // 白コア
+        ctx.beginPath(); ctx.arc(dbx, dby, 2, 0, Math.PI * 2); ctx.fill();
     } else if (b.isShuriken) {
         // 忍者の手裏剣（グレー・回転・薄い発光=夜ステージでの視認性）。グローを焼き込んだスプライトを再利用（毎フレームのshadowBlur回避・監査LOW）
         var shx = b.x + b.width / 2, shy = b.y + b.height / 2;
@@ -1696,6 +1706,20 @@ function drawBullet(b) {
             spriteManager.draw(ctx, 'bullet_energy', 0, b.x, b.y, b.width, b.height, b.dir < 0);
         }
     }
+    ctx.restore();
+}
+
+// サイバーぴよのドローンビット（1.520）: プレイヤー随伴の丸型機。位置は index.html updateBullets が毎tick更新。
+// ワールド座標系（カメラtranslate適用済みの区間から呼ぶ）。土管部屋/出入り演出中は非表示。
+function drawCyberDrone() {
+    if (typeof SKIN_FEATURE_ENABLED === 'undefined' || !SKIN_FEATURE_ENABLED || runActiveSkin() !== 'cyber') return;
+    if (pipeRoomState.active || pipeRoomState.anim === 'in' || pipeRoomState.anim === 'outWorld') return;
+    if (gameState.droneX === undefined) return;
+    var s = CYBER_DRONE_SIZE;
+    var bob = Math.sin(gameState.time * 0.1) * 3; // ふわふわ（描画時のみ・物理位置は滑らか追従のまま）
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    spriteManager.draw(ctx, 'cyber_drone', 0, gameState.droneX - s / 2, gameState.droneY - s / 2 + bob, s, s, player.facing === 'left');
     ctx.restore();
 }
 
@@ -2519,6 +2543,7 @@ function render() {
         } else {
             drawPlayer(player.x, player.y);
         }
+        drawCyberDrone(); // サイバーぴよのドローン（プレイヤーの手前・ガードは関数内・1.520）
     }
 
     // フロートエフェクト描画 (カメラtranslate適用済み)
