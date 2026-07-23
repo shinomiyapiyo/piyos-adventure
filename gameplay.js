@@ -2187,6 +2187,19 @@ function buildPermaSlots() {
     }
 }
 
+// ポーチ(永続枠)の中身を permaStock へ確定保存する（1.526・ユーザー方針＝転売対策）。
+// 呼ぶのは「ゲームオーバー時」と「ラン開始時の配布直後(ログボ)」だけ＝ラン中に拾った品は
+// リタイア・アプリ強制終了では残らない（旧実装は拾った瞬間に保存＝拾う→リタイア→次ランで補充→売る、が無限に回せた）。
+// ⚠temp=true の枠は「今回かぎり」補充(1.477)なので確定しない＝翌ランは設定したポーチ内容に戻る。
+function commitPermaStock() {
+    if (typeof tutorialState !== 'undefined' && tutorialState.active) return; // サンドボックス＝永続枠なし
+    if (!gameSettings.permaStock) gameSettings.permaStock = [];
+    for (var i = 0; i < stockState.perma.length; i++) {
+        if (stockState.perma[i].temp) continue;
+        gameSettings.permaStock[i] = stockState.perma[i].id || '';
+    }
+}
+
 // itemId を今この瞬間ストックに入れる余地があるか（購入可否・満杯判定に使用）
 function stockHasRoom(itemId) {
     // 未割当の永続枠（復活薬など永続化不可品は永続枠に入れられない）
@@ -2220,13 +2233,12 @@ function convertItemToSavings(itemId) {
 function addToStock(itemId) {
     // ① 永続枠（まほうのポーチ）へ。復活薬など永続化不可品は除外
     if (PERMA_STOCK_EXCLUDE.indexOf(itemId) === -1) {
-        // 1) 未割当の空き枠に自動割当 → 毎ラン補充される金枠に定着（保存）
+        // 1) 未割当の空き枠に自動割当 → 毎ラン補充される金枠に定着
+        //    ⚠永続保存(permaStock)はここでは行わず commitPermaStock() でゲームオーバー時にまとめて確定する(1.526)。
+        //    拾った瞬間に保存していた頃は「拾う→リタイア(or強制終了)→次ランで補充→売る」を繰り返せた＝無限売却(転売)。
         for (var p = 0; p < stockState.perma.length; p++) {
             if (!stockState.perma[p].id) {
                 stockState.perma[p] = { id: itemId, used: false };
-                if (!gameSettings.permaStock) gameSettings.permaStock = [];
-                gameSettings.permaStock[p] = itemId;
-                saveSettings();
                 updateStockUI();
                 return true;
             }
@@ -2235,7 +2247,7 @@ function addToStock(itemId) {
         //    ポーチ内容は保持）。使用済み枠は表示が空の金枠なので「空きなのに拾えず売却」バグの修正。
         for (var q = 0; q < stockState.perma.length; q++) {
             if (stockState.perma[q].id && stockState.perma[q].used) {
-                stockState.perma[q] = { id: itemId, used: false };
+                stockState.perma[q] = { id: itemId, used: false, temp: true }; // temp=確定しない印(commitPermaStock)
                 updateStockUI();
                 return true;
             }
@@ -2313,7 +2325,7 @@ function swapStockSlots(a, b) {
     for (var i = 0; i < maxN; i++) {
         if (i < pl) {
             var ps = stockState.perma[i];
-            snap.push((ps && ps.id) ? { id: ps.id, used: !!ps.used } : null);
+            snap.push((ps && ps.id) ? { id: ps.id, used: !!ps.used, temp: !!ps.temp } : null);
         } else {
             var it = stockState.items[i - pl];
             snap.push(it ? { id: it.id, used: false } : null);
@@ -2326,13 +2338,12 @@ function swapStockSlots(a, b) {
     if (b < pl && A && A.id === 'revive_potion') { rejectPermaToast(); return false; }
     // 入替
     snap[a] = B; snap[b] = A;
-    // 永続枠へ書き戻し（used は snap のまま＝スワップした側は元 used を持ち回る／未関与枠は不変）
+    // 永続枠へ書き戻し（used/temp は snap のまま＝スワップした側は元の状態を持ち回る／未関与枠は不変）。
+    // ⚠permaStockへの保存はここでは行わない＝ゲームオーバー時の commitPermaStock() で確定する(1.526)。
     for (var p = 0; p < pl; p++) {
         var s = snap[p];
-        if (s) { stockState.perma[p] = { id: s.id, used: s.used }; }
+        if (s) { stockState.perma[p] = { id: s.id, used: s.used, temp: s.temp }; }
         else { stockState.perma[p] = { id: '', used: false }; }
-        if (!gameSettings.permaStock) gameSettings.permaStock = [];
-        gameSettings.permaStock[p] = s ? s.id : '';
     }
     // 通常枠は詰めて再構築
     var newItems = [];
@@ -2410,7 +2421,8 @@ function updateStockUI() {
     container.innerHTML = html;
     // 所持している永久型アップグレードのアイコンは左パネル(#ui内 #ownedUpgradeIcons)へ表示（1.522で右の枠下から移設＝
     // 最大所持時に右の縦積みが画面下へはみ出す問題の解消）。チュートリアルはサンドボックス＝効果なしなので出さない(1.430)。
-    // ⚠grantSkinのアバター(侍/サイバー)は upgrades に入れず ownedSkins 管理なので、ここには元々出ない（きせかえ側で表示）。
+    // ⚠grantSkinのアバター(侍/サイバー)は購入時に upgrades にもフラグが入る（MAX表示/図鑑用）が、
+    //   HUDは「所持している永続アイテム」の欄なのでアバターは除外する（見た目は装備中のぴよ氏本体＋きせかえ画面が担当）。
     updateOwnedUpgradeIcons();
 }
 
@@ -2421,6 +2433,7 @@ function updateOwnedUpgradeIcons() {
     var ownedUps = (typeof tutorialState !== 'undefined' && tutorialState.active) ? {} : (gameSettings.upgrades || {});
     for (var u = 0; u < TITLE_SHOP_UPGRADES.length; u++) {
         var up = TITLE_SHOP_UPGRADES[u];
+        if (up.grantSkin) continue; // アバター商品(侍/サイバー)はHUDの永続アイテム欄に出さない
         var upLv = ownedUps[up.id] || 0;
         if (upLv > 0 && up.iconImg) {
             var nm = up.nameKey ? escapeHtml(t(up.nameKey)) : '';
@@ -3794,6 +3807,7 @@ function gameOver() {
     gameState.gameStarted = false;
     gameState.gamePaused = true;
     recordMissionProgress(); // デイリーミッション進捗を記録（広告復活でも二重計上しない）
+    commitPermaStock(); // まほうのポーチの中身をここで確定＝ゲームオーバーなら持ち越せる／リタイアでは消える(1.526)
     if (typeof saveSettings === 'function') saveSettings(); // ずかん撃破数など今回ランの記録を確定保存
     if (soundManager) soundManager.playBGM('gameover');
 
