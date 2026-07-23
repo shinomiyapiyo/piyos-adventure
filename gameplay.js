@@ -2407,22 +2407,29 @@ function updateStockUI() {
             }
         }
     }
-    // 所持している永久型アップグレードのアイコンを枠の下にまとめて表示（ゲーム中・両ショップで一貫表示）。
-    // チュートリアルはサンドボックス＝アップグレード効果なしなので表示しない（実所持と画面の食い違い防止・1.430）
+    container.innerHTML = html;
+    // 所持している永久型アップグレードのアイコンは左パネル(#ui内 #ownedUpgradeIcons)へ表示（1.522で右の枠下から移設＝
+    // 最大所持時に右の縦積みが画面下へはみ出す問題の解消）。チュートリアルはサンドボックス＝効果なしなので出さない(1.430)。
+    // ⚠grantSkinのアバター(侍/サイバー)は upgrades に入れず ownedSkins 管理なので、ここには元々出ない（きせかえ側で表示）。
+    updateOwnedUpgradeIcons();
+}
+
+function updateOwnedUpgradeIcons() {
+    var el = document.getElementById('ownedUpgradeIcons');
+    if (!el) return;
     var ownedHtml = '';
-    var ownedUps = tutorialState.active ? {} : (gameSettings.upgrades || {});
+    var ownedUps = (typeof tutorialState !== 'undefined' && tutorialState.active) ? {} : (gameSettings.upgrades || {});
     for (var u = 0; u < TITLE_SHOP_UPGRADES.length; u++) {
         var up = TITLE_SHOP_UPGRADES[u];
         var upLv = ownedUps[up.id] || 0;
         if (upLv > 0 && up.iconImg) {
             var nm = up.nameKey ? escapeHtml(t(up.nameKey)) : '';
-            // Lv2以上は右下に小さくレベル数字を添える（Lv1は素のアイコン＝基本所持状態）
-            var lvBadge = upLv >= 2 ? '<span class="skill-lv-badge">' + upLv + '</span>' : '';
+            var lvBadge = upLv >= 2 ? '<span class="skill-lv-badge">' + upLv + '</span>' : ''; // Lv2以上のみレベル数字
             ownedHtml += '<span class="owned-skill-wrap" title="' + nm + '"><img src="' + up.iconImg + '" class="owned-skill-icon">' + lvBadge + '</span>';
         }
     }
-    if (ownedHtml) html += '<div class="owned-skills">' + ownedHtml + '</div>';
-    container.innerHTML = html;
+    el.innerHTML = ownedHtml;
+    el.style.display = ownedHtml ? 'flex' : 'none';
 }
 
 // ─── ボスバトルシステム ───

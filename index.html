@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.521";
+                content: "Ver.1.522";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -617,11 +617,11 @@
             opacity: 0.5; pointer-events: none; filter: grayscale(0.5);
         }
         .stock-slot {
-            width: 44px; height: 44px; border-radius: 10px;
+            width: 38px; height: 38px; border-radius: 9px; /* 1.522: 44→38に縮小（最大所持時の縦積みはみ出し対策） */
             border: 2px solid rgba(255,215,0,0.4);
             background: linear-gradient(135deg, rgba(30,15,50,0.85), rgba(15,5,30,0.85));
             display: flex; align-items: center; justify-content: center;
-            font-size: 24px; cursor: pointer;
+            font-size: 20px; cursor: pointer;
             -webkit-tap-highlight-color: transparent;
             transition: transform 0.1s ease;
         }
@@ -670,7 +670,13 @@
             background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.12);
             pointer-events: none;
         }
-        .owned-skill-icon { width: 22px; height: 22px; image-rendering: pixelated; }
+        .owned-skill-icon { width: 20px; height: 20px; image-rendering: pixelated; }
+        /* 所持永久型アップグレードのアイコン行（1.522で左パネル#ui内へ移設）。ステータスの下に区切って横並び。 */
+        .owned-upg-hud {
+            display: flex; flex-wrap: wrap; gap: 3px;
+            margin-top: 4px; padding-top: 4px; max-width: 138px;
+            border-top: 1px solid rgba(255,255,255,0.16);
+        }
         /* 強化スキルのレベル表示（Lv2以上でアイコン右下に数字バッジ） */
         .owned-skill-wrap { position: relative; display: inline-flex; line-height: 0; }
         .skill-lv-badge {
@@ -734,6 +740,9 @@
             <div><img src="images/icon_kills.png" class="ui-icon"> <span id="enemyKills">0</span><span data-i18n="hud_kills_suffix">体撃破</span></div>
             <div><img src="images/icon_level.png" class="ui-icon"> <span data-i18n="hud_level_prefix">レベル</span><span id="speedLevel">1</span> (<span id="speedPercent">100</span>%)</div>
             <div><img src="images/icon_progress.png" class="ui-icon"> <span data-i18n="hud_next_prefix">次まで</span><span id="nextSpeedUp">300</span>m</div>
+            <!-- 所持している永久型アップグレードのアイコン（1.522で右のストック枠下から左パネルへ移設＝
+                 最大所持時に右の縦積みが画面下へはみ出すのを解消。空なら非表示） -->
+            <div id="ownedUpgradeIcons" class="owned-upg-hud" style="display:none;"></div>
         </div>
 
         <!-- スプラッシュ画面 -->
@@ -821,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.521</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.522</span>
                 </div>
 
                 <!-- クレジット：右下 -->
