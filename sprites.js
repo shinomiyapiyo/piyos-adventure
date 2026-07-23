@@ -76,9 +76,21 @@ var IMAGE_SPRITES = {
     skin_samurai_fall: { files: ['images/skin_samurai_fall.png'] },
     skin_samurai_dive: { files: ['images/skin_samurai_dive.png'] },
 
-    // サイバーぴよのドローンビット（1.520・随伴機・立ち絵OpenAI cyber_drone_3から32×32）。
-    // skin_cyber_* 本体モーションはVeo歩行が揃ってから登録（未登録中はゲーム内デフォルト見た目フォールバック）
+    // サイバーぴよのドローンビット（1.520・随伴機・立ち絵OpenAI cyber_drone_3から32×32）
     cyber_drone: { files: ['images/cyber_drone.png'] },
+
+    // サイバーぴよスキン（タイトルショップ200万・1.524／立ち絵=OpenAI cyber_anchor_3・
+    // 歩行=Veo veo_cyber_walk f_50/54/61/66（周期23〜24・接地A/閉じ/接地B/閉じ）・
+    // jump/fall=Veo veo_cyber_jumpfall f_27（上昇=腕を上げ膝タック）/f_62（下降=腕を下げ脚を流す））
+    skin_cyber_idle: { files: ['images/skin_cyber_idle.png'] },
+    skin_cyber_walk: { files: [
+        'images/skin_cyber_walk_1.png',
+        'images/skin_cyber_walk_2.png',
+        'images/skin_cyber_walk_3.png',
+        'images/skin_cyber_walk_4.png'
+    ]},
+    skin_cyber_jump: { files: ['images/skin_cyber_jump.png'] },
+    skin_cyber_fall: { files: ['images/skin_cyber_fall.png'] },
 
     // 敵 (左向き固定 - 元画像が右向きのものだけflip:trueで反転)
     chick_walk:        { files: [
