@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.520";
+                content: "Ver.1.521";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -821,7 +821,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.520</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.521</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3474,13 +3474,20 @@ function showConfirmModal(message) {
             if (i > 0) msgEl.appendChild(document.createElement('br'));
             msgEl.appendChild(document.createTextNode(line));
         });
-        // OKボタンを「はい」に変え、「いいえ」ボタンを追加
+        // OKボタンを「はい」に変え、「いいえ」ボタンを追加。
+        // ⚠モーダル箱は flex縦(1.503) のため、2ボタンを兄弟のまま並べると縦積み＋幅不揃いで崩れる
+        //   （旧: noBtnにmargin-leftだけ付けていたが縦並びでは無効だった）→ 横並びの行コンテナに収める。
+        var modalBox = okBtn.parentNode; // クリーンアップでOKを箱直下に戻すため保持
         okBtn.textContent = t('confirm_yes');
         var noBtn = document.createElement('button');
         noBtn.className = 'game-button';
-        noBtn.style.cssText = 'min-width: 30vw; margin-left: 10px; background: linear-gradient(180deg, #666, #444); border-color: rgba(255,255,255,0.2);';
+        noBtn.style.cssText = 'min-width: 30vw; flex: none; background: linear-gradient(180deg, #666, #444); border-color: rgba(255,255,255,0.2);';
         noBtn.textContent = t('confirm_no');
-        okBtn.parentNode.insertBefore(noBtn, okBtn.nextSibling);
+        var btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex; flex:none; gap:12px; justify-content:center; align-items:center; flex-wrap:wrap;';
+        modalBox.insertBefore(btnRow, okBtn); // OKの位置に行を差し込み、OKと「いいえ」を中へ移動
+        btnRow.appendChild(okBtn);
+        btnRow.appendChild(noBtn);
         modal.style.display = 'flex';
         history.pushState({ screen: 'modal' }, '');
 
@@ -3491,7 +3498,8 @@ function showConfirmModal(message) {
             okBtn.removeEventListener('touchend', onYesTouch);
             noBtn.removeEventListener('click', onNo);
             noBtn.removeEventListener('touchend', onNoTouch);
-            if (noBtn.parentNode) noBtn.parentNode.removeChild(noBtn);
+            modalBox.appendChild(okBtn); // OKを箱直下(最後)へ戻す＝showGameModalは直下のokBtnを使う
+            if (btnRow.parentNode) btnRow.parentNode.removeChild(btnRow); // 行ごと除去（noBtnも一緒に消える）
             window._gameModalClose = null;
         }
         function onYes() { cleanup(); resolve(true); }

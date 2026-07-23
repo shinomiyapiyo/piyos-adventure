@@ -53,6 +53,10 @@
     var pendingInterDone = null;   // インタースティシャルを閉じたら呼ぶ（リトライの順序制御）
     var rewardWatchdog = null;     // 表示後に報酬/閉じイベントが来ない場合の保険タイマー（pendingRewardの詰まり防止）
     var rewardRetryScheduled = false; // ロード失敗後の自動リトライが予約済みか（多重予約を防ぐ）
+    // 1.521: 報酬コールバックは「広告が実際に閉じた(Dismiss)後」に実行する＝復活/入金が広告表示中に
+    // 起きて見えない/ゲームが裏で進む問題の対策。Reward発火では結果を記録するだけ（取りこぼし防止）。
+    var rewardShownResult;         // 表示中広告の視聴結果（undefined=未確定 / true=報酬獲得 / false=未獲得で閉じ）
+    var rewardFinalizeTimer = null; // Dismissのグレース/保険用タイマー（Reward/Dismissの発火順ゆれ対策）
     var REWARD_WATCHDOG_MS = 60000;   // 表示後この時間イベントが来なければ失敗解決
     var REWARD_RELOAD_DELAY_MS = 30000; // ロード失敗後の再ロード間隔（在庫回復待ち）
 
@@ -80,9 +84,11 @@
     // リワードを実際に表示する（ready確定後の共通処理）。表示後イベントが来ない詰まりに保険タイマーを張る。
     function presentReward() {
         setRewardReady(false);
+        rewardShownResult = undefined; // 新しい広告表示ごとに視聴結果をリセット
+        if (rewardFinalizeTimer) { clearTimeout(rewardFinalizeTimer); rewardFinalizeTimer = null; }
         if (rewardWatchdog) clearTimeout(rewardWatchdog);
-        rewardWatchdog = setTimeout(function () { if (pendingReward) settleReward(false, false); }, REWARD_WATCHDOG_MS);
-        AdMob.showRewardVideoAd().catch(function () { settleReward(false, false); });
+        rewardWatchdog = setTimeout(function () { if (pendingReward) finalizeReward(rewardShownResult === true, rewardShownResult !== undefined); }, REWARD_WATCHDOG_MS);
+        AdMob.showRewardVideoAd().catch(function () { finalizeReward(false, false); });
     }
 
     function prepareInterstitial() {
@@ -98,14 +104,16 @@
             .catch(function () { setRewardReady(false); scheduleRewardReload(); });
     }
 
-    // リワード結果を「1回だけ」解決。Reward発火＝成功で即解決、Dismiss/失敗は未解決時のみ失敗で解決。
-    // iOSの Reward と Dismiss の発火順に依存せず視聴完了を取りこぼさない（復活が効かない不具合の対策）。
+    // リワードのコールバックを「1回だけ」実行（＝実際の報酬付与/復活/入金）。1.521で settleReward から改名し、
+    // 「広告が閉じた後に呼ぶ」設計に変更（下のリスナー参照）。取りこぼし防止は rewardShownResult で担保。
     // wasShown: 広告が実際に画面表示されたか（=機会を消費してよいか）。callbackへ {shown} で渡す。
-    function settleReward(result, wasShown) {
+    function finalizeReward(result, wasShown) {
         if (rewardWatchdog) { clearTimeout(rewardWatchdog); rewardWatchdog = null; }
+        if (rewardFinalizeTimer) { clearTimeout(rewardFinalizeTimer); rewardFinalizeTimer = null; }
         var cb = pendingReward;
         if (!cb) { return; }
         pendingReward = null;
+        rewardShownResult = undefined;
         setRewardReady(false);
         prepareReward();            // 次のリワードを事前ロード
         // 実広告が表示されなかった(在庫ゼロ/ロード失敗)＝ユーザーに非がない → 自社ゲーム紹介カードを見せて報酬を出す。
@@ -117,15 +125,35 @@
         cb(result, { shown: !!wasShown });
     }
 
+    // Reward発火で報酬結果を記録するが、cbの実行は広告が閉じるまで待つ。Dismissが来ない稀な実装に
+    // 備えて保険タイマーを張る（通常はDismissで即確定）。
+    function armRewardFinalizeFallback() {
+        if (rewardFinalizeTimer || !pendingReward) return;
+        rewardFinalizeTimer = setTimeout(function () { if (pendingReward) finalizeReward(rewardShownResult === true, true); }, 3000);
+    }
+    // Dismissが先に来た時（順序ゆれ）、遅れて来るRewardを少し待ってから確定する。
+    function armRewardFinalizeGrace() {
+        if (rewardFinalizeTimer) clearTimeout(rewardFinalizeTimer);
+        rewardFinalizeTimer = setTimeout(function () { if (pendingReward) finalizeReward(rewardShownResult === true, true); }, 500);
+    }
+
     function initAds() {
         if (!AdMob) return;
         // 非パーソナライズ広告(NPA)方針＝ATT(トラッキング許可)は要求しない。初期化→リスナー登録→事前ロード。失敗しても続行。
         Promise.resolve(AdMob.initialize({ initializeForTesting: AD_TEST }))
             .then(function () {
-                // 永続リスナー（初期化後に1回だけ登録）
-                AdMob.addListener(EV.rewReward,     function () { settleReward(true, true); });   // 報酬確定＝即成功（広告は表示された）
-                AdMob.addListener(EV.rewDismiss,    function () { settleReward(false, true); });  // 未獲得で閉じた＝失敗だが広告は表示された（獲得済みなら無視）
-                AdMob.addListener(EV.rewFailShow,   function () { settleReward(false, false); });  // 表示に失敗＝未表示
+                // 永続リスナー（初期化後に1回だけ登録）。1.521: cbの実行は「広告が閉じた(Dismiss)後」に統一。
+                AdMob.addListener(EV.rewReward,     function () {            // 報酬獲得＝結果を記録（cbはDismissで実行）
+                    if (!pendingReward) return;
+                    rewardShownResult = true;
+                    armRewardFinalizeFallback();                            // Dismissが来ない実装への保険
+                });
+                AdMob.addListener(EV.rewDismiss,    function () {            // 広告が閉じた＝ここで確定＆cb実行
+                    if (!pendingReward) return;
+                    if (rewardShownResult !== undefined) finalizeReward(rewardShownResult, true);
+                    else armRewardFinalizeGrace();                          // Reward未着なら少し待つ（順序ゆれ）
+                });
+                AdMob.addListener(EV.rewFailShow,   function () { finalizeReward(false, false); }); // 表示に失敗＝未表示（即・自社カードへ）
                 AdMob.addListener(EV.rewLoaded,     function () {
                     setRewardReady(true);
                     // 復活/ボーナスのタップ時に未ロードだったら、ロード完了したこの瞬間に表示する
@@ -133,7 +161,7 @@
                 });
                 AdMob.addListener(EV.rewFailLoad,   function () {
                     setRewardReady(false);
-                    if (rewardWantShow) { rewardWantShow = false; settleReward(false, false); }
+                    if (rewardWantShow) { rewardWantShow = false; finalizeReward(false, false); }
                     else { scheduleRewardReload(); }
                 });
                 AdMob.addListener(EV.interLoaded,   function () { interReady = true; });
@@ -160,7 +188,7 @@
         // 未ロード: 準備してロード完了(rewLoaded)で表示。数秒で用意できなければ失敗解決（無音で失敗しない）。
         rewardWantShow = true;
         prepareReward();
-        setTimeout(function () { if (rewardWantShow) { rewardWantShow = false; settleReward(false, false); } }, 6000);
+        setTimeout(function () { if (rewardWantShow) { rewardWantShow = false; finalizeReward(false, false); } }, 6000);
     }
 
     window.showAd = function (type, callback) {

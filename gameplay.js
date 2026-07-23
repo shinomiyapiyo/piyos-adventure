@@ -1760,13 +1760,14 @@ function selectTshopItem(upgradeId) {
         updateTitleShopUI();
         return;
     }
-    // MAX到達: 案内のみ・ダイアログは出さない
+    // MAX到達: 案内のみ・ダイアログは出さない。アバター(grantSkin)は「強化済み」でなく
+    // 「きせかえで装備」と案内する（アバターは強化でなく所持アイテムのため・1.521ユーザー指摘）。
     if (isMax) {
         showTshopConfirm(false);
         tshopConfirmingItem = null;
-        if (soundManager) soundManager.playDamage();
+        if (soundManager) { if (upgrade.grantSkin) soundManager.playCursorMove(); else soundManager.playDamage(); }
         tshopHighlightedItem = upgradeId;
-        setTshopKeeperText('tshop_keeper_max');
+        setTshopKeeperText(upgrade.grantSkin ? 'tshop_keeper_owned_avatar' : 'tshop_keeper_max');
         updateTitleShopUI();
         return;
     }
@@ -3445,6 +3446,9 @@ function endSamuraiDiveOnBossStomp() {
     player.samuraiDive = false;
     player.samuraiDiveLock = true;
 }
+// 侍ぴよ急降下斬り中のボス踏みダメージ加算（1.521・ユーザー指定=通常踏み10/5に対し斬りは11/6）。
+// 各ボスの踏み成功ダメージ行で (基本値 + samuraiDiveDmgBonus()) として使う。装甲弾き(卵の殻)は0のまま。
+function samuraiDiveDmgBonus() { return player.samuraiDive ? 1 : 0; }
 
 function updateBossCollision(b) {
     if (!b || b.hp <= 0) return;
@@ -3459,7 +3463,7 @@ function updateBossCollision(b) {
 
     if (b.stompCooldown <= 0 && stompHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.3) {
         // 踏みつけ成功！
-        b.hp -= 10 * critMultiplier(b.x + b.width / 2, b.y);
+        b.hp -= (10 + samuraiDiveDmgBonus()) * critMultiplier(b.x + b.width / 2, b.y);
         player.velY = JUMP_FORCE * 0.5; // 低めバウンス（連続踏み防止）
         endSamuraiDiveOnBossStomp();
         if (soundManager) soundManager.playKill();
@@ -3500,8 +3504,8 @@ function updateBossCollision_hawk(b) {
     var stompPose = stompHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45;
 
     if (b.stompCooldown <= 0 && stompPose) {
-        // 踏みつけ成功（着地硬直中=フル1.0 / 空中=半分0.5＝急降下斬りも同一・1.516でユーザー確定）
-        b.hp -= (grounded ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
+        // 踏みつけ成功（着地硬直中=フル10 / 空中=半分5。急降下斬りは+1=11/6・1.521ユーザー指定）
+        b.hp -= ((grounded ? 10 : 5) + samuraiDiveDmgBonus()) * critMultiplier(b.x + b.width / 2, b.y);
         player.velY = JUMP_FORCE * 0.5;
         endSamuraiDiveOnBossStomp();
         if (soundManager) soundManager.playKill();
@@ -3554,7 +3558,7 @@ function updateBossCollision_egg(b) {
     if (b.stompCooldown <= 0 && stompPose) {
         if (b.exposed) {
             // 弱点露出中: ダメージ
-            b.hp -= 10 * critMultiplier(b.x + b.width / 2, b.y);
+            b.hp -= (10 + samuraiDiveDmgBonus()) * critMultiplier(b.x + b.width / 2, b.y);
             player.velY = JUMP_FORCE * 0.5;
             endSamuraiDiveOnBossStomp();
             if (soundManager) soundManager.playKill();
@@ -3601,7 +3605,7 @@ function updateBossCollision_snake(b) {
     if (b.exposed && b.stompCooldown <= 0) {
         var stompPose = player.velY > 0 && aabb(player, headBox) && player.y + player.height <= headTop + headBox.height * 0.75;
         if (stompPose) {
-            b.hp -= 10 * critMultiplier(b.x + b.width / 2, headTop);
+            b.hp -= (10 + samuraiDiveDmgBonus()) * critMultiplier(b.x + b.width / 2, headTop);
             player.velY = JUMP_FORCE * 0.5;
             endSamuraiDiveOnBossStomp();
             if (soundManager) soundManager.playKill();
@@ -3622,8 +3626,8 @@ function updateBossCollision_owl(b) {
     // 踏み判定: プレイヤーが上から（落下中＆ボス上部45%に乗る）。perch/hover/aim/hoot/swoop 問わず空中で踏める
     var stompPose = aabbShrink(player, b, 12, 13) && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45;
     if (b.stompCooldown <= 0 && stompPose) {
-        var groundStomp = (b.owlMode === 'perch'); // 止まり(地上)=フル10 / 空中=半分5（闇のカラスと同じ・急降下斬りも同一=1.516）
-        b.hp -= (groundStomp ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
+        var groundStomp = (b.owlMode === 'perch'); // 止まり(地上)=フル10 / 空中=半分5（闇のカラスと同じ）
+        b.hp -= ((groundStomp ? 10 : 5) + samuraiDiveDmgBonus()) * critMultiplier(b.x + b.width / 2, b.y); // 急降下斬りは+1=11/6(1.521)
         player.velY = JUMP_FORCE * 0.5;
         endSamuraiDiveOnBossStomp();
         if (soundManager) soundManager.playKill();
