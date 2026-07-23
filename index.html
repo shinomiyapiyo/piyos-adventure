@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.523";
+                content: "Ver.1.524";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.523</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.524</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2332,7 +2332,7 @@ function showSobaScene(healedLives, imgPath) {
 
 // ─── ゲーム設定 (localStorage永続化) ───
 var gameSettings = {
-    dataVersion: 3,    // セーブデータ構造バージョン（移行処理用。v3=1.474: ボス遭遇のみseenを撃破済み扱いへ）
+    dataVersion: 4,    // セーブデータ構造バージョン（移行処理用。v3=1.474: ボス遭遇のみseenを撃破済み扱いへ／v4=1.524: チュートリアル由来の「砂漠:発見」誤登録を取消）
     soundEnabled: true, language: 'ja', adFree: false, savings: 0, upgrades: {},
     tutorialSeen: false,   // 初回チュートリアル（操作カード）を表示済みか
     tutorialCleared: false, // チュートリアル「はじまりの地」クリア済みか（クリアまで新規は毎回チュートリアル）
@@ -2437,6 +2437,19 @@ var gameSettings = {
                     if (_bid.indexOf('boss:') === 0 && _zSeen[_bid] && !(_zKills[_bid] > 0)) { _zKills[_bid] = 1; _bossMigrated = true; }
                 }
                 if (_bossMigrated) saveSettings(); // dataVersion=3(既定)＋killsを永続化＝次回以降は本移行をスキップ
+            }
+            // ── セーブ移行 v4（1.524・一度きり）: チュートリアルのクリア処理が同tickの updateBiome に拾われ、
+            //    到達距離760mが通常換算(600m〜=砂漠)されて「砂漠:発見」が誤登録されていた分を取り消す。
+            //    安全条件＝自己ベスト距離が600m未満（＝通常ランで砂漠へ到達しようがない）。チュートリアルは
+            //    recordMissionProgress が早期returnして統計に計上しないため、この判定は誤爆しない。
+            //    正規に到達済み(bestDistance>=600)のプレイヤーには一切触れない。受取済み報酬(claimed)も不変。
+            if (savedDataVersion < 4 && gameSettings.zukan && gameSettings.zukan.seen) {
+                var _asMig = gameSettings.achievementStats || {};
+                if (gameSettings.zukan.seen['biome:desert'] && !((_asMig.bestDistance || 0) >= 600)) {
+                    delete gameSettings.zukan.seen['biome:desert'];
+                    if (gameSettings.zukan.new) delete gameSettings.zukan.new['biome:desert'];
+                    saveSettings(); // dataVersion=4(既定)を永続化＝次回以降は本移行をスキップ
+                }
             }
             // ── まほうのポーチ（永続ストック）──
             if (typeof parsed.pouchLevel === 'number') gameSettings.pouchLevel = parsed.pouchLevel;
@@ -2929,18 +2942,21 @@ function closeMissionScreen() {
 }
 
 // ─── 実績/トロフィー（一生リセットされない長期目標。報酬は貯金。ミッションUIを流用） ───
+// 報酬改定（1.524・ユーザー指示）: 報酬が少なすぎたため、旧8,000円の3件はゴールデンエッグ2個へ格上げし、
+// それ以外の金額報酬は一律5倍にした（3,000→15,000 / 2,000→10,000 / 5,000→25,000）。
+// エッグ報酬(eggReward)の既存3件とスキン報酬(dist_5000)は据え置き。
 var ACHIEVEMENTS = [
-    { id: 'kills_100',   stat: 'totalKills',    target: 100,    reward: 3000,  nameKey: 'ach_kills_100',   iconImg: 'images/icon_kills.png' },
-    { id: 'kills_1000',  stat: 'totalKills',    target: 1000,   reward: 8000,  nameKey: 'ach_kills_1000',  iconImg: 'images/icon_kills.png' },
+    { id: 'kills_100',   stat: 'totalKills',    target: 100,    reward: 15000, nameKey: 'ach_kills_100',   iconImg: 'images/icon_kills.png' },
+    { id: 'kills_1000',  stat: 'totalKills',    target: 1000,   reward: 0, eggReward: 2, nameKey: 'ach_kills_1000',  iconImg: 'images/icon_kills.png' },
     { id: 'kills_10000', stat: 'totalKills',    target: 10000,  reward: 0, eggReward: 5, nameKey: 'ach_kills_10000', iconImg: 'images/icon_kills.png' },
     { id: 'dist_5000',   stat: 'totalDistance', target: 5000,   reward: 0,     nameKey: 'ach_dist_5000',   iconImg: 'images/icon_distance.png', skinReward: 'maid', skinPreview: 'images/skin_maid_idle.png' },
-    { id: 'dist_50000',  stat: 'totalDistance', target: 50000,  reward: 8000,  nameKey: 'ach_dist_50000',  iconImg: 'images/icon_distance.png' },
+    { id: 'dist_50000',  stat: 'totalDistance', target: 50000,  reward: 0, eggReward: 2, nameKey: 'ach_dist_50000',  iconImg: 'images/icon_distance.png' },
     { id: 'dist_200000', stat: 'totalDistance', target: 200000, reward: 0, eggReward: 5, nameKey: 'ach_dist_200000', iconImg: 'images/icon_distance.png' },
-    { id: 'plays_10',    stat: 'totalPlays',    target: 10,     reward: 2000,  nameKey: 'ach_plays_10',    iconImg: 'images/icon_play.png' },
-    { id: 'plays_50',    stat: 'totalPlays',    target: 50,     reward: 5000,  nameKey: 'ach_plays_50',    iconImg: 'images/icon_play.png' },
+    { id: 'plays_10',    stat: 'totalPlays',    target: 10,     reward: 10000, nameKey: 'ach_plays_10',    iconImg: 'images/icon_play.png' },
+    { id: 'plays_50',    stat: 'totalPlays',    target: 50,     reward: 25000, nameKey: 'ach_plays_50',    iconImg: 'images/icon_play.png' },
     { id: 'plays_200',   stat: 'totalPlays',    target: 200,    reward: 0, eggReward: 3, nameKey: 'ach_plays_200',   iconImg: 'images/icon_play.png' },
-    { id: 'best_1000',   stat: 'bestDistance',  target: 1000,   reward: 3000,  nameKey: 'ach_best_1000',   iconImg: 'images/icon_progress.png' },
-    { id: 'best_3000',   stat: 'bestDistance',  target: 3000,   reward: 8000,  nameKey: 'ach_best_3000',   iconImg: 'images/icon_progress.png' },
+    { id: 'best_1000',   stat: 'bestDistance',  target: 1000,   reward: 15000, nameKey: 'ach_best_1000',   iconImg: 'images/icon_progress.png' },
+    { id: 'best_3000',   stat: 'bestDistance',  target: 3000,   reward: 0, eggReward: 2, nameKey: 'ach_best_3000',   iconImg: 'images/icon_progress.png' },
     { id: 'best_5000',   stat: 'bestDistance',  target: 5000,   reward: 0, eggReward: 3, nameKey: 'ach_best_5000',   iconImg: 'images/icon_progress.png' }
 ];
 
@@ -3697,7 +3713,12 @@ function retypeTerrainForBiome(biomeIdx) {
 function updateBiome() {
     // チュートリアル中の値（はじまりの地→600mで草原）は getBiomeIndex 側が返す＝通常の遷移処理をそのまま通す
     var newIdx = getBiomeIndex(gameState.distance);
-    markZukanSeen('biome:' + ZUKAN_BIOME_NAMES[newIdx]); // ずかん: 今いるバイオームを発見（開始地=草原も毎フレーム記録・既発見なら無処理）
+    // ずかん(ステージ): 今いるバイオームを発見（開始地=草原も毎フレーム記録・既発見なら無処理）。
+    // ⚠1.524修正: ランが走っている間だけ記録する。チュートリアルのクリア処理(updateTutorial内)は
+    //   tutorialState.active=false / gameStarted=false にするが、同じtickの後段でこの updateBiome が走るため、
+    //   素で記録すると tutorial到達距離(760m)が通常換算(600m〜=砂漠)されて「砂漠に到達」ことにされていた
+    //   （チュートリアルでは画面に砂漠は出ない＝ユーザー報告）。
+    if (gameState.gameStarted && !gameState.gamePaused) markZukanSeen('biome:' + ZUKAN_BIOME_NAMES[newIdx]);
     // ボス戦直前・ボス戦中はバイオーム遷移を開始しない（草原に戻す必要なし）
     var bossDistance = bossDistanceFor(gameRound);
     var nearBoss = gameState.distance >= bossDistance - 200 || bossState.active || shopState.active;
