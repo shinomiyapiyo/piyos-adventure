@@ -4,6 +4,8 @@
 //   --action=walk      横向き足踏み歩行サイクル（→ walk_1..4 切り出し）
 //   --action=jumpfall  その場ジャンプ→落下の繰り返し（→ jump / fall 切り出し）
 //   --action=dive      刀を抜いて急降下斬り（→ dive 切り出し・1.509の急降下斬り用）
+//   --action=divehold  突きの瞬間で静止したポーズを空中ホールド（dive v4・アクションを撮らずポーズを持続させる）
+//   --action=diveslash 空中で落下しながら前下方へ斬りつける必殺技（dive v5・地上攻撃/上方向攻撃を排除・落下スローモーション）
 // 後段: ffmpeg で _raw/veo_frames_samurai_<action>/f_%03d.png に抽出 → veo-frames-to-samurai.mjs で整列。
 import { GoogleGenAI } from '@google/genai';
 import sharp from 'sharp';
@@ -23,7 +25,9 @@ const BASE    = getArg('base') || 'samurai_anchor_1_1024.png';
 const SEED_OUT = path.join(RAW_DIR, 'veo_samurai_seed_green.png');
 const MP4_OUT  = path.join(RAW_DIR, `veo_samurai_${ACTION}.mp4`);
 const GREEN = { r: 0, g: 200, b: 0, alpha: 1 };
-const W = 720, H = 1280, FOOT_Y = 1185;
+// --landscape: 横長16:9フレーム（水平突き等の横に長いポーズ用。9:16だと刀先が左右端で切れる）
+const LANDSCAPE = hasFlag('landscape');
+const W = LANDSCAPE ? 1280 : 720, H = LANDSCAPE ? 720 : 1280, FOOT_Y = LANDSCAPE ? 665 : 1185;
 
 // 共通identity（動画プロンプト冒頭）
 const ID = [
@@ -73,6 +77,49 @@ const ACTIONS = {
     ].join(' '),
     neg: 'sword behind the body, sword trailing behind, sword raised overhead while falling, follow-through slash, horizontal slash, moving forward, moving sideways, traveling across the screen, leaving the frame, near frame edge, background change, camera motion, panning, zoom, extra characters, text, watermark, blur, realistic 3d render, out of frame, sheathed sword only',
   },
+  // dive v4（第5弾）: 過去4本の敗因=突きは一瞬でVeoが構え/振り抜き後ばかり描く→アクションを撮らず
+  // 「突きの最中で時間停止したポーズの空中ホールド」を撮る＝全コマが切り出し候補になる
+  divehold: {
+    prompt: [
+      ID,
+      'She quickly springs into the air and FREEZES in a dramatic mid-thrust DIVING STAB pose, then HOLDS that exact',
+      'frozen pose, suspended motionless in mid-air, for the ENTIRE rest of the video, in clear SIDE VIEW facing RIGHT.',
+      'THE FROZEN POSE: her body is tilted head-first about 45 degrees, diving diagonally DOWN-FORWARD toward the lower',
+      'right; BOTH ARMS are fully EXTENDED with elbows LOCKED STRAIGHT, reaching diagonally down-forward IN FRONT of her',
+      'body; she grips the katana with BOTH hands and the BLADE CONTINUES the line of her arms — her straight arms and',
+      'the blade form ONE SINGLE STRAIGHT LINE aimed diagonally down-forward, like a spear frozen in the middle of',
+      'piercing; the sword TIP is the lowest and foremost point of the whole figure, FAR away from her chest. Her katana',
+      'is SHORT and compact — the blade is no longer than her own arm. The ENTIRE sword, INCLUDING ITS TIP, stays FULLY',
+      'INSIDE the frame at all times, with clear green margin between the sword tip and the frame edge. Her legs',
+      'are together, trailing up behind her; her ponytail and headband tails stream up and back. Only her hair, headband',
+      'tails and hakama flutter gently — everything else stays perfectly still, as if time has stopped. She stays',
+      'CENTERED in the frame, never near the edges, never touching the ground. Keep her exact appearance, outfit, colors',
+      'and chunky pixel-art style identical to the input image. Plain flat solid green background, no other objects, no',
+      'camera movement, no zoom, no panning.',
+    ].join(' '),
+    neg: 'very long blade, oversized sword, blade tip touching the frame edge, blade tip cut off by the frame, bent elbows, sword held vertically, blade pointing up, sword close to the chest, guard stance, ready stance, sword raised overhead, sword behind the body, sword trailing behind, follow-through slash, horizontal slash, swinging the sword, landing, standing on the ground, walking, running, moving sideways, traveling across the screen, leaving the frame, near frame edge, touching the frame edge, background change, camera motion, panning, zoom, extra characters, text, watermark, blur, realistic 3d render, out of frame, sheathed sword',
+  },
+  // dive v5(diveslash): ユーザー要件の核心=「空中にいて・落下しながら・前下方へ斬りつける」。
+  // v5/v6(divehold)の敗因=地上に立ったまま水平/上方向の突きになった→「攻撃は落下中のみ・地上攻撃禁止」を最優先で明示。
+  diveslash: {
+    prompt: [
+      ID,
+      'She performs an anime-style MID-AIR PLUNGING SLASH special move, repeatedly, in clear SIDE VIEW facing right.',
+      'Each cycle: she leaps high into the air, and then — entirely IN MID-AIR, while FALLING — she slashes DIAGONALLY',
+      'DOWN-FORWARD in dramatic SLOW MOTION. During the falling slash her whole body is AIRBORNE, high above the ground,',
+      'tilted head-first about 45 degrees toward the lower-front; BOTH ARMS are extended straight DOWN-FORWARD in front',
+      'of her body, both hands gripping the katana; the BLADE continues the straight line of her arms, pointing',
+      'diagonally DOWN-FORWARD BELOW her hands, aimed at the ground ahead of her — like a bird of prey diving',
+      'talons-first. The sword tip is the LOWEST and MOST FORWARD point of the whole figure, far below her chest. Her',
+      'legs are together and trail up behind her; ponytail and headband tails stream up and back. The slash happens',
+      'ONLY while she is falling through the air — NEVER while standing on the ground, and NEVER aimed upward. The',
+      'falling phase is long and slow so the diving pose is clearly readable. After landing softly she immediately',
+      'leaps again and repeats. She stays CENTERED in the frame, never near the edges. Keep her exact appearance,',
+      'outfit, colors and chunky pixel-art style identical to the input image. Plain flat solid green background, no',
+      'other objects, no camera movement, no zoom, no panning.',
+    ].join(' '),
+    neg: 'attacking while standing, standing slash, ground-level thrust, slashing on the ground, upward slash, slash aimed upward, thrust aimed upward, blade pointing up, sword raised overhead, sword behind the body, sword trailing behind, guard stance, ready stance, horizontal thrust at chest height, walking, running, moving sideways, traveling across the screen, leaving the frame, near frame edge, touching the frame edge, background change, camera motion, panning, zoom, extra characters, text, watermark, blur, realistic 3d render, out of frame, sheathed sword',
+  },
 };
 
 async function buildSeed() {
@@ -99,7 +146,7 @@ async function main() {
   let op = await ai.models.generateVideos({
     model: MODEL, prompt: act.prompt,
     image: { imageBytes: seedBuf.toString('base64'), mimeType: 'image/png' },
-    config: { aspectRatio: '9:16', resolution: '720p', durationSeconds: SECONDS, numberOfVideos: 1, personGeneration: 'allow_adult', negativePrompt: act.neg },
+    config: { aspectRatio: LANDSCAPE ? '16:9' : '9:16', resolution: '720p', durationSeconds: SECONDS, numberOfVideos: 1, personGeneration: 'allow_adult', negativePrompt: act.neg },
   });
   let waited = 0;
   while (!op.done) { await sleep(10000); waited += 10; process.stdout.write(`  ...${waited}s\r`); op = await ai.operations.getVideosOperation({ operation: op }); }
