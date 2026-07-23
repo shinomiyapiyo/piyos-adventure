@@ -403,7 +403,7 @@ var TITLE_SHOP_UPGRADES = [
     // 雑魚一撃（弾スコア準拠200/300）・ボスはダメージ1=電気弾と同じ（装甲弾き/空中半減は既存の弾処理準拠）。
     // 購入時に grantSkin が ownedSkins へ 'cyber' を付与（handleTshopConfirmYes）＝きせかえに出現。
     { id: 'cyber_piyo', nameKey: 'skin_cyber', descKey: 'tshop_cyber_desc', grantSkin: 'cyber',
-      icon: '', iconImg: 'images/skin_cyber_idle.png', maxLevel: 1, prices: [2000000], effectDesc: ['ドローン'], effectDescEn: ['Drone bit'] }
+      icon: '', iconImg: 'images/skin_cyber_idle.png', maxLevel: 1, prices: [3000000], effectDesc: ['ドローン'], effectDescEn: ['Drone bit'] }
 ];
 
 // ─── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ───
