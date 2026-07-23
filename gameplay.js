@@ -3437,6 +3437,15 @@ function updateBossAI_owl(b) {
     }
 }
 
+// 侍ぴよ急降下斬りでボスに乗った（1.516）: 斬りを終了して通常踏みのバウンスに乗せ、跳ね中の連続発動を
+// ロックする（着地でリセット=index.html側／ジャンプすれば再度出せる）。ダメージは通常踏みと完全に同一
+// （10/空中ボス5/装甲0）。雑魚への貫通（バウンスなし撃破継続）は従来どおり敵衝突ループ側。
+function endSamuraiDiveOnBossStomp() {
+    if (!player.samuraiDive) return;
+    player.samuraiDive = false;
+    player.samuraiDiveLock = true;
+}
+
 function updateBossCollision(b) {
     if (!b || b.hp <= 0) return;
     if (b.kind === 'hawk') { updateBossCollision_hawk(b); return; }
@@ -3452,6 +3461,7 @@ function updateBossCollision(b) {
         // 踏みつけ成功！
         b.hp -= 10 * critMultiplier(b.x + b.width / 2, b.y);
         player.velY = JUMP_FORCE * 0.5; // 低めバウンス（連続踏み防止）
+        endSamuraiDiveOnBossStomp();
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);
         gainScore(500); // ボス踏みは撃破数に含めない
@@ -3490,9 +3500,10 @@ function updateBossCollision_hawk(b) {
     var stompPose = stompHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45;
 
     if (b.stompCooldown <= 0 && stompPose) {
-        // 踏みつけ成功（着地硬直中=フル1.0 / 空中=半分0.5。侍ぴよ急降下斬り中は常にフル1.0=1.515）
-        b.hp -= ((grounded || player.samuraiDive) ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
+        // 踏みつけ成功（着地硬直中=フル1.0 / 空中=半分0.5＝急降下斬りも同一・1.516でユーザー確定）
+        b.hp -= (grounded ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
         player.velY = JUMP_FORCE * 0.5;
+        endSamuraiDiveOnBossStomp();
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);
         gainScore(grounded ? 500 : 300);
@@ -3545,6 +3556,7 @@ function updateBossCollision_egg(b) {
             // 弱点露出中: ダメージ
             b.hp -= 10 * critMultiplier(b.x + b.width / 2, b.y);
             player.velY = JUMP_FORCE * 0.5;
+            endSamuraiDiveOnBossStomp();
             if (soundManager) soundManager.playKill();
             spawnExplosionEffect(player.x + player.width / 2, b.y);
             gainScore(500);
@@ -3554,6 +3566,7 @@ function updateBossCollision_egg(b) {
         } else {
             // 装甲: 弾かれる（ダメージなし）。高めにバウンス＋リングで「今は踏んでも無駄」と伝える
             player.velY = JUMP_FORCE * 0.62;
+            endSamuraiDiveOnBossStomp();
             b.stompCooldown = 14;
             floatEffects.push({ type: 'boss_shockwave', worldX: player.x + player.width / 2, worldY: b.y + 12, timer: 0, duration: 12 });
             if (soundManager) soundManager.playProtect(); // 装甲で弾いた「キン」専用SE
@@ -3590,6 +3603,7 @@ function updateBossCollision_snake(b) {
         if (stompPose) {
             b.hp -= 10 * critMultiplier(b.x + b.width / 2, headTop);
             player.velY = JUMP_FORCE * 0.5;
+            endSamuraiDiveOnBossStomp();
             if (soundManager) soundManager.playKill();
             spawnExplosionEffect(player.x + player.width / 2, headTop);
             gainScore(500);
@@ -3608,9 +3622,10 @@ function updateBossCollision_owl(b) {
     // 踏み判定: プレイヤーが上から（落下中＆ボス上部45%に乗る）。perch/hover/aim/hoot/swoop 問わず空中で踏める
     var stompPose = aabbShrink(player, b, 12, 13) && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.45;
     if (b.stompCooldown <= 0 && stompPose) {
-        var groundStomp = (b.owlMode === 'perch'); // 止まり(地上)=フル10 / 空中=半分5（闇のカラスと同じ）
-        b.hp -= ((groundStomp || player.samuraiDive) ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y); // 急降下斬り中は常にフル(1.515)
+        var groundStomp = (b.owlMode === 'perch'); // 止まり(地上)=フル10 / 空中=半分5（闇のカラスと同じ・急降下斬りも同一=1.516）
+        b.hp -= (groundStomp ? 10 : 5) * critMultiplier(b.x + b.width / 2, b.y);
         player.velY = JUMP_FORCE * 0.5;
+        endSamuraiDiveOnBossStomp();
         if (soundManager) soundManager.playKill();
         spawnExplosionEffect(player.x + player.width / 2, b.y);
         gainScore(groundStomp ? 500 : 300);

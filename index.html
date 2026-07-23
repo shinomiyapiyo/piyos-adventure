@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.515";
+                content: "Ver.1.516";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -821,7 +821,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.515</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.516</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3193,14 +3193,15 @@ function handleSkinClick(e) {
 
 // ── 侍ぴよ（1.509）: 空中で下スワイプ→急降下斬り。発動したら true（入力側でスワイプ消費の判定に使う）──
 // 地上の下スワイプ（土管入場/ブロックすり抜け）とは入力が衝突しない＝空中限定。
-// 斬り判定は敵衝突ループ側（player.samuraiDive 中の接触は撃破）。ボス/装甲は既存ルールのまま（貫通しない）が、
-// 斬り中の踏みダメージは常にフル1（空中ボス半減なし・gameplay.js updateBossCollision_hawk/_owl）。
+// 斬り判定は敵衝突ループ側（player.samuraiDive 中の接触は撃破＝雑魚は貫通・降下継続）。ボスへは通常踏みと
+// 完全同一（ダメージ10/空中ボス5/装甲0・1.516ユーザー確定）＝ボスに当たると踏み同様に跳ねて斬り終了
+// （gameplay.js endSamuraiDiveOnBossStomp）。跳ね中は samuraiDiveLock で再発動不可・着地でリセット。
 var SAMURAI_DIVE_SPEED = 16;    // 急降下の初速（調整ノブ）
 var SAMURAI_DIVE_FORWARD = 3;   // 降下中の前進量px/フレーム（調整ノブ・1.515=垂直落下だと敵に当てにくいため斜め前へ）
 function startSamuraiDive() {
     if (!SKIN_FEATURE_ENABLED || runActiveSkin() !== 'samurai') return false;
     if (!gameState.gameStarted || gameState.gamePaused || pipeRoomState.active) return false;
-    if (player.onGround || player.samuraiDive || gameState.isRespawning) return false;
+    if (player.onGround || player.samuraiDive || player.samuraiDiveLock || gameState.isRespawning) return false;
     player.samuraiDive = true;
     player.velY = Math.max(player.velY, SAMURAI_DIVE_SPEED);
     if (soundManager) soundManager.playCritical(); // 斬撃感のある既存SE流用
@@ -5536,6 +5537,8 @@ function updatePlayer() {
     }
 
     // 侍ぴよ 急降下斬り（1.509）: 着地で解除（小シェイクの手応え）／降下中は金の斬撃トレイル
+    // ボスヒット跳ね中の再発動ロックも着地でリセット（1.516・ジャンプすればまた出せる）
+    if (player.samuraiDiveLock && player.onGround) player.samuraiDiveLock = false;
     if (player.samuraiDive) {
         if (player.onGround) {
             player.samuraiDive = false;
@@ -6467,7 +6470,7 @@ function updateBullets() {
 }
 
 function resetPlayerPosition() {
-    player.samuraiDive = false; // リスポーン/復活時に急降下斬りを解除（1.509）
+    player.samuraiDive = false; player.samuraiDiveLock = false; // リスポーン/復活時に急降下斬りとロックを解除（1.509/1.516）
     var safeX = gameState.camera.x + 150;
     var found = false, gx = safeX;
 
