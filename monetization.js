@@ -137,10 +137,15 @@
         rewardFinalizeTimer = setTimeout(function () { if (pendingReward) finalizeReward(rewardShownResult === true, true); }, 500);
     }
 
+    // 開発者の実機テスト端末（この端末だけテスト広告になる＝配信版でも安全に広告フローを確認できる／一般ユーザーは本番広告のまま）。
+    // 端末IDはGoogle Mobile Ads SDKが出す「To get test ads on this device...」のハッシュ。ATT撤去でIDFAが無いため管理画面登録は不可＝コード側で登録する。
+    // ⚠これは秘密情報(APIキー等)ではなく端末フィンガープリント。他人がこの値を使っても自分の端末では効かないため公開しても無害。端末を足す時はこの配列に追記。
+    var TEST_DEVICE_IDS = ['813d9fbc60131fe5bda48ff671516b51']; // Rhyn-iPhone Air（白柳）
+
     function initAds() {
         if (!AdMob) return;
         // 非パーソナライズ広告(NPA)方針＝ATT(トラッキング許可)は要求しない。初期化→リスナー登録→事前ロード。失敗しても続行。
-        Promise.resolve(AdMob.initialize({ initializeForTesting: AD_TEST }))
+        Promise.resolve(AdMob.initialize({ initializeForTesting: AD_TEST, testingDevices: TEST_DEVICE_IDS }))
             .then(function () {
                 // 永続リスナー（初期化後に1回だけ登録）。1.521: cbの実行は「広告が閉じた(Dismiss)後」に統一。
                 AdMob.addListener(EV.rewReward,     function () {            // 報酬獲得＝結果を記録（cbはDismissで実行）
