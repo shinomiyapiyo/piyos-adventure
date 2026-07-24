@@ -500,6 +500,7 @@ var ZUKAN_ENTRIES = [
     { id: 'item:golden_egg', cat: 'item', nameKey: 'zukan_i_egg',    descKey: 'zukan_i_egg_d',    img: 'images/item_golden_egg.png' },
     // ── アイテム：ステージショップ（購入で発見・既存の説明文を流用）──
     { id: 'item:heal',          cat: 'item', nameKey: 'shop_item_heal',       descKey: 'shop_item_heal_desc',       img: 'images/icon_heal.png' },
+    { id: 'item:shortcake',     cat: 'item', nameKey: 'shop_item_shortcake',  descKey: 'shop_item_shortcake_desc',  img: 'images/icon_shortcake.png' }, // チュートリアルショップ限定（いちごショート・購入で発見／HP+1）
     { id: 'item:heal_stock',    cat: 'item', nameKey: 'shop_item_heal_stock', descKey: 'shop_item_heal_stock_desc', img: 'images/icon_heal_stock.png' },
     { id: 'item:barrier',       cat: 'item', nameKey: 'shop_item_barrier',    descKey: 'shop_item_barrier_desc',    img: 'images/icon_barrier.png' },
     { id: 'item:lemon_special', cat: 'item', nameKey: 'shop_item_lemon',      descKey: 'shop_item_lemon_desc',      img: 'images/icon_lemon_special.png' },

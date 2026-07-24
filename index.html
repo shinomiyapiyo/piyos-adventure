@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.532";
+                content: "Ver.1.533";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.532</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.533</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3936,6 +3936,9 @@ function showStartScreen() {
     hideRankingDirect();
     hideNameInputDirect();
     hideGameOverScreen();
+    // ショップ表示中にタイトルへ戻る経路（例: チュートリアルショップでスキップ）でショップ画面が残り表示崩れになるのを防ぐ。
+    // resetGame は shopState.active=false にするが DOM 画面は隠さないため、ここで明示的に隠す（既に非表示なら無害）。
+    if (typeof hideScreenEl === 'function') { hideScreenEl('stageShopScreen'); hideScreenEl('titleShopScreen'); }
     updateMissionBadge();
     updateAchievementBadge();
     updateZukanBadge();
