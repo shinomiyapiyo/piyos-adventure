@@ -109,10 +109,18 @@ function updateUnderground() {
     // 追従カメラ（左壁クランプ＝単調増加のみ。巻き戻すと距離が減りランキングの単調性が壊れる）
     var target = player.x - GAME_WIDTH * UG_CAM_LEAD;
     if (target > undergroundState.camMaxX) target = undergroundState.camMaxX; // ⚠画面幅に依存しない終端
+    // ⚠距離加算の速さに上限をかける（1.542）: 地底は自分の足で進むため、はやあし(1.3倍)を持っていると
+    //   地上の上限(BASE_SCROLL_SPEED*5 = 6px/f = 36m/秒)を超える速さで距離が増えてしまう＝地上では出せない稼ぎ方になる。
+    var maxAdvance = BASE_SCROLL_SPEED * 5.0 * UG_DIST_RATE;
+    var capped = gameState.camera.x + maxAdvance;
+    if (target > capped) target = capped;
     if (target > gameState.camera.x) gameState.camera.x = target;
     // プレイヤーは画面左端より左へ戻れない（SMB式）
     var leftLimit = gameState.camera.x + UG_PLAYER_MARGIN;
     if (player.x < leftLimit) { player.x = leftLimit; if (player.velX < 0) player.velX = 0; }
+    // カメラ上限より速く走った場合は画面右端で頭打ち（カメラを置き去りにして画面外へ出るのを防ぐ）
+    var rightLimit = gameState.camera.x + GAME_WIDTH - UG_PLAYER_MARGIN - player.width;
+    if (player.x > rightLimit) { player.x = rightLimit; if (player.velX > 0) player.velX = 0; }
     // 直近の安全な足場をチェックポイントとして記録（落下復帰を溶岩の上に戻さない）
     // ⚠画面内で接地している時だけ記録する。落下中のフレームを拾うと、復帰先が画面外になり無限に落ち続ける。
     if (player.onGround && player.y < GAME_HEIGHT && undergroundState.introTimer <= 0) {
