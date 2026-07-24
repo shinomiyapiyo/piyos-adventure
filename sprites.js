@@ -440,8 +440,79 @@ var PALETTES = {
         return g;
     }
 
+    // ─── 地底ステージ専用タイル（1.542・SPEC_UNDERGROUND.md P2） ───
+    // ⚠作り込みステージなので、既存タイルの単なるリカラーにはしない（草の形が残ると洞窟に見えない）。
+    //   パレット index は他の地形タイルと共通（terrain）＝BIOME_CONFIGS の地底パレットで色が決まる。
+    //   1=明るい岩 2=岩 3=陰 4=最暗 5/6=土台 7/8=土のノイズ 9=苔 10=ハイライト 11/12=石材 13=石の目地 14/15=結晶
+
+    // 洞窟の床（上面）: 草ではなくゴツゴツした岩肌。上端は不規則な砕けた縁、面は岩の陰影で立体を出す。
+    // ⚠32pxで横に反復するので、規則的な点の列を作らないこと（＝縞に見えて安っぽくなる）。
+    //   結晶は「たまに光る」程度に留め、明るい黄ではなく青寄り(14)を主にする。
+    function buildCaveTop() {
+        var g = G(32, 32);
+        R(g, 0, 7, 32, 25, 3);           // 岩の本体
+        R(g, 0, 12, 32, 20, 4);          // 下ほど暗く
+        // 砕けた上端（高さを不規則に・2px刻みで細かく）
+        var edge = [4, 6, 3, 7, 5, 3, 6, 4, 7, 5, 4, 6, 3, 5, 7, 4];
+        for (var i = 0; i < 16; i++) {
+            var x = i * 2, h = edge[i], top = 8 - h;
+            R(g, x, top, 2, h + 4, 2);             // 明るい岩の面
+            P(g, x, top, 1);                        // 縁のハイライト
+            if (i % 3 === 0) P(g, x + 1, top + 1, 1);
+        }
+        // 岩の面の陰影（斜めの割れ目＝直線的に並べない）
+        R(g, 4, 13, 1, 6, 4); P(g, 5, 19, 4); P(g, 5, 20, 4);
+        R(g, 18, 16, 1, 7, 4); P(g, 17, 23, 4);
+        R(g, 27, 12, 1, 5, 4); P(g, 26, 17, 4);
+        // 岩のハイライト（面の向きを示す小さな明部）
+        P(g, 9, 15, 2); P(g, 10, 16, 2); P(g, 22, 19, 2); P(g, 23, 20, 2); P(g, 13, 25, 2);
+        // 結晶（1タイルに2点だけ・青寄り。黄は1点のみでアクセント）
+        P(g, 11, 22, 14); P(g, 12, 23, 14);
+        P(g, 29, 27, 15);
+        return g;
+    }
+
+    // 洞窟の内部（床の下を埋める岩）: ひび割れと小石。
+    function buildCaveDirt() {
+        var g = G(32, 32);
+        R(g, 0, 0, 32, 32, 4);
+        R(g, 0, 1, 32, 30, 3);
+        for (var i = 0; i < 32; i += 6) for (var j = 0; j < 32; j += 7) { P(g, i, j, 4); P(g, i + 2, j + 3, 4); }
+        // ひび
+        R(g, 6, 4, 1, 9, 4); P(g, 7, 13, 4); P(g, 7, 14, 4);
+        R(g, 21, 16, 1, 10, 4); P(g, 20, 26, 4);
+        // 小石のハイライト
+        P(g, 12, 8, 2); P(g, 13, 9, 2); P(g, 26, 12, 2); P(g, 4, 22, 2); P(g, 18, 28, 2);
+        return g;
+    }
+
+    // 城の石ブロック（作り込み足場用）: 目地の入った石積み。SMBの城ステージの質感。
+    function buildCaveBrick() {
+        var g = G(32, 32);
+        R(g, 0, 0, 32, 32, 12);         // 石材の地
+        // 目地（横2段・段違いの縦目地）
+        R(g, 0, 0, 32, 1, 13);
+        R(g, 0, 15, 32, 1, 13);
+        R(g, 0, 31, 32, 1, 13);
+        R(g, 15, 1, 1, 14, 13);         // 上段の縦目地（中央）
+        R(g, 0, 16, 1, 15, 13); R(g, 31, 16, 1, 15, 13); // 下段は端で割る＝段違い
+        // 石の面のハイライトと汚れ
+        for (var by = 1; by < 31; by += 15) {
+            R(g, 1, by, 13, 1, 11); R(g, 17, by, 13, 1, 11);   // 上辺の明るい線
+        }
+        P(g, 5, 6, 11); P(g, 22, 8, 11); P(g, 9, 22, 11); P(g, 26, 24, 11);
+        P(g, 3, 10, 13); P(g, 19, 5, 13); P(g, 12, 26, 13); P(g, 28, 19, 13);
+        // 苔（下側にわずかに）
+        P(g, 2, 29, 9); P(g, 3, 30, 9); P(g, 17, 30, 9); P(g, 18, 29, 9);
+        return g;
+    }
+
     // ─── SPRITE_DATA 構築 (地形/背景のみ) ───
     window.SPRITE_DATA = {
+        // 地底ステージ（1.542）
+        terrain_cave_top:   { w: 32, h: 32, palette: 'terrain', frames: [buildCaveTop()] },
+        terrain_cave_dirt:  { w: 32, h: 32, palette: 'terrain', frames: [buildCaveDirt()] },
+        terrain_cave_brick: { w: 32, h: 32, palette: 'terrain', frames: [buildCaveBrick()] },
         // 地形タイル (32x32)
         terrain_grass_top:    { w: 32, h: 32, palette: 'terrain', frames: [buildGrassTop()] },
         terrain_dirt:         { w: 32, h: 32, palette: 'terrain', frames: [buildDirt()] },
@@ -465,6 +536,9 @@ var PALETTES = {
 
     // バイオーム用: ビルド関数群をエクスポート
     window.TERRAIN_BUILDERS = {
+        buildCaveTop: buildCaveTop,
+        buildCaveDirt: buildCaveDirt,
+        buildCaveBrick: buildCaveBrick,
         buildGrassTop: buildGrassTop,
         buildDirt: buildDirt,
         buildElevatedTop: buildElevatedTop,

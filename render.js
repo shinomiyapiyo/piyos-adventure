@@ -1125,6 +1125,136 @@ var TOWN_HOUSES = [
     { w: 104, h: 88, wall: '#f8e0cc', roof: '#c88848', win: '#fff4c0' },
     { w: 116, h: 72, wall: '#e0e8dc', roof: '#a87888', win: '#ffe9a0' }
 ];
+// ─────────────────────────────────────────────────────────────
+// 地底ステージの背景（1.542・SPEC_UNDERGROUND.md P2）
+// 作り込みステージなので、単なる暗い塗りにせず4層のパララックスで奥行きを出す:
+//   ①遠景の岩壁（0.10x）②奥の石柱＝城の遺構（0.18x）③天井の鍾乳石と床の石筍（0.30x）④底の溶岩の照り返し
+// ⚠すべて手続き描画（既存の街=drawTownSkyline と同じ方式）＝画像アセットを増やさない。
+//   ドット感を保つため座標は整数に丸め、色はバイオームのパレット系統に合わせる。
+// ─────────────────────────────────────────────────────────────
+function drawCaveBackdrop() {
+    var camX = gameState.camera.x;
+    var H = GAME_HEIGHT, W = GAME_WIDTH;
+
+    // ① 遠景の岩壁（ゴツゴツした稜線を2段）
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#171225';
+    var farW = 120;
+    for (var f = -1; f < W / farW + 2; f++) {
+        var fx = Math.floor(f * farW - (camX * 0.10) % farW);
+        var fh = 54 + ((f % 3) * 16);
+        ctx.fillRect(fx, H - 150 - fh, farW, fh + 150);
+        ctx.fillRect(fx + 12, H - 168 - fh, farW - 24, 20); // 出っ張り
+    }
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#1f1830';
+    var midW = 90;
+    for (var m = -1; m < W / midW + 2; m++) {
+        var mx = Math.floor(m * midW - (camX * 0.14) % midW);
+        var mh = 40 + ((m % 4) * 13);
+        ctx.fillRect(mx, H - 120 - mh, midW, mh + 120);
+    }
+    ctx.restore();
+
+    // ② 奥の石柱（城の遺構・アーチ）
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    var pilW = 34, pilGap = 210;
+    for (var p = -1; p < W / pilGap + 2; p++) {
+        var px = Math.floor(p * pilGap - (camX * 0.18) % pilGap);
+        var topY = 44, botY = H - 96;
+        ctx.fillStyle = '#2a2140';
+        ctx.fillRect(px, topY, pilW, botY - topY);
+        ctx.fillStyle = '#352a4e';                       // 明るい面（左）
+        ctx.fillRect(px, topY, 7, botY - topY);
+        ctx.fillStyle = '#1d1730';                       // 目地
+        for (var by = topY + 16; by < botY; by += 22) ctx.fillRect(px, by, pilW, 2);
+        ctx.fillStyle = '#3c3058';                       // 柱頭・柱脚
+        ctx.fillRect(px - 6, topY, pilW + 12, 10);
+        ctx.fillRect(px - 6, botY - 12, pilW + 12, 12);
+    }
+    ctx.restore();
+
+    // ③ 天井の鍾乳石／床の石筍
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    var stW = 26, stGap = 78;
+    for (var s = -1; s < W / stGap + 2; s++) {
+        var sx = Math.floor(s * stGap - (camX * 0.30) % stGap);
+        var seed = ((s % 5) + 5) % 5;
+        // 天井から垂れる鍾乳石（三角）
+        var sh = 26 + seed * 11;
+        ctx.fillStyle = '#241d38';
+        ctx.beginPath();
+        ctx.moveTo(sx, 0); ctx.lineTo(sx + stW, 0); ctx.lineTo(sx + stW / 2, sh);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#31284a';                       // 縁のハイライト
+        ctx.beginPath();
+        ctx.moveTo(sx + 3, 0); ctx.lineTo(sx + 9, 0); ctx.lineTo(sx + stW / 2 - 1, sh - 8);
+        ctx.closePath(); ctx.fill();
+        // 床から生える石筍（1つおき）
+        if (seed % 2 === 0) {
+            var gh = 18 + seed * 7, gy = H - 96;
+            ctx.fillStyle = '#241d38';
+            ctx.beginPath();
+            ctx.moveTo(sx + 8, gy); ctx.lineTo(sx + stW + 4, gy); ctx.lineTo(sx + stW / 2 + 6, gy - gh);
+            ctx.closePath(); ctx.fill();
+        }
+    }
+    ctx.restore();
+
+    // ④ 石柱の松明（城ステージらしい暖色のアクセント。⚠背景なので当たり判定は無い＝ただの飾り）
+    ctx.save();
+    for (var q = -1; q < W / pilGap + 2; q++) {
+        var qx = Math.floor(q * pilGap - (camX * 0.18) % pilGap) + pilW + 4;
+        var qy = 150;
+        var flick = 0.75 + 0.25 * Math.sin(gameState.time * 0.25 + q * 2.1);
+        // 受け皿
+        ctx.fillStyle = '#3c3058';
+        ctx.fillRect(qx - 3, qy, 6, 4);
+        // 炎（2層＝外炎と芯）
+        ctx.globalAlpha = 0.9 * flick;
+        ctx.fillStyle = '#ff8a2a';
+        ctx.beginPath();
+        ctx.moveTo(qx - 4, qy); ctx.lineTo(qx + 4, qy); ctx.lineTo(qx, qy - 13 * flick);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffe07a';
+        ctx.beginPath();
+        ctx.moveTo(qx - 2, qy); ctx.lineTo(qx + 2, qy); ctx.lineTo(qx, qy - 7 * flick);
+        ctx.closePath(); ctx.fill();
+        // 周囲へのぼんやりした光
+        ctx.globalAlpha = 0.16 * flick;
+        var tg = ctx.createRadialGradient(qx, qy - 6, 2, qx, qy - 6, 46);
+        tg.addColorStop(0, 'rgba(255,170,70,1)');
+        tg.addColorStop(1, 'rgba(255,140,50,0)');
+        ctx.fillStyle = tg;
+        ctx.beginPath(); ctx.arc(qx, qy - 6, 46, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    // ⑤ 床の手前から立ちのぼる溶岩の照り返し（ゆっくり明滅＝生きている感じ）
+    // ⚠地面(GROUND_Y)より下は地形タイルで覆われるので、光は地面の“上”に置く。
+    var pulse = 0.20 + 0.07 * Math.abs(Math.sin(gameState.time * 0.02));
+    var glowTop = GROUND_Y - 78, glowH = 78;
+    var lg = ctx.createLinearGradient(0, glowTop, 0, glowTop + glowH);
+    lg.addColorStop(0, 'rgba(255,120,40,0)');
+    lg.addColorStop(1, 'rgba(255,110,30,' + pulse.toFixed(3) + ')');
+    ctx.fillStyle = lg;
+    ctx.fillRect(0, glowTop, W, glowH);
+
+    // 天井から落ちる水滴（数点・地底の生活音的なアクセント）
+    ctx.save();
+    ctx.fillStyle = 'rgba(150,210,255,0.5)';
+    for (var d = 0; d < 5; d++) {
+        var dx = Math.floor((d * 173 - camX * 0.30) % (W + 120));
+        if (dx < -10) dx += W + 120;
+        var dy = ((gameState.time * 1.6 + d * 90) % (H - 120));
+        ctx.fillRect(dx, Math.floor(dy), 2, 6);
+    }
+    ctx.restore();
+}
+
 function drawTownSkyline(alpha) {
     var baseY = GAME_HEIGHT - 74; // 山と同じ地平ライン
     var span = 760; // 5軒ぶんの繰り返し幅
@@ -1413,23 +1543,27 @@ var terrainCache = {};
 
 function getTerrainCache(type, width, height) {
     var TILE = 34, GRASS_OFFSET = 5;
+    var caveFillKey = (typeof undergroundState !== 'undefined' && undergroundState.active);
     // 元のdrawTerrainと同一条件で列数・土の行数を算出（高さが連続値でも行数は離散になる）
     var cols = 0;
     for (var xx = 0; xx < width; xx += TILE) cols++;
     var rows = 0;
     for (var yy = TILE; yy < height + GRASS_OFFSET; yy += TILE) rows++;
 
-    var key = type + '_' + cols + '_' + rows;
+    var key = type + '_' + cols + '_' + rows + (caveFillKey ? '_ug' : '');
     if (terrainCache[key]) return terrainCache[key];
 
     var topTile;
+    // 地底ステージ（1.542）: 洞窟の岩肌タイルに差し替える。type は 'ground'/'elevated' のままなので
+    // 物理（当たり判定・滑り等）は地上と完全に同じ＝見た目だけを洞窟にする。
+    var caveFill = (typeof undergroundState !== 'undefined' && undergroundState.active);
     switch (type) {
-        case 'elevated':           topTile = 'terrain_elevated_top'; break;
+        case 'elevated':           topTile = caveFill ? 'terrain_cave_brick' : 'terrain_elevated_top'; break;
         case 'quicksand':          topTile = 'terrain_quicksand'; break;
         case 'quicksand_elevated': topTile = 'terrain_quicksand'; break;
         case 'ice':                topTile = 'terrain_ice'; break;
         case 'ice_elevated':       topTile = 'terrain_ice'; break;
-        default:                   topTile = 'terrain_grass_top'; break;
+        default:                   topTile = caveFill ? 'terrain_cave_top' : 'terrain_grass_top'; break;
     }
 
     var cv = document.createElement('canvas');
@@ -1445,7 +1579,7 @@ function getTerrainCache(type, width, height) {
     // 土: localY = TILE, 2*TILE, ...（元ループと同じ行数）
     for (var ly = TILE, r = 0; r < rows; ly += TILE, r++) {
         for (var lx2 = 0; lx2 < width; lx2 += TILE) {
-            spriteManager.draw(cc, 'terrain_dirt', 0, lx2, ly, TILE, TILE, false);
+            spriteManager.draw(cc, caveFill ? 'terrain_cave_dirt' : 'terrain_dirt', 0, lx2, ly, TILE, TILE, false);
         }
     }
 
@@ -2547,7 +2681,10 @@ function render() {
         ctx.globalAlpha = 1;
     }
 
-    if (biomeState.current === 4) {
+    if (biomeState.current === 5) {
+        // 地底（1.542）: 遠景=岩壁と石柱・中景=鍾乳石/石筍・底=溶岩の照り返し（山/木/雲の代わり）
+        drawCaveBackdrop();
+    } else if (biomeState.current === 4) {
         // はじまりの地（街）: 遠景=家並み・中景=街灯（山/木の代わり・チュートリアル専用）
         drawTownSkyline(biMtnAlpha);
         drawTownStreet(biTreeAlpha);
@@ -2577,8 +2714,9 @@ function render() {
     ctx.globalAlpha = 1.0;
     }
 
-    // 背景雲 (夜は半透明に)
+    // 背景雲 (夜は半透明に)。⚠地底は空が無いので雲を描かない
     var cloudAlpha = (biomeState.current === 3) ? 0.25 : 1;
+    if (biomeState.current === 5) cloudAlpha = 0;
     var cloudDispW = 80, cloudDispH = 40;
     ctx.globalAlpha = cloudAlpha;
     for (var i = 0; i < 10; i++) {

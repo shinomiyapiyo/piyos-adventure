@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.541";
+                content: "Ver.1.542";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.541</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.542</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3618,6 +3618,18 @@ var BIOME_CONFIGS = [
         ],
         mountainAlpha: 0.55, treeAlpha: 0.6,
         overlay: null
+    },
+    { // 5: 地底（R7/R14…・getBiomeIndexでは出ない＝地底ステージ中だけ選ぶ。SPEC_UNDERGROUND.md）
+        // 洞窟＋城の石積み。空グラデーションは「天井の闇→奥の岩肌→底の溶岩の照り返し」を表す。
+        name: 'underground',
+        sky: ['#05030a', '#0b0713', '#140b1c', '#1d1020', '#2a1418'],
+        terrainPalette: [
+            'transparent','#8a7f9c','#6b6180','#4a4260','#2e2942','#4a4260',
+            '#3a3450','#2a2540','#5a5270','#4a7a58','#a89ec0','#7a6f92',
+            '#5f5578','#3a3250','#8fd8ff','#ffd97a'
+        ],
+        mountainAlpha: 0.28, treeAlpha: 0,
+        overlay: null
     }
 ];
 
@@ -3672,6 +3684,9 @@ function rebuildTerrainSprites(palette) {
     PALETTES.terrain = palette;
 
     var builds = {
+        terrain_cave_top:     { w: 32, h: 32, fn: TERRAIN_BUILDERS.buildCaveTop },
+        terrain_cave_dirt:    { w: 32, h: 32, fn: TERRAIN_BUILDERS.buildCaveDirt },
+        terrain_cave_brick:   { w: 32, h: 32, fn: TERRAIN_BUILDERS.buildCaveBrick },
         terrain_grass_top:    { w: 32, h: 32, fn: TERRAIN_BUILDERS.buildGrassTop },
         terrain_dirt:         { w: 32, h: 32, fn: TERRAIN_BUILDERS.buildDirt },
         terrain_elevated_top: { w: 32, h: 32, fn: TERRAIN_BUILDERS.buildElevatedTop },
@@ -3720,6 +3735,15 @@ function retypeTerrainForBiome(biomeIdx) {
 }
 
 function updateBiome() {
+    // 地底ステージ中はバイオームを地底(5)に固定（遷移演出なし）。ボス戦の夜固定(BOSS_BIOME)と同じ考え方。
+    if (undergroundState.active) {
+        if (biomeState.current !== 5) {
+            biomeState.current = 5; biomeState.previous = 5; biomeState.transition = 0;
+            applyBiomePalette(5);
+            bgCache = null; terrainCache = {}; // 空と地形の焼き込みキャッシュを作り直す
+        }
+        return;
+    }
     // チュートリアル中の値（はじまりの地→600mで草原）は getBiomeIndex 側が返す＝通常の遷移処理をそのまま通す
     var newIdx = getBiomeIndex(gameState.distance);
     // ずかん(ステージ): 今いるバイオームを発見（開始地=草原も毎フレーム記録・既発見なら無処理）。
