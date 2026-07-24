@@ -62,9 +62,9 @@ const DIVE_BIRD_BOUNCE_Y  = -7;   // 着地後に跳ねて離脱する初速
 
 // ─── ボスバトル定数 ───
 const BOSS_TRIGGER_DISTANCE = 2400;   // 2400mごとにボス出現
-const BOSS_MAX_HP           = 100;    // 基本HP（内部HP=表示HPに統一。ボス5種一巡の1週目R1-R5は一律100）
-const BOSS_HP_PER_ROUND     = 20;     // ラウンド毎のHP増（R6から適用。表示=内部の統一スケール）。難度は攻撃パターンで上げる方針
-const BOSS_HP_ROUND_CAP     = 7;      // HP増の上限ステップ数（R6起点+7=R12でHP240頭打ち＝戦闘の間延び防止）
+const BOSS_MAX_HP           = 100;    // 基本HP（内部HP=表示HPに統一。ボスが一巡する1周目=一律100・現在R1-R6）
+const BOSS_HP_PER_ROUND     = 20;     // ラウンド毎のHP増（一巡した次のラウンドから適用＝現在R7〜）。難度は攻撃パターンでも上げる方針
+const BOSS_HP_ROUND_CAP     = 7;      // HP増の上限ステップ数（R7起点+7=R13でHP240頭打ち＝戦闘の間延び防止）
 // ボス出現ローテ（この順で毎ラウンド循環）。新ボスは末尾に足すだけ＝bossEncounter() が自動追随
 var BOSS_KINDS = ['rooster', 'hawk', 'egg', 'snake', 'owl'];
 // ボスが一巡するラウンド数（R1-R5=5種ローテ＋R6=門番カカシ）。⚠地底ステージのボスを足したら 7 に上げる

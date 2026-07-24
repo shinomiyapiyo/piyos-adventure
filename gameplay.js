@@ -7,11 +7,13 @@
 // ============================================================
 // ─── ショップシステム ロジック ───
 
-// ラウンドに応じたステージBGMを再生（R1→R7で一周し、R8でR1へ戻ってループ）
+// ラウンドに応じたステージBGMを再生（現在はR1→R6で一周し、R7でR1へ戻ってループ）
 // チュートリアル「はじまりの地」は専用BGM（土管部屋から戻る時もここを通るので自動で復帰する）
-// ⚠BGMの周期はボスの周期(BOSS_KINDS)とは独立。R6=闇のカカシ専用曲、R7=地底ステージ専用曲。
-//   地底ステージの実装前でもR7にこの曲が鳴る（ユーザー指定のループ設計）。
-var STAGE_BGM_CYCLE = ['stage', 'stage2', 'stage3', 'stage4', 'stage5', 'stage6', 'underground'];
+// ⚠BGMの周期はボスの周期(BOSS_KINDS)とは独立。R6=闇のカカシのラウンド専用曲。
+// 🔜地底ステージ(R7)を実装したら、末尾に 'underground' を足して7周ループにする
+//   （素材 sounds/underground.mp3 は配置済み・audio.js の登録もコメントで用意済み）。
+//   ⚠地底ステージ実装前にR7へ割り当てると、通常ステージで地底の曲が鳴ってしまうので足さないこと。
+var STAGE_BGM_CYCLE = ['stage', 'stage2', 'stage3', 'stage4', 'stage5', 'stage6'];
 function playStageBGM() {
     if (!soundManager) return;
     if (tutorialState.active) { soundManager.playBGM('tutorial'); return; }
@@ -2537,8 +2539,10 @@ function setupBossArena() {
         type: 'cloud', special: 'normal', isBossArena: true
     });
     // ボスオブジェクト生成
-    // HP増はR6から（1週目R1-R5=一律100）＋上限（R6から+20/ラウンド・R12で240頭打ち）。難度はラウンド連動の攻撃パターンで上げる（bossEncounter参照）
-    var bossMaxHp = BOSS_MAX_HP + Math.min(Math.max(0, gameRound - 5), BOSS_HP_ROUND_CAP) * BOSS_HP_PER_ROUND;
+    // HP増は「ボスが一巡した次のラウンド」から（1周目=一律100）＋上限。難度はラウンド連動の攻撃パターンでも上げる（bossEncounter参照）。
+    // ⚠BOSS_CYCLE_ROUNDS 連動（1.536）: カカシ追加で一巡が6ラウンドになったのに旧5周期のまま(gameRound-5)で、
+    //   まだ一巡していないR6のカカシがHP120になっていた（ユーザー指摘）。地底ステージのボスを足せば自動でR8起点になる。
+    var bossMaxHp = BOSS_MAX_HP + Math.min(Math.max(0, gameRound - BOSS_CYCLE_ROUNDS), BOSS_HP_ROUND_CAP) * BOSS_HP_PER_ROUND;
     if (tutorialState.active) bossMaxHp = 30; // チュートリアル専用の弱いボス（AI=ニワトリ流用・見た目=ひよこ大王）
     bossState.maxHp = bossMaxHp;
     bossState.boss = {
