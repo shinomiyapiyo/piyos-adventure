@@ -47,6 +47,19 @@ const SPEED_UP_RATE       = 0.20;  // 20%ずつ
 const MAX_SPEED_PERCENT   = 500;
 const DOWN_SWIPE_FRAMES   = 30;    // 0.5s
 
+// ─── 急降下する空中雑魚「アカバネ」定数（1.527・ユーザー発案「攻撃してくる雑魚をR11以降に」）───
+// 現行の雑魚は全4種とも「移動するだけ」で攻撃手段がゼロだったため、終盤だけに攻撃型を1種だけ足す。
+// R11=24,000m＝実データでランキング上位7本だけが到達した領域＝大多数のプレイヤーには一切影響しない。
+// ⚠ランキング不変条件（距離/速度/Lv=floor(距離/300)+1）には一切触れない。以下はすべて調整ノブ。
+const DIVE_BIRD_ROUND     = 11;   // 出現開始ラウンド
+const DIVE_BIRD_RATE      = 0.30; // R11以降、空中雑魚のうちこの割合が急降下型になる
+const DIVE_BIRD_TRIGGER_X = 240;  // プレイヤーの前方この距離(px)に入ったら予告開始
+const DIVE_BIRD_WARN_F    = 30;   // 予告フレーム数（60fps=0.5秒）
+const DIVE_BIRD_ACC_Y     = 0.9;  // 急降下の加速度
+const DIVE_BIRD_SPEED_Y   = 9;    // 急降下の最高落下速度
+const DIVE_BIRD_HOME_X    = 0.03; // 降下中にプレイヤー方向へ寄る強さ（0=真下に落ちるだけ）
+const DIVE_BIRD_BOUNCE_Y  = -7;   // 着地後に跳ねて離脱する初速
+
 // ─── ボスバトル定数 ───
 const BOSS_TRIGGER_DISTANCE = 2400;   // 2400mごとにボス出現
 const BOSS_MAX_HP           = 100;    // 基本HP（内部HP=表示HPに統一。ボス5種一巡の1週目R1-R5は一律100）
@@ -452,6 +465,7 @@ var ZUKAN_ENTRIES = [
     { id: 'enemy:flying_desert', cat: 'enemy', nameKey: 'zukan_e_flying_desert', descKey: 'zukan_e_flying_desert_d', sprite: 'vulture_fly',  kill: true },
     { id: 'enemy:flying_snow',   cat: 'enemy', nameKey: 'zukan_e_flying_snow',   descKey: 'zukan_e_flying_snow_d',   sprite: 'snowowl_fly',  kill: true },
     { id: 'enemy:flying_night',  cat: 'enemy', nameKey: 'zukan_e_flying_night',  descKey: 'zukan_e_flying_night_d',  sprite: 'bat_fly',      kill: true },
+    { id: 'enemy:dive_bird',     cat: 'enemy', nameKey: 'zukan_e_dive_bird',     descKey: 'zukan_e_dive_bird_d',     sprite: 'dive_bird_fly', kill: true },
     // ── ボス（撃破数つき）──
     { id: 'boss:hiyoko',  cat: 'boss', nameKey: 'zukan_b_hiyoko',  descKey: 'zukan_b_hiyoko_d',  kind: 'hiyoko',  kill: true }, // チュートリアル「はじまりの地」のボス＝最初のボス（図鑑先頭・1.494）
     { id: 'boss:rooster', cat: 'boss', nameKey: 'zukan_b_rooster', descKey: 'zukan_b_rooster_d', kind: 'rooster', kill: true },
@@ -530,6 +544,7 @@ function enemyZukanId(e) {
     if (!e) return null;
     if (e.type === 'golden_chick') return 'enemy:golden_chick';
     if (e.type === 'mama_chick')   return 'enemy:mama_chick';
+    if (e.type === 'dive_bird')    return 'enemy:dive_bird'; // 急降下型（1.527・全バイオーム共通の赤い見た目）
     if (e.type === 'flying_chick') {
         switch (e.flySprite) {                       // バイオーム見た目ごとに図鑑エントリを分ける
             case 'vulture_fly': return 'enemy:flying_desert';

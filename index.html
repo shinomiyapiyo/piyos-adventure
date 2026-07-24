@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.526";
+                content: "Ver.1.527";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.526</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.527</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1983,12 +1983,21 @@ var spriteManager = {
                         var cctx = canvas.getContext('2d');
                         cctx.drawImage(img, 0, 0);
 
-                        // 読み込み時色変換（recolor指定スプライトのみ・例: コウモリを夜空で見やすい灰色寄りに）
+                        // 読み込み時色変換（recolor指定スプライトのみ）
+                        //   desat/lift = 灰色寄せ＋暗部の底上げ（例: コウモリを夜空で見やすく）
+                        //   tint/amount/gain = 指定色へ寄せる（例: 急降下雑魚を赤く染めて通常の空中敵と区別する・1.527）
                         if (recolor) {
                             var idat = cctx.getImageData(0, 0, cw, ch);
                             var d = idat.data;
                             for (var p = 0; p < d.length; p += 4) {
                                 if (d[p + 3] === 0) continue; // 透明部は不変
+                                if (recolor.tint) {
+                                    for (var tk = 0; tk < 3; tk++) {
+                                        var tv = d[p + tk] + (recolor.tint[tk] - d[p + tk]) * recolor.amount;
+                                        d[p + tk] = Math.max(0, Math.min(255, Math.round(tv * (recolor.gain || 1))));
+                                    }
+                                    continue;
+                                }
                                 var lum = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
                                 for (var k = 0; k < 3; k++) {
                                     var v = d[p + k] + (lum - d[p + k]) * recolor.desat; // 灰色(輝度)へ寄せる
@@ -5158,7 +5167,7 @@ function spawnEnemy() {
 }
 
 function spawnFlyingEnemy() {
-    return {
+    var e = {
         x: gameState.camera.x + GAME_WIDTH + Math.random() * 300,
         y: 82 + Math.random() * 164,
         width: 60, height: 54,
@@ -5169,6 +5178,17 @@ function spawnFlyingEnemy() {
         animFrame: Math.floor(Math.random() * 100),
         waveOffset: Math.random() * Math.PI * 2
     };
+    // R11以降だけ、一部が急降下してくる攻撃型「アカバネ」に（1.527）。
+    // 見た目は全バイオーム共通の赤スプライト＝「赤いやつは突っ込んでくる」と学習できる。
+    // チュートリアルはサンドボックス（R1固定）なので構造的に出ない。
+    if (gameRound >= DIVE_BIRD_ROUND && Math.random() < DIVE_BIRD_RATE) {
+        e.type = 'dive_bird';
+        e.flySprite = 'dive_bird_fly';
+        e.diveState = 'fly';   // fly=通常飛行 → warn=予告 → dive=急降下 → leave=跳ねて離脱
+        e.diveTimer = 0;
+        e.diveVelY = 0;
+    }
+    return e;
 }
 
 function spawnPowerUp() {
@@ -6000,7 +6020,8 @@ function updateEnemies() {
         e.x += e.velX - gameState.gameSpeed;
         // 上下ふわふわ。旧render側(drawFlyingEnemy)から移設＝当たり判定と描画が常に一致し、
         // 高リフレッシュ端末でも60Hz進行（render側加算だとrAF毎=120Hzで揺れの速度と幅が変わっていた）
-        e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
+        if (e.type === 'dive_bird') updateDiveBird(e); // 急降下型（1.527）は専用AI。ここも60Hz固定ステップ
+        else e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
 
         var stompHitF = aabbShrink(player, e, 4, 12);
         var bodyHitF  = aabbShrink(player, e, 14, 12);

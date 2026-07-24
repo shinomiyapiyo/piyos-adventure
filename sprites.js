@@ -136,6 +136,16 @@ var IMAGE_SPRITES = {
         'images/enemy_flying_chick_fly_3.png',
         'images/enemy_flying_chick_fly_4.png'
     ] },
+    // 急降下する攻撃型の空中雑魚（1.527・R11以降）: flying_chick を赤く染めた専用見た目。
+    // ⚠バイオームで見た目を変えない＝全ステージ共通の赤＝「赤いやつは突っ込んでくる」と学習できるようにする。
+    dive_bird_fly:     { files: [
+        'images/enemy_flying_chick_fly_1.png',
+        'images/enemy_flying_chick_fly_2.png',
+        'images/enemy_flying_chick_fly_3.png',
+        'images/enemy_flying_chick_fly_4.png'
+    ],
+    // tint=寄せる色 / amount=寄せる強さ(0-1) / gain=明度の倍率（暗い赤に沈まないよう軽く持ち上げる）
+    recolor: { tint: [235, 45, 45], amount: 0.66, gain: 1.06 } },
     // 飛行雑魚v2（バイオーム見た目・行動/判定/出現率は不変）: 砂漠=ハゲタカ/雪山=白フクロウ/夜=コウモリ
     vulture_fly:       { files: [
         'images/enemy_vulture_fly_1.png',

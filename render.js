@@ -1611,8 +1611,56 @@ function drawFlyingEnemy(e) {
     var frameIdx = Math.floor(e.animFrame / 5) % 4;
 
     var flipH = (e.velX < 0); // 左移動中なら反転して左向きに
+
+    // 急降下型「アカバネ」(1.527): 予告＝着弾マーカー＋本体点滅／降下中＝前傾させて「突っ込んでくる」を伝える
+    if (e.type === 'dive_bird' && (e.diveState === 'warn' || e.diveState === 'dive')) {
+        drawDiveBirdTelegraph(e);
+        if (e.diveState === 'warn' && Math.floor(gameState.time / 4) % 2 === 0) {
+            e.animFrame += frameSteps; // 点滅の消灯フレーム（本体を描かない＝予告が目に留まる）
+            return;
+        }
+        if (e.diveState === 'dive') {
+            var dcx = e.x + e.width / 2, dcy = cy + e.height / 2;
+            ctx.save();
+            ctx.translate(dcx, dcy);
+            ctx.rotate((flipH ? -1 : 1) * 0.35); // 頭を下へ向けた前傾姿勢
+            spriteManager.draw(ctx, e.flySprite, frameIdx, -e.width / 2, -e.height / 2, e.width, e.height, flipH);
+            ctx.restore();
+            e.animFrame += frameSteps;
+            return;
+        }
+    }
+
     spriteManager.draw(ctx, e.flySprite || 'flying_chick_fly', frameIdx, e.x, cy, e.width, e.height, flipH);
     e.animFrame += frameSteps;
+}
+
+// アカバネの予告表示（1.527）: 落ちてくる先の地面に赤い着弾マーカー＋本体から下へ伸びる照準線。
+// ⚠ワールド座標系で描く（ctxはカメラ変換済み・土管部屋では空中敵を描かないので座標系の食い違いは起きない）。
+function drawDiveBirdTelegraph(e) {
+    var cx = e.x + e.width / 2;
+    var surf = terrainTopAt(cx);
+    var gy = (surf !== null ? surf : GROUND_Y);
+    var warn = (e.diveState === 'warn');
+    var pulse = warn ? (0.45 + 0.4 * Math.abs(Math.sin(gameState.time * 0.35))) : 0.55;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = '#ff3b3b';
+    ctx.lineWidth = 2;
+    // 照準線（本体の下端から着弾点まで）
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(cx, e.y + e.height);
+    ctx.lineTo(cx, gy - 3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 着弾マーカー
+    ctx.fillStyle = 'rgba(255,60,60,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(cx, gy - 3, 20, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
 }
 
 function drawGoldenEggSprite(x, y, w, h) {

@@ -2187,6 +2187,43 @@ function buildPermaSlots() {
     }
 }
 
+// 急降下する空中雑魚「アカバネ」のAI（1.527・R11以降）。updateEnemies から60Hz固定ステップで呼ばれる。
+//   fly  = 通常飛行（既存の空中敵と同じふわふわ）
+//   warn = プレイヤーの前方に入ったら空中で狙いを定める＝予告（震え＋地面の着弾マーカー・render側）
+//   dive = プレイヤー目がけて急降下（真下だけだと避けやすすぎるので少しだけ横に寄せる）
+//   leave= 地面で跳ねて上へ抜ける（そのまま画面外へ＝cullByXが回収）
+// ⚠踏み・弾・ぴよフラッシュ・急降下斬りの処理は既存の空中敵と共通＝倒し方は変わらない。
+function updateDiveBird(e) {
+    if (e.diveState === 'warn') {
+        e.diveTimer--;
+        e.y += Math.sin(gameState.time * 0.4 + e.waveOffset) * 0.6; // 予告中は小刻みに震える
+        if (e.diveTimer <= 0) { e.diveState = 'dive'; e.diveVelY = 0; }
+        return;
+    }
+    if (e.diveState === 'dive') {
+        e.diveVelY = Math.min(DIVE_BIRD_SPEED_Y, e.diveVelY + DIVE_BIRD_ACC_Y);
+        e.y += e.diveVelY;
+        e.x += (player.x - e.x) * DIVE_BIRD_HOME_X; // わずかに追尾
+        var surf = terrainTopAt(e.x + e.width / 2);
+        var floorY = (surf !== null ? surf : GROUND_Y) - e.height;
+        if (e.y >= floorY) { e.y = floorY; e.diveState = 'leave'; e.diveVelY = DIVE_BIRD_BOUNCE_Y; }
+        return;
+    }
+    if (e.diveState === 'leave') {
+        // 地面で跳ねたあとは機首を引き起こして上へ抜ける（必ず上昇＝地面をすり抜けて落ち続けない）
+        e.diveVelY = Math.min(-3, e.diveVelY + 0.2);
+        e.y += e.diveVelY;
+        return;
+    }
+    // fly: 通常飛行。プレイヤーの前方(右)で射程に入ったら予告へ。すでに追い越していたら降下しない
+    e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
+    var dx = e.x - player.x;
+    if (dx > 0 && dx < DIVE_BIRD_TRIGGER_X) {
+        e.diveState = 'warn';
+        e.diveTimer = DIVE_BIRD_WARN_F;
+    }
+}
+
 // ポーチ(永続枠)の中身を permaStock へ確定保存する（1.526・ユーザー方針＝転売対策）。
 // 呼ぶのは「ゲームオーバー時」と「ラン開始時の配布直後(ログボ)」だけ＝ラン中に拾った品は
 // リタイア・アプリ強制終了では残らない（旧実装は拾った瞬間に保存＝拾う→リタイア→次ランで補充→売る、が無限に回せた）。
