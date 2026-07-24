@@ -2869,7 +2869,11 @@ function updateBossAI(b) {
 
 // そのボスの「何回目の登場か」。ボスは BOSS_KINDS.length 周期で循環するので /その周期（各ボスは自分の初登場を1として1,2,3…）。
 // ラウンド連動の攻撃解禁の共通基準。新ボスもこれで技をぶら下げる（bossEncounter()>=N）。
-function bossEncounter() { return Math.ceil(gameRound / BOSS_KINDS.length); }
+// ⚠周期はローテ数(5)ではなくボスが一巡するラウンド数(BOSS_CYCLE_ROUNDS=6)で割る（1.537）。
+//   カカシ追加で一巡が6になったため、5で割ると「そのボスの何回目か」とズレる
+//   （例: フクロウはR5→R11→R17だが ceil(11/5)=3 で2回目が3回目扱いになっていた）。
+//   6で割ると各ボスのN回目の遭遇が正しく enc=N になる（ニワトリR1/R7/R13→1/2/3）。
+function bossEncounter() { return Math.ceil(gameRound / BOSS_CYCLE_ROUNDS); }
 
 // 黄色メイド服の特殊効果: 攻撃1回につき1/20(5%)でクリティカル＝与ダメージ2倍。ダメージに掛ける倍率(1 or 2)を返す。
 // 当たった時だけ演出（クリティカル！）を出す。メイド服以外・スキン無効時は常に1。
@@ -2945,7 +2949,7 @@ function updateBossAI_hawk(b) {
         if (b.y <= hoverY) {
             b.y = hoverY;
             if (b.pendingDoubleDive) {
-                // 【3回目登場〜(R6+)】2連ダイブ: 滞空に戻らず即・再ダイブ（畳みかけ・毎回の着地硬直=踏みチャンスは残す）
+                // 【3回目登場〜(R14+)】2連ダイブ: 滞空に戻らず即・再ダイブ（畳みかけ・毎回の着地硬直=踏みチャンスは残す）
                 b.pendingDoubleDive = false;
                 b.hawkMode = 'charge';
                 b.chargeTimer = (phase === 3 ? 14 : 20);
@@ -2972,12 +2976,12 @@ function updateBossAI_hawk(b) {
             var enc = bossEncounter();
             var diveChance = phase === 3 ? 0.6 : phase === 2 ? 0.5 : 0.4;
             if (Math.random() < diveChance) {
-                // ダイブ爆撃（溜めへ）。3回目登場〜(R6+)は一定確率で2連ダイブを予約
+                // ダイブ爆撃（溜めへ）。3回目登場〜(R14+)は一定確率で2連ダイブを予約
                 b.hawkMode = 'charge';
                 b.chargeTimer = (phase === 3 ? 16 : 26);
                 b.pendingDoubleDive = (enc >= 3 && Math.random() < 0.45);
             } else if (enc >= 2 && Math.random() < 0.5) {
-                // 【2回目登場〜(R4+)】広角・高密度の羽根バースト（ほぼ水平まで広げて横に避けにくく隙間を突かせる。上向きにはしない）
+                // 【2回目登場〜(R8+)】広角・高密度の羽根バースト（ほぼ水平まで広げて横に避けにくく隙間を突かせる。上向きにはしない）
                 spawnHawkFeathers(b, phase === 3 ? 11 : 9, Math.PI * 0.95);
                 b.spriteFrame = HAWK_FRAME_SHOOT;
                 b.spriteResetTimer = 20;
@@ -3021,7 +3025,7 @@ function updateBossAI_mama(b) {
     var maxHp = bossState.maxHp || BOSS_MAX_HP;
     var hpRatio = b.hp / maxHp;
     var phase = hpRatio > 0.7 ? 1 : hpRatio > 0.3 ? 2 : 3;
-    var enc = bossEncounter(); // 3周目(R11+)で2連突進を解禁
+    var enc = bossEncounter(); // 3回目の遭遇(R13+)で2連突進を解禁
 
     // 怒りモードカウントダウン
     if (b.isAngry) {
@@ -3040,7 +3044,7 @@ function updateBossAI_mama(b) {
             b.x <= bossState.arenaLeft || b.x + b.width >= bossState.arenaRight) {
             if (b.x <= bossState.arenaLeft) b.x = bossState.arenaLeft;
             if (b.x + b.width >= bossState.arenaRight) b.x = bossState.arenaRight - b.width;
-            if (enc >= 3 && !b.didDoubleRush) {   // 【3回目登場〜(R11+)】逆方向の端へ折り返してもう一度＝2連突進
+            if (enc >= 3 && !b.didDoubleRush) {   // 【3回目登場〜(R13+)】逆方向の端へ折り返してもう一度＝2連突進
                 b.didDoubleRush = true;
                 var mid = (bossState.arenaLeft + bossState.arenaRight) / 2;
                 b.rushTargetX = (b.x + b.width / 2 < mid) ? bossState.arenaRight : bossState.arenaLeft;
@@ -3249,7 +3253,7 @@ function updateBossAI_egg(b) {
         break;
 
     case 'roll': {
-        var rollSpeed = (phase === 3 ? 8 : phase === 2 ? 7 : 6) * (enc >= 2 ? 1.2 : 1); // 【2回目〜(R6+)】高速化
+        var rollSpeed = (phase === 3 ? 8 : phase === 2 ? 7 : 6) * (enc >= 2 ? 1.2 : 1); // 【2回目〜(R9+)】高速化
         b.x += b.rollDir * rollSpeed;
         b.rollAngle += b.rollDir * (rollSpeed / (b.width * 0.45)); // 見た目の転がり回転
         b.facing = b.rollDir < 0 ? 'left' : 'right';
@@ -3258,7 +3262,7 @@ function updateBossAI_egg(b) {
         if (hitWall) {
             b.x = Math.max(aL, Math.min(aR - b.width, b.x));
             floatEffects.push({ type: 'boss_shockwave', worldX: b.x + b.width / 2, worldY: GROUND_Y, timer: 0, duration: 18 });
-            if (enc >= 3 && !b.didDoubleRoll) {   // 【3回目〜(R9+)】壁ヒットで一度だけ逆方向へ2連転がり
+            if (enc >= 3 && !b.didDoubleRoll) {   // 【3回目〜(R15+)】壁ヒットで一度だけ逆方向へ2連転がり
                 b.didDoubleRoll = true;
                 b.rollDir *= -1;
             } else {
@@ -3282,7 +3286,7 @@ function updateBossAI_egg(b) {
                 Math.abs((player.x + player.width / 2) - (b.x + b.width / 2)) < b.width * 1.3) {
                 takeDamage(); // 着地の衝撃波（地上にいると被弾／ジャンプで回避）
             }
-            if (enc >= 2) spawnEggShards(b, phase); // 【2回目〜(R8+)】着地で殻の破片を左右へ飛散＝遠距離の脅威を追加
+            if (enc >= 2) spawnEggShards(b, phase); // 【2回目〜(R9+)】着地で殻の破片を左右へ飛散＝遠距離の脅威を追加
             b.eggMode = 'exposed';
             b.exposed = true;
             b.exposedTimer = (phase === 3 ? 66 : 92);
@@ -3486,7 +3490,7 @@ function updateBossAI_owl(b) {
         b.x += b.swoopDir * sp;
         b.facing = b.swoopDir < 0 ? 'left' : 'right';
         if ((b.swoopDir > 0 && b.x + b.width >= aR) || (b.swoopDir < 0 && b.x <= aL)) {
-            if (enc >= 2 && !b.didDoubleSwoop) {   // 【2回目〜(R7+)】反対へ2連急襲
+            if (enc >= 2 && !b.didDoubleSwoop) {   // 【2回目〜(R11+)】反対へ2連急襲
                 b.didDoubleSwoop = true; b.swoopDir *= -1;
                 b.owlMode = 'aim'; b.owlTimer = (phase === 3 ? 16 : 24);
                 b.swoopY = Math.max(hoverY - 20, Math.min(GROUND_Y - b.height, player.y + player.height / 2 - b.height / 2));
@@ -3541,11 +3545,13 @@ function updateBossAI_scarecrow(b) {
     var hpRatio = b.hp / maxHp;
     var phase = hpRatio > 0.6 ? 1 : hpRatio > 0.3 ? 2 : 3;
     var enc = bossEncounter();
-    // 周回ごとの強化（他ボスと同様に bossEncounter で段階的に強くする）。カカシは R6/R12/R18… に出るので enc=2,3,4…。
+    // 周回ごとの強化（他ボスと同様に bossEncounter で段階的に強くする）。カカシは R6/R12/R18/R24 に出るので enc=1,2,3,4。
     //  encMul=行動サイクル全体の速さ（周回が進むほど短い間合いで攻める）。sweepReady/召喚数/expose短縮も enc 連動。
-    var encMul = enc >= 5 ? 0.62 : enc >= 4 ? 0.72 : enc >= 3 ? 0.85 : 1;
-    var sweepReady = (phase >= 2 || enc >= 3);                 // 周回3以降(R12+)は満タンから腕薙ぎ
-    var sweepChance = enc >= 4 ? 0.62 : enc >= 3 ? 0.55 : 0.5;
+    //  ⚠1.537で bossEncounter が「一巡=6ラウンド」基準になり、カカシ初登場R6が enc=2→1 になったため閾値を1つずつ下げた
+    //    （強化カーブ自体は据え置き＝R6=素の状態／R12から加速・R18で空中雑魚…と従来の検証どおり）。
+    var encMul = enc >= 4 ? 0.62 : enc >= 3 ? 0.72 : enc >= 2 ? 0.85 : 1;
+    var sweepReady = (phase >= 2 || enc >= 2);                 // 2回目の遭遇(R12+)からは満タンでも腕薙ぎ
+    var sweepChance = enc >= 3 ? 0.62 : enc >= 2 ? 0.55 : 0.5;
     if (b.isAngry) { b.angerTimer--; if (b.angerTimer <= 0) b.isAngry = false; }
 
     // 頭の上下を目標へ滑らかに（expose中は下げる＝踏める／それ以外は上げる＝防御）
@@ -3563,7 +3569,7 @@ function updateBossAI_scarecrow(b) {
             if (b.scCycle % 2 === 0) {
                 b.scMode = 'expose';
                 // expose窓は周回・HPで短縮（＝周回が進むほど踏みチャンスが短い）。ただし下限40で理不尽化を防ぐ。
-                b.scTimer = Math.max(40, Math.round(SC_EXPOSE_WINDOW * (phase === 3 ? 0.7 : phase === 2 ? 0.85 : 1) * (enc >= 4 ? 0.85 : enc >= 3 ? 0.92 : 1)));
+                b.scTimer = Math.max(40, Math.round(SC_EXPOSE_WINDOW * (phase === 3 ? 0.7 : phase === 2 ? 0.85 : 1) * (enc >= 3 ? 0.85 : enc >= 2 ? 0.92 : 1)));
             } else {
                 // 頭上に居座って踏み続ける戦法への対抗（1.535）: プレイヤーが頭の上にいるなら高確率で対空。
                 // 居なくても一定確率で混ぜる＝「上は安全」と学習させない。
@@ -3588,10 +3594,10 @@ function updateBossAI_scarecrow(b) {
     case 'summonTele':                    // 腕を上げて召喚を予告
         b.scTimer--;
         if (b.scTimer <= 0) {
-            // 召喚数は周回で増える（enc2:2 / enc3:3 / enc4:4 / enc5+:5、＋HP2/3以降に+1・上限6）
-            var n = Math.min(6, SC_SUMMON_BASE + Math.min(3, Math.max(0, enc - 2)) + (phase >= 2 ? 1 : 0));
+            // 召喚数は周回で増える（1回目:2 / 2回目:3 / 3回目:4 / 4回目以降:5、＋HP2/3以降に+1・上限6）
+            var n = Math.min(6, SC_SUMMON_BASE + Math.min(3, Math.max(0, enc - 1)) + (phase >= 2 ? 1 : 0));
             for (var s = 0; s < n; s++) { b.facing = s % 2 === 0 ? 'left' : 'right'; spawnBossChick(b); }
-            if (enc >= 4) spawnEdgeFlyingEnemy();             // 周回4以降は空からカラスも1羽
+            if (enc >= 3) spawnEdgeFlyingEnemy();             // 3回目の遭遇(R18+)からは空からカラスも1羽
             if (soundManager) soundManager.playFlash();
             b.scMode = 'recover'; b.scTimer = Math.max(16, Math.round(28 * encMul));
         }

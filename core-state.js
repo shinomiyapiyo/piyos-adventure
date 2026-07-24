@@ -75,9 +75,13 @@ const BOSS_CYCLE_ROUNDS = 6;
 const BOSS_FLYING_EDGE_ROUND = BOSS_CYCLE_ROUNDS + 1;
 // ラウンドからボス種を決める。周期の倍数(R6/R12/R18…)は門番ボス「闇のカカシ」＝将来の地底ステージ(R7/R13…予定)の前哨。
 // それ以外は5種ローテ。カカシはローテ配列に入れない（門番専用）。gameRound はボス撃破で+1（gameplay.js）。
+// ⚠正しくループさせること（絶対原則・1.537）: ローテ番号は「カカシの回を除いた通し番号」で数える。
+//   素朴に (round-1)%5 とすると、カカシが1枠を消費した分だけ毎周ローテがずれる（R7がニワトリでなくカラスになる等）。
+//   カカシ回を差し引くことで R1-R5=ニワトリ/カラス/タマゴ/大蛇/フクロウ → R6=カカシ → R7から再び同じ順で回る。
 function bossKindForRound(round) {
     if (round % BOSS_CYCLE_ROUNDS === 0) return 'scarecrow';
-    return BOSS_KINDS[(round - 1) % BOSS_KINDS.length];
+    var rotIdx = round - Math.floor(round / BOSS_CYCLE_ROUNDS); // カカシ回を除いた通し番号（1始まり）
+    return BOSS_KINDS[(rotIdx - 1) % BOSS_KINDS.length];
 }
 
 // ─── 闇のカカシ（scarecrow・定点召喚＋リーチ型の門番ボス）の調整ノブ ───
