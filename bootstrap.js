@@ -42,6 +42,7 @@ function gameLoop(timestamp) {
             checkPipeTrigger();
             updatePipeAssist(); // 土管タイム（土管上でスクロール減速・updateGameSpeedの直後に判定）
             updateTutorial();   // チュートリアル台本（非アクティブ時は即return・減速はupdateGameSpeed後に乗算）
+            updateUnderground(); // 地底: 追従カメラ＋左壁クランプ＋チェックポイント（非アクティブ時は即return）
             checkBossTrigger();
             updateBoss();
             updateBiome();

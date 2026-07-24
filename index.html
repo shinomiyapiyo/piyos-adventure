@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.537";
+                content: "Ver.1.541";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.537</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.541</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4019,6 +4019,10 @@ function resetGame() {
     pipeRoomState.placed = false; pipeRoomState.x = 0; pipeRoomState.savedPlayer = null;
     pipeRoomState.targetDist = 0; pipeRoomState.targetRound = 0;
     pipeRoomState.anim = 'none'; pipeRoomState.animTimer = 0; pipeRoomState.animPipe = null; // 出入り演出の残留防止
+    // 地底ステージ（R7/R14…）の残留防止。ラン開始時は必ず地上から
+    undergroundState.active = false; undergroundState.visited = false; undergroundState.cleared = false;
+    undergroundState.pipePlaced = false; undergroundState.pipeX = 0;
+    undergroundState.originX = 0; undergroundState.endX = 0; undergroundState.introTimer = 0;
     bonusRoomItems.length = 0;
     gameState.bossKills = 0;
     gameState.specialUses = 0;
@@ -5057,6 +5061,7 @@ function generateTerrain() {
 
 function manageTerrain() {
     if (tutorialState.active) return; // チュートリアルは setupTutorialStage の固定地形のみ（生成/掃除とも不要）
+    if (undergroundState.active) return; // 地底も作り込み固定地形のみ（生成/掃除とも不要・SPEC_UNDERGROUND.md）
     terrain = terrain.filter(function(t) { return t.x + t.width > gameState.camera.x - 200; });
     while (gameState.lastTerrainX < gameState.camera.x + GAME_WIDTH + 500) generateTerrain();
 }
@@ -5266,6 +5271,7 @@ function manageObjects() {
 
     // チュートリアルは台本配置のみ＝ランダム湧きなし（敵/飛行敵/足場/コイン/アイテム）
     if (tutorialState.active) return;
+    if (undergroundState.active) return; // 地底も配置は作り込み（P2でレベルデータから配置する）
 
     // 安全地帯: 敵・飛行敵スポーン停止
     var inSafe = isInSafeZone(gameState.distance);
@@ -5339,6 +5345,9 @@ function findPlatformUnder() {
 
 function updateGameSpeed() {
     if (bossState.active) return; // ボス戦中はスピード固定
+    // 地底はオートスクロールしない（カメラはプレイヤー追従）。⚠毎tick再計算されるのでここで0に固定しないと
+    //   敵の相対移動(e.x += velX - gameSpeed)などが地上のスクロール前提で動いてしまう。
+    if (undergroundState.active) { gameState.gameSpeed = 0; return; }
     var lvl = Math.floor(gameState.distance / SPEED_UP_INTERVAL) + 1;
     if (lvl > gameState.speedLevel) {
         gameState.speedLevel = lvl;
@@ -5404,7 +5413,8 @@ function updatePlayer() {
     }
 
     // カメラ・距離
-    gameState.camera.x += gameState.gameSpeed;
+    // 地底はオートスクロールしない＝camera.x は updateUnderground がプレイヤー追従で進める（距離は同じ式で自動加算）
+    if (!undergroundState.active) gameState.camera.x += gameState.gameSpeed;
     gameState.distance = Math.floor(gameState.camera.x / 10);
 
     // ノーダメージ継続ボーナス: 被弾せず NODMG_STEP(m) 走るごとに加点（被弾/落下でリセット）
@@ -6645,6 +6655,15 @@ function updateBullets() {
 
 function resetPlayerPosition() {
     player.samuraiDive = false; player.samuraiDiveLock = false; // リスポーン/復活時に急降下斬りとロックを解除（1.509/1.516）
+    // 地底は直近の安全な足場（チェックポイント）へ復帰する。溶岩の上や到達不能な位置に戻さないため。
+    if (undergroundState.active) {
+        player.x = undergroundState.checkpointX;
+        player.y = undergroundState.checkpointY - 60; // 少し上から落として着地させる
+        player.velX = 0; player.velY = 0;
+        gameState.recentlyDropped = false; gameState.dropFromY = 0;
+        gameState.isRespawning = true;
+        return; // ⚠カメラは動かさない（巻き戻すと距離が減り、左壁クランプとも矛盾する）
+    }
     var safeX = gameState.camera.x + 150;
     var found = false, gx = safeX;
 
@@ -6665,7 +6684,7 @@ function resetPlayerPosition() {
     // チュートリアルも巻き戻さない: 台本(TUTORIAL_SCRIPT)は distance(=camera.x/10) で単調前進するのに対し、
     // カメラだけ後退すると stepIdx が進んだまま距離が戻り「次の案内が二度と出ない」＝進行不能になる
     // （練習用の穴に数回わざと落ちると再現。11回でカメラ下限100=10mまで戻り、220mのstompゲートに永久に到達しない）。
-    if (!bossState.active && !tutorialState.active) gameState.camera.x = Math.max(100, gameState.camera.x - 200);
+    if (!bossState.active && !tutorialState.active && !undergroundState.active) gameState.camera.x = Math.max(100, gameState.camera.x - 200);
 }
 
 </script>

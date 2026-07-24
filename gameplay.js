@@ -20,6 +20,111 @@ function playStageBGM() {
     soundManager.playBGM(STAGE_BGM_CYCLE[(gameRound - 1) % STAGE_BGM_CYCLE.length]);
 }
 
+// ─────────────────────────────────────────────────────────────
+// 地底ステージ（R7/R14/R21…・正の仕様は SPEC_UNDERGROUND.md）
+// ⚠設計の肝: 土管ボーナス部屋（画面座標＋固定カメラ）とは別物で、**ワールド座標＋追従カメラ**。
+//   camera.x をプレイヤー追従で前進させることで distance=floor(camera.x/10) が既存の式のまま自動加算される
+//   ＝ランキング計算に特別扱いを一切足さない。地形の作り方はチュートリアル（作り込み固定地形）に倣う。
+// P1（基盤）ではプレースホルダ地形で往復と距離加算だけを通す。ギミック/アート/ボスはP2以降。
+// ─────────────────────────────────────────────────────────────
+
+// 地底へ入場（強制土管に入った時に呼ばれる）。camera.x は連続したまま＝距離が途切れない。
+function enterUnderground() {
+    if (undergroundState.active) return;
+    undergroundState.active = true;
+    undergroundState.visited = true;
+    undergroundState.cleared = false;
+    undergroundState.originX = gameState.camera.x;
+    undergroundState.camMaxX = undergroundState.originX + UG_TRAVEL_PX;      // カメラはここまで＝加算量は全端末で同一
+    undergroundState.endX = undergroundState.camMaxX + GAME_WIDTH;           // 地形はさらに1画面ぶん敷く（最後まで床がある）
+    undergroundState.savedGameSpeed = gameState.gameSpeed;
+    undergroundState.introTimer = UG_INTRO_FRAMES;
+    gameState.gameSpeed = 0; // オートスクロール停止（以後カメラはプレイヤー追従）
+
+    // 進行中のエンティティを一掃（地上のものを持ち込まない）
+    enemies.length = 0; flyingEnemies.length = 0; powerUps.length = 0; bullets.length = 0; coins.length = 0;
+
+    setupUndergroundStage();
+
+    // 天井の穴から落下してくる導入（入力ロック＋無敵はintroTimerで管理）
+    player.x = undergroundState.originX + 120;
+    player.y = -player.height - 20;
+    player.velX = 0; player.velY = 0; player.onGround = false; player.facing = 'right';
+    gameState.recentlyDropped = false; gameState.dropFromY = 0;
+    gameState.input.left = false; gameState.input.right = false;
+    gameState.input.jump = false; gameState.input.jumpPressed = false;
+    gameState.input.down = false; gameState.input.up = false;
+    undergroundState.checkpointX = player.x;
+    undergroundState.checkpointY = GROUND_Y - player.height;
+
+    if (soundManager) { try { soundManager.playBGM('underground'); } catch (_) {} }
+}
+
+// 地底のプレースホルダ地形（P1）。ワールド座標 originX 起点で endX まで敷く（カメラ終端＋1画面）。
+// ⚠P2で本設計（溶岩/ファイアバー/火の玉/トゲ/足場）に差し替える。ここでは「歩いて渡り切れる床」だけ。
+function setupUndergroundStage() {
+    var o = undergroundState.originX, end = undergroundState.endX;
+    terrain.length = 0; platforms.length = 0;
+    for (var gx = o; gx < end; gx += 100) {
+        terrain.push({ x: gx, y: GROUND_Y, width: Math.min(100, end - gx), height: 130, type: 'ground' });
+    }
+    // ランダム地形生成を止める（manageTerrain もガードする）
+    gameState.lastTerrainX = end;
+    gameState.lastHoleX = null;
+}
+
+// 地底から地上へ復帰。camera.x はそのまま（距離を巻き戻さない）＝地上地形をここから作り直す。
+function exitUnderground() {
+    if (!undergroundState.active) return;
+    undergroundState.active = false;
+    undergroundState.cleared = true;
+    gameState.gameSpeed = undergroundState.savedGameSpeed || gameState.gameSpeed;
+    // 地上の地形をカメラ位置から作り直す（manageTerrain のガードが外れるので以後は通常生成）
+    terrain.length = 0; platforms.length = 0;
+    var startX = gameState.camera.x - 200;
+    for (var gx = startX; gx < gameState.camera.x + GAME_WIDTH + 400; gx += 100) {
+        terrain.push({ x: gx, y: GROUND_Y, width: 100, height: 130, type: 'ground' });
+    }
+    gameState.lastTerrainX = gameState.camera.x + GAME_WIDTH + 400;
+    gameState.lastHoleX = null;
+    player.y = GROUND_Y - player.height; player.velY = 0; player.onGround = true;
+    // ラウンド前進（通常ボス撃破と同じ扱い）。⚠P3で「闇の巫女」を実装したら、撃破時にこの前進を移す。
+    gameRound++;
+    undergroundState.visited = false; // 次の地底ラウンド(R14…)のために解除
+    bossState.bossTriggered = false;
+    try { playStageBGM(); } catch (_) {}
+}
+
+// 地底の毎フレーム更新（通常の updatePlayer 等はそのまま走る。ここは地底固有の処理だけ）
+function updateUnderground() {
+    if (!undergroundState.active) return;
+    // 落下導入中は入力ロック＋無敵（着地したら解除）
+    if (undergroundState.introTimer > 0) {
+        undergroundState.introTimer--;
+        gameState.isInvincible = true;
+        gameState.input.left = false; gameState.input.right = false;
+        gameState.input.jump = false; gameState.input.jumpPressed = false;
+        if (player.onGround) undergroundState.introTimer = 0;
+    }
+    // 追従カメラ（左壁クランプ＝単調増加のみ。巻き戻すと距離が減りランキングの単調性が壊れる）
+    var target = player.x - GAME_WIDTH * UG_CAM_LEAD;
+    if (target > undergroundState.camMaxX) target = undergroundState.camMaxX; // ⚠画面幅に依存しない終端
+    if (target > gameState.camera.x) gameState.camera.x = target;
+    // プレイヤーは画面左端より左へ戻れない（SMB式）
+    var leftLimit = gameState.camera.x + UG_PLAYER_MARGIN;
+    if (player.x < leftLimit) { player.x = leftLimit; if (player.velX < 0) player.velX = 0; }
+    // 直近の安全な足場をチェックポイントとして記録（落下復帰を溶岩の上に戻さない）
+    // ⚠画面内で接地している時だけ記録する。落下中のフレームを拾うと、復帰先が画面外になり無限に落ち続ける。
+    if (player.onGround && player.y < GAME_HEIGHT && undergroundState.introTimer <= 0) {
+        undergroundState.checkpointX = player.x;
+        undergroundState.checkpointY = player.y;
+    }
+    // P1: カメラが終端まで進んだら退場（＝必ず UG_TRAVEL_PX ぶん加算されてから出る）。P3で「闇の巫女」戦を挟む
+    if (!undergroundState.cleared && gameState.camera.x >= undergroundState.camMaxX - 0.5) {
+        exitUnderground();
+    }
+}
+
 // ─── チュートリアル「はじまりの地」（Phase3.5） ───
 // 通常ランと同じエンジンで動く台本つき固定面。tutorialState.active 中は
 // ランダム生成（地形/敵/コイン/アイテム/足場）とボス/土管/ショップの自動配置を止め、ここで確定配置する。
@@ -248,6 +353,7 @@ function bossDistanceFor(round) {
 // ── ステージショップ ──
 function checkShopTrigger() {
     if (bossState.active || bossState.bossTriggered) return;
+    if (undergroundState.active) return; // 地底ではおみせを出さない
     var bossDistance = bossDistanceFor(gameRound);
 
     // ショップ建物をワールドに配置（一度だけ） — 安全地帯より100m手前で配置開始（チュートリアルは固定配置済み）
@@ -322,6 +428,7 @@ function pipeFootprintFlat(x, w) {
 
 function checkPipeTrigger() {
     if (tutorialState.active) return; // チュートリアルは setupTutorialStage で固定配置済み（再抽選もしない）
+    if (undergroundState.active) return; // 地底ではボーナス土管を出さない
     if (bossState.active || bossState.bossTriggered || pipeRoomState.active) return;
     // ラウンドが変わったら、このラウンドの目標距離を新規抽選（1ラウンド1回）
     if (pipeRoomState.targetRound !== gameRound) pickPipeTargetDist();
@@ -2489,9 +2596,16 @@ function updateOwnedUpgradeIcons() {
 
 function checkBossTrigger() {
     if (bossState.active || bossState.bossTriggered) return;
+    if (undergroundState.active) return; // 地底の中では通常ボスを出さない（「闇の巫女」戦はP3で地底内に実装）
     // チュートリアルは専用距離(760m)で弱いボスを出す
     var _trigDist = tutorialState.active ? TUTORIAL_BOSS_M : bossDistanceFor(gameRound);
     if (gameState.distance >= _trigDist) {
+        // 地底ラウンド(R7/R14/R21…)は通常ボスの代わりに地底ステージへ突入する。
+        // ⚠P1は直入場（基盤の疎通が目的）。強制土管の配置・入場演出はP2で被せる。
+        if (!tutorialState.active && isUndergroundRound(gameRound) && !undergroundState.visited) {
+            enterUnderground();
+            return;
+        }
         bossState.bossTriggered = true;
         bossState.active = true;
         bossState.phase = 1; // WARNING

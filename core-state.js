@@ -67,20 +67,24 @@ const BOSS_HP_PER_ROUND     = 20;     // ラウンド毎のHP増（一巡した�
 const BOSS_HP_ROUND_CAP     = 7;      // HP増の上限ステップ数（R7起点+7=R13でHP240頭打ち＝戦闘の間延び防止）
 // ボス出現ローテ（この順で毎ラウンド循環）。新ボスは末尾に足すだけ＝bossEncounter() が自動追随
 var BOSS_KINDS = ['rooster', 'hawk', 'egg', 'snake', 'owl'];
-// ボスが一巡するラウンド数（R1-R5=5種ローテ＋R6=門番カカシ）。⚠地底ステージのボスを足したら 7 に上げる
-// ＝カカシの出現周期と、ボス戦の空中雑魚の解禁ラウンドが自動で追随する。
-const BOSS_CYCLE_ROUNDS = 6;
+// ボスが一巡するラウンド数（R1-R5=5種ローテ＋R6=門番カカシ＋R7=地底）。
+// ⚠この1つで下記すべてが追随する: bossKindForRound / bossEncounter / ボスHPの増加起点 / BOSS_FLYING_EDGE_ROUND
+const BOSS_CYCLE_ROUNDS = 7;
 // ボス戦で空中雑魚が湧き始めるラウンド＝「ボスを一巡した次」。カカシ追加前はR6だったが、R6はカカシ初登場＝
 // まだ一巡していないので早すぎるとユーザー判断（1.535）。地底ステージのボスを足せば自動でR8になる。
 const BOSS_FLYING_EDGE_ROUND = BOSS_CYCLE_ROUNDS + 1;
-// ラウンドからボス種を決める。周期の倍数(R6/R12/R18…)は門番ボス「闇のカカシ」＝将来の地底ステージ(R7/R13…予定)の前哨。
-// それ以外は5種ローテ。カカシはローテ配列に入れない（門番専用）。gameRound はボス撃破で+1（gameplay.js）。
-// ⚠正しくループさせること（絶対原則・1.537）: ローテ番号は「カカシの回を除いた通し番号」で数える。
-//   素朴に (round-1)%5 とすると、カカシが1枠を消費した分だけ毎周ローテがずれる（R7がニワトリでなくカラスになる等）。
-//   カカシ回を差し引くことで R1-R5=ニワトリ/カラス/タマゴ/大蛇/フクロウ → R6=カカシ → R7から再び同じ順で回る。
+// 7ラウンド周期の内訳: R1-R5=5種ローテ ／ R6=門番「闇のカカシ」 ／ R7=地底ステージ＋「闇の巫女」。以降 R8 から同じ順で反復。
+// ⚠正しくループさせること（絶対原則・1.537）: ローテ番号は「特別回（カカシ・地底）を除いた通し番号」で数える。
+//   素朴に (round-1)%5 とすると、特別回が枠を消費した分だけ毎周ローテがずれる（R8がニワトリでなくカラスになる等）。
+//   差し引くことで R1-R5=ニワトリ/カラス/タマゴ/大蛇/フクロウ → R6=カカシ → R7=地底 → R8から再び同じ順で回る。
+function isUndergroundRound(round) { return round > 0 && round % BOSS_CYCLE_ROUNDS === 0; }   // R7, R14, R21…
+function isScarecrowRound(round)  { return round > 0 && round % BOSS_CYCLE_ROUNDS === BOSS_CYCLE_ROUNDS - 1; } // R6, R13, R20…
 function bossKindForRound(round) {
-    if (round % BOSS_CYCLE_ROUNDS === 0) return 'scarecrow';
-    var rotIdx = round - Math.floor(round / BOSS_CYCLE_ROUNDS); // カカシ回を除いた通し番号（1始まり）
+    if (isUndergroundRound(round)) return 'priestess'; // 地底ボス「闇の巫女」
+    if (isScarecrowRound(round))   return 'scarecrow'; // 門番「闇のカカシ」
+    // 特別回2種を除いた通し番号（1始まり）でローテを回す
+    var specials = Math.floor(round / BOSS_CYCLE_ROUNDS) + Math.floor((round + 1) / BOSS_CYCLE_ROUNDS);
+    var rotIdx = round - specials;
     return BOSS_KINDS[(rotIdx - 1) % BOSS_KINDS.length];
 }
 
@@ -319,6 +323,31 @@ var NEAR_MISS_RANGE = 14;   // ニアミス判定: 敵の当たり判定をこ�
 var NEAR_MISS_BONUS = 100;  // ニアミス回避ボーナス(スコア)
 var NODMG_STEP  = 500;      // ノーダメージ継続ボーナスの間隔(m)
 var NODMG_BONUS = 500;      // ノーダメージ継続ボーナス(スコア/回)
+// ─── 地底ステージ（R7/R14/R21…・SPEC_UNDERGROUND.md が正） ───
+// ⚠土管ボーナス部屋との決定的な違い: 部屋は「画面座標＋固定カメラ」だが、地底は**ワールド座標＋追従カメラ**。
+//   camera.x をプレイヤー追従で前進させることで、距離 distance=floor(camera.x/10) が既存の式のまま自動加算される
+//   （ランキング計算に特別扱いを足さない）。構造的にはチュートリアル（作り込み固定地形）に近い。
+// ⚠カメラの走行距離＝そのまま距離加算量。**画面幅に依存させないこと**（GAME_WIDTH は画面比で可変なので、
+//   終端を「レベル幅 − 画面幅」で決めると横長端末ほど加算量が減り、ランキングに端末差が出る＝実測で最大16m）。
+//   そこでレベル本体は UG_TRAVEL_PX + 1画面ぶん敷き、カメラは必ず UG_TRAVEL_PX だけ進むようにする。
+const UG_TRAVEL_PX     = 12300; // カメラ走行距離＝距離加算量（15画面＝1,230m・全端末で同一）
+const UG_CAM_LEAD      = 0.35;  // 追従カメラ: プレイヤーを画面のこの位置に置く（0=左端）
+const UG_PLAYER_MARGIN = 24;    // 左壁: プレイヤーがカメラ左端からこれ以上左へ行けない
+const UG_INTRO_FRAMES  = 70;    // 天井の穴から落下してくる導入演出のフレーム数
+var undergroundState = {
+    active: false,        // 地底に居るか（ループ/描画/地形生成の分岐に使う単一の真実）
+    visited: false,       // このラウンドで入場済みか（再入場防止・ラウンド変化でリセット）
+    pipePlaced: false,    // 強制土管を配置済みか
+    pipeX: 0,             // 強制土管のワールドX
+    originX: 0,           // レベルのワールド原点（入場時の camera.x 基準）
+    camMaxX: 0,           // カメラの終端X（originX + UG_TRAVEL_PX）＝ここまで進むと必ず1,230m加算される
+    endX: 0,              // レベル地形の終端X（camMaxX + 1画面ぶん＝最後まで床が続く）
+    savedGameSpeed: 0,    // 復帰用スクロール速度
+    introTimer: 0,        // 落下導入の残フレーム（>0 の間は入力ロック＋無敵）
+    checkpointX: 0,       // 復帰位置（直近の安全な足場・溶岩の上に戻さないため）
+    checkpointY: 0,
+    cleared: false        // ボス撃破済み（退場処理へ）
+};
 var PIPE_ROOM_ENTRY_X    = 44;                      // 入口（縦）土管の左X（画面左・描画用）
 // 出口（横）土管の左端Xは実行時 GAME_WIDTH から算出（pipeRoomExitX）。GAME_WIDTHは画面比で可変なため定数化しない
 var pipeRoomState = {
