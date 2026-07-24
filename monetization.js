@@ -145,7 +145,10 @@
     function initAds() {
         if (!AdMob) return;
         // 非パーソナライズ広告(NPA)方針＝ATT(トラッキング許可)は要求しない。初期化→リスナー登録→事前ロード。失敗しても続行。
-        Promise.resolve(AdMob.initialize({ initializeForTesting: AD_TEST, testingDevices: TEST_DEVICE_IDS }))
+        // ⚠プラグイン仕様(AdMobPlugin.swift): testingDevices は initializeForTesting=true の時しか testDeviceIdentifiers に反映されない。
+        //   よってテスト端末が1台でも登録されていれば true にする（=その端末だけテスト広告／一般ユーザーは testDeviceIdentifiers に含まれず本番広告のまま＝収益に影響なし）。
+        //   本番広告ユニットID/テストIDの切替は adUnit() の AD_TEST が担う（この true 化は端末allowlistの適用だけで、ユニットIDは変えない）。
+        Promise.resolve(AdMob.initialize({ initializeForTesting: (AD_TEST || TEST_DEVICE_IDS.length > 0), testingDevices: TEST_DEVICE_IDS }))
             .then(function () {
                 // 永続リスナー（初期化後に1回だけ登録）。1.521: cbの実行は「広告が閉じた(Dismiss)後」に統一。
                 AdMob.addListener(EV.rewReward,     function () {            // 報酬獲得＝結果を記録（cbはDismissで実行）
