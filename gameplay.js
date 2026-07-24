@@ -3819,16 +3819,12 @@ function updateBossCollision_owl(b) {
     }
 }
 
-// 闇のカカシ(scarecrow)の頭のワールドY（当たり/描画で共用＝一致必須）。b.y はブレなし（描画は±3のバウンスのみ）。
-function scarecrowHeadY(b) { return b.y + SC_HEAD_REST + (SC_HEAD_LOW - SC_HEAD_REST) * (b.headLow || 0); }
-
-// 闇のカカシの当たり判定:
-// ・弱点=頭。expose中(頭が下がって無防備)のみ踏み/弾でダメージ。非exposeの踏みは弾かれる（装甲卵と同じ演出）。
-// ・腕薙ぎ(sweep)中: 地面付近の危険帯に接地していると被弾（ジャンプ or 足場で回避）。本体接触は無害（定点なので接近可）。
+// 闇のカカシの当たり判定（定点・正面向き立ち絵）:
+// ・弱点=頭（上部）。expose中のみ頭上部を踏む/弾でダメージ。非exposeの踏みは弾かれる（装甲卵と同じexposedゲート）。
+//   踏み到達=ジャンプ175pxで頭上部(GROUND_Y-84付近)に余裕で届く（実測）。本体接触は無害（定点なので接近可）。
+// ・腕薙ぎ(sweep)中: 地面付近の危険帯に接地していると被弾（ジャンプ or 足場で回避）。
 function updateBossCollision_scarecrow(b) {
     if (b.stompCooldown > 0) b.stompCooldown--;
-    var headY = scarecrowHeadY(b);
-    var headBox = { x: b.x + b.width * 0.26, y: headY, width: b.width * 0.48, height: 46 };
 
     // 腕薙ぎ: 低い横薙ぎの危険帯（GROUND_Y近く）に接地していたら被弾
     if (b.scMode === 'sweep' && !isPlayerProtected() && b.stompCooldown <= 0) {
@@ -3836,27 +3832,28 @@ function updateBossCollision_scarecrow(b) {
         if (aabb(player, band) && player.y + player.height >= GROUND_Y - (SC_SWEEP_BAND_Y - 6)) { takeDamage(); return; }
     }
 
-    // 頭を踏む
+    // 頭（上部）を踏む
     if (b.stompCooldown <= 0) {
-        var stompPose = player.velY > 0 && aabb(player, headBox) && player.y + player.height <= headY + headBox.height * 0.75;
+        var topHit = aabbShrink(player, b, 10, 12);
+        var stompPose = topHit && player.velY > 0 && player.y + player.height <= b.y + b.height * 0.34;
         if (stompPose) {
             if (b.exposed) {
                 // 無防備の頭: ダメージ
-                b.hp -= (10 + samuraiDiveDmgBonus()) * critMultiplier(b.x + b.width / 2, headY);
+                b.hp -= (10 + samuraiDiveDmgBonus()) * critMultiplier(b.x + b.width / 2, b.y);
                 player.velY = JUMP_FORCE * 0.5;
                 endSamuraiDiveOnBossStomp();
                 if (soundManager) soundManager.playKill();
-                spawnExplosionEffect(player.x + player.width / 2, headY);
+                spawnExplosionEffect(player.x + player.width / 2, b.y + b.height * 0.2);
                 gainScore(500);
                 b.isAngry = true; b.angerTimer = BOSS_ANGER_DURATION;
                 b.stompCooldown = 32;
                 if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
             } else {
-                // 頭を高く保った防御中: 弾かれる（ダメージなし・「今は無駄」と伝える）
+                // 防御中（頭が光っていない）: 弾かれる（ダメージなし・「今は無駄」と伝える）
                 player.velY = JUMP_FORCE * 0.62;
                 endSamuraiDiveOnBossStomp();
                 b.stompCooldown = 14;
-                floatEffects.push({ type: 'boss_shockwave', worldX: player.x + player.width / 2, worldY: headY + 10, timer: 0, duration: 12 });
+                floatEffects.push({ type: 'boss_shockwave', worldX: player.x + player.width / 2, worldY: b.y + b.height * 0.2, timer: 0, duration: 12 });
                 if (soundManager) soundManager.playProtect();
             }
         }

@@ -224,7 +224,10 @@ var IMAGE_SPRITES = {
     boss_snake:      { files: ['images/boss_snake_idle.png'] },
 
     // ボス5 (128x128, OpenAI生成 闇のフクロウ - 立ち絵1枚。暗転(vignette)＋光る目は drawOwlDarkness で procedural)
-    boss_owl:        { files: ['images/boss_owl_idle.png'] }
+    boss_owl:        { files: ['images/boss_owl_idle.png'] },
+
+    // ボス6/門番 (128x128, OpenAI生成 闇のカカシ - 立ち絵1枚。定点＝正面向き。露出中の弱点グロー/腕薙ぎ赤帯は drawScarecrow で procedural)
+    boss_scarecrow:  { files: ['images/boss_scarecrow_idle.png'] }
 };
 
 // ─── 地形/背景用パレット定義 (SFC 16色) ───

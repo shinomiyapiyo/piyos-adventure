@@ -75,15 +75,13 @@ function bossKindForRound(round) {
 }
 
 // ─── 闇のカカシ（scarecrow・定点召喚＋リーチ型の門番ボス）の調整ノブ ───
-// 定点(動かない)・頭が弱点。普段は頭を高く保って防御、expose中だけ頭を下げて踏み/弾が通る。
-// 攻撃=召喚(カラスを湧かす)／腕薙ぎ(低い横薙ぎ=ジャンプor足場で回避)。
-const SC_EXPOSE_WINDOW   = 82;  // 頭を下げて無防備になる時間(踏み/弾が通る)
+// 定点(動かない)・頭(上部)が弱点。expose中だけ頭が光って踏み/弾が通る（非露出は装甲＝弾かれる）。
+// 頭上部はジャンプ175pxで余裕で届く（実測）。攻撃=召喚(カラスを湧かす)／腕薙ぎ(低い横薙ぎ=ジャンプor足場で回避)。
+const SC_EXPOSE_WINDOW   = 82;  // 無防備(踏み/弾が通る)になる時間
 const SC_SWEEP_TELEGRAPH = 34;  // 腕薙ぎの予告フレーム
 const SC_SWEEP_ACTIVE    = 20;  // 腕薙ぎの当たり有効フレーム
 const SC_SUMMON_TELE     = 26;  // 召喚の予告フレーム
 const SC_SUMMON_BASE     = 2;   // 1回の召喚数(phase/encounterで増える)
-const SC_HEAD_REST       = 6;   // 頭の静止位置(ボス箱の上端からのpx)
-const SC_HEAD_LOW        = 54;  // expose時の頭位置(ボス箱の上端からのpx・ジャンプで届く高さ)
 const SC_SWEEP_BAND_Y    = 44;  // 腕薙ぎの危険帯の高さ(GROUND_Yからのpx・ここ以下の接地で被弾)
 const BOSS_WIDTH            = 128;
 const BOSS_HEIGHT           = 128;
