@@ -3534,6 +3534,11 @@ function updateBossAI_scarecrow(b) {
     var hpRatio = b.hp / maxHp;
     var phase = hpRatio > 0.6 ? 1 : hpRatio > 0.3 ? 2 : 3;
     var enc = bossEncounter();
+    // 周回ごとの強化（他ボスと同様に bossEncounter で段階的に強くする）。カカシは R6/R12/R18… に出るので enc=2,3,4…。
+    //  encMul=行動サイクル全体の速さ（周回が進むほど短い間合いで攻める）。sweepReady/召喚数/expose短縮も enc 連動。
+    var encMul = enc >= 5 ? 0.62 : enc >= 4 ? 0.72 : enc >= 3 ? 0.85 : 1;
+    var sweepReady = (phase >= 2 || enc >= 3);                 // 周回3以降(R12+)は満タンから腕薙ぎ
+    var sweepChance = enc >= 4 ? 0.62 : enc >= 3 ? 0.55 : 0.5;
     if (b.isAngry) { b.angerTimer--; if (b.angerTimer <= 0) b.isAngry = false; }
 
     // 頭の上下を目標へ滑らかに（expose中は下げる＝踏める／それ以外は上げる＝防御）
@@ -3550,16 +3555,17 @@ function updateBossAI_scarecrow(b) {
             // 攻撃(奇数)と踏みチャンス=expose(偶数)を交互に。exposeは頭が下がってから当たり有効化。
             if (b.scCycle % 2 === 0) {
                 b.scMode = 'expose';
-                b.scTimer = Math.round(SC_EXPOSE_WINDOW * (phase === 3 ? 0.7 : phase === 2 ? 0.85 : 1));
+                // expose窓は周回・HPで短縮（＝周回が進むほど踏みチャンスが短い）。ただし下限40で理不尽化を防ぐ。
+                b.scTimer = Math.max(40, Math.round(SC_EXPOSE_WINDOW * (phase === 3 ? 0.7 : phase === 2 ? 0.85 : 1) * (enc >= 4 ? 0.85 : enc >= 3 ? 0.92 : 1)));
             } else {
                 var r = Math.random();
-                if (phase >= 2 && r < 0.5) {                 // 【HP2/3以降】腕薙ぎ解禁
+                if (sweepReady && r < sweepChance) {          // 腕薙ぎ（phase2以降 or 周回3以降）
                     b.scMode = 'sweepTele';
-                    b.scTimer = Math.round(SC_SWEEP_TELEGRAPH * (phase === 3 ? 0.7 : 1));
+                    b.scTimer = Math.max(16, Math.round(SC_SWEEP_TELEGRAPH * (phase === 3 ? 0.7 : 1) * encMul));
                     b.sweepDir = (player.x + player.width / 2 < b.x + b.width / 2) ? -1 : 1;
                 } else {
                     b.scMode = 'summonTele';
-                    b.scTimer = SC_SUMMON_TELE;
+                    b.scTimer = Math.max(14, Math.round(SC_SUMMON_TELE * encMul));
                 }
             }
         }
@@ -3568,10 +3574,12 @@ function updateBossAI_scarecrow(b) {
     case 'summonTele':                    // 腕を上げて召喚を予告
         b.scTimer--;
         if (b.scTimer <= 0) {
-            var n = SC_SUMMON_BASE + (phase >= 2 ? 1 : 0) + (enc >= 3 ? 1 : 0);
+            // 召喚数は周回で増える（enc2:2 / enc3:3 / enc4:4 / enc5+:5、＋HP2/3以降に+1・上限6）
+            var n = Math.min(6, SC_SUMMON_BASE + Math.min(3, Math.max(0, enc - 2)) + (phase >= 2 ? 1 : 0));
             for (var s = 0; s < n; s++) { b.facing = s % 2 === 0 ? 'left' : 'right'; spawnBossChick(b); }
+            if (enc >= 4) spawnEdgeFlyingEnemy();             // 周回4以降は空からカラスも1羽
             if (soundManager) soundManager.playFlash();
-            b.scMode = 'recover'; b.scTimer = 28;
+            b.scMode = 'recover'; b.scTimer = Math.max(16, Math.round(28 * encMul));
         }
         break;
 
@@ -3582,19 +3590,19 @@ function updateBossAI_scarecrow(b) {
 
     case 'sweep':                         // 低い横薙ぎ（当たり判定は updateBossCollision_scarecrow）
         b.scTimer--;
-        if (b.scTimer <= 0) { b.scMode = 'recover'; b.scTimer = 24; }
+        if (b.scTimer <= 0) { b.scMode = 'recover'; b.scTimer = Math.max(14, Math.round(24 * encMul)); }
         break;
 
     case 'expose':                        // 頭を下げて無防備＝踏み/弾が通る
         if (b.headLow > 0.7) b.exposed = true; // 十分下がってから有効化（見た目と一致）
         b.scTimer--;
-        if (b.scTimer <= 0) { b.exposed = false; b.scMode = 'recover'; b.scTimer = 22; }
+        if (b.scTimer <= 0) { b.exposed = false; b.scMode = 'recover'; b.scTimer = Math.max(14, Math.round(22 * encMul)); }
         break;
 
     case 'recover':                       // 頭を戻して次へ
         b.exposed = false;
         b.scTimer--;
-        if (b.scTimer <= 0) { b.scMode = 'idle'; b.scTimer = (phase === 3 ? 18 : phase === 2 ? 28 : 40); }
+        if (b.scTimer <= 0) { b.scMode = 'idle'; b.scTimer = Math.max(12, Math.round((phase === 3 ? 18 : phase === 2 ? 28 : 40) * encMul)); }
         break;
 
     default:
