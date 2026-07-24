@@ -1849,6 +1849,8 @@ function drawBoss(b) {
         }
     } else if (b.kind === 'owl') {
         spriteManager.draw(ctx, 'boss_owl', 0, b.x, drawY, b.width, b.height, flipH);
+    } else if (b.kind === 'scarecrow') {
+        drawScarecrow(b, drawY);
     } else {
         spriteManager.draw(ctx, isHawk ? 'boss_hawk' : (b.hiyoko ? 'boss_hiyoko' : 'boss_rooster'), b.spriteFrame, b.x, drawY, b.width, b.height, flipH);
     }
@@ -1932,6 +1934,108 @@ function drawBoss(b) {
         }
     }
     ctx.restore();
+}
+
+// ─── 闇のカカシ（scarecrow）＝手続き描画（立ち絵画像なし・宝箱drawChest/卵の回転と同系統）───
+// paintScarecrow はローカル座標[x..x+w, y..y+h]に描く純関数＝ゲーム本体(drawScarecrow)と図鑑サムネ(ensureScarecrowSprite)で共用。
+// headLow: 0=頭が高い(防御)…1=頭が低い(露出)。頭のオフセットは SC_HEAD_REST/SC_HEAD_LOW（当たり判定と一致）。
+function paintScarecrow(cx, x, y, w, h, headLow, exposed, armState, frame) {
+    var midX = x + w / 2;
+    var groundY = y + h;
+    var barY = y + h * 0.44;                                   // 肩(横木)の高さ
+    var headOff = SC_HEAD_REST + (SC_HEAD_LOW - SC_HEAD_REST) * (headLow || 0);
+    var headY = y + headOff;
+    var headW = w * 0.40, headH = w * 0.40, headX = midX - headW / 2;
+
+    // 支柱(縦ポール)
+    cx.fillStyle = '#5a4632'; cx.fillRect(midX - w * 0.045, barY, w * 0.09, groundY - barY);
+    cx.fillStyle = '#6f5842'; cx.fillRect(midX - w * 0.045, barY, w * 0.03, groundY - barY);
+    // 横木(crossbar)
+    cx.fillStyle = '#5a4632'; cx.fillRect(x + w * 0.12, barY - w * 0.03, w * 0.76, w * 0.06);
+    cx.fillStyle = '#6f5842'; cx.fillRect(x + w * 0.12, barY - w * 0.03, w * 0.76, w * 0.02);
+
+    // 胴(ボロ布のチュニック)
+    var bodyTop = barY + w * 0.02, bodyBot = y + h * 0.86;
+    cx.fillStyle = '#5f4f34'; cx.fillRect(midX - w * 0.20, bodyTop, w * 0.40, bodyBot - bodyTop);
+    cx.fillStyle = '#7d6a48'; cx.fillRect(midX - w * 0.17, bodyTop, w * 0.34, bodyBot - bodyTop - w * 0.05);
+    cx.fillStyle = '#8f7a52'; cx.fillRect(midX - w * 0.02, bodyTop + w * 0.06, w * 0.10, w * 0.10); // 継ぎ当て
+    cx.fillStyle = '#5f4f34';                                  // 裾のギザ
+    for (var tI = 0; tI < 6; tI++) {
+        var tx = midX - w * 0.17 + tI * (w * 0.34 / 6);
+        cx.beginPath(); cx.moveTo(tx, bodyBot - w * 0.05); cx.lineTo(tx + w * 0.028, bodyBot + w * 0.03); cx.lineTo(tx + w * 0.056, bodyBot - w * 0.05); cx.closePath(); cx.fill();
+    }
+    cx.strokeStyle = '#c9a24b'; cx.lineWidth = 2;             // 襟から突き出る藁
+    for (var sI = 0; sI < 5; sI++) { var sx = midX - w * 0.14 + sI * (w * 0.07); cx.beginPath(); cx.moveTo(sx, bodyTop); cx.lineTo(sx + (sI - 2) * 3, bodyTop - w * 0.06); cx.stroke(); }
+
+    // 腕（rest=垂れる／wind・sweep=片腕を低く伸ばす＝薙ぎ）
+    cx.strokeStyle = '#6b5a3c'; cx.lineWidth = Math.max(4, w * 0.05); cx.lineCap = 'round';
+    var barL = x + w * 0.14, barR = x + w * 0.86;
+    if (armState === 'sweep' || armState === 'wind') {
+        var reachX = x + w * (armState === 'sweep' ? 0.06 : 0.28), reachY = y + h - w * 0.10;
+        cx.beginPath(); cx.moveTo(barR, barY); cx.lineTo(reachX, reachY); cx.stroke();     // 伸ばす腕
+        cx.beginPath(); cx.moveTo(barL, barY); cx.lineTo(barL - w * 0.02, barY + w * 0.28); cx.stroke(); // 垂れ腕
+        cx.strokeStyle = '#c9a24b'; cx.lineWidth = 2;
+        for (var f2 = 0; f2 < 4; f2++) { cx.beginPath(); cx.moveTo(reachX, reachY); cx.lineTo(reachX - 8 + f2 * 5, reachY + 8); cx.stroke(); }
+    } else {
+        cx.beginPath(); cx.moveTo(barL, barY); cx.lineTo(barL - w * 0.02, barY + w * 0.30); cx.stroke();
+        cx.beginPath(); cx.moveTo(barR, barY); cx.lineTo(barR + w * 0.02, barY + w * 0.30); cx.stroke();
+    }
+
+    // 首(藁)＝頭が下がると伸びる
+    cx.strokeStyle = '#a8863a'; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(midX, barY); cx.lineTo(midX, headY + headH * 0.7); cx.stroke();
+
+    // 頭(麻袋)
+    cx.fillStyle = '#5f4f34'; cx.fillRect(headX, headY, headW, headH);
+    cx.fillStyle = '#7d6a48'; cx.fillRect(headX + 2, headY + 2, headW - 6, headH - 8);
+    cx.fillStyle = '#3b3348'; cx.fillRect(headX + headW * 0.2, headY + headH - 4, headW * 0.6, 5); // 縛り目
+    // 帽子(ボロ三角)
+    cx.fillStyle = '#3b3348'; cx.beginPath(); cx.moveTo(midX, headY - headH * 0.42); cx.lineTo(headX - 2, headY + 4); cx.lineTo(headX + headW + 2, headY + 4); cx.closePath(); cx.fill();
+    cx.fillStyle = '#2a2530'; cx.fillRect(headX - 4, headY + 2, headW + 8, 4);
+    // 目(光る・露出/怒りで赤)
+    var eyeC = exposed ? '#ff5555' : '#ffcf3a';
+    var glow = 0.55 + 0.35 * Math.abs(Math.sin((frame || 0) * 0.12));
+    cx.save(); cx.shadowColor = eyeC; cx.shadowBlur = 10; cx.fillStyle = eyeC; cx.globalAlpha = glow;
+    var eyeY = headY + headH * 0.42, eR = headW * 0.10;
+    cx.beginPath(); cx.moveTo(headX + headW * 0.22, eyeY); cx.lineTo(headX + headW * 0.40, eyeY); cx.lineTo(headX + headW * 0.31, eyeY + eR * 1.6); cx.closePath(); cx.fill();
+    cx.beginPath(); cx.moveTo(headX + headW * 0.60, eyeY); cx.lineTo(headX + headW * 0.78, eyeY); cx.lineTo(headX + headW * 0.69, eyeY + eR * 1.6); cx.closePath(); cx.fill();
+    cx.restore();
+    // 縫い口(ギザ)
+    cx.strokeStyle = '#2a2320'; cx.lineWidth = 2; cx.globalAlpha = 1;
+    var mY = headY + headH * 0.72; cx.beginPath(); cx.moveTo(headX + headW * 0.30, mY);
+    for (var mm = 0; mm <= 4; mm++) { cx.lineTo(headX + headW * (0.30 + 0.10 * mm), mY + (mm % 2 ? 4 : 0)); }
+    cx.stroke();
+}
+
+// ゲーム本体のカカシ描画（drawBossから呼ぶ）。腕薙ぎの予告/発動は地面付近の赤い危険帯で伝える。
+function drawScarecrow(b, drawY) {
+    var armState = (b.scMode === 'sweep') ? 'sweep' : (b.scMode === 'sweepTele' || b.scMode === 'summonTele') ? 'wind' : 'rest';
+    if (b.scMode === 'sweepTele' || b.scMode === 'sweep') {
+        var active = (b.scMode === 'sweep');
+        var pulse = active ? 0.5 : (0.3 + Math.abs(Math.sin(b.animFrame * 0.4)) * 0.25);
+        ctx.save(); ctx.globalAlpha = pulse; ctx.fillStyle = active ? '#ff3a3a' : '#ff6a6a';
+        ctx.fillRect(bossState.arenaLeft, GROUND_Y - SC_SWEEP_BAND_Y, bossState.arenaRight - bossState.arenaLeft, SC_SWEEP_BAND_Y);
+        ctx.restore();
+    }
+    paintScarecrow(ctx, b.x, drawY, b.width, b.height, b.headLow || 0, !!b.exposed, armState, b.animFrame);
+    if (b.exposed) {                                          // 露出中の頭に弱点グロー
+        var hy = drawY + SC_HEAD_REST + (SC_HEAD_LOW - SC_HEAD_REST) * (b.headLow || 0) + b.width * 0.2;
+        var hx = b.x + b.width / 2, gp = 0.5 + Math.sin(b.animFrame * 0.35) * 0.35;
+        ctx.save(); ctx.globalAlpha = gp;
+        var gg = ctx.createRadialGradient(hx, hy, 4, hx, hy, b.width * 0.35);
+        gg.addColorStop(0, 'rgba(255,120,120,0.9)'); gg.addColorStop(0.6, 'rgba(255,40,40,0.4)'); gg.addColorStop(1, 'rgba(255,0,0,0)');
+        ctx.fillStyle = gg; ctx.beginPath(); ctx.ellipse(hx, hy, b.width * 0.30, b.width * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+// 図鑑サムネ用: 手続きカカシを一度だけ 'boss_scarecrow' としてキャッシュに焼く（画像ボスと同じ経路で表示される）。
+function ensureScarecrowSprite() {
+    if (spriteManager.cache['boss_scarecrow']) return;
+    var c = document.createElement('canvas'); c.width = BOSS_WIDTH; c.height = BOSS_HEIGHT;
+    paintScarecrow(c.getContext('2d'), 0, 0, BOSS_WIDTH, BOSS_HEIGHT, 0, false, 'rest', 0);
+    var f = document.createElement('canvas'); f.width = BOSS_WIDTH; f.height = BOSS_HEIGHT;
+    var fc = f.getContext('2d'); fc.translate(BOSS_WIDTH, 0); fc.scale(-1, 1); fc.drawImage(c, 0, 0);
+    spriteManager.cache['boss_scarecrow'] = [{ normal: c, flipped: f, w: BOSS_WIDTH, h: BOSS_HEIGHT }];
 }
 
 function drawEggProjectiles() {

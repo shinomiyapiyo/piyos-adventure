@@ -2562,8 +2562,8 @@ function setupBossArena() {
         spriteFrame: 0,
         spriteResetTimer: 0,
         stompCooldown: 0,
-        // ボスを BOSS_KINDS の順で毎ラウンド循環（rooster→hawk→egg→snake→…）
-        kind: BOSS_KINDS[(gameRound - 1) % BOSS_KINDS.length],
+        // ボス種＝ラウンドで決定（5種ローテ／6の倍数は門番「闇のカカシ」）。bossKindForRound は core-state.js
+        kind: bossKindForRound(gameRound),
         // 空中ボス(hawk)専用ステート
         hawkMode: 'hover',   // hover→charge→dive→stun→rise
         hawkBob: 0,          // 滞空の上下揺れ位相
@@ -2590,7 +2590,14 @@ function setupBossArena() {
         swoopDir: -1,
         darkness: 0,         // 暗転の濃さ 0..1（描画）
         darkWant: 0,         // 暗転の目標値
-        darkTimer: 0
+        darkTimer: 0,
+        // 闇のカカシ(scarecrow)専用ステート
+        scMode: 'plant',     // plant(登場)→idle→summonTele→sweepTele→sweep→expose→recover
+        scTimer: 0,
+        scCycle: 0,          // 攻撃とexpose(踏みチャンス)を交互にするカウンタ
+        headLow: 0,          // 頭の下がり具合 0(防御=高い)..1(露出=低い)
+        sweepDir: -1,        // 腕薙ぎの向き（見た目）
+        planted: false       // 登場の落下→着地フラグ
     };
     // 空中ボスは地面より高い滞空高度から登場させる
     if (bossState.boss.kind === 'hawk' || bossState.boss.kind === 'owl') {
@@ -2665,6 +2672,25 @@ function updateBoss() {
             b.animFrame++;
             b.rollAngle -= 0.1;
             if (b.x <= targetX) { b.x = targetX; b.eggMode = 'idle'; b.eggTimer = 45; bossState.phase = 3; }
+            return;
+        }
+        if (b.kind === 'scarecrow') {
+            // 闇のカカシ: 動かないので歩き入場せず、アリーナ中央やや右へ空から突き立つ（落下→着地）
+            if (!b.planted) {
+                b.planted = true;
+                b.x = gameState.camera.x + GAME_WIDTH * 0.60;
+                b.y = GROUND_Y - BOSS_HEIGHT - 160;
+                b.velY = 0;
+            }
+            b.velY += 1.5; b.y += b.velY;
+            b.animFrame++;
+            if (b.y >= GROUND_Y - BOSS_HEIGHT) {
+                b.y = GROUND_Y - BOSS_HEIGHT; b.velY = 0;
+                b.scMode = 'idle'; b.scTimer = 48; b.scCycle = 0;
+                spawnExplosionEffect(b.x + b.width / 2, GROUND_Y); // 着地の土煙
+                if (soundManager) soundManager.playKill();
+                bossState.phase = 3;
+            }
             return;
         }
         // 地上ボス: 右から歩いて入場
@@ -2830,6 +2856,7 @@ function updateBossAI(b) {
     else if (b.kind === 'egg') { updateBossAI_egg(b); }
     else if (b.kind === 'snake') { updateBossAI_snake(b); }
     else if (b.kind === 'owl') { updateBossAI_owl(b); }
+    else if (b.kind === 'scarecrow') { updateBossAI_scarecrow(b); }
     else { updateBossAI_mama(b); }
 }
 
@@ -3495,6 +3522,87 @@ function updateBossAI_owl(b) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// 闇のカカシ(scarecrow)のAI: 畑に突き立ったまま動かない定点ボス。頭が弱点。
+// 普段は頭を高く保って防御（踏み/弾を弾く）。expose中だけ頭を下げて無防備になり踏み/弾が通る。
+// 攻撃を1回はさむごとにexpose（踏みチャンス）を交互に出す＝倒し方の学習が容易。
+//  攻撃: 召喚(カラスを湧かす・spawnBossChick)／腕薙ぎ(低い横薙ぎ=ジャンプor足場で回避)。
+//  当たり/描画で使う頭の位置は headLow から算出（updateBossCollision_scarecrow / drawScarecrow と一致）。
+// ─────────────────────────────────────────────────────────────
+function updateBossAI_scarecrow(b) {
+    var maxHp = bossState.maxHp || BOSS_MAX_HP;
+    var hpRatio = b.hp / maxHp;
+    var phase = hpRatio > 0.6 ? 1 : hpRatio > 0.3 ? 2 : 3;
+    var enc = bossEncounter();
+    if (b.isAngry) { b.angerTimer--; if (b.angerTimer <= 0) b.isAngry = false; }
+
+    // 頭の上下を目標へ滑らかに（expose中は下げる＝踏める／それ以外は上げる＝防御）
+    var headTarget = (b.scMode === 'expose') ? 1 : 0;
+    b.headLow += (headTarget - b.headLow) * 0.18;
+    if (b.headLow < 0.001) b.headLow = 0;
+
+    switch (b.scMode) {
+    case 'idle':
+        b.exposed = false;
+        b.scTimer--;
+        if (b.scTimer <= 0) {
+            b.scCycle++;
+            // 攻撃(奇数)と踏みチャンス=expose(偶数)を交互に。exposeは頭が下がってから当たり有効化。
+            if (b.scCycle % 2 === 0) {
+                b.scMode = 'expose';
+                b.scTimer = Math.round(SC_EXPOSE_WINDOW * (phase === 3 ? 0.7 : phase === 2 ? 0.85 : 1));
+            } else {
+                var r = Math.random();
+                if (phase >= 2 && r < 0.5) {                 // 【HP2/3以降】腕薙ぎ解禁
+                    b.scMode = 'sweepTele';
+                    b.scTimer = Math.round(SC_SWEEP_TELEGRAPH * (phase === 3 ? 0.7 : 1));
+                    b.sweepDir = (player.x + player.width / 2 < b.x + b.width / 2) ? -1 : 1;
+                } else {
+                    b.scMode = 'summonTele';
+                    b.scTimer = SC_SUMMON_TELE;
+                }
+            }
+        }
+        break;
+
+    case 'summonTele':                    // 腕を上げて召喚を予告
+        b.scTimer--;
+        if (b.scTimer <= 0) {
+            var n = SC_SUMMON_BASE + (phase >= 2 ? 1 : 0) + (enc >= 3 ? 1 : 0);
+            for (var s = 0; s < n; s++) { b.facing = s % 2 === 0 ? 'left' : 'right'; spawnBossChick(b); }
+            if (soundManager) soundManager.playFlash();
+            b.scMode = 'recover'; b.scTimer = 28;
+        }
+        break;
+
+    case 'sweepTele':                     // 腕を溜めて低い薙ぎを予告（drawBossが赤帯）
+        b.scTimer--;
+        if (b.scTimer <= 0) { b.scMode = 'sweep'; b.scTimer = SC_SWEEP_ACTIVE; }
+        break;
+
+    case 'sweep':                         // 低い横薙ぎ（当たり判定は updateBossCollision_scarecrow）
+        b.scTimer--;
+        if (b.scTimer <= 0) { b.scMode = 'recover'; b.scTimer = 24; }
+        break;
+
+    case 'expose':                        // 頭を下げて無防備＝踏み/弾が通る
+        if (b.headLow > 0.7) b.exposed = true; // 十分下がってから有効化（見た目と一致）
+        b.scTimer--;
+        if (b.scTimer <= 0) { b.exposed = false; b.scMode = 'recover'; b.scTimer = 22; }
+        break;
+
+    case 'recover':                       // 頭を戻して次へ
+        b.exposed = false;
+        b.scTimer--;
+        if (b.scTimer <= 0) { b.scMode = 'idle'; b.scTimer = (phase === 3 ? 18 : phase === 2 ? 28 : 40); }
+        break;
+
+    default:
+        b.scMode = 'idle'; b.scTimer = 40; b.exposed = false;
+        break;
+    }
+}
+
 // 侍ぴよ急降下斬りでボスに乗った（1.516）: 斬りを終了して通常踏みのバウンスに乗せ、跳ね中の連続発動を
 // ロックする（着地でリセット=index.html側／ジャンプすれば再度出せる）。ダメージは通常踏みと完全に同一
 // （10/空中ボス5/装甲0）。雑魚への貫通（バウンスなし撃破継続）は従来どおり敵衝突ループ側。
@@ -3513,6 +3621,7 @@ function updateBossCollision(b) {
     if (b.kind === 'egg') { updateBossCollision_egg(b); return; }
     if (b.kind === 'snake') { updateBossCollision_snake(b); return; }
     if (b.kind === 'owl') { updateBossCollision_owl(b); return; }
+    if (b.kind === 'scarecrow') { updateBossCollision_scarecrow(b); return; }
     // stompCooldownカウントダウン
     if (b.stompCooldown > 0) b.stompCooldown--;
     var stompHit = aabbShrink(player, b, 10, 15);
@@ -3699,6 +3808,50 @@ function updateBossCollision_owl(b) {
     // 踏みでない接触: swoop(横薙ぎ)中の本体接触で被弾（高さをズラして回避）
     if (b.owlMode === 'swoop' && !isPlayerProtected() && b.stompCooldown <= 0) {
         if (aabbShrink(player, b, 10, 12)) { takeDamage(); }
+    }
+}
+
+// 闇のカカシ(scarecrow)の頭のワールドY（当たり/描画で共用＝一致必須）。b.y はブレなし（描画は±3のバウンスのみ）。
+function scarecrowHeadY(b) { return b.y + SC_HEAD_REST + (SC_HEAD_LOW - SC_HEAD_REST) * (b.headLow || 0); }
+
+// 闇のカカシの当たり判定:
+// ・弱点=頭。expose中(頭が下がって無防備)のみ踏み/弾でダメージ。非exposeの踏みは弾かれる（装甲卵と同じ演出）。
+// ・腕薙ぎ(sweep)中: 地面付近の危険帯に接地していると被弾（ジャンプ or 足場で回避）。本体接触は無害（定点なので接近可）。
+function updateBossCollision_scarecrow(b) {
+    if (b.stompCooldown > 0) b.stompCooldown--;
+    var headY = scarecrowHeadY(b);
+    var headBox = { x: b.x + b.width * 0.26, y: headY, width: b.width * 0.48, height: 46 };
+
+    // 腕薙ぎ: 低い横薙ぎの危険帯（GROUND_Y近く）に接地していたら被弾
+    if (b.scMode === 'sweep' && !isPlayerProtected() && b.stompCooldown <= 0) {
+        var band = { x: bossState.arenaLeft, y: GROUND_Y - SC_SWEEP_BAND_Y, width: bossState.arenaRight - bossState.arenaLeft, height: SC_SWEEP_BAND_Y };
+        if (aabb(player, band) && player.y + player.height >= GROUND_Y - (SC_SWEEP_BAND_Y - 6)) { takeDamage(); return; }
+    }
+
+    // 頭を踏む
+    if (b.stompCooldown <= 0) {
+        var stompPose = player.velY > 0 && aabb(player, headBox) && player.y + player.height <= headY + headBox.height * 0.75;
+        if (stompPose) {
+            if (b.exposed) {
+                // 無防備の頭: ダメージ
+                b.hp -= (10 + samuraiDiveDmgBonus()) * critMultiplier(b.x + b.width / 2, headY);
+                player.velY = JUMP_FORCE * 0.5;
+                endSamuraiDiveOnBossStomp();
+                if (soundManager) soundManager.playKill();
+                spawnExplosionEffect(player.x + player.width / 2, headY);
+                gainScore(500);
+                b.isAngry = true; b.angerTimer = BOSS_ANGER_DURATION;
+                b.stompCooldown = 32;
+                if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
+            } else {
+                // 頭を高く保った防御中: 弾かれる（ダメージなし・「今は無駄」と伝える）
+                player.velY = JUMP_FORCE * 0.62;
+                endSamuraiDiveOnBossStomp();
+                b.stompCooldown = 14;
+                floatEffects.push({ type: 'boss_shockwave', worldX: player.x + player.width / 2, worldY: headY + 10, timer: 0, duration: 12 });
+                if (soundManager) soundManager.playProtect();
+            }
+        }
     }
 }
 

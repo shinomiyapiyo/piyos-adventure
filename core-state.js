@@ -65,8 +65,26 @@ const BOSS_TRIGGER_DISTANCE = 2400;   // 2400mごとにボス出現
 const BOSS_MAX_HP           = 100;    // 基本HP（内部HP=表示HPに統一。ボス5種一巡の1週目R1-R5は一律100）
 const BOSS_HP_PER_ROUND     = 20;     // ラウンド毎のHP増（R6から適用。表示=内部の統一スケール）。難度は攻撃パターンで上げる方針
 const BOSS_HP_ROUND_CAP     = 7;      // HP増の上限ステップ数（R6起点+7=R12でHP240頭打ち＝戦闘の間延び防止）
-// ボス出現ローテ（この順で毎ラウンド循環）。新ボスは末尾に足すだけ＝kind決定と bossEncounter() が自動追随
+// ボス出現ローテ（この順で毎ラウンド循環）。新ボスは末尾に足すだけ＝bossEncounter() が自動追随
 var BOSS_KINDS = ['rooster', 'hawk', 'egg', 'snake', 'owl'];
+// ラウンドからボス種を決める。6の倍数(R6/R12/R18…)は門番ボス「闇のカカシ」＝将来の地底ステージ(R7/R13…予定)の前哨。
+// それ以外は5種ローテ。カカシはローテ配列に入れない（門番専用）。gameRound はボス撃破で+1（gameplay.js）。
+function bossKindForRound(round) {
+    if (round % 6 === 0) return 'scarecrow';
+    return BOSS_KINDS[(round - 1) % BOSS_KINDS.length];
+}
+
+// ─── 闇のカカシ（scarecrow・定点召喚＋リーチ型の門番ボス）の調整ノブ ───
+// 定点(動かない)・頭が弱点。普段は頭を高く保って防御、expose中だけ頭を下げて踏み/弾が通る。
+// 攻撃=召喚(カラスを湧かす)／腕薙ぎ(低い横薙ぎ=ジャンプor足場で回避)。
+const SC_EXPOSE_WINDOW   = 82;  // 頭を下げて無防備になる時間(踏み/弾が通る)
+const SC_SWEEP_TELEGRAPH = 34;  // 腕薙ぎの予告フレーム
+const SC_SWEEP_ACTIVE    = 20;  // 腕薙ぎの当たり有効フレーム
+const SC_SUMMON_TELE     = 26;  // 召喚の予告フレーム
+const SC_SUMMON_BASE     = 2;   // 1回の召喚数(phase/encounterで増える)
+const SC_HEAD_REST       = 6;   // 頭の静止位置(ボス箱の上端からのpx)
+const SC_HEAD_LOW        = 54;  // expose時の頭位置(ボス箱の上端からのpx・ジャンプで届く高さ)
+const SC_SWEEP_BAND_Y    = 44;  // 腕薙ぎの危険帯の高さ(GROUND_Yからのpx・ここ以下の接地で被弾)
 const BOSS_WIDTH            = 128;
 const BOSS_HEIGHT           = 128;
 const BOSS_DEFEAT_SCORE     = 5000;
@@ -473,6 +491,7 @@ var ZUKAN_ENTRIES = [
     { id: 'boss:egg',     cat: 'boss', nameKey: 'zukan_b_egg',     descKey: 'zukan_b_egg_d',     kind: 'egg',     kill: true },
     { id: 'boss:snake',   cat: 'boss', nameKey: 'zukan_b_snake',   descKey: 'zukan_b_snake_d',   kind: 'snake',   kill: true },
     { id: 'boss:owl',     cat: 'boss', nameKey: 'zukan_b_owl',     descKey: 'zukan_b_owl_d',     kind: 'owl',     kill: true },
+    { id: 'boss:scarecrow', cat: 'boss', nameKey: 'zukan_b_scarecrow', descKey: 'zukan_b_scarecrow_d', kind: 'scarecrow', kill: true },
     // ── アイテム：フィールドで拾う ──
     { id: 'item:heart',      cat: 'item', nameKey: 'zukan_i_heart',  descKey: 'zukan_i_heart_d',  img: 'images/icon_lives.png' },
     { id: 'item:coin',       cat: 'item', nameKey: 'zukan_i_coin',   descKey: 'zukan_i_coin_d',   img: 'images/icon_money.png' },
