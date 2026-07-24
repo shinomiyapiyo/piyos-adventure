@@ -1947,6 +1947,31 @@ function drawScarecrow(b, drawY) {
         ctx.fillRect(bossState.arenaLeft, GROUND_Y - SC_SWEEP_BAND_Y, bossState.arenaRight - bossState.arenaLeft, SC_SWEEP_BAND_Y);
         ctx.restore();
     }
+    // 対空「藁の棘」の予告/発動＝頭上の黄色い危険帯（腕薙ぎの赤と色で区別・真上に居座らせない）
+    if (b.scMode === 'spikeTele' || b.scMode === 'spike') {
+        var sActive = (b.scMode === 'spike');
+        var sx = b.x - SC_SPIKE_PAD, sw = b.width + SC_SPIKE_PAD * 2;
+        var sy = drawY - SC_SPIKE_H, sh = SC_SPIKE_H + b.height * 0.30;
+        ctx.save();
+        ctx.globalAlpha = sActive ? 0.42 : (0.22 + Math.abs(Math.sin(b.animFrame * 0.4)) * 0.26);
+        ctx.fillStyle = sActive ? '#ffd24a' : '#ffe9a8';
+        ctx.fillRect(sx, sy, sw, sh);
+        ctx.restore();
+        if (sActive) { // 藁の棘（上向きのギザギザ）
+            ctx.save();
+            ctx.fillStyle = '#f2c14e';
+            var sN = 7, sTipY = sy + 10, sBaseY = drawY + b.height * 0.28;
+            for (var si = 0; si < sN; si++) {
+                var sbx = sx + (sw / sN) * (si + 0.5);
+                ctx.beginPath();
+                ctx.moveTo(sbx - 7, sBaseY);
+                ctx.lineTo(sbx, sTipY);
+                ctx.lineTo(sbx + 7, sBaseY);
+                ctx.closePath(); ctx.fill();
+            }
+            ctx.restore();
+        }
+    }
     // 立ち絵本体
     spriteManager.draw(ctx, 'boss_scarecrow', 0, b.x, drawY, b.width, b.height, false);
     // 露出の予兆＝頭(上部)に弱点グロー。headLow(0→1)でランプ＝expose移行中からじわっと光る。

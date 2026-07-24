@@ -67,10 +67,16 @@ const BOSS_HP_PER_ROUND     = 20;     // ラウンド毎のHP増（R6から適�
 const BOSS_HP_ROUND_CAP     = 7;      // HP増の上限ステップ数（R6起点+7=R12でHP240頭打ち＝戦闘の間延び防止）
 // ボス出現ローテ（この順で毎ラウンド循環）。新ボスは末尾に足すだけ＝bossEncounter() が自動追随
 var BOSS_KINDS = ['rooster', 'hawk', 'egg', 'snake', 'owl'];
-// ラウンドからボス種を決める。6の倍数(R6/R12/R18…)は門番ボス「闇のカカシ」＝将来の地底ステージ(R7/R13…予定)の前哨。
+// ボスが一巡するラウンド数（R1-R5=5種ローテ＋R6=門番カカシ）。⚠地底ステージのボスを足したら 7 に上げる
+// ＝カカシの出現周期と、ボス戦の空中雑魚の解禁ラウンドが自動で追随する。
+const BOSS_CYCLE_ROUNDS = 6;
+// ボス戦で空中雑魚が湧き始めるラウンド＝「ボスを一巡した次」。カカシ追加前はR6だったが、R6はカカシ初登場＝
+// まだ一巡していないので早すぎるとユーザー判断（1.535）。地底ステージのボスを足せば自動でR8になる。
+const BOSS_FLYING_EDGE_ROUND = BOSS_CYCLE_ROUNDS + 1;
+// ラウンドからボス種を決める。周期の倍数(R6/R12/R18…)は門番ボス「闇のカカシ」＝将来の地底ステージ(R7/R13…予定)の前哨。
 // それ以外は5種ローテ。カカシはローテ配列に入れない（門番専用）。gameRound はボス撃破で+1（gameplay.js）。
 function bossKindForRound(round) {
-    if (round % 6 === 0) return 'scarecrow';
+    if (round % BOSS_CYCLE_ROUNDS === 0) return 'scarecrow';
     return BOSS_KINDS[(round - 1) % BOSS_KINDS.length];
 }
 
@@ -83,6 +89,14 @@ const SC_SWEEP_ACTIVE    = 20;  // 腕薙ぎの当たり有効フレーム
 const SC_SUMMON_TELE     = 26;  // 召喚の予告フレーム
 const SC_SUMMON_BASE     = 2;   // 1回の召喚数(phase/encounterで増える)
 const SC_SWEEP_BAND_Y    = 44;  // 腕薙ぎの危険帯の高さ(GROUND_Yからのpx・ここ以下の接地で被弾)
+// 対空「藁の棘」(1.535): 頭上へ棘を噴き上げる。⚠これが無いと、非露出中の弾かれ跳ね返り(長い)を利用して
+// 真上に居座り踏み続けるだけで一方的に倒せてしまう（ユーザー指摘＝カカシがイージー過ぎる）。
+const SC_SPIKE_TELEGRAPH = 26;  // 対空の予告フレーム（この間に横へ逃げる）
+const SC_SPIKE_ACTIVE    = 20;  // 対空の当たり有効フレーム
+const SC_SPIKE_H         = 150; // 頭上へ届く高さ(px・ジャンプ到達175pxの居座り圏を覆う)
+const SC_SPIKE_PAD       = 16;  // 危険帯の左右余白(px)
+const SC_SPIKE_OVER_RATE = 0.75;// プレイヤーが頭上に居る時に対空を選ぶ確率（居座り対策）
+const SC_SPIKE_MIX_RATE  = 0.22;// 頭上に居ない時でも対空を混ぜる確率（読み合いを作る）
 const BOSS_WIDTH            = 128;
 const BOSS_HEIGHT           = 128;
 const BOSS_DEFEAT_SCORE     = 5000;

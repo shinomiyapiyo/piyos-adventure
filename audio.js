@@ -19,6 +19,9 @@ class SoundManager {
         this.stage3BGM   = this._createBGM('sounds/stage3.mp3',   0.5);
         this.stage4BGM   = this._createBGM('sounds/stage4.mp3',   0.5);
         this.stage5BGM   = this._createBGM('sounds/stage5.mp3',   0.5);
+        this.stage6BGM   = this._createBGM('sounds/stage6.mp3',   0.5); // R6（闇のカカシのラウンド・Suno生成/タグ除去済み）
+        // 地底ステージ（R7）専用。地底ステージ実装前でも playStageBGM の7周ループで R7 に鳴る
+        this.undergroundBGM = this._createBGM('sounds/underground.mp3', 0.5); // Suno生成/タグ除去済み
         this.tutorialBGM = this._createBGM('sounds/tutorial.mp3', 0.5); // チュートリアル「はじまりの地」（Suno生成・タグ除去済み）
         this.gameoverBGM = this._createBGM('sounds/gameover.mp3', 0.7);
         this.rankingBGM  = this._createBGM('sounds/ranking.mp3',  0.6);
@@ -273,7 +276,7 @@ class SoundManager {
     }
 
     stopAllBGM() {
-        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.stage4BGM, this.stage5BGM, this.tutorialBGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.bonusBGM, this.winBGM];
+        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.stage4BGM, this.stage5BGM, this.stage6BGM, this.undergroundBGM, this.tutorialBGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.bonusBGM, this.winBGM];
         for (var i = 0; i < bgms.length; i++) {
             if (bgms[i]) { bgms[i].pause(); bgms[i].currentTime = 0; }
         }

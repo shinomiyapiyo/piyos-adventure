@@ -7,14 +7,15 @@
 // ============================================================
 // ─── ショップシステム ロジック ───
 
-// ラウンドに応じたステージBGMを再生（stage→stage2→stage3→stage→...）
+// ラウンドに応じたステージBGMを再生（R1→R7で一周し、R8でR1へ戻ってループ）
 // チュートリアル「はじまりの地」は専用BGM（土管部屋から戻る時もここを通るので自動で復帰する）
+// ⚠BGMの周期はボスの周期(BOSS_KINDS)とは独立。R6=闇のカカシ専用曲、R7=地底ステージ専用曲。
+//   地底ステージの実装前でもR7にこの曲が鳴る（ユーザー指定のループ設計）。
+var STAGE_BGM_CYCLE = ['stage', 'stage2', 'stage3', 'stage4', 'stage5', 'stage6', 'underground'];
 function playStageBGM() {
     if (!soundManager) return;
     if (tutorialState.active) { soundManager.playBGM('tutorial'); return; }
-    var cycle = ((gameRound - 1) % 5); // 5ラウンド/1周に対応: 0=stage,1=stage2,2=stage3,3=stage4,4=stage5
-    var bgmType = cycle === 0 ? 'stage' : 'stage' + (cycle + 1);
-    soundManager.playBGM(bgmType);
+    soundManager.playBGM(STAGE_BGM_CYCLE[(gameRound - 1) % STAGE_BGM_CYCLE.length]);
 }
 
 // ─── チュートリアル「はじまりの地」（Phase3.5） ───
@@ -2729,12 +2730,14 @@ function updateBoss() {
                 bossState.edgeSpawnTimer = Math.max(90, 180 - (gameRound - 2) * 20);
             }
         }
-        // ── ROUND6+: 飛行敵も画面外からスポーン（一巡目R1-5は空中雑魚を出さない・R6を最も緩い間隔に） ──
-        if (gameRound >= 6) {
+        // ── ボスを一巡した次のラウンドから: 飛行敵も画面外からスポーン（開始ラウンドを最も緩い間隔に） ──
+        // ⚠開始は「ボスが一巡し終えた次」＝BOSS_KINDS.length+1（現在6体でR7）。カカシ追加前はR6だったが、
+        //   R6はカカシ初登場＝まだ一巡していないので早すぎるとユーザー判断（地底ステージのボスを足せば自動でR8になる）。
+        if (gameRound >= BOSS_FLYING_EDGE_ROUND) {
             bossState.flyingEdgeSpawnTimer--;
             if (bossState.flyingEdgeSpawnTimer <= 0) {
                 spawnEdgeFlyingEnemy();
-                bossState.flyingEdgeSpawnTimer = Math.max(120, 240 - (gameRound - 6) * 20);
+                bossState.flyingEdgeSpawnTimer = Math.max(120, 240 - (gameRound - BOSS_FLYING_EDGE_ROUND) * 20);
             }
         }
         return;
@@ -3558,8 +3561,15 @@ function updateBossAI_scarecrow(b) {
                 // expose窓は周回・HPで短縮（＝周回が進むほど踏みチャンスが短い）。ただし下限40で理不尽化を防ぐ。
                 b.scTimer = Math.max(40, Math.round(SC_EXPOSE_WINDOW * (phase === 3 ? 0.7 : phase === 2 ? 0.85 : 1) * (enc >= 4 ? 0.85 : enc >= 3 ? 0.92 : 1)));
             } else {
-                var r = Math.random();
-                if (sweepReady && r < sweepChance) {          // 腕薙ぎ（phase2以降 or 周回3以降）
+                // 頭上に居座って踏み続ける戦法への対抗（1.535）: プレイヤーが頭の上にいるなら高確率で対空。
+                // 居なくても一定確率で混ぜる＝「上は安全」と学習させない。
+                var pcx = player.x + player.width / 2;
+                var overHead = pcx > b.x - SC_SPIKE_PAD && pcx < b.x + b.width + SC_SPIKE_PAD &&
+                               (player.y + player.height) <= b.y + b.height * 0.5;
+                if (Math.random() < (overHead ? SC_SPIKE_OVER_RATE : SC_SPIKE_MIX_RATE)) {
+                    b.scMode = 'spikeTele';
+                    b.scTimer = Math.max(12, Math.round(SC_SPIKE_TELEGRAPH * (phase === 3 ? 0.75 : 1) * encMul));
+                } else if (sweepReady && Math.random() < sweepChance) { // 腕薙ぎ（phase2以降 or 周回3以降）
                     b.scMode = 'sweepTele';
                     b.scTimer = Math.max(16, Math.round(SC_SWEEP_TELEGRAPH * (phase === 3 ? 0.7 : 1) * encMul));
                     b.sweepDir = (player.x + player.width / 2 < b.x + b.width / 2) ? -1 : 1;
@@ -3591,6 +3601,19 @@ function updateBossAI_scarecrow(b) {
     case 'sweep':                         // 低い横薙ぎ（当たり判定は updateBossCollision_scarecrow）
         b.scTimer--;
         if (b.scTimer <= 0) { b.scMode = 'recover'; b.scTimer = Math.max(14, Math.round(24 * encMul)); }
+        break;
+
+    case 'spikeTele':                     // 対空の予告（drawScarecrowが頭上に黄色い危険帯）＝横へ逃げる猶予
+        b.scTimer--;
+        if (b.scTimer <= 0) {
+            b.scMode = 'spike'; b.scTimer = SC_SPIKE_ACTIVE;
+            if (soundManager) soundManager.playFlash();
+        }
+        break;
+
+    case 'spike':                         // 対空「藁の棘」（当たり判定は updateBossCollision_scarecrow）
+        b.scTimer--;
+        if (b.scTimer <= 0) { b.scMode = 'recover'; b.scTimer = Math.max(14, Math.round(22 * encMul)); }
         break;
 
     case 'expose':                        // 頭を下げて無防備＝踏み/弾が通る
@@ -3830,6 +3853,15 @@ function updateBossCollision_scarecrow(b) {
     if (b.scMode === 'sweep' && !isPlayerProtected() && b.stompCooldown <= 0) {
         var band = { x: bossState.arenaLeft, y: GROUND_Y - SC_SWEEP_BAND_Y, width: bossState.arenaRight - bossState.arenaLeft, height: SC_SWEEP_BAND_Y };
         if (aabb(player, band) && player.y + player.height >= GROUND_Y - (SC_SWEEP_BAND_Y - 6)) { takeDamage(); return; }
+    }
+
+    // 対空「藁の棘」: 頭上の危険帯に居たら被弾（1.535）。
+    // ＝非露出中の弾かれ跳ね返りを使って真上に居座り、踏み続けるだけで倒せてしまう問題への対抗。
+    // 判定は頭より上だけ（地上に立っている間は当たらない: 地上プレイヤーの頭頂=GROUND_Y-48 は帯の下端より下）。
+    if (b.scMode === 'spike' && !isPlayerProtected() && b.stompCooldown <= 0) {
+        var scol = { x: b.x - SC_SPIKE_PAD, y: b.y - SC_SPIKE_H,
+                     width: b.width + SC_SPIKE_PAD * 2, height: SC_SPIKE_H + b.height * 0.30 };
+        if (aabb(player, scol)) { takeDamage(); return; }
     }
 
     // 頭（上部）を踏む
