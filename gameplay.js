@@ -2935,20 +2935,19 @@ function executeSellItem() {
     if (target.perma) {
         var _slot = stockState.perma[target.index];
         if (_slot && _slot.temp) {
-            // ⚠「今回かぎりの補充」(temp)を売った場合は permaStock に触らないこと（1.574で修正）。
-            //   temp は「使用済みの金枠へ、このランだけ拾った品を入れた」状態で、**本来の永続品は
-            //   gameSettings.permaStock[i] に停めたまま**（だから commitPermaStock は temp をスキップする=1.526）。
+            // ⚠「今回かぎりの補充」(temp)を売った場合は所有(base)に触らないこと（1.574で修正）。
+            //   temp は「所有品が今この枠に居ない（使った/出した）ので、このランだけ拾った品を入れた」状態で、
+            //   **本来の永続品は枠の base に停めたまま**（だから commitPermaStock は base を確定する=1.526/1.576）。
             //   ここで従来どおり permaStock[i]='' + saveSettings() をすると、売ったのは拾った品なのに
             //   育てた永続ポーチの中身が警告なしで恒久的に消えていた。
-            //   正しい後始末は「枠を temp が入る前の姿＝使用済みの元永続品に戻す」だけ。保存は一切しない。
-            //   ⚠temp フラグを落とすだけでは直らない: ラン終了時の commitPermaStock が temp 無しと見て
-            //     その枠を確定してしまい、結局 permaStock が上書きされる。
-            var _backId = (gameSettings.permaStock && gameSettings.permaStock[target.index]) || '';
-            stockState.perma[target.index] = { id: _backId, used: !!_backId };
+            //   正しい後始末は「枠を temp が入る前の姿＝使用済みの所有品に戻す」だけ。保存は一切しない。
+            //   戻したあとは所有品が自分の枠に居る（使用済み）状態なので temp は下ろす＝また拾えば route 2 で温め直す。
+            var _backId = _slot.base || '';
+            stockState.perma[target.index] = { id: _backId, used: !!_backId, temp: false, base: _backId };
         } else {
-            // まほうのポーチ(永続枠): この枠を空ける。永続保存(permaStock)も消す＝翌ラン補充されない（無限売却の防止）。
+            // まほうのポーチ(永続枠): この枠を空ける。所有(base)も手放す＝翌ラン補充されない（無限売却の防止）。
             // ポーチのLv(pouchLevel)は維持＝金枠自体は残り、拾った品でまた埋められる。
-            stockState.perma[target.index] = { id: '', used: false };
+            stockState.perma[target.index] = { id: '', used: false, temp: false, base: '' };
             if (gameSettings.permaStock) gameSettings.permaStock[target.index] = '';
             saveSettings();
         }
@@ -3673,12 +3672,21 @@ function normalMaxSlots() { return Math.max(0, stockState.maxSlots - permaLevel(
 // 永続ストック枠を permaStock から構築（毎ラン補充・used=false）。resetGame と startGame の両方から呼ぶ
 // （startGame は resetGame を経由しない初回プレイでも走る＝初回でも永続枠が確実に構築される）。
 // 長さ=pouchLevel（購入時に pouchLevel<=maxSlots を保証済み。permaLevel()が読み取り時に再クランプ）。
+//
+// ── 永続枠(金枠)のセル構造（1.576で base/temp を「枠の属性」に整理） ──
+//   id   : 今この枠に見えている中身（''=空）。ドラッグや補充で入れ替わる「今このランの中身」。
+//   used : この枠の中身を今ラン使ったか（表示は空の金枠・翌ラン補充で false に戻る）。
+//   base : **この枠が所有している品**＝ラン終了時に permaStock[i] へ確定する id（''=未割当）。
+//   temp : 所有品(base)が今この枠に居ない状態（使った or 拾った品で埋まっている）＝中身は今回かぎり。
+//   ⚠base/temp は「中身」ではなく「枠」の属性。ドラッグで中身が動いても付いていかない（1.576）。
+//     1.575まで temp をセルの中身に貼って持ち回っていたため、通常枠へドラッグすると temp が落ちて
+//     commitPermaStock が拾った品を確定＝停めてあった永続品が黙って消えていた。
 function buildPermaSlots() {
     stockState.perma = [];
     var n = tutorialState.active ? 0 : Math.max(0, gameSettings.pouchLevel || 0); // サンドボックス: 永続枠を作らない
     for (var i = 0; i < n; i++) {
         var id = (gameSettings.permaStock && gameSettings.permaStock[i]) || '';
-        stockState.perma.push({ id: id, used: false });
+        stockState.perma.push({ id: id, used: false, temp: false, base: id });
     }
 }
 
@@ -3741,13 +3749,15 @@ function updateDiveBird(e) {
 // ポーチ(永続枠)の中身を permaStock へ確定保存する（1.526・ユーザー方針＝転売対策）。
 // 呼ぶのは「ゲームオーバー時」と「ラン開始時の配布直後(ログボ)」だけ＝ラン中に拾った品は
 // リタイア・アプリ強制終了では残らない（旧実装は拾った瞬間に保存＝拾う→リタイア→次ランで補充→売る、が無限に回せた）。
-// ⚠temp=true の枠は「今回かぎり」補充(1.477)なので確定しない＝翌ランは設定したポーチ内容に戻る。
+// ⚠確定するのは「今の中身(id)」ではなく「その枠が所有している品(base)」(1.576)。
+//   temp=true の枠（＝所有品が使用済み/拾った品で埋まっている）は base が停まったままなので自動的に不変＝
+//   「今回かぎり」補充(1.477)は翌ランに残らない。1.575まではここで temp を見てスキップしていたが、
+//   ドラッグで temp が落ちる経路があり（gameplay.js swapStockSlots）永続品を上書きしていた。
 function commitPermaStock() {
     if (typeof tutorialState !== 'undefined' && tutorialState.active) return; // サンドボックス＝永続枠なし
     if (!gameSettings.permaStock) gameSettings.permaStock = [];
     for (var i = 0; i < stockState.perma.length; i++) {
-        if (stockState.perma[i].temp) continue;
-        gameSettings.permaStock[i] = stockState.perma[i].id || '';
+        gameSettings.permaStock[i] = stockState.perma[i].base || '';
     }
 }
 
@@ -3787,18 +3797,23 @@ function addToStock(itemId) {
         // 1) 未割当の空き枠に自動割当 → 毎ラン補充される金枠に定着
         //    ⚠永続保存(permaStock)はここでは行わず commitPermaStock() でゲームオーバー時にまとめて確定する(1.526)。
         //    拾った瞬間に保存していた頃は「拾う→リタイア(or強制終了)→次ランで補充→売る」を繰り返せた＝無限売却(転売)。
+        //    ⚠条件は「所有なし(base='')かつ空」＝**未割当の枠だけ**(1.576)。id だけで見ると、所有品を
+        //      ドラッグで外へ出した枠や temp 補充を売った直後の枠まで「空き」に見え、base を上書きしていた。
         for (var p = 0; p < stockState.perma.length; p++) {
-            if (!stockState.perma[p].id) {
-                stockState.perma[p] = { id: itemId, used: false };
+            if (!stockState.perma[p].base && !stockState.perma[p].id) {
+                stockState.perma[p] = { id: itemId, used: false, temp: false, base: itemId }; // ここで所有が決まる
                 updateStockUI();
                 return true;
             }
         }
-        // 2) 今ラン使用済みで空いている枠に「今回かぎり」補充（保存しない＝翌ランは元の永続品に戻り、設定した
-        //    ポーチ内容は保持）。使用済み枠は表示が空の金枠なので「空きなのに拾えず売却」バグの修正。
+        // 2) 所有品が今この枠に居ない枠（使用済み／中身を出した）に「今回かぎり」補充（保存しない＝翌ランは
+        //    元の永続品に戻り、設定したポーチ内容は保持）。使用済み枠は表示が空の金枠なので「空きなのに拾えず売却」バグの修正。
+        //    ⚠base は触らないこと＝所有はその枠に停めたまま。これで「未割当枠に拾って定着(route 1)→そのランで使う→
+        //      もう1個拾う」で最初の1個の定着が消えていた不具合(〜1.575)も同時に塞がる。
         for (var q = 0; q < stockState.perma.length; q++) {
-            if (stockState.perma[q].id && stockState.perma[q].used) {
-                stockState.perma[q] = { id: itemId, used: false, temp: true }; // temp=確定しない印(commitPermaStock)
+            var _ps = stockState.perma[q];
+            if (_ps.base && (_ps.used || !_ps.id)) {
+                stockState.perma[q] = { id: itemId, used: false, temp: true, base: _ps.base }; // temp=所有品が不在の印
                 updateStockUI();
                 return true;
             }
@@ -3861,8 +3876,25 @@ function rejectPermaToast() {
     if (soundManager) soundManager.playDamage();
 }
 
+// ポーチが所有している品を金枠の外へ出そうとした時のフィードバック（1.576）。
+// 黙って何も起きないと「ドラッグが効かない不具合」に見えるので理由を出す。
+function rejectPermaOutToast() {
+    if (typeof showRewardToast === 'function') {
+        showRewardToast(escapeHtml(t('stock_perma_locked')), 'linear-gradient(180deg,#ffd98a,#d09a2a)', '#3a2600');
+    }
+    if (soundManager) soundManager.playDamage();
+}
+
 // ドラッグでストック枠の中身を入替（perma/通常どちらも可）。永続枠へ復活薬は不可。
 // a,b は表示スロット index。used中の永続枠はロック（対象外）。
+//
+// ⚠**金枠の「所有(base)」はドラッグでは動かさない**(1.576)。動くのは見えている中身(id)だけ。
+//   所有が動くのは次の3つだけ:
+//     ① 未割当(base='')の金枠に品が入った  → その品を所有（拾って定着する route 1 と同じ扱い）
+//     ② 金枠どうしの並べ替え               → 所有もセルごと移動（＝ポーチの並び替えは今までどおり保存される）
+//     ③ ショップで売る                     → 所有を手放す（executeSellItem）
+//   加えて「未使用の所有品そのものを金枠の外へ出す」操作だけは拒否する。外の通常枠に出せると
+//   〈毎ラン自動補充される品を通常枠へ出して売る〉が無限に回り、1.526の転売防止が迂回できてしまうため。
 function swapStockSlots(a, b) {
     if (gameState.gamePaused) return false; // ポーズ中はドラッグ入替も無効（読み取り専用の二重ガード）
     var pl = permaLevel();
@@ -3872,11 +3904,12 @@ function swapStockSlots(a, b) {
     function isUsedPerma(idx) { return idx < pl && stockState.perma[idx] && stockState.perma[idx].id && stockState.perma[idx].used; }
     if (isUsedPerma(a) || isUsedPerma(b)) return false;
     // 位置スナップショット（各セル= {id,used} or null）。永続枠の used はここで保持される。
+    // ⚠base/temp はセルに載せない＝枠に残す（載せると通常枠へ渡った時に落ちて所有が壊れる。〜1.575の原因）。
     var snap = [];
     for (var i = 0; i < maxN; i++) {
         if (i < pl) {
             var ps = stockState.perma[i];
-            snap.push((ps && ps.id) ? { id: ps.id, used: !!ps.used, temp: !!ps.temp } : null);
+            snap.push((ps && ps.id) ? { id: ps.id, used: !!ps.used } : null);
         } else {
             var it = stockState.items[i - pl];
             snap.push(it ? { id: it.id, used: false } : null);
@@ -3887,19 +3920,39 @@ function swapStockSlots(a, b) {
     // 復活薬を永続枠へ入れる操作は拒否
     if (a < pl && B && B.id === 'revive_potion') { rejectPermaToast(); return false; }
     if (b < pl && A && A.id === 'revive_potion') { rejectPermaToast(); return false; }
+    var bothPerma = (a < pl && b < pl);
+    if (!bothPerma) {
+        // 金枠↔通常枠: 所有品そのものを外へ出す操作は拒否（temp=今回かぎりの補充なら自由に出せる）。
+        // ⚠`!temp && id` の枠は必ず id===base（所有品が自分の枠に居る状態）＝これを外に出せると転売ループが開く。
+        var _outIdx = (a < pl) ? a : (b < pl ? b : -1);
+        var _out = (_outIdx >= 0) ? stockState.perma[_outIdx] : null;
+        if (_out && !_out.temp && _out.id) { rejectPermaOutToast(); return false; }
+    }
     // 入替
     snap[a] = B; snap[b] = A;
-    // 永続枠へ書き戻し（used/temp は snap のまま＝スワップした側は元の状態を持ち回る／未関与枠は不変）。
-    // ⚠permaStockへの保存はここでは行わない＝ゲームオーバー時の commitPermaStock() で確定する(1.526)。
-    for (var p = 0; p < pl; p++) {
-        var s = snap[p];
-        if (s) { stockState.perma[p] = { id: s.id, used: s.used, temp: s.temp }; }
-        else { stockState.perma[p] = { id: '', used: false }; }
+    if (bothPerma) {
+        // ポーチ内の並べ替え: 所有(base)と temp もセルごと入れ替える＝permaStock の並びもそのまま入れ替わる。
+        // ⚠ここで base を置いていくと「片方の所有だけが2枠に確定＝複製、もう片方は消滅」になる（〜1.575の実測）。
+        var ca = stockState.perma[a], cb = stockState.perma[b];
+        stockState.perma[a] = cb; stockState.perma[b] = ca;
+    } else {
+        // 金枠↔通常枠: 変わるのは金枠側1つだけ。中身(id/used)だけ差し替え、base/temp は枠に残す。
+        // ⚠permaStockへの保存はここでは行わない＝ゲームオーバー時の commitPermaStock() で確定する(1.526)。
+        var pi = (a < pl) ? a : (b < pl ? b : -1);
+        if (pi >= 0) {
+            var slot = stockState.perma[pi], cell = snap[pi];
+            slot.id = cell ? cell.id : '';
+            slot.used = cell ? !!cell.used : false;
+            if (!slot.base && slot.id) { slot.base = slot.id; } // ①未割当の金枠へ入れた品はここで所有になる
+        }
     }
-    // 通常枠は詰めて再構築
+    // 通常枠は詰めて再構築。
+    // ⚠maxSlots を超える一時オーバーフロー（全枠ポーチ時に買える復活薬・gameplay.js の isTempReviveCase）は
+    //   snap に載らないので、切り落とさずそのまま末尾へ戻すこと（切ると買った復活薬が入替のたびに消える）。
+    var overflow = stockState.items.slice(Math.max(0, maxN - pl));
     var newItems = [];
     for (var n = pl; n < maxN; n++) { if (snap[n]) newItems.push({ id: snap[n].id }); }
-    stockState.items = newItems;
+    stockState.items = newItems.concat(overflow);
     saveSettings();
     updateStockUI();
     if (soundManager) soundManager.playCursorMove();
