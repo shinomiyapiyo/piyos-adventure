@@ -7,13 +7,14 @@
 // ============================================================
 // ─── ショップシステム ロジック ───
 
-// ラウンドに応じたステージBGMを再生（現在はR1→R6で一周し、R7でR1へ戻ってループ）
+// ラウンドに応じたステージBGMを再生（R1→R7で一周し、R8でR1へ戻ってループ）
 // チュートリアル「はじまりの地」は専用BGM（土管部屋から戻る時もここを通るので自動で復帰する）
-// ⚠BGMの周期はボスの周期(BOSS_KINDS)とは独立。R6=闇のカカシのラウンド専用曲。
-// 🔜地底ステージ(R7)を実装したら、末尾に 'underground' を足して7周ループにする
-//   （素材 sounds/underground.mp3 は配置済み・audio.js の登録もコメントで用意済み）。
-//   ⚠地底ステージ実装前にR7へ割り当てると、通常ステージで地底の曲が鳴ってしまうので足さないこと。
-var STAGE_BGM_CYCLE = ['stage', 'stage2', 'stage3', 'stage4', 'stage5', 'stage6'];
+// ⚠曲の周期は必ず BOSS_CYCLE_ROUNDS(=7) と同じ長さに保つこと（1.575で6→7に是正）。
+//   1.569で地底ステージが入りボスの周期が6→7になったのに、この配列だけ6要素のままだった。
+//   lcm(6,7)=42 なので R13 以降ずっと1つずつずれ、**R6専用に作った「闇のカカシ」の曲(stage6)が
+//   2巡目以降のカカシ回(R13/R20)で鳴らず、代わりに通常ボス回(R12/R18)で鳴っていた**。
+//   末尾の 'underground' は 1.13/1.15 の TODO どおり（地底ステージが出荷済みなので前提条件は解消）。
+var STAGE_BGM_CYCLE = ['stage', 'stage2', 'stage3', 'stage4', 'stage5', 'stage6', 'underground'];
 function playStageBGM() {
     if (!soundManager) return;
     if (tutorialState.active) { soundManager.playBGM('tutorial'); return; }
@@ -30,6 +31,10 @@ function playStageBGM() {
         soundManager.playBGM(undergroundState.bossPhase === 4 ? 'bossUnderground' : 'underground');
         return;
     }
+    // ⚠地底ラウンド(R7/R14…)なのにまだ潜っていない＝カカシ撃破後〜土管に入るまでの区間は**無音のまま**にする（1.575）。
+    //   ここを通すと配列の7番目 'underground' が地上で鳴ってしまい、1.13の警告どおりになる。
+    //   撃破ファンファーレ → 無音 → 土管がせり上がる轟音、という演出（1.556・ユーザー指定）を守る。
+    if (isUndergroundRound(gameRound)) return;
     soundManager.playBGM(STAGE_BGM_CYCLE[(gameRound - 1) % STAGE_BGM_CYCLE.length]);
 }
 
@@ -5120,6 +5125,7 @@ function updateBossAI_scarecrow(b) {
                     b.scMode = 'sweepTele';
                     b.scTimer = Math.max(16, Math.round(SC_SWEEP_TELEGRAPH * (phase === 3 ? 0.7 : 1) * encMul));
                     b.sweepDir = (player.x + player.width / 2 < b.x + b.width / 2) ? -1 : 1;
+                    b.scAir = 0; b.scGraced = false;   // 着地猶予はこの薙ぎ1回ぶん（1.575）
                 } else {
                     b.scMode = 'summonTele';
                     b.scTimer = Math.max(14, Math.round(SC_SUMMON_TELE * encMul));
@@ -5151,6 +5157,21 @@ function updateBossAI_scarecrow(b) {
 
     case 'sweepTele':                     // 腕を溜めて低い薙ぎを予告（drawBossが赤帯）
         b.scTimer--;
+        // ⚠空中に居る間は薙がない（1.575）。空中では軌道を変えられないので、予告が始まった時点で
+        //   すでに跳んでいると「着地が有効窓に重なる＝どう操作しても避けられない」位相が必ず存在した
+        //   （予告16〜34F・有効20F に対しジャンプの滞空は約46F）。着地後に必ず SC_SWEEP_LAND_GRACE の
+        //   猶予を残す＝赤帯を見てから跳べば必ず避けられる。赤帯は animFrame で脈打つので延長中も出続ける。
+        //   ⚠延長は「最初の着地まで」の1回だけ（scGraced）。着地したら以降は延長せず必ず猶予後に薙ぐ。
+        //     これが無いと、着地の瞬間に跳び続ける（バニーホップ）だけで延長が永久に続き、
+        //     結局 SC_SWEEP_AIR_CAP に達した瞬間の着地フレームで理不尽に当たる位相が残る（実測で確認）。
+        //   ⚠一度も着地しない場合（魔女のグライド等）は SC_SWEEP_AIR_CAP で打ち切る＝モードのハング防止。
+        //     その時は空中なので危険帯に当たらず、プレイヤーの損にはならない。
+        if (!player.onGround && !b.scGraced && (b.scAir || 0) < SC_SWEEP_AIR_CAP) {
+            b.scAir = (b.scAir || 0) + 1;
+            b.scTimer = Math.max(b.scTimer, SC_SWEEP_LAND_GRACE);   // 着地するまで予告を止める
+        } else if (player.onGround && (b.scAir || 0) > 0) {
+            b.scGraced = true;   // 着地した＝猶予フェーズへ。以降は延長せず必ず SC_SWEEP_LAND_GRACE 後に薙ぐ
+        }
         if (b.scTimer <= 0) {
             b.scMode = 'sweep'; b.scTimer = SC_SWEEP_ACTIVE;
             // 横薙ぎのSE（1.556で追加→1.558でユーザー指定により対空と同じ playFlash に統一）。
