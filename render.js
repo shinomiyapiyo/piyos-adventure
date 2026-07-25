@@ -2120,7 +2120,12 @@ function drawUgShop() {
     var bx = s.x, by = s.baseY;              // 左端・床
     var top = by - H, cx = bx + W / 2;
     var g2 = function (v) { return Math.round(v / 2) * 2; };   // 2pxグリッド
-    var t = gameState.time;
+    // ⚠時間の変数名を `t` にしないこと（1.576で修正）。i18n の翻訳関数がグローバルの `t()` なので、
+    //   `var t = gameState.time` にすると関数内で翻訳関数が数値に覆い隠され、
+    //   下の t('ug_shop_swipe_up') が「数値を関数として呼ぶ」＝TypeError で落ちる。
+    //   描画中の例外は gameLoop の rAF 連鎖を切るので、**店に近づいた瞬間にぴよ氏が消えてゲームが固まっていた**
+    //   （drawUgShop は drawPlayer より前に走るため、その手前で描画が中断する）。上スワイプは不要＝通りかかるだけで発生。
+    var tm = gameState.time;
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
@@ -2160,7 +2165,7 @@ function drawUgShop() {
         ctx.lineTo(g2(oX + oW), oBot);
         ctx.closePath();
     };
-    var pulse = 0.55 + 0.25 * Math.sin(t * 0.06) + 0.08 * Math.sin(t * 0.23);
+    var pulse = 0.55 + 0.25 * Math.sin(tm * 0.06) + 0.08 * Math.sin(tm * 0.23);
     arch();
     ctx.fillStyle = '#0d1a16';                                  // 奥の壁（緑に寄せた暗色＝黒ではない）
     ctx.fill();
@@ -2185,7 +2190,7 @@ function drawUgShop() {
     ctx.fillStyle = '#7affc0';                                  // 煮えている面
     ctx.fillRect(g2(cx - 18), g2(potY - 12), 36, 3);
     for (var pb = 0; pb < 3; pb++) {                            // 泡（乱数を使わず time から）
-        var ph = (t * 0.9 + pb * 33) % 40;
+        var ph = (tm * 0.9 + pb * 33) % 40;
         ctx.globalAlpha = Math.max(0, 0.85 * (1 - ph / 40));
         ctx.fillStyle = '#c8ffe0';
         ctx.fillRect(g2(cx - 12 + pb * 11), g2(potY - 14 - ph * 0.5), 3, 3);
@@ -2193,7 +2198,7 @@ function drawUgShop() {
     ctx.globalAlpha = 1;
 
     // ── ⑤ 奥にうずくまる老婆の影（丸めた背中＋鉤鼻＋光る片目）──
-    var sy = by - 12, bob = Math.sin(t * 0.03) * 1.5;
+    var sy = by - 12, bob = Math.sin(tm * 0.03) * 1.5;
     ctx.fillStyle = '#080610';
     ctx.beginPath();                                            // 丸めた背中〜フード
     ctx.moveTo(g2(cx - 34), sy);
@@ -2206,7 +2211,7 @@ function drawUgShop() {
     ctx.fillStyle = '#080610';                                  // 杖
     ctx.fillRect(g2(cx - 40), g2(sy - 50 + bob), 3, 50);
     ctx.fillRect(g2(cx - 43), g2(sy - 54 + bob), 9, 4);
-    var eyeA = (Math.sin(t * 0.11) > -0.8) ? 1 : 0.12;          // たまに瞬きする
+    var eyeA = (Math.sin(tm * 0.11) > -0.8) ? 1 : 0.12;          // たまに瞬きする
     ctx.globalAlpha = eyeA;
     ctx.fillStyle = '#eaffe0';
     ctx.fillRect(g2(cx - 20), g2(sy - 48 + bob), 5, 3);
@@ -2230,7 +2235,7 @@ function drawUgShop() {
     for (var ci = 0; ci < 5; ci++) {
         var hx = g2(oX + 12 + ci * ((oW - 24) / 4));
         var hy = g2(oTop + 10 + Math.abs(ci - 2) * 7);          // アーチなりに垂らす
-        var sw = Math.sin(t * 0.045 + ci * 1.3) * 2;
+        var sw = Math.sin(tm * 0.045 + ci * 1.3) * 2;
         ctx.strokeStyle = '#5a4a3a'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(g2(hx + sw), g2(hy + 16)); ctx.stroke();
         if (ci % 2 === 0) {                                     // 骨
@@ -2251,8 +2256,8 @@ function drawUgShop() {
     // ⚠炎は三角1枚だと矢印に見える（初版の失敗）。**外炎を左右非対称に揺らして芯を重ねる**と炎に見える。
     for (var qi = 0; qi < 2; qi++) {
         var qx = g2(qi === 0 ? bx + 6 : bx + W - 8), qy = g2(by - 42);
-        var flick = 0.72 + 0.28 * Math.sin(t * 0.3 + qi * 2.2);
-        var lean = Math.sin(t * 0.17 + qi * 1.7) * 3;
+        var flick = 0.72 + 0.28 * Math.sin(tm * 0.3 + qi * 2.2);
+        var lean = Math.sin(tm * 0.17 + qi * 1.7) * 3;
         ctx.fillStyle = '#4a3f5c';
         ctx.fillRect(qx - 3, qy, 6, 42);                        // 燭台の柱
         ctx.fillRect(qx - 6, qy - 2, 12, 4);                    // 受け皿
@@ -2283,7 +2288,7 @@ function drawUgShop() {
     if (!shopState.visited && !shopState.active && undergroundState.bossPhase <= 0) {
         var pcx2 = player.x + player.width / 2;
         if (Math.abs(pcx2 - cx) < UG_SHOP_NEAR && player.onGround) {
-            var hb = Math.sin(t * 0.08) * 3;
+            var hb = Math.sin(tm * 0.08) * 3;
             ctx.fillStyle = '#b8ffd0';
             ctx.font = "bold 12px 'DotGothic16', monospace";
             ctx.textAlign = 'center';
