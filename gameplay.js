@@ -2928,11 +2928,25 @@ function executeSellItem() {
     if (!shopItem) return;
     var sellPrice = Math.floor(shopItem.price / 2);
     if (target.perma) {
-        // まほうのポーチ(永続枠): この枠を空ける。永続保存(permaStock)も消す＝翌ラン補充されない（無限売却の防止）。
-        // ポーチのLv(pouchLevel)は維持＝金枠自体は残り、拾った品でまた埋められる。
-        stockState.perma[target.index] = { id: '', used: false };
-        if (gameSettings.permaStock) gameSettings.permaStock[target.index] = '';
-        saveSettings();
+        var _slot = stockState.perma[target.index];
+        if (_slot && _slot.temp) {
+            // ⚠「今回かぎりの補充」(temp)を売った場合は permaStock に触らないこと（1.574で修正）。
+            //   temp は「使用済みの金枠へ、このランだけ拾った品を入れた」状態で、**本来の永続品は
+            //   gameSettings.permaStock[i] に停めたまま**（だから commitPermaStock は temp をスキップする=1.526）。
+            //   ここで従来どおり permaStock[i]='' + saveSettings() をすると、売ったのは拾った品なのに
+            //   育てた永続ポーチの中身が警告なしで恒久的に消えていた。
+            //   正しい後始末は「枠を temp が入る前の姿＝使用済みの元永続品に戻す」だけ。保存は一切しない。
+            //   ⚠temp フラグを落とすだけでは直らない: ラン終了時の commitPermaStock が temp 無しと見て
+            //     その枠を確定してしまい、結局 permaStock が上書きされる。
+            var _backId = (gameSettings.permaStock && gameSettings.permaStock[target.index]) || '';
+            stockState.perma[target.index] = { id: _backId, used: !!_backId };
+        } else {
+            // まほうのポーチ(永続枠): この枠を空ける。永続保存(permaStock)も消す＝翌ラン補充されない（無限売却の防止）。
+            // ポーチのLv(pouchLevel)は維持＝金枠自体は残り、拾った品でまた埋められる。
+            stockState.perma[target.index] = { id: '', used: false };
+            if (gameSettings.permaStock) gameSettings.permaStock[target.index] = '';
+            saveSettings();
+        }
     } else {
         // 通常枠: 詰め配列から除去
         stockState.items.splice(target.index, 1);

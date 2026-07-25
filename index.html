@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.573";
+                content: "Ver.1.574";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.573</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.574</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3983,6 +3983,9 @@ function startGame() {
     // 永続ストック枠を現在の pouchLevel で構築。resetGame を経由しない初回プレイやタイトルショップ購入直後でも確実に反映。
     // resetGame 済みの場合も permaStock から再構築するだけ（used=false リセット＝ラン開始として正しい・二重処理なし）。
     buildPermaSlots();
+    // ⚠起動後1本目のランは resetGame を通らないので、ここでも配る（1.574）。中でチュートリアルは弾く。
+    //   2本目以降は resetGame 側で配布済み＝pendingStockItems が空なので即returnする（二重配布なし）。
+    flushPendingStockItems();
     var _tsb = document.getElementById('tutorialSkipBtn');
     if (_tsb) {
         // スキップは設定からの再プレイ時(forced)のみ表示。初回の必須チュートリアルはスキップ不可にして、
@@ -4048,6 +4051,28 @@ function showStartScreen() {
 function gainScore(n) {
     gameState.score += n;
     gameState.rankScore += n;
+}
+
+// ログインボーナスで受け取ったアイテムをストックへ（addToStock=未割当永続枠→通常枠→満杯なら貯金換算）。
+// ⚠1.574で resetGame から切り出した。配布がここ1箇所にしか無く、resetGame の呼び出し元は
+//   「タイトルへ戻る／リトライ／リタイア／戻るボタン」の4つだけ＝**アプリ起動直後の1本目のランは通らない**
+//   （splash → startApp → タイトル → startGame。startApp は showStartScreen を呼ばない）。
+//   その結果「起動→ログボ受け取り→そのまま冒険スタート」でポップアップの
+//   「つぎのゲーム開始時にストックに入るよ！」が守られていなかった（データは残るので次ランに繰り越されるだけ）。
+//   startGame からも呼ぶことで初回ランでも配られる。
+// ⚠チュートリアル中は配らないこと: サンドボックスで永続枠が無いうえ commitPermaStock も早期returnするため、
+//   ここで pendingStockItems を空にすると受け取ったアイテムが**完全に消える**。据え置けば次のランで配られる。
+// ⚠呼ぶのは buildPermaSlots() の後（金枠が出来ていないと addToStock が通常枠へ落ちる）。
+function flushPendingStockItems() {
+    if (typeof tutorialState !== 'undefined' && tutorialState.active) return;
+    if (!gameSettings.pendingStockItems || gameSettings.pendingStockItems.length === 0) return;
+    for (var pi = 0; pi < gameSettings.pendingStockItems.length; pi++) {
+        addToStock(gameSettings.pendingStockItems[pi]);
+    }
+    gameSettings.pendingStockItems = [];
+    // ログボ配布分は「ラン中に拾った品」ではないのでここで確定＝リタイアしても失われない(1.526)
+    commitPermaStock();
+    saveSettings();
 }
 
 function resetGame() {
@@ -4178,16 +4203,7 @@ function resetGame() {
     // 永続ストック枠（まほうのポーチ）を構築：中身を毎ラン補充（used=false・使ってもラン開始で戻る）。
     buildPermaSlots();
     stockState.items = [];
-    // ログインボーナスで受け取ったアイテムをストックへ（addToStock=未割当永続枠→通常枠→満杯なら貯金換算）
-    if (gameSettings.pendingStockItems && gameSettings.pendingStockItems.length > 0) {
-        for (var pi = 0; pi < gameSettings.pendingStockItems.length; pi++) {
-            addToStock(gameSettings.pendingStockItems[pi]);
-        }
-        gameSettings.pendingStockItems = [];
-        // ログボ配布分は「ラン中に拾った品」ではないのでここで確定＝リタイアしても失われない(1.526)
-        commitPermaStock();
-        saveSettings();
-    }
+    flushPendingStockItems();
     updateStockUI();
 
     // バイオームリセット
