@@ -892,6 +892,47 @@ GPUを同期させるために毎フレーム `getImageData(0,0,1,1)` を挟ん�
 
 ---
 
+## 13.5 ⚠1.570 の既知の未修正バグ（コミット直後の自動監査で確定・**次セッションで直す**）
+
+コミット `622e557` の直後に6観点×12エージェントで監査し、**5件すべてが敵対的検証を生き残った**（反証0件）。
+どれも1〜2行で直る。修正時は index.html を触るのでバージョンを **1.571** に上げること。
+
+1. **[medium] リタイアで `undergroundState.pipeAnim` が残り、次ランのボーナス土管が地底へ繋がる**
+   土管に沈む演出(39F)の途中でポーズ→リタイアすると、`pipeAnim=false` にする gameplay.js:1794 に到達しないまま
+   resetGame が走る（index.html:4122 は pipePlaced/pipeX/pipeRise は戻すが pipeAnim を書かない）。
+   次ランの通常土管で `updatePipeAnim` の完了判定が true になり `enterUnderground()` が走る。
+   R1・300m地点で闇の巫女戦が始まり、`exitUnderground` の `bossDistanceFor(gameRound-1)` が `bossDistanceFor(0)` になって
+   **以後ずっとバイオーム境界とボス距離が壊れる**＋エッグが土管ごとに稼げる。
+   → index.html:4122 に `undergroundState.pipeAnim = false;` を1行。
+2. **[medium] 詠唱の窓が閉じた瞬間、巫女が1ドットも動かないまま接触ダメージが確定**
+   高度更新（gameplay.js:780-783）が switch より前・`low` は更新前の mode で評価されるので、`case 'cast'` が
+   `b.exposed=false` にするフレームの巫女はまだ castY(1034)。同フレームの ugPriestessCollision が
+   `aabbShrink(player,b,18,14)` で成立して被弾する。踏めば stompCd=40 で安全なので
+   **「踏めた時だけ安全・踏み損ねると必ず殴られる」＝コメントが明記する設計意図と逆**。
+   分身も同じ（`ugEndClones` の瞬間）。→ `case 'cast'` と `ugEndClones` 隣に
+   `b.stompCd = Math.max(b.stompCd, UG_BOSS_RISE);`。⚠`ugEndClones` の**中**に置かない（踏み経路から呼ばれ無敵40Fを縮める）。
+3. **[medium] 同じ問題の降下側** — castTele の後半 約16フレームは `exposed=false` のまま箱が重なる。
+   → gameplay.js:1095 の接触判定に `var settled = (b.y <= b.hoverY + 80);` を足す。
+4. **[medium] 地底のアカバネが攻撃前に消える（1.570の修正は地底では未解決）**
+   `terrainTopAt`（index.html:6051）は「x を含む terrain のうち**最小の t.y**」を返すので、**天井のある地底では天井を返す**。
+   部屋5「王の廊下」(topY=-548)の 'd' は floorY が -602 になり、降下1フレーム目で **264px上へ**ワープして天井を貫通・離脱。
+   予告の照準線（render.js:2675）も同じ式なので**上向き**に伸びる。地上は天井が無いので同じ式で正しく動く。
+   → `terrainTopBelow(x, fromY)`（fromY 以下で最小の t.y）を新設し、AIと予告描画の**両方**を差し替える
+   （同じ関数にすることで照準線と着地点が必ず一致する）。床が無い時の fallback は地底なら `ugDeathY()`。
+5. **[low] 地底ボス戦で広告復活するとボス曲が地底フィールド曲に差し替わる**
+   闇の巫女は `undergroundState` 系で動くので `bossState.active` が false のまま＝adRevive が `playStageBGM()` に落ちる。
+   → gameplay.js:23 の地底分岐を `playBGM(bossPhase === 4 ? 'bossUnderground' : 'underground')` に。
+
+**副次指摘（未検証・同じ関数群なので一緒に見ると安い）**: 報酬コイン12枚を浮遊高度のワールドYに湧かせるとジャンプで届かない／
+撃破時に闘技場の雑魚を消していないので勝利演出3秒の間に被弾しうる／大詠唱の暗転中に `bossState.eggs` を消していない
+（雑魚は消している）／`ugPriestessDefeated` が `undergroundState.flash` を消さない。
+
+**✅逆に「問題なし」と裏が取れた範囲**（再検査は二度手間）: 距離の不変条件／座標系の取り違え（#4以外）／
+ボスAIのハング・報酬二重付与・カウンタ持ち越し／当たり判定と絵の一致／状態リセット（#1以外）／
+BGM・SE・画像・i18n の配線と build-www の取り込み。詳細は自動メモリ [[piyo-next-session-ultracode]]。
+
+---
+
 ## 14. 2巡目以降のボス強化（✅設計として記録・**実装は未着手**／2026-07-25 ユーザー指定）
 
 > ユーザー指定:「ボスの二巡目以降は強くなっていく設計として記録しておいて。今は二巡目以降の調整に着手しなくていい。」
