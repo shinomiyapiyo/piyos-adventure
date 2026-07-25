@@ -17,6 +17,10 @@ var STAGE_BGM_CYCLE = ['stage', 'stage2', 'stage3', 'stage4', 'stage5', 'stage6'
 function playStageBGM() {
     if (!soundManager) return;
     if (tutorialState.active) { soundManager.playBGM('tutorial'); return; }
+    // ⚠地底に居る間は地底の曲へ戻す（1.569）。おみせを出る時に confirmCloseShop がこの関数を呼ぶので、
+    //   地底判定が無いと**老婆の店を出た瞬間に地上のステージ曲が鳴る**。
+    //   exitUnderground は active=false にしてからここを呼ぶので、地上復帰は従来どおり通常曲になる。
+    if (undergroundState.active) { soundManager.playBGM('underground'); return; }
     soundManager.playBGM(STAGE_BGM_CYCLE[(gameRound - 1) % STAGE_BGM_CYCLE.length]);
 }
 
@@ -35,42 +39,641 @@ function enterUnderground() {
     undergroundState.visited = true;
     undergroundState.cleared = false;
     undergroundState.originX = gameState.camera.x;
+    // 強制土管の後片付け（入場したので役目は終わり。地形/足場は setupUndergroundStage が全消しする）
+    undergroundState.pipePlaced = false; undergroundState.pipeX = 0; undergroundState.pipeAnim = false;
+    undergroundState.pipeRise = 0;   // 次の地底ラウンドで再びせり上がり演出から始める
     undergroundState.camMaxX = undergroundState.originX + UG_TRAVEL_PX;      // カメラはここまで＝加算量は全端末で同一
     undergroundState.endX = undergroundState.camMaxX + GAME_WIDTH;           // 地形はさらに1画面ぶん敷く（最後まで床がある）
     undergroundState.savedGameSpeed = gameState.gameSpeed;
     undergroundState.introTimer = UG_INTRO_FRAMES;
+    undergroundState.bossPhase = 0; undergroundState.bossTimer = 0; undergroundState.boss = null;
     gameState.gameSpeed = 0; // オートスクロール停止（以後カメラはプレイヤー追従）
+    // 地底の主の加護（1.569・老婆の店の永続品）: 以後、地底に入るたびにライフ+2で始まる。
+    // ⚠上限10は超えない（他の回復と同じ扱い）。⚠applyUpgrades はラン開始時しか走らないので、ここで直接足す。
+    if (((gameSettings.upgrades || {}).ug_blessing || 0) > 0) {
+        gameState.lives = Math.min(gameState.lives + UG_BLESSING_LIVES, 10);
+    }
 
     // 進行中のエンティティを一掃（地上のものを持ち込まない）
     enemies.length = 0; flyingEnemies.length = 0; powerUps.length = 0; bullets.length = 0; coins.length = 0;
 
     setupUndergroundStage();
 
-    // 天井の穴から落下してくる導入（入力ロック＋無敵はintroTimerで管理）
-    player.x = undergroundState.originX + 120;
-    player.y = -player.height - 20;
+    // 天井の穴から落下してくる導入（入力ロック＋無敵はintroTimerで管理）。
+    // ユーザー指定(1.545)＝**画面左端の、画面外の上から**落ちてくる。originX がレベル左端＝入場時の camera.x。
+    // ⚠x は UG_PLAYER_MARGIN(24) より右にすること。左壁クランプに食い込むと着地前に横へ弾かれる。
+    player.x = undergroundState.originX + UG_SPAWN_X;
+    player.y = -player.height - UG_SPAWN_Y_ABOVE;
     player.velX = 0; player.velY = 0; player.onGround = false; player.facing = 'right';
     gameState.recentlyDropped = false; gameState.dropFromY = 0;
     gameState.input.left = false; gameState.input.right = false;
     gameState.input.jump = false; gameState.input.jumpPressed = false;
     gameState.input.down = false; gameState.input.up = false;
+    // ⚠復帰位置は「レベルの床」から取る（1.563）。GROUND_Y は地上の定数で、地底の部屋1の床(y=1180)とは
+    //   別物＝そのまま使うと落下死の直後に画面外へ復帰して落ち続ける。
+    var spawnTop = terrainTopAt(player.x + player.width / 2);
     undergroundState.checkpointX = player.x;
-    undergroundState.checkpointY = GROUND_Y - player.height;
+    undergroundState.checkpointY = (spawnTop !== null ? spawnTop : GROUND_Y) - player.height;
 
     if (soundManager) { try { soundManager.playBGM('underground'); } catch (_) {} }
 }
 
-// 地底のプレースホルダ地形（P1）。ワールド座標 originX 起点で endX まで敷く（カメラ終端＋1画面）。
-// ⚠P2で本設計（溶岩/ファイアバー/火の玉/トゲ/足場）に差し替える。ここでは「歩いて渡り切れる床」だけ。
-function setupUndergroundStage() {
-    var o = undergroundState.originX, end = undergroundState.endX;
-    terrain.length = 0; platforms.length = 0;
-    for (var gx = o; gx < end; gx += 100) {
-        terrain.push({ x: gx, y: GROUND_Y, width: Math.min(100, end - gx), height: 130, type: 'ground' });
+// 入場用の強制土管を置く（1.545・SPEC_UNDERGROUND.md §3）。地底ラウンドのボス距離に達した瞬間に呼ばれる。
+// ⚠ボーナス土管（checkPipeTrigger）との違い: あちらは「画面右外の平地に置いてスクロールで運んでくる」が、
+//   こちらは**スクロールを止めてから画面内に置く**。止めた時点で camera.x が動かない＝
+//   プレイヤーは画面右端クランプ(updatePlayer)より先へ行けず、左は左端クランプで戻れない＝土管に入るしかなくなる。
+function placeUndergroundPipe() {
+    if (undergroundState.pipePlaced || undergroundState.active) return;
+    gameState.gameSpeed = 0; // オートスクロール停止（updateGameSpeed も pipePlaced 中は0に固定する）
+    var x = gameState.camera.x + GAME_WIDTH * UG_PIPE_SCREEN_X;
+    // ⚠止まった画面の中は必ず平地にする（1.552）。カカシ撃破の直後＝アリーナを畳んだ直後に呼ばれるので、
+    //   前方の地形がまだ生成されていない／穴が空いている可能性がある。スクロールが止まる＝プレイヤーは
+    //   この1画面から出られないので、穴が1つでもあると落ちて詰む。足りない区画だけ床を足して保証する。
+    var lo = gameState.camera.x - 100, hi = gameState.camera.x + GAME_WIDTH + 200;
+    for (var gx = lo; gx < hi; gx += 100) {
+        var covered = false;
+        for (var ti = 0; ti < terrain.length; ti++) {
+            var tt = terrain[ti];
+            if (tt.type !== 'hole' && tt.width > 0 && tt.x <= gx && tt.x + tt.width >= gx + 100) { covered = true; break; }
+        }
+        if (!covered) terrain.push({ x: gx, y: GROUND_Y, width: 100, height: 130, type: 'ground' });
     }
+    gameState.lastTerrainX = Math.max(gameState.lastTerrainX, hi);
+    undergroundState.pipePlaced = true;
+    undergroundState.pipeX = x;
+    // ⚠せり上がり演出（1.554・ユーザー指定「轟音と共に迫り上がる」）: 最初は地面と同じ高さ＝完全に埋まった
+    //   状態から始め、updateUnderground が y を上げていく。地面より下は描画側でクリップして隠す。
+    undergroundState.pipeRise = 0;
+    // ⚠当たり判定の上面は「口の楕円の**中心**」に置く（1.559・ユーザー報告「土管の上で僅かに浮く」）。
+    //   スプライトの最上端は楕円の**奥側の縁**なので、そこを足場にするとプレイヤーが口の中心より
+    //   UG_PIPE_MOUTH_RY(12px)ぶん高い位置に立ち、宙に浮いて見える。描画は drawUndergroundPipe が
+    //   p.y - UG_PIPE_MOUTH_RY を原点にするので、見た目の位置は変わらない。
+    //   height も同じぶん詰める＝箱の下端はこれまでどおり GROUND_Y に一致する。
+    platforms.push({ x: x, y: GROUND_Y + UG_PIPE_MOUTH_RY, width: UG_PIPE_W,
+                     height: UG_PIPE_H - UG_PIPE_MOUTH_RY, type: 'pipe', ugEntrance: true });
+    if (soundManager) { try { soundManager.playRumble(UG_PIPE_RISE_FRAMES / 60); } catch (_) {} }
+    // 土管の真上の浮遊足場を除去＝下スワイプ入場を妨げない（checkPipeTrigger と同じ処理）
+    for (var pj = platforms.length - 1; pj >= 0; pj--) {
+        var pl = platforms[pj];
+        if (pl.type === 'pipe') continue;
+        if (pl.x + pl.width > x - 40 && pl.x < x + UG_PIPE_W + 40 && pl.y + pl.height < GROUND_Y) platforms.splice(pj, 1);
+    }
+    // 邪魔になる進行中の敵/弾は消す（スクロールが止まるので、居座られると入場が理不尽になる）
+    enemies.length = 0; flyingEnemies.length = 0; bullets.length = 0;
+}
+
+// 強制土管に沈む演出を開始（ボーナス部屋の anim='in' をそのまま流用し、完了時の行き先だけ地底に差し替える）
+function startUndergroundPipeAnim(pipe) {
+    if (pipeRoomState.anim !== 'none' || undergroundState.active) return;
+    if (undergroundState.pipeRise < UG_PIPE_RISE_FRAMES) return; // せり上がり中は入れない（1.554）
+    if (gameState.specialCutinTimer > 0) return; // 必殺カットイン中は入らない（enterPipeRoom と対称）
+    pipeRoomState.anim = 'in';
+    pipeRoomState.animTimer = 0;
+    pipeRoomState.animPipe = pipe;
+    undergroundState.pipeAnim = true;           // ← updatePipeAnim の完了時に部屋ではなく地底へ行く目印
+    pipeAssistTimer = 0; pipeAssistPipe = null;
+    gameState.input.down = false; gameState.input.up = false;
+    gameState.input.left = false; gameState.input.right = false;
+    gameState.input.jump = false; gameState.input.jumpPressed = false;
+    gameState.downSwipeActive = false; gameState.downSwipeTimer = 0;
+    if (soundManager) soundManager.playPipeWarp();
+}
+
+// ─────────────────────────────────────────────────────────────
+// P2-b: レベルの展開（テキストマップ → ワールド座標の実体）
+// ⚠マップの書式・凡例・縦の約束は core-state.js の UG_LEVEL_ROOMS の上のコメントが正。
+// ─────────────────────────────────────────────────────────────
+
+// ソリッド/溶岩のセル群を矩形に畳む。
+// ⚠**縦の連続を先に確定させてから横へ結合する**こと（貪欲に横→縦で畳むと、岩の内部から始まる矩形ができ、
+//   その上端に「洞窟の地表タイル」が描かれてしまう＝岩の途中に地面が生えて見える）。
+//   この順序なら、どの矩形の上端も必ず本物の表面になる。
+function ugMergeCells(grid, rowsN, w, x0, topY, out, isSolid) {
+    var runsByCol = [], c, r, i, k;
+    for (c = 0; c < w; c++) {
+        var list = [];
+        r = 0;
+        while (r < rowsN) {
+            var tp = grid[r][c];
+            if (!tp) { r++; continue; }
+            var r0 = r;
+            while (r + 1 < rowsN && grid[r + 1][c] === tp) r++;
+            list.push({ r0: r0, r1: r, t: tp, done: false });
+            r++;
+        }
+        runsByCol.push(list);
+    }
+    for (c = 0; c < w; c++) {
+        for (i = 0; i < runsByCol[c].length; i++) {
+            var run = runsByCol[c][i];
+            if (run.done) continue;
+            run.done = true;
+            var cEnd = c;
+            for (var c3 = c + 1; c3 < w; c3++) {          // 同じ帯が続く限り右へ結合
+                var found = null;
+                for (k = 0; k < runsByCol[c3].length; k++) {
+                    var o2 = runsByCol[c3][k];
+                    if (!o2.done && o2.r0 === run.r0 && o2.r1 === run.r1 && o2.t === run.t) { found = o2; break; }
+                }
+                if (!found) break;
+                found.done = true; cEnd = c3;
+            }
+            var rect = {
+                x: x0 + c * UG_TILE, y: topY + run.r0 * UG_TILE,
+                width: (cEnd - c + 1) * UG_TILE, height: (run.r1 - run.r0 + 1) * UG_TILE
+            };
+            if (isSolid) { rect.type = run.t; rect.ugTile = true; }
+            out.push(rect);
+        }
+    }
+}
+
+// 地底ステージの構築（P2-b・1.563）。UG_LEVEL_ROOMS を展開して terrain/platforms/ギミック/コイン/敵を配置する。
+function setupUndergroundStage() {
+    var ug = undergroundState, o = ug.originX;
+    terrain.length = 0; platforms.length = 0; coins.length = 0; powerUps.length = 0;
+    ug.rooms = []; ug.lava = []; ug.spikes = []; ug.fireBars = []; ug.fireballs = []; ug.decor = [];
+    ug.pendingEnemies = []; ug.shop = null; ug.braziers = [];
+    var col0 = 0;
+
+    for (var ri = 0; ri < UG_LEVEL_ROOMS.length; ri++) {
+        var def = UG_LEVEL_ROOMS[ri];
+        var map = def.map, rowsN = map.length, w = def.wT, topY = def.topY;
+        var x0 = o + col0 * UG_TILE;
+        var mapBottom = topY + rowsN * UG_TILE;
+        var room = {
+            key: def.key, x0: x0, x1: x0 + w * UG_TILE, topY: topY,
+            descend: !!def.descend,          // 下へ進む部屋＝カメラが下を見る（1.564）
+            camMinY: topY,
+            camMaxY: mapBottom - GAME_HEIGHT,
+            // ⚠死亡ラインは**ワールド座標**（画面座標だと縦カメラで降りただけで死ぬ）。
+            deathY: mapBottom + UG_DEATH_MARGIN
+        };
+        if (room.camMaxY < room.camMinY) room.camMaxY = room.camMinY;
+        // 縦の部屋＝マップが画面より十分高い。横の部屋はカメラを camMaxY に固定する（ジャンプで揺れないように）
+        room.vertical = (mapBottom - GAME_HEIGHT - topY) > 64;
+        ug.rooms.push(room);
+
+        var solid = [], lava = [], plat = [], deco = [], spikeRow = [], r, c;
+        for (r = 0; r < rowsN; r++) {
+            solid.push(new Array(w)); lava.push(new Array(w));
+            plat.push(new Array(w)); deco.push(new Array(w)); spikeRow.push(new Array(w));
+        }
+
+        for (r = 0; r < rowsN; r++) {
+            var line = map[r] || '';
+            for (c = 0; c < w; c++) {
+                var ch = c < line.length ? line.charAt(c) : ' ';
+                if (ch === ' ') continue;
+                var cx = x0 + c * UG_TILE, cy = topY + r * UG_TILE;
+                switch (ch) {
+                    case '#': solid[r][c] = 'ground';   break;
+                    case 'B': solid[r][c] = 'elevated'; break;
+                    case 'b': deco[r][c]  = 'elevated'; break;   // 飾り（当たり判定なし）
+                    case 'L': lava[r][c] = 'lava';      break;
+                    case '=': case 'M':
+                        plat[r][c] = ch;   // 横に連続する分はあとで1枚に結合する（下の第2パス）
+                        break;
+                    case '^':
+                        // ⚠横に連続するトゲは**1枚の矩形に結合する**（下の第2パス）。1マスずつ別矩形にすると、
+                        //   UG_SPIKE_INSET で削った左右がマスの境目で重なって「トゲの間だけ安全」な穴ができる。
+                        spikeRow[r][c] = 1;
+                        break;
+                    case 'F': case 'G': case 'H':
+                        ug.fireBars.push({ x: cx + UG_TILE / 2, y: cy + UG_TILE / 2,
+                                           len: (ch === 'H') ? 6 : 4, dir: (ch === 'G') ? -1 : 1,
+                                           speed: UG_FIREBAR_SPEED, ang: -Math.PI / 2 });
+                        break;
+                    case 'f': case 'e':
+                        // 噴出口はマスの底（＝溶岩の面）。timer をずらして隣どうしが同時に上がらないようにする
+                        ug.fireballs.push({ x: cx + UG_TILE / 2, y: cy + UG_TILE,
+                                            period: (ch === 'e') ? 100 : 150, power: (ch === 'e') ? 11 : 13,
+                                            timer: (c * 37) % ((ch === 'e') ? 100 : 150), cy: 0, vy: 0, live: false });
+                        break;
+                    case 'o':
+                        coins.push({ x: cx, y: cy, width: 32, height: 32, collected: false, animFrame: Math.random() * 20 });
+                        break;
+                    case '1': case '2': case '3': case '4': case '5':
+                        // フィールドアイテム（1.564・ユーザー指定「少しドロップさせて／回復は2つほど」）。
+                        // ⚠形は spawnPowerUp と同一にする（取得処理 updatePowerUps は type で分岐するだけ）。
+                        powerUps.push({ x: cx + 2, y: cy - 2, width: 36, height: 36,
+                            type: (ch === '1') ? 'heart' : (ch === '2') ? 'lemon_can'
+                                : (ch === '3') ? 'shield' : (ch === '4') ? 'energy' : 'magnet',
+                            collected: false, animFrame: 0, floatOffset: (c % 7) * 0.9 });
+                        break;
+                    case 'W':
+                        // 怪しい老婆の店（岩壁に掘られた洞窟の入口）。⚠当たり判定は持たせない＝
+                        //   通り抜けられる飾りとして置き、入店は上スワイプで行う（既存ショップと同じ作法）。
+                        //   マスの**下端が床**なので、そこを基準に上へ UG_SHOP_H ぶん描く。
+                        ug.shop = { x: cx + UG_TILE / 2 - UG_SHOP_W / 2, baseY: cy + UG_TILE };
+                        break;
+                    case 'i':
+                        // 紫の燭台（飾り・当たり判定なし）。⚠ボス前の予告に使う＝門へ近づくほど密に置く
+                        ug.braziers.push({ x: cx + UG_TILE / 2, baseY: cy + UG_TILE, seed: c });
+                        break;
+                    default:
+                        // 敵（遅延スポーン）。⚠全部を最初に実体化すると、到達前に歩いて穴/溶岩へ落ちてしまう
+                        ug.pendingEnemies.push({ x: cx, bottom: cy + UG_TILE, kind: ch });
+                        break;
+                }
+            }
+        }
+        // 片道足場は「横に続く同種」を1枚に結合する。⚠1マスずつ push すると尖塔だけで50枚を超え、
+        //   毎フレームの当たり判定と動く床の矢印が足場の数だけ重なる（見た目も処理も無駄）。
+        for (r = 0; r < rowsN; r++) {
+            c = 0;
+            while (c < w) {
+                var pk = plat[r][c];
+                if (!pk) { c++; continue; }
+                var c0 = c;
+                while (c + 1 < w && plat[r][c + 1] === pk) c++;
+                var pw = (c - c0 + 1) * UG_TILE, py = topY + r * UG_TILE;
+                var pl = { x: x0 + c0 * UG_TILE, y: py, width: pw, height: UG_TILE,
+                           type: 'floating_ground', ugTile: true };
+                if (pk === 'M') {
+                    // ⚠動く床は「マップに書いたマス＝**一番下に来る位置**」にする。そうしないと
+                    //   下の足場から乗れない瞬間ができる（振幅40なので基準は40px上・位相は下端から開始）。
+                    pl.special = 'moving'; pl.baseY = py - 40; pl.amplitude = 40; pl.phase = Math.PI / 2;
+                }
+                platforms.push(pl);
+                c++;
+            }
+        }
+        // トゲ: 横に続く分を1枚に結合（左右の削り UG_SPIKE_INSET を「連なりの外側」だけに効かせるため）
+        for (r = 0; r < rowsN; r++) {
+            c = 0;
+            while (c < w) {
+                if (!spikeRow[r][c]) { c++; continue; }
+                var s0 = c;
+                while (c + 1 < w && spikeRow[r][c + 1]) c++;
+                ug.spikes.push({ x: x0 + s0 * UG_TILE, y: topY + r * UG_TILE + UG_TILE - UG_SPIKE_H,
+                                 w: (c - s0 + 1) * UG_TILE });
+                c++;
+            }
+        }
+        ugMergeCells(solid, rowsN, w, x0, topY, terrain, true);
+        ugMergeCells(deco,  rowsN, w, x0, topY, ug.decor, true);
+        ugMergeCells(lava,  rowsN, w, x0, topY, ug.lava, false);
+        col0 += w;
+    }
+
+    ug.endX = o + col0 * UG_TILE;
+    ug.roomIdx = 0;
+    ug.camY = ug.rooms[0].camMinY;
+    gameState.camera.y = ug.camY;
     // ランダム地形生成を止める（manageTerrain もガードする）
-    gameState.lastTerrainX = end;
+    gameState.lastTerrainX = ug.endX;
     gameState.lastHoleX = null;
+}
+
+// 今プレイヤーが居る部屋の添字（部屋は隙間なく並ぶので前から見て最初に右端を越えない部屋）
+function ugRoomIndexAt(x) {
+    var rs = undergroundState.rooms;
+    for (var i = 0; i < rs.length; i++) if (x < rs[i].x1) return i;
+    return rs.length - 1;
+}
+// 現在の部屋の落下死ライン（ワールド座標）。地底でないときは画面座標の従来値を返す
+function ugDeathY() {
+    var rs = undergroundState.rooms, i = undergroundState.roomIdx;
+    return (rs && rs[i]) ? rs[i].deathY : GAME_HEIGHT + 100;
+}
+
+// 敵の実体化（テキストマップの1文字から）。既存 spawnEnemy と同じ形にそろえる＝以後の処理は共通
+function ugMakeEnemy(pe) {
+    var k = pe.kind, w, h, s, fly = false, e;
+    switch (k) {
+        case 'S':                                  // シャレコ（骨だけの鳥・倒せない）
+            w = 44; h = 40; s = 0.9; break;
+        case 'g': w = 46; h = 42; s = 1.4; break;  // ゴールデン
+        case 'm': w = 50; h = 46; s = 0.8; break;  // ニワトリ
+        case 'c': w = 42; h = 38; s = 1.1; break;  // ひよこ
+        case 'v': case 'd': w = 60; h = 54; s = 2.2; fly = true; break;
+        default: return null;
+    }
+    s *= (1 + (gameRound - 1) * 0.3);              // 既存のラウンド倍率をそのまま流用
+    // ⚠地底は**プレイヤーも UG_SPEED_RATE 倍**で歩いている（1.544）。敵にだけ地上の倍率を掛けると
+    //   R7では敵 2.2〜3.1px/f 対 プレイヤー 3.0px/f ＝ ほぼ同速になり、避けようがなくなる。
+    //   同じ倍率を掛けて「地上と同じ相対速度」に揃える。
+    s *= UG_SPEED_RATE;
+    if (fly) {
+        e = { x: pe.x, y: pe.bottom - h - 120, width: w, height: h, velX: -s, velY: 0,
+              type: (k === 'd') ? 'dive_bird' : 'flying_chick',
+              flySprite: (k === 'd') ? 'dive_bird_fly' : 'bat_fly',   // 地底はコウモリの見た目
+              animFrame: Math.floor(Math.random() * 100), waveOffset: Math.random() * Math.PI * 2 };
+        if (k === 'd') { e.diveState = 'fly'; e.diveTimer = 0; e.diveVelY = 0; }
+        return e;
+    }
+    e = { x: pe.x, y: pe.bottom - h, width: w, height: h, velX: -s, velY: 0, onGround: false,
+          type: (k === 'S') ? 'skully' : (k === 'g') ? 'golden_chick' : (k === 'm') ? 'mama_chick' : 'chick',
+          animFrame: Math.floor(Math.random() * 100),
+          walkSprite: (k === 'c') ? 'owl_walk' : null };   // 地底の並はフクロウのヒナ（暗い見た目）
+    if (k === 'S') {
+        // ⚠シャレコは穴/溶岩の手前で必ず引き返す（落ちて消えると「倒せない敵」の圧が成立しない）
+        e.behavior = 'turnHole';
+        e.collapsed = false; e.reviveTimer = 0; e.scored = false;
+    }
+    return e;
+}
+
+// 遅延スポーン: カメラが近づいた敵だけ実体化する
+function ugSpawnPendingEnemies() {
+    var ug = undergroundState, lim = gameState.camera.x + GAME_WIDTH + 120, i, pe, e;
+    for (i = ug.pendingEnemies.length - 1; i >= 0; i--) {
+        pe = ug.pendingEnemies[i];
+        if (pe.x > lim) continue;
+        ug.pendingEnemies.splice(i, 1);
+        if (pe.x + 80 < gameState.camera.x) continue;   // もう通り過ぎている＝出さない
+        e = ugMakeEnemy(pe);
+        if (!e) continue;
+        if (e.type === 'flying_chick' || e.type === 'dive_bird') flyingEnemies.push(e);
+        else enemies.push(e);
+    }
+}
+
+// 縦カメラ。⚠距離は camera.x のみ由来なので、ここを触っても距離/Lv/ランキングには一切影響しない。
+function ugUpdateCameraY() {
+    var ug = undergroundState;
+    ug.roomIdx = ugRoomIndexAt(player.x + player.width / 2);
+    var room = ug.rooms[ug.roomIdx];
+    if (!room) return;
+    var feet = player.y + player.height;
+    // ⚠降りる部屋では足元を画面の**上寄り**に置く（1.564・ユーザー報告）。登りは跳ぶ先が上＝見えているが、
+    //   降りる時は進行方向が下なので、足元が画面下寄り(354)のままだと着地点が画面外＝見えない床へ跳ぶことになる。
+    var gap = room.descend ? UG_CAM_DESCEND_GAP : UG_CAM_FLOOR_GAP;
+    var desired;
+    if (!room.vertical) {
+        desired = room.camMaxY;                       // 横の部屋は固定＝ジャンプでカメラが揺れない
+    } else if (player.onGround) {
+        desired = feet - (GAME_HEIGHT - gap);         // 接地した高さを基準にする
+    } else if (feet > ug.camY + GAME_HEIGHT - gap) {
+        desired = feet - (GAME_HEIGHT - gap);         // 下へはみ出す
+    } else if (player.y < ug.camY + 120) {
+        desired = player.y - 120;                     // 上へはみ出す
+    } else {
+        desired = ug.camY;                            // 窓の中＝動かさない（ジャンプで揺れない）
+    }
+    if (desired < room.camMinY) desired = room.camMinY;
+    if (desired > room.camMaxY) desired = room.camMaxY;
+    ug.camY += (desired - ug.camY) * UG_CAM_LERP;
+    if (room.vertical) {
+        // 保険: 落下は最大15px/fなので lerp だけだとカメラが置いて行かれて画面外に出る。必ず画面内に収める。
+        var hardLo = Math.min(room.camMaxY, feet - (GAME_HEIGHT - UG_CAM_EDGE));
+        if (ug.camY < hardLo) ug.camY = hardLo;
+        var hardHi = Math.max(room.camMinY, player.y - UG_CAM_EDGE);
+        if (ug.camY > hardHi) ug.camY = hardHi;
+    }
+    gameState.camera.y = ug.camY;
+}
+
+// 足元が「動かない足場」かを見る。⚠チェックポイントの記録条件に使う:
+//   動く床の上を記録すると、復帰したときそこに床が無く落ちる→また復帰→無限にライフを失う。
+function ugOnStaticGround() {
+    var feet = player.y + player.height, i, t;
+    for (i = 0; i < terrain.length; i++) {
+        t = terrain[i];
+        if (t.type === 'hole' || t.width <= 0) continue;
+        if (feet >= t.y - 4 && feet <= t.y + 6 && player.x + player.width > t.x + 4 && player.x < t.x + t.width - 4) return true;
+    }
+    for (i = 0; i < platforms.length; i++) {
+        t = platforms[i];
+        if (t.special === 'moving' || t.special === 'disappearing') continue;
+        if (feet >= t.y - 4 && feet <= t.y + 6 && player.x + player.width > t.x + 4 && player.x < t.x + t.width - 4) return true;
+    }
+    return false;
+}
+
+// ─────────────────────────────────────────────────────────────
+// P2-b ギミック（溶岩の池 / トゲ床 / ファイアバー / 火の玉）
+// ⚠ダメージは既存の takeDamage()（無敵180フレーム）／溶岩は既存の fallDeath()（穴と同じ）。
+//   **新しい即死は増やさない**＝プレイヤーが学ぶルールを増やさない（SPEC §5.2）。
+// ⚠updatePlayer より**後**に呼ぶこと（プレイヤーの最終位置で判定する）。bootstrap.js の配線を参照。
+// ─────────────────────────────────────────────────────────────
+function updateUndergroundHazards() {
+    var ug = undergroundState;
+    if (!ug.active) return;
+    var i, j, fb, fbx, fby, seg;
+
+    for (i = 0; i < ug.fireBars.length; i++) {
+        fb = ug.fireBars[i];
+        fb.ang += fb.speed * fb.dir;
+        if (fb.ang > Math.PI * 2) fb.ang -= Math.PI * 2;
+        else if (fb.ang < 0) fb.ang += Math.PI * 2;
+    }
+    for (i = 0; i < ug.fireballs.length; i++) {
+        var fbl = ug.fireballs[i];
+        if (fbl.live) {
+            fbl.vy += UG_FIREBALL_G;
+            fbl.cy += fbl.vy;
+            if (fbl.cy >= fbl.y) fbl.live = false;          // 溶岩に戻った
+        } else if (++fbl.timer >= fbl.period) {
+            fbl.timer = 0; fbl.live = true; fbl.cy = fbl.y; fbl.vy = -fbl.power;
+        }
+    }
+
+    // ── プレイヤーとの当たり ──
+    if (ug.introTimer > 0) return;                          // 落下導入中は無敵＝判定しない
+    var px = player.x, py = player.y, pw = player.width, ph = player.height;
+
+    // 溶岩＝穴と同じ扱い（fallDeath）。⚠触れた瞬間ではなく「足が面より下」で判定＝縁を掠めて即死しない
+    for (i = 0; i < ug.lava.length; i++) {
+        var L = ug.lava[i];
+        if (px + pw - 10 > L.x && px + 10 < L.x + L.width &&
+            py + ph > L.y + 6 && py < L.y + L.height) { fallDeath(); return; }
+    }
+    if (gameState.isInvincible) return;                     // 以下はダメージ系＝無敵中は素通り
+
+    // トゲ床。⚠**プレイヤーもトゲも削る**（1.564）。既存の敵ダメージ判定 aabbShrink(player,e,14,12) は
+    //   両方を14pxずつ削っているので、片側だけ8px削っていた1.563は他のどの当たりより20px厳しかった。
+    for (i = 0; i < ug.spikes.length; i++) {
+        var sp = ug.spikes[i];
+        if (px + pw - UG_HAZARD_SHRINK_X > sp.x + UG_SPIKE_INSET &&
+            px + UG_HAZARD_SHRINK_X < sp.x + sp.w - UG_SPIKE_INSET &&
+            py + ph > sp.y + 4 && py < sp.y + UG_SPIKE_H) { takeDamage(); return; }
+    }
+    // ファイアバー: 円弧上の各セグメントを円として当てる（矩形×円の最短距離）
+    var pcx = px + pw / 2, pcy = py + ph / 2;
+    var hx = pw / 2 - UG_HAZARD_SHRINK_X, hy = ph / 2 - UG_HAZARD_SHRINK_Y;
+    for (i = 0; i < ug.fireBars.length; i++) {
+        fb = ug.fireBars[i];
+        for (j = 1; j <= fb.len; j++) {
+            seg = j * UG_FIREBAR_SEG;
+            fbx = fb.x + Math.cos(fb.ang) * seg;
+            fby = fb.y + Math.sin(fb.ang) * seg;
+            var dx = Math.max(0, Math.abs(fbx - pcx) - hx), dy = Math.max(0, Math.abs(fby - pcy) - hy);
+            if (dx * dx + dy * dy < UG_FIREBAR_R * UG_FIREBAR_R) { takeDamage(); return; }
+        }
+    }
+    for (i = 0; i < ug.fireballs.length; i++) {
+        var fl = ug.fireballs[i];
+        if (!fl.live) continue;
+        var ex = Math.max(0, Math.abs(fl.x - pcx) - hx), ey = Math.max(0, Math.abs(fl.cy - pcy) - hy);
+        if (ex * ex + ey * ey < UG_FIREBALL_R * UG_FIREBALL_R) { takeDamage(); return; }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// シャレコ（骨だけの鳥・1.563・ユーザー発案）＝マリオの「カロン」相当。
+// ⚠**このゲームで唯一「倒せない敵」**。踏むと崩れて骨の山になり、N秒後に組み上がって復活する。
+//   ＝一時的に無力化はできるが、根本的には避けて進む敵。既存の雑魚は全部倒せるので、これが地底の固有性になる。
+// ⚠既存の「踏み＝撃破」とは別ロジック。撃破の入口（踏み/シールド/急降下斬り/弾/必殺）は全部
+//   killEnemy か applySpecialMoveImpact を通るので、そこで崩壊へ差し替える＝取りこぼしが出ない。
+// ─────────────────────────────────────────────────────────────
+
+// 骨が散るエフェクト（既存の floatEffects を流用＝描画側の新規実装ゼロ）
+function ugSpawnBoneBurst(cx, cy) {
+    for (var i = 0; i < 10; i++) {
+        floatEffects.push({
+            type: 'combo_spark',
+            worldX: cx + (Math.random() - 0.5) * 20, worldY: cy + (Math.random() - 0.5) * 16,
+            vx: (Math.random() - 0.5) * 4.5, vy: -1.5 - Math.random() * 2.5,
+            timer: 0, duration: 26 + Math.floor(Math.random() * 12),
+            size: 2 + Math.random() * 2.5, hue: 44
+        });
+    }
+}
+
+// 崩壊させる（＝撃破の代わり）。踏み/弾/必殺/シールド/急降下斬り すべてここへ来る
+function ugCollapseSkully(e) {
+    if (e.collapsed) return;
+    e.collapsed = true;
+    e.reviveTimer = UG_SKULLY_REVIVE;
+    e.savedVelX = e.velX || -0.9;
+    e.velX = 0;
+    ugSpawnBoneBurst(e.x + e.width / 2, e.y + e.height / 2);
+    if (soundManager) soundManager.playKill();
+    // 図鑑は「崩壊させた時点」で登録（✅ユーザー決定1.563）。倒せない敵なので撃破イベントが存在しないが、
+    // 崩壊もプレイヤーの能動的な行動が要る点は撃破と同じ＝1.474の「倒してないのに載る」問題には当たらない。
+    zukanAddKill('enemy:skully');
+    // スコアは**その個体の初回の崩壊だけ**（✅ユーザー決定1.563）。再生するので、
+    // 同じ骨を踏み続けてコンボ・必殺ゲージ・スコアを無限に稼げてしまうのを防ぐ。
+    if (!e.scored) { e.scored = true; registerKill(UG_SKULLY_SCORE, e.x + e.width / 2, e.y); }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ボス闘技場（1.564・ユーザー指定「ロックマンのように完全に別の部屋へ移り、ボス戦は固定1画面」）
+// ⚠距離の不変条件: 闘技場は camMaxX(=UG_TRAVEL_PX)より先にあり、カメラはそこで頭打ち。
+//   つまり**闘技場に入った時点で800mの加算は完了していて、戦闘中は1mも増えない**＝
+//   ボス戦の長さがランキングに影響しない（通常ボスのアリーナと同じ思想）。
+// ⚠ボス本体（闇の巫女）はP3。ここに居るのは**闘技場が成立するかを検証するための仮ボス**。
+// ─────────────────────────────────────────────────────────────
+function updateUgBoss() {
+    var ug = undergroundState;
+    if (!ug.active || ug.cleared) return;
+    var ch = ug.rooms[ug.rooms.length - 1];
+    if (!ch || ch.key !== 'chamber') return;
+
+    // ── 移行トリガー: 門をくぐって闘技場の敷居をまたいだ瞬間 ──
+    if (ug.bossPhase === 0) {
+        if (player.x + player.width * 0.5 < ch.x0 + 8) return;
+        ug.bossPhase = 1; ug.bossTimer = 0;
+        ug.bossPanFrom = gameState.camera.x;
+        ug.bossDoorX = ch.x0;
+        // 進行中の雑魚と弾は畳む（闘技場に持ち込まない＝通常ボスの setupBossArena と同じ考え方）
+        enemies.length = 0; flyingEnemies.length = 0; bullets.length = 0;
+        ug.pendingEnemies.length = 0;
+        if (soundManager) { try { soundManager.playRumble(1.2); } catch (_) {} }
+        return;
+    }
+    ug.bossTimer++;
+
+    // ① 入場: 入力を止めて自動で数歩あるかせつつ、カメラを闘技場へ寄せきる
+    if (ug.bossPhase === 1) {
+        gameState.input.left = false; gameState.input.jump = false;
+        gameState.input.right = (ug.bossTimer < UG_BOSS_PAN_FRAMES * 0.7);   // 数歩だけ自分で歩いて入る絵
+        var pt = Math.min(1, ug.bossTimer / UG_BOSS_PAN_FRAMES);
+        var eased = 0.5 - 0.5 * Math.cos(Math.PI * pt);
+        // ⚠カメラは必ず前へだけ動かす（戻すと距離が減る）。max で単調性を保証する。
+        var newCam = Math.max(gameState.camera.x, ug.bossPanFrom + (ug.camMaxX - ug.bossPanFrom) * eased);
+        if (newCam > gameState.camera.x) {
+            // ⚠**ここでも ugDistOffset を積むこと**（1.564で発覚）。updateUnderground の通常前進と違って
+            //   演出側で camera.x を直接動かしているので、積み忘れると**この演出の間だけ距離が非圧縮で増える**。
+            //   実測で加算量が 800m → 815m になっていた（＝設計値がズレる＝バイオーム/ボス距離の補正も狂う）。
+            gameState.ugDistOffset += (newCam - gameState.camera.x) * (1 - UG_DIST_SCALE);
+            gameState.camera.x = newCam;
+        }
+        if (ug.bossTimer >= UG_BOSS_PAN_FRAMES) { ug.bossPhase = 2; ug.bossTimer = 0; }
+        return;
+    }
+
+    // ② 背後の扉が降りる＝逃げ場が無くなる。降りきったら**本物の壁**を地形に足す
+    if (ug.bossPhase === 2) {
+        gameState.input.left = false; gameState.input.right = false; gameState.input.jump = false;
+        if (ug.bossTimer >= UG_BOSS_DOOR_FRAMES) {
+            terrain.push({ x: ug.bossDoorX - UG_TILE, y: ch.topY + 2 * UG_TILE,
+                           width: UG_TILE, height: 10 * UG_TILE, type: 'elevated', ugTile: true, ugDoor: true });
+            if (typeof screenShake !== 'undefined') { screenShake.intensity = 6; screenShake.timer = 14; }
+            if (soundManager) { try { soundManager.stopRumble(); soundManager.playDamage(); } catch (_) {} }
+            ug.bossPhase = 3; ug.bossTimer = 0;
+        }
+        return;
+    }
+
+    // ③ ボス登場（紫の渦→実体化）。⚠P3で「闇の巫女」のスプライトと攻撃に差し替える
+    if (ug.bossPhase === 3) {
+        gameState.input.jump = false;
+        if (ug.bossTimer >= UG_BOSS_APPEAR_FRAMES) {
+            ug.boss = { x: ch.x0 + (ch.x1 - ch.x0) * 0.62, y: ch.topY + 6 * UG_TILE,
+                        width: 96, height: 112,
+                        hp: UG_BOSS_HP, maxHp: UG_BOSS_HP, vx: 1.1, hurt: 0 };
+            ug.bossPhase = 4; ug.bossTimer = 0;
+            if (soundManager) { try { soundManager.playBGM('boss_underground'); } catch (_) {} }
+        }
+        return;
+    }
+
+    // ④ 戦闘（仮）: 左右に漂う。踏むとダメージ、触れると被弾。
+    if (ug.bossPhase === 4) {
+        var b = ug.boss;
+        if (!b) { ug.bossPhase = 5; ug.bossTimer = 0; return; }
+        b.x += b.vx;
+        if (b.x < ch.x0 + 120) { b.x = ch.x0 + 120; b.vx = Math.abs(b.vx); }
+        if (b.x + b.width > ch.x1 - 90) { b.x = ch.x1 - 90 - b.width; b.vx = -Math.abs(b.vx); }
+        b.y = ch.topY + 6 * UG_TILE + Math.sin(gameState.time * 0.04) * 26;
+        if (b.hurt > 0) b.hurt--;
+        var hit = player.x + player.width - 10 > b.x && player.x + 10 < b.x + b.width &&
+                  player.y + player.height > b.y + 8 && player.y < b.y + b.height;
+        if (hit) {
+            // 上から踏んだか（通常ボスと同じ「落下中＋足が上半分」判定）
+            if (player.velY > 0 && player.y + player.height <= b.y + b.height * 0.55) {
+                b.hp -= UG_BOSS_STOMP_DMG; b.hurt = 12;
+                player.velY = JUMP_FORCE / 2;
+                spawnExplosionEffect(player.x + player.width / 2, b.y + 20);
+                if (soundManager) soundManager.playKill();
+                if (b.hp <= 0) { ug.bossPhase = 5; ug.bossTimer = 0; ug.boss = null;
+                    if (typeof screenShake !== 'undefined') { screenShake.intensity = 10; screenShake.timer = 24; } }
+            } else takeDamage();
+        }
+        return;
+    }
+
+    // ⑤ 撃破演出 → 退場（報酬は SPEC §8）
+    if (ug.bossPhase === 5) {
+        if (ug.bossTimer === 1) {
+            gainScore(UG_BOSS_SCORE);
+            for (var ci = 0; ci < UG_BOSS_COINS; ci++) {
+                coins.push({ x: player.x + (ci - UG_BOSS_COINS / 2) * 26, y: player.y - 40 - (ci % 3) * 24,
+                             width: 32, height: 32, collected: false, animFrame: Math.random() * 20 });
+            }
+            // ⚠ゴールデンエッグ（SPEC §8で「毎回1個」に決定済み）は**本ボス実装まで保留**。
+            //   仮ボスは10回踏むだけで倒せるため、今有効にするとエッグの希少性が壊れる。
+            //   P3で闇の巫女に差し替えたらこの行を有効化する: gameState.goldenEggs++ 相当の付与処理。
+        }
+        if (ug.bossTimer >= UG_BOSS_DEFEAT_FRAMES) exitUnderground();
+        return;
+    }
+}
+
+// 毎フレームの状態更新。戻り値 true = 崩壊中（＝当たり判定を消す＝骨の山は素通りできる）
+function ugUpdateSkully(e) {
+    if (!e.collapsed) return false;
+    e.velX = 0;                                   // 骨の山は動かない（重力は updateEnemyPhysics に任せる）
+    e.reviveTimer--;
+    if (e.reviveTimer <= 0) {
+        e.collapsed = false;
+        e.velX = e.savedVelX || -0.9;
+        if (soundManager) { try { soundManager.playJump(); } catch (_) {} }
+    }
+    return true;
 }
 
 // 地底から地上へ復帰。camera.x はそのまま（距離を巻き戻さない）＝地上地形をここから作り直す。
@@ -87,7 +690,29 @@ function exitUnderground() {
     }
     gameState.lastTerrainX = gameState.camera.x + GAME_WIDTH + 400;
     gameState.lastHoleX = null;
+    // ⚠縦カメラを必ず戻す（1.563）。地上は camera.y=0 が前提（背景/地形/HUDが全部その想定で描かれている）
+    undergroundState.camY = 0; gameState.camera.y = 0;
+    undergroundState.lava.length = 0; undergroundState.spikes.length = 0; undergroundState.decor.length = 0;
+    undergroundState.fireBars.length = 0; undergroundState.fireballs.length = 0;
+    undergroundState.rooms.length = 0; undergroundState.pendingEnemies = [];
+    undergroundState.shop = null; undergroundState.braziers.length = 0;
+    undergroundState.bossPhase = 0; undergroundState.bossTimer = 0; undergroundState.boss = null;
     player.y = GROUND_Y - player.height; player.velY = 0; player.onGround = true;
+    // ⚠ステージ進行のグリッドを引き直す（1.553・ユーザー指定「地底のあとも草原→砂漠→雪山→夜→ボス」）。
+    //   地底は2,400mの倍数でない量(800m)を足すので、そのままだと以降ずっとバイオームとボスがずれる
+    //   （実測: R8が3,982m＝砂漠→雪山→夜→草原→砂漠→雪山→夜 になっていた）。
+    //   ここで「地底ラウンドのボス距離＝本来次のラウンドが始まる位置」と実際の退場位置の差を補正に入れると、
+    //   バイオームもボス距離も同じ量だけずれる＝退場地点がちょうど草原の頭になり、次のボスは2,400m先になる。
+    //   ⚠gameRound++ より前に計算すること（gameRound はまだ地底ラウンドの番号）。周回しても自動で累積する。
+    // ⚠実際の退場距離ではなく「設計値どおりの退場位置」から計算する（1.555・ユーザー指定「mの端数を出さない」）。
+    //   全ボスは「WARNING演出(120フレーム)の間もスクロールが続く」ため、アリーナが固定される距離が
+    //   常にトリガー距離＋18m になっている（120×1.5px/f÷10）。通常ラウンドは次のボスが絶対距離で決まるので
+    //   累積せず表に出ないが、実測値でズレ補正を作ると**この18mが以降のボス距離とバイオーム境界に永久に残る**。
+    //   そこで「カカシのボス距離 ＋ 地底の設計加算量」を退場位置とみなして補正を作る＝補正値が必ずキリの良い数になる。
+    //   プレイヤーが実際に稼いだ18mは距離としてそのまま残る（損得なし）。境界だけが整数に揃う。
+    var ugAddM = UG_TRAVEL_PX * UG_DIST_SCALE / 10;                  // 地底の設計加算量(m)＝800
+    var cleanExitM = bossDistanceFor(gameRound - 1) + ugAddM;        // カカシのボス距離（補正込み）＋800
+    gameState.stageShiftM = cleanExitM - bossDistanceBaseFor(gameRound);
     // ラウンド前進（通常ボス撃破と同じ扱い）。⚠P3で「闇の巫女」を実装したら、撃破時にこの前進を移す。
     gameRound++;
     undergroundState.visited = false; // 次の地底ラウンド(R14…)のために解除
@@ -97,6 +722,32 @@ function exitUnderground() {
 
 // 地底の毎フレーム更新（通常の updatePlayer 等はそのまま走る。ここは地底固有の処理だけ）
 function updateUnderground() {
+    // ── 入場土管のせり上がり（1.554）。⚠地上に居る間＝地底に入る前に進む演出なので active 判定より前に置く ──
+    // 当たり判定(platform.y)も一緒に動かす＝見た目とズレない。せり上がり切るまでは入場もヒント表示もしない。
+    if (undergroundState.pipePlaced && undergroundState.pipeRise < UG_PIPE_RISE_FRAMES) {
+        undergroundState.pipeRise += (typeof frameSteps === 'number' && frameSteps > 0) ? 1 : 1;
+        var rp = Math.min(1, undergroundState.pipeRise / UG_PIPE_RISE_FRAMES);
+        // ⚠3秒(1.557)になったのでイージングを変更。cubic ease-out だと最初の0.5秒で出切って残り2.5秒が
+        //   這うだけになる。ease-in-out sine ＝「重いものがゆっくり動き出し→中盤で一番速く→静かに収まる」
+        //   ＝地響きが3秒鳴り続ける演出と動きが合う。
+        var eased = 0.5 - 0.5 * Math.cos(Math.PI * rp);
+        for (var pi = 0; pi < platforms.length; pi++) {
+            // ⚠+UG_PIPE_MOUTH_RY は当たり判定を口の楕円の中心に置くぶん（1.559）。eased=0で完全に地中、
+            //   eased=1で上面が GROUND_Y - UG_PIPE_H + UG_PIPE_MOUTH_RY ＝口の中心に一致する。
+            if (platforms[pi].ugEntrance) { platforms[pi].y = GROUND_Y + UG_PIPE_MOUTH_RY - UG_PIPE_H * eased; break; }
+        }
+        // 地響き（既存の screenShake を毎フレーム焼き直して継続させる）。
+        // ⚠3秒間ずっと同じ強さで揺らすと目が疲れるので、山なり(sin)にして中盤が一番揺れる＝動きと一致させる。
+        if (typeof screenShake !== 'undefined') {
+            screenShake.intensity = 4.5 * Math.sin(Math.PI * rp);
+            screenShake.timer = 10;
+        }
+        // ⚠せり上がり切ったら地響きSEを止めて無音にする（1.556・ユーザー指定）。
+        //   音源(pipe_rise.mp3)は10.8秒あるので、止めないと土管が出切った後も鳴り続ける。
+        if (undergroundState.pipeRise >= UG_PIPE_RISE_FRAMES && soundManager) {
+            try { soundManager.stopRumble(); } catch (_) {}
+        }
+    }
     if (!undergroundState.active) return;
     // 落下導入中は入力ロック＋無敵（着地したら解除）
     if (undergroundState.introTimer > 0) {
@@ -105,6 +756,17 @@ function updateUnderground() {
         gameState.input.left = false; gameState.input.right = false;
         gameState.input.jump = false; gameState.input.jumpPressed = false;
         if (player.onGround) undergroundState.introTimer = 0;
+    }
+    // ボス闘技場（1.564）。⚠移行演出が始まったら**通常の追従カメラは止める**（演出側がカメラを寄せる）。
+    updateUgBoss();
+    if (undergroundState.bossPhase > 0) {
+        ugUpdateCameraY();
+        // 闘技場は固定1画面＝左右クランプだけ効かせる（カメラは動かないので実質「部屋の壁」になる）
+        var bl = gameState.camera.x + UG_PLAYER_MARGIN;
+        if (player.x < bl) { player.x = bl; if (player.velX < 0) player.velX = 0; }
+        var br = gameState.camera.x + GAME_WIDTH - UG_PLAYER_MARGIN - player.width;
+        if (player.x > br) { player.x = br; if (player.velX > 0) player.velX = 0; }
+        return;
     }
     // 追従カメラ（左壁クランプ＝単調増加のみ。巻き戻すと距離が減りランキングの単調性が壊れる）
     var target = player.x - GAME_WIDTH * UG_CAM_LEAD;
@@ -117,23 +779,36 @@ function updateUnderground() {
     var maxAdvance = MOVE_SPEED * UG_SPEED_RATE;
     var capped = gameState.camera.x + maxAdvance;
     if (target > capped) target = capped;
-    if (target > gameState.camera.x) gameState.camera.x = target;
+    // 「見かけ上のm」の圧縮（1.548）: カメラが進んだ量の (1-UG_DIST_SCALE) 倍を ugDistOffset に積む。
+    // ⚠カメラ自体は従来どおり満額進める＝描画・当たり判定・踏破時間・レベル長は一切変わらない。
+    //   距離の式が (camera.x - ugDistOffset) を見るので、**距離表示の増え方だけ**が UG_DIST_SCALE 倍になる。
+    if (target > gameState.camera.x) {
+        gameState.ugDistOffset += (target - gameState.camera.x) * (1 - UG_DIST_SCALE);
+        gameState.camera.x = target;
+    }
     // プレイヤーは画面左端より左へ戻れない（SMB式）
     var leftLimit = gameState.camera.x + UG_PLAYER_MARGIN;
     if (player.x < leftLimit) { player.x = leftLimit; if (player.velX < 0) player.velX = 0; }
     // カメラ上限より速く走った場合は画面右端で頭打ち（カメラを置き去りにして画面外へ出るのを防ぐ）
     var rightLimit = gameState.camera.x + GAME_WIDTH - UG_PLAYER_MARGIN - player.width;
     if (player.x > rightLimit) { player.x = rightLimit; if (player.velX > 0) player.velX = 0; }
+    // 縦カメラ＋敵の遅延スポーン（1.563）
+    ugUpdateCameraY();
+    ugSpawnPendingEnemies();
     // 直近の安全な足場をチェックポイントとして記録（落下復帰を溶岩の上に戻さない）
     // ⚠画面内で接地している時だけ記録する。落下中のフレームを拾うと、復帰先が画面外になり無限に落ち続ける。
-    if (player.onGround && player.y < GAME_HEIGHT && undergroundState.introTimer <= 0) {
+    //   縦カメラが入った(1.563)ので、判定は**画面座標ではなくカメラ相対**にすること
+    //   （旧 player.y < GAME_HEIGHT のままだと、下の部屋へ降りた時点で記録が止まる）。
+    // ⚠さらに「動かない足場の上」に限定する。動く床の上を記録すると、復帰先に床が無くて落ち→また復帰、
+    //   の無限ループでライフを削り切ってしまう。
+    if (player.onGround && undergroundState.introTimer <= 0 &&
+        player.y < gameState.camera.y + GAME_HEIGHT && ugOnStaticGround()) {
         undergroundState.checkpointX = player.x;
         undergroundState.checkpointY = player.y;
     }
-    // P1: カメラが終端まで進んだら退場（＝必ず UG_TRAVEL_PX ぶん加算されてから出る）。P3で「闇の巫女」戦を挟む
-    if (!undergroundState.cleared && gameState.camera.x >= undergroundState.camMaxX - 0.5) {
-        exitUnderground();
-    }
+    // ⚠1.563までは「カメラが終端に着いたら即退場」だったが、1.564で**ボス闘技場**を挟んだので撤去した。
+    //   退場は updateUgBoss のフェーズ5（撃破演出の終わり）からのみ呼ばれる。
+    //   カメラ終端(camMaxX)＝闘技場の左端なので、800mの加算は闘技場に入る時点で必ず完了している。
 }
 
 // ─── チュートリアル「はじまりの地」（Phase3.5） ───
@@ -351,20 +1026,36 @@ function tapTutorialSkip() {
 // 初回ラン圧縮（Phase3 案A）: 生涯プレイ0回のラン（gameState.isFirstRun・resetGameで確定）だけ、
 // 最初のボスを半分の距離(1200m)に前倒し。以降のラウンド境界も同じ量だけ手前にずれる＝ラウンド間隔2400mは不変。
 // ショップ配置・安全地帯・土管抽選・バイオーム遷移抑制はすべて本関数経由なので自動で連動する。
-function bossDistanceFor(round) {
-    // ボス出現距離スケジュール（ユーザー指定・1.446）:
-    //   ラウンド1・2は1200mごと（R1=1200m, R2=2400m）、ラウンド3以降は2400mごと（R3=4800m, R4=7200m…）。
-    // これで新規プレイヤーは1200mで最初のボスに会える（旧・初回ラン圧縮 isFirstRun 分岐は本スケジュールに統合＝廃止）。
-    // 返り値は絶対距離(m)。bossDistanceFor(0)=0（ラウンド起点・ショップ/土管配置の基準に使用）。
+// ボス出現距離スケジュールの「素の値」（ズレ補正を含まない）。
+//   ラウンド1・2は1200mごと（R1=1200m, R2=2400m）、ラウンド3以降は2400mごと（R3=4800m, R4=7200m…）。
+// これで新規プレイヤーは1200mで最初のボスに会える（旧・初回ラン圧縮 isFirstRun 分岐は本スケジュールに統合＝廃止）。
+// bossDistanceBaseFor(0)=0（ラウンド起点・ショップ/土管配置の基準に使用）。
+function bossDistanceBaseFor(round) {
     if (round <= 0) return 0;
     if (round === 1) return 1200;
     return BOSS_TRIGGER_DISTANCE * (round - 1); // R2=2400, R3=4800, R4=7200 …（2400mごと）
+}
+// 実際に使うボス距離＝素の値＋ステージ進行のズレ補正（1.553）。
+// ⚠バイオーム(getBiomeIndex)にも**同じ stageShiftM** を掛けてあるので、両者は常に同じグリッドに乗る＝
+//   「1ラウンド＝草原→砂漠→雪山→夜→ボス」が地底を挟んでも崩れない。通常プレイでは stageShiftM=0。
+function bossDistanceFor(round) {
+    return bossDistanceBaseFor(round) + (gameState.stageShiftM || 0);
 }
 
 // ── ステージショップ ──
 function checkShopTrigger() {
     if (bossState.active || bossState.bossTriggered) return;
-    if (undergroundState.active) return; // 地底ではおみせを出さない
+    // 地底（1.569）: 地上のおみせは出さないが、**怪しい老婆の店**の入店判定はここで行う。
+    // ⚠ボス闘技場へ入ったら閉店（逃げ場を作らない）。1ラウンド1回は shopState.visited が担保する。
+    if (undergroundState.active) {
+        var ugs = undergroundState.shop;
+        if (!ugs || shopState.visited || shopState.active) return;
+        if (undergroundState.bossPhase > 0) return;
+        var ugCX = ugs.x + UG_SHOP_W / 2;
+        if (Math.abs((player.x + player.width / 2) - ugCX) < UG_SHOP_NEAR &&
+            player.onGround && gameState.input.up) openStageShop();
+        return;
+    }
     var bossDistance = bossDistanceFor(gameRound);
 
     // ショップ建物をワールドに配置（一度だけ） — 安全地帯より100m手前で配置開始（チュートリアルは固定配置済み）
@@ -440,6 +1131,7 @@ function pipeFootprintFlat(x, w) {
 function checkPipeTrigger() {
     if (tutorialState.active) return; // チュートリアルは setupTutorialStage で固定配置済み（再抽選もしない）
     if (undergroundState.active) return; // 地底ではボーナス土管を出さない
+    if (undergroundState.pipePlaced) return; // 入場土管が出ている間はボーナス土管を重ねない（1.545）
     if (bossState.active || bossState.bossTriggered || pipeRoomState.active) return;
     // ラウンドが変わったら、このラウンドの目標距離を新規抽選（1ラウンド1回）
     if (pipeRoomState.targetRound !== gameRound) pickPipeTargetDist();
@@ -491,14 +1183,21 @@ function getEnterablePipe() {
 // 「土管そのものに対し下スワイプ」で入場（1.449）: 上に乗っていなくても、スワイプ地点(ワールド座標)が土管の絵の上で、
 // プレイヤーが土管の近く（横に約1.5土管幅）なら入場。入場アニメが中央へ吸い付くので横からでも綺麗に入る。
 function tryEnterPipeAtWorld(wx, wy) {
-    if (pipeRoomState.active || pipeRoomState.visited || pipeRoomState.anim !== 'none') return false;
+    if (pipeRoomState.active || pipeRoomState.anim !== 'none') return false;
     if (!player.onGround) return false; // 空中からの割り込み入場は避ける（接地時のみ）
     var pcx = player.x + player.width / 2;
     for (var i = 0; i < platforms.length; i++) {
         var p = platforms[i];
         if (p.type !== 'pipe') continue;
+        // ⚠visited(このラウンドはボーナス土管使用済み)でも、地底の入場土管だけは入れる（1.545）。
+        //   元は関数の頭で visited を弾いていたが、それだと「土管の横で下スワイプ」の救済経路だけ地底に入れなくなる。
+        if (pipeRoomState.visited && !p.ugEntrance) continue;
+        // 地底の入場土管は**画面内ならどこからでも**入れる（1.552）。強制入場の門であり、スクロールが
+        // 止まって1画面に閉じ込められる以上、届かない位置が生まれてはいけない。⚠実測: 通常の許容
+        // (幅×1.5+40=238px) では、土管を通り過ぎて右端クランプ(747)まで行くと254pxで**わずかに届かなかった**。
+        var reach = p.ugEntrance ? GAME_WIDTH : (p.width * 1.5 + 40);
         if (wx >= p.x - 20 && wx <= p.x + p.width + 20 && wy >= p.y - 20 && wy <= p.y + p.height + 20 &&
-            Math.abs(pcx - (p.x + p.width / 2)) < p.width * 1.5 + 40) {
+            Math.abs(pcx - (p.x + p.width / 2)) < reach) {
             enterPipeRoom(p);
             return true;
         }
@@ -509,7 +1208,23 @@ function tryEnterPipeAtWorld(wx, wy) {
 // 「お店の入り口に対し上スワイプ」で入店（1.449）: スワイプ地点(ワールド座標)が建物の絵の上で、プレイヤーがドアの近く
 // （±160px＝checkShopTriggerの±80より寛容）なら入店。建物サイズは render.js の描画(180×131)に合わせる。
 function tryEnterShopAtWorld(wx, wy) {
+    // 地底の老婆の店（1.569）: 洞窟の入口そのものへ上スワイプしても入れる（地上の1.449と同じ救済）
+    if (undergroundState.active) {
+        var us = undergroundState.shop;
+        if (!us || shopState.visited || shopState.active || undergroundState.bossPhase > 0) return false;
+        if (!player.onGround) return false;
+        if (wx >= us.x - 20 && wx <= us.x + UG_SHOP_W + 20 &&
+            wy >= us.baseY - UG_SHOP_H - 20 && wy <= us.baseY + 20 &&
+            Math.abs((player.x + player.width / 2) - (us.x + UG_SHOP_W / 2)) < UG_SHOP_NEAR * 1.8) {
+            openStageShop();
+            return true;
+        }
+        return false;
+    }
     if (!shopState.buildingPlaced || shopState.visited || shopState.active) return false;
+    // ⚠ボス戦中は入店不可（1.550）。checkShopTrigger の同じガードがこちらに無く、カカシ戦の最中に
+    //   おみせへ入れてしまっていた。ここで false を返すと上スワイプは消費されず他の操作に回る。
+    if (bossState.active || bossState.bossTriggered) return false;
     if (!player.onGround) return false;
     var bx = shopState.buildingX, bw = 180, bh = 131, by = GROUND_Y - bh;
     var doorX = bx + 90;
@@ -556,6 +1271,10 @@ var PIPE_ANIM_SNAP = 9;   // 中央スナップのフレーム数
 var PIPE_ANIM_MOVE = 30;  // 沈む/上昇のフレーム数（66px≒0.5秒）
 
 function enterPipeRoom(targetPipe) { // 公開API（下スワイプ/キーボード↓から）。targetPipe省略時は土管上に立っている前提
+    // ⚠地底の入場土管はここで横取りする（ボーナス部屋ではなく地底へ行く）。
+    //   pipeRoomState.visited のガードより**前**に判定すること＝同ラウンドで既にボーナス土管を使っていても入場できる。
+    var _ug = (targetPipe && targetPipe.type === 'pipe') ? targetPipe : getEnterablePipe();
+    if (_ug && _ug.ugEntrance) { startUndergroundPipeAnim(_ug); return; }
     if (pipeRoomState.active || pipeRoomState.visited || pipeRoomState.anim !== 'none') return;
     if (gameState.specialCutinTimer > 0) return; // 必殺カットイン中は入室しない（カットインが凍結し演出が飛ぶのを防ぐ。activateSpecialMoveと対称・監査LOW）
     var pipe = (targetPipe && targetPipe.type === 'pipe') ? targetPipe : getEnterablePipe();
@@ -586,13 +1305,24 @@ function updatePipeAnim() {
             player.x += (cx - player.x) * 0.4;     // 中央へ吸い付き
             player.y = standY;
         } else if (t <= PIPE_ANIM_SNAP + PIPE_ANIM_MOVE) {
+            // ⚠沈む距離は土管ごとに変える（1.559・ユーザー報告「消える位置が僅かにずれる」）。
+            //   全土管一律 PIPE_H(66px) だったが、地底の入場土管はクリップ線まで72px必要で**6px足りず**、
+            //   沈み切ってもプレイヤーの頭が口から覗いていた。入場土管は自分の高さ(p.height)ぶん沈める。
+            var sinkH = p.ugEntrance ? p.height : PIPE_H;
             player.x = cx;
-            player.y = standY + PIPE_H * ((t - PIPE_ANIM_SNAP) / PIPE_ANIM_MOVE); // 沈む（土管がプレイヤーの後に再描画され隠れる）
+            player.y = standY + sinkH * ((t - PIPE_ANIM_SNAP) / PIPE_ANIM_MOVE); // 沈む（土管がプレイヤーの後に再描画され隠れる）
         } else {
             player.x = cx; player.y = standY;      // 実座標は立ち位置へ（savedPlayer=退室後の復帰位置になる）
             player.velX = 0; player.velY = 0;
             pipeRoomState.anim = 'none';
-            _enterPipeRoomNow();
+            // 地底の入場土管なら部屋ではなく地底へ（1.545）。enterUnderground がスポーン位置を上書きする
+            if (undergroundState.pipeAnim) {
+                undergroundState.pipeAnim = false;
+                pipeRoomState.animPipe = null;
+                enterUnderground();
+            } else {
+                _enterPipeRoomNow();
+            }
         }
     } else if (pipeRoomState.anim === 'outWorld') {
         if (t <= PIPE_ANIM_MOVE) {
@@ -966,6 +1696,13 @@ function updatePipeRoom() {
 }
 
 function openStageShop() {
+    // ⚠ボス戦中は絶対に開かない（1.550・ユーザー報告「ショップから出る時にバグになる」の原因）。
+    //   おみせはボスの100m手前＝アリーナのすぐ隣に建つので、1.449の「建物に上スワイプで入店」経路から
+    //   カカシ戦の最中でも入店できてしまっていた（checkShopTrigger には元からボスガードがあるが、
+    //   tryEnterShopAtWorld には無かった）。入店するとボス戦の gameSpeed=0 が savedGameSpeed に保存され、
+    //   退店時に playStageBGM() でステージ曲へ戻る＝ボス戦なのに曲が変わり世界が止まったように見える。
+    //   入口を全部ふさぐため、呼ばれる側でも弾く。
+    if (shopState.active || bossState.active || bossState.bossTriggered) return;
     shopState.active = true;
     shopState.visited = true;
     shopState.savedGameSpeed = gameState.gameSpeed;
@@ -1153,11 +1890,29 @@ function stageShopLineup() {
     if (tutorialState.active) {
         return STAGE_SHOP_ITEMS.filter(function(i) { return TUTORIAL_SHOP_IDS.indexOf(i.id) >= 0; });
     }
-    return STAGE_SHOP_ITEMS.filter(function(i) { return !i.tutorialOnly; });
+    // 地底＝怪しい老婆の店（1.569）。⚠地上の品揃えとは**完全に入れ替える**（混ぜない）。
+    //   老婆は地上の店員とは別人で、扱う物も違う、という見せ方にするため。
+    if (undergroundState.active) {
+        var ups = gameSettings.upgrades || {};
+        return STAGE_SHOP_ITEMS.filter(function(i) {
+            if (!i.ugOnly) return false;
+            // 永続品は買い切り＝所持していたら陳列から外す（maxPerVisit は訪問ごとの制限なので再訪で復活してしまう）
+            if (i.permaUpgrade && (ups[i.permaUpgrade] || 0) > 0) return false;
+            return true;
+        });
+    }
+    return STAGE_SHOP_ITEMS.filter(function(i) { return !i.tutorialOnly && !i.ugOnly; });
 }
 
 // 店員セリフ表示の共通処理（ステージ/タイトルショップ共用）
+// ⚠地底（怪しい老婆の店・1.569）は**ここ1箇所でセリフを差し替える**。呼び出し側は10箇所以上あるので、
+//   個別に分岐を足すと必ず取りこぼす。「ug_ を前置したキーが辞書にあればそれを使う」方式にして、
+//   用意した分だけ老婆の口調になり、無い分は地上の文言にそのまま落ちる（＝壊れない）。
 function setKeeperTextFor(elementId, key, replacements) {
+    if (undergroundState.active && elementId === 'shopKeeperText') {
+        var ugKey = 'ug_' + key;
+        if (typeof LANG !== 'undefined' && LANG && LANG.ja && (ugKey in LANG.ja)) key = ugKey;
+    }
     var txt = t(key);
     if (replacements) {
         for (var k in replacements) {
@@ -1185,6 +1940,46 @@ function showShopConfirm(show, labels) { shopConfirmUI.show(show, labels); }
 function handleConfirmYes() { shopConfirmUI.tapYes(); }
 function handleConfirmNo() { shopConfirmUI.tapNo(); }
 
+// 店員の顔アイコンを店に合わせて差し替える（1.569）。
+// ⚠地底の老婆は専用の画像アセットがまだ無いので、**その場で描いた32pxのドット絵**を data URL にして使う。
+//   洞窟タイル/入場土管/宝箱と同じ「画像を増やさず手続きで描く」方針。絵が用意できたら
+//   ugKeeperFaceURL() を捨てて images/keeper_crone.png を指すだけで差し替わる。
+var _ugKeeperURL = null;
+function ugKeeperFaceURL() {
+    if (_ugKeeperURL) return _ugKeeperURL;
+    var c = document.createElement('canvas'); c.width = 32; c.height = 32;
+    var x = c.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    x.fillStyle = '#0d1a16'; x.fillRect(0, 0, 32, 32);                 // 洞窟の闇
+    x.fillStyle = '#16302a';                                           // 奥の灯り
+    x.beginPath(); x.arc(16, 26, 15, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#1a1424';                                           // フード（外）
+    x.beginPath();
+    x.moveTo(16, 3); x.quadraticCurveTo(30, 8, 29, 32);
+    x.lineTo(3, 32); x.quadraticCurveTo(2, 8, 16, 3);
+    x.closePath(); x.fill();
+    x.fillStyle = '#090610';                                           // フードの内側＝顔の影
+    x.beginPath();
+    x.moveTo(16, 8); x.quadraticCurveTo(25, 12, 24, 32);
+    x.lineTo(8, 32); x.quadraticCurveTo(7, 12, 16, 8);
+    x.closePath(); x.fill();
+    x.fillStyle = '#6b5f52';                                           // 鉤鼻（横向きに突き出す）
+    x.fillRect(12, 18, 5, 2); x.fillRect(11, 19, 3, 2); x.fillRect(10, 20, 2, 2);
+    x.fillStyle = '#b8ffd0';                                           // 光る目
+    x.fillRect(11, 15, 4, 2); x.fillRect(18, 15, 4, 2);
+    x.fillStyle = '#3fd894';
+    x.fillRect(10, 14, 6, 1); x.fillRect(17, 14, 6, 1);
+    x.fillStyle = '#2a2334';                                           // フードの縁のハイライト
+    x.fillRect(6, 11, 2, 12); x.fillRect(24, 11, 2, 12);
+    _ugKeeperURL = c.toDataURL('image/png');
+    return _ugKeeperURL;
+}
+function applyShopKeeperFace() {
+    var el = document.getElementById('shopKeeperImg');
+    if (!el) return;
+    el.src = undergroundState.active ? ugKeeperFaceURL() : 'images/keeper_stage.png';
+}
+
 function showStageShopScreen() {
     shopState.purchaseCounts = {};
     shopConfirmingItem = null;
@@ -1195,6 +1990,7 @@ function showStageShopScreen() {
     shopDepositing = false;
     shopClosing = false; // 前回訪問の退店確認フラグが残ると「はい」が即退店になるため必ずリセット
     shopInputCooldown = Date.now() + 350;
+    applyShopKeeperFace();
     setShopBg('shop01');
     showScreenEl('stageShopScreen');
     // ゲームHUDを非表示（z-index:100がショップz-index:30の上に出るため）
@@ -1258,6 +2054,18 @@ function setShopBg(name, revertMs) {
     var bgEl = document.getElementById('shopBgImg');
     if (!bgEl) return;
     shopBgCurrent = name;
+    // 地底＝怪しい老婆の店（1.569）は地上の店の背景（明るい木の店内 shop01〜05）を使わない。
+    // ⚠専用の一枚絵はまだ無いので、**暗い洞窟のグラデーション**で代用する。画像が無いと
+    //   background-image が空になって前の絵が残る/真っ黒になるため、必ず色で塗り潰しておくこと。
+    //   絵が用意できたら、この分岐を url('images/ug_shop01.jpg') に差し替えるだけで済む。
+    if (undergroundState.active) {
+        bgEl.style.backgroundImage =
+            'radial-gradient(ellipse at 62% 78%, rgba(70,190,140,0.30) 0%, rgba(20,60,50,0.10) 38%, rgba(0,0,0,0) 62%),' +
+            'linear-gradient(180deg, #0a0812 0%, #140f1e 45%, #1d1526 78%, #0c0a12 100%)';
+        bgEl.style.backgroundColor = '#0a0812';
+        if (shopBgTimer) { clearTimeout(shopBgTimer); shopBgTimer = null; }
+        return;
+    }
     bgEl.style.backgroundImage = "url('images/" + name + ".jpg')";
     if (shopBgTimer) { clearTimeout(shopBgTimer); shopBgTimer = null; }
     if (revertMs) {
@@ -1658,8 +2466,9 @@ function cancelShopBuy() {
 function buyStageItem(itemId) {
     var item = STAGE_SHOP_ITEMS.find(function(i) { return i.id === itemId; });
     if (!item) return false;
-    // ライフ上限チェック（回復薬はライフ10で買えない）
-    if ((item.id === 'heal' || item.id === 'shortcake') && gameState.lives >= 10) {
+    // ライフ上限チェック（回復薬はライフ10で買えない）。⚠極楽まんじゅう(1.569)も同じ扱いにする＝
+    //   満タンで買わせて0回復、という損な買い物を成立させない。
+    if ((item.id === 'heal' || item.id === 'shortcake' || item.id === 'ug_manju') && gameState.lives >= 10) {
         setKeeperText('shop_keeper_heal_maxhp');
         if (soundManager) soundManager.playDamage();
         shopConfirmingItem = null;
@@ -1706,10 +2515,20 @@ function buyStageItem(itemId) {
     shopState.purchaseCounts[itemId] = bought + 1;
     markZukanSeen('item:' + itemId); // ずかん: ショップ品を購入＝発見
     var livesBefore = gameState.lives;
-    if (!item.stockItem) item.effect();
+    // 永続アップグレード品（地底の主の加護・1.569）: effect() ではなく gameSettings.upgrades に積んで保存する。
+    // ⚠applyUpgrades は**ラン開始時**にしか走らないので、その場で効かせたい値はここで直接触ること
+    //   （加護は「次に地底へ入る時」に効くので、ここでは保存だけでよい）。
+    if (item.permaUpgrade) {
+        gameSettings.upgrades = gameSettings.upgrades || {};
+        gameSettings.upgrades[item.permaUpgrade] = 1;
+        saveSettings();
+    } else if (!item.stockItem) item.effect();
     // たちぐいそば/いちごショート：フルスクリーン演出＋実回復量の表示（画像だけ差し替えて同方式）
     if (item.id === 'heal' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore);
     if (item.id === 'shortcake' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore, 'images/shortcake_scene.jpg');
+    // 極楽まんじゅう（1.569）: 専用の一枚絵（食べるシーン）。⚠画像が未納品でも壊れないよう
+    //   showSobaScene 側で読み込み失敗を握りつぶす（下の onerror）。
+    if (item.id === 'ug_manju' && typeof showSobaScene === 'function') showSobaScene(gameState.lives - livesBefore, 'images/manju_scene.jpg');
     if (soundManager) soundManager.playItem();
     setKeeperText('shop_keeper_buy_ok');
     setShopBg(getSuccessShopBg(), 1500);
@@ -2608,25 +3427,40 @@ function updateOwnedUpgradeIcons() {
 function checkBossTrigger() {
     if (bossState.active || bossState.bossTriggered) return;
     if (undergroundState.active) return; // 地底の中では通常ボスを出さない（「闇の巫女」戦はP3で地底内に実装）
+    // ⚠地底ラウンド(R7/R14/R21…)は**距離を待たずに、その場で**入場土管を出す（1.552・ユーザー指定）。
+    //   闇のカカシは「門番」＝倒した時点で門が開く、という設計。撃破 → ROUND表示 → スクロール再開の瞬間に
+    //   目の前へ土管がせり出し、そのままもぐる。R7に地上区間は無い（走らせない）。
+    //   ⚠1.551までは bossDistanceFor(round) まで走らせる実装だった（撃破地点から2,400m＝約113秒）。
+    //   これは仕様書§3の初版の記述に引きずられた誤実装で、ユーザーの意図と違っていた。
+    if (!tutorialState.active && isUndergroundRound(gameRound) && !undergroundState.visited) {
+        placeUndergroundPipe();
+        return;
+    }
     // チュートリアルは専用距離(760m)で弱いボスを出す
     var _trigDist = tutorialState.active ? TUTORIAL_BOSS_M : bossDistanceFor(gameRound);
     if (gameState.distance >= _trigDist) {
-        // 地底ラウンド(R7/R14/R21…)は通常ボスの代わりに地底ステージへ突入する。
-        // ⚠P1は直入場（基盤の疎通が目的）。強制土管の配置・入場演出はP2で被せる。
-        if (!tutorialState.active && isUndergroundRound(gameRound) && !undergroundState.visited) {
-            enterUnderground();
-            return;
-        }
+        // ⚠地底ラウンドの分岐は上（距離を待たない即時配置）へ移動した。ここへは到達しない。
         bossState.bossTriggered = true;
         bossState.active = true;
         bossState.phase = 1; // WARNING
         bossState.warningTimer = BOSS_WARNING_DURATION;
+        // ⚠トリガーした瞬間にスクロールを止める（1.559・ユーザー報告「17mずれたまま」）。
+        //   旧: 止めるのは setupBossArena（WARNING演出の完了時）だったため、演出の120フレームぶん
+        //   world が進み、**全ボスのアリーナがトリガー距離＋18mで固定**されていた
+        //   （120フレーム × 1.5px/f(安全地帯速度) ÷ 10）。R1=1,218m / R6=12,017m のように
+        //   HUDの距離が常に半端な値になる。ここで止めればトリガー距離ちょうどで固定される。
+        //   ⚠updateGameSpeed は先頭で bossState.active を見て return するので、0のまま維持される。
+        //   ⚠savedGameSpeed は0にする前の値を保存すること（ラウンド移行のスクロール復帰に使う）。
+        bossState.savedGameSpeed = gameState.gameSpeed;
+        gameState.gameSpeed = 0;
         if (soundManager) soundManager.playBossWarning();
     }
 }
 
 function setupBossArena() {
-    bossState.savedGameSpeed = gameState.gameSpeed;
+    // ⚠checkBossTrigger が既に 0 にして savedGameSpeed も保存済み（1.559）。ここで上書きすると
+    //   ラウンド移行時の復帰速度が 0 になってしまうので、まだ止まっていない時だけ保存する。
+    if (gameState.gameSpeed > 0) bossState.savedGameSpeed = gameState.gameSpeed;
     gameState.gameSpeed = 0;
     // 既存エンティティクリア
     enemies = []; flyingEnemies = []; coins = []; powerUps = [];
@@ -2948,9 +3782,16 @@ function updateBoss() {
             // スクロール再開（ラウンド倍率適用）
             var roundMult = 1 + (gameRound - 1) * 0.2;
             gameState.gameSpeed = Math.min(bossState.savedGameSpeed * roundMult, BASE_SCROLL_SPEED * 5.0);
+            // ⚠地底ラウンドへ移る時は1pxも動かさない（1.554・ユーザー指定「1mも移動せずその場で土管が出る」）。
+            //   ここで0にしておかないと、次tickで checkBossTrigger が土管を置くまでの1フレームぶん進んでしまう。
+            if (isUndergroundRound(gameRound)) gameState.gameSpeed = 0;
             // 通常BGM・背景復帰
             bgCache = null;
-            playStageBGM();
+            // ⚠地底ラウンドへ移る時はBGMを鳴らさず**無音のまま**にする（1.556・ユーザー指定）。
+            //   撃破ファンファーレ → 無音 → 土管がせり上がる轟音 → もぐる → 地底BGM、という流れにする。
+            //   ここでステージBGMを鳴らすと、せり上がりの轟音が通常曲に埋もれて緊張感が出ない。
+            if (isUndergroundRound(gameRound)) { try { soundManager && soundManager.stopAllBGM(); } catch (_) {} }
+            else playStageBGM();
             // ショップ訪問フラグリセット（次ラウンド用）
             shopState.visited = false;
             shopState.deposited = false;
@@ -3703,7 +4544,9 @@ function updateBossAI_scarecrow(b) {
                                (player.y + player.height) <= b.y + b.height * 0.5;
                 if (Math.random() < (overHead ? SC_SPIKE_OVER_RATE : SC_SPIKE_MIX_RATE)) {
                     b.scMode = 'spikeTele';
-                    b.scTimer = Math.max(12, Math.round(SC_SPIKE_TELEGRAPH * (phase === 3 ? 0.75 : 1) * encMul));
+                    // ⚠下限は30フレーム=0.5秒（1.551で12→30）。周回を重ねて encMul が下がっても、
+                    //   「本体が白く光る→横へ逃げる」が成立する最低限の猶予を必ず残す。
+                    b.scTimer = Math.max(30, Math.round(SC_SPIKE_TELEGRAPH * (phase === 3 ? 0.75 : 1) * encMul));
                 } else if (sweepReady && Math.random() < sweepChance) { // 腕薙ぎ（phase2以降 or 周回3以降）
                     b.scMode = 'sweepTele';
                     b.scTimer = Math.max(16, Math.round(SC_SWEEP_TELEGRAPH * (phase === 3 ? 0.7 : 1) * encMul));
@@ -3721,16 +4564,30 @@ function updateBossAI_scarecrow(b) {
         if (b.scTimer <= 0) {
             // 召喚数は周回で増える（1回目:2 / 2回目:3 / 3回目:4 / 4回目以降:5、＋HP2/3以降に+1・上限6）
             var n = Math.min(6, SC_SUMMON_BASE + Math.min(3, Math.max(0, enc - 1)) + (phase >= 2 ? 1 : 0));
-            for (var s = 0; s < n; s++) { b.facing = s % 2 === 0 ? 'left' : 'right'; spawnBossChick(b); }
+            for (var s = 0; s < n; s++) {
+                b.facing = s % 2 === 0 ? 'left' : 'right';
+                spawnBossChick(b);
+                // ⚠湧いた位置で闇が弾ける（1.558）。これが無いと雑魚が静かに増えるだけで召喚に気づけない。
+                var _sc = enemies[enemies.length - 1];
+                if (_sc) floatEffects.push({ type: 'summon_burst', worldX: _sc.x + _sc.width / 2,
+                                             worldY: _sc.y + _sc.height / 2, timer: 0, duration: 26 });
+            }
             if (enc >= 3) spawnEdgeFlyingEnemy();             // 3回目の遭遇(R18+)からは空からカラスも1羽
-            if (soundManager) soundManager.playFlash();
+            // ⚠1.558: 対空(spike)と同じ playFlash だったため「何も攻撃が起きていないのにSEだけ鳴る」と
+            //   聞こえていた（召喚は攻撃モーションが無く、湧いた雑魚と音が結びつかない）。専用の音に分離。
+            if (soundManager) { try { soundManager.playSummon(); } catch (_) {} }
             b.scMode = 'recover'; b.scTimer = Math.max(16, Math.round(28 * encMul));
         }
         break;
 
     case 'sweepTele':                     // 腕を溜めて低い薙ぎを予告（drawBossが赤帯）
         b.scTimer--;
-        if (b.scTimer <= 0) { b.scMode = 'sweep'; b.scTimer = SC_SWEEP_ACTIVE; }
+        if (b.scTimer <= 0) {
+            b.scMode = 'sweep'; b.scTimer = SC_SWEEP_ACTIVE;
+            // 横薙ぎのSE（1.556で追加→1.558でユーザー指定により対空と同じ playFlash に統一）。
+            // ⚠playFlash は「カカシの2つの攻撃パターン（横薙ぎ・対空）」専用。召喚は playSummon で別音。
+            if (soundManager) soundManager.playFlash();
+        }
         break;
 
     case 'sweep':                         // 低い横薙ぎ（当たり判定は updateBossCollision_scarecrow）

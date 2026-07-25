@@ -52,6 +52,11 @@ class SoundManager {
         this.criticalSE.volume = 0.6;
         this.pipeWarpSE = new Audio('sounds/dokan.mp3'); // 土管出入り（アルスパーク素材・商用可/クレジット任意）
         this.pipeWarpSE.volume = 0.6;
+        // 地底の入場土管がせり上がる地響き（1.556・ユーザー提供「地響き.mp3」→ pipe_rise.mp3 にリネーム＋タグ除去済み）。
+        // ⚠1.557で3.0秒ちょうどに切り出し済み（末尾0.5秒フェードアウト）＝UG_PIPE_RISE_FRAMES(180=3.0秒)と一致。
+        //   原盤10.79秒は tools/_raw/pipe_rise_full.mp3 に保管。念のため stopRumble() でも止める。
+        this.pipeRiseSE = new Audio('sounds/pipe_rise.mp3');
+        this.pipeRiseSE.volume = 0.7;
         // ぴよフラッシュ（必殺技）: チャージ音＋ビーム音
         this.specialChargeSE = new Audio('sounds/piyoflash_charge.mp3');
         this.specialChargeSE.volume = 0.6;
@@ -110,6 +115,87 @@ class SoundManager {
         g.gain.setValueAtTime(0.1, t);
         g.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
         o.start(t); o.stop(t + 0.2);
+    }
+
+    // ─── 闇のカカシ 召喚（雑魚を呼ぶ）の合図（1.558）───
+    // ⚠攻撃2種（横薙ぎ・対空）は共通で playFlash（ユーザー指定＝同じSEはこの2パターンだけ）。
+    //   召喚は対空と同じ playFlash を鳴らしていたため
+    // 「何も攻撃が起きていないのにSEだけ鳴る」とユーザーに聞こえていた。攻撃モーションが無い技なので、
+    // 「呼んでいる」と分かる専用の音に分ける。2音を上向きに滑らせる不気味なコール。
+    playSummon() {
+        if (!this.ctx || !gameSettings.soundEnabled) return;
+        var t = this.ctx.currentTime;
+        var base = [300, 452];   // わずかにずらした2音＝濁った響き（藁人形が呼ぶ感じ）
+        for (var i = 0; i < 2; i++) {
+            var o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.connect(g); g.connect(this.ctx.destination);
+            o.type = 'square';
+            o.frequency.setValueAtTime(base[i], t);
+            o.frequency.linearRampToValueAtTime(base[i] * 2.2, t + 0.26);
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.10, t + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+            o.start(t); o.stop(t + 0.38);
+        }
+    }
+
+    // ─── 地底の入場土管がせり上がる轟音（1.554）───
+    // 「地面の下から巨大な石造りが押し上がってくる」音。⚠mp3は増やさず WebAudio で合成する（playKill と同方式）。
+    // 低音のこぎり波を2本わずかにデチューンして重ねる＝うなりが出て“轟音”になる。ピッチを上げていくことで
+    // 迫り上がる動きと一致させ、さらに矩形波のサブベースで地響きの芯を足す。
+    // ⚠音源(pipe_rise.mp3)があればそれを使い、無ければ下の合成音にフォールバックする（playPipeWarp と同じ形）。
+    playRumble(dur) {
+        if (!gameSettings.soundEnabled) return;
+        if (this.pipeRiseSE && !this.pipeRiseSE.error) {
+            try { this.pipeRiseSE.volume = 0.7; } catch (_) {}   // 前回のフェードアウトから音量を戻す
+            this._playSE(this.pipeRiseSE);
+            return;
+        }
+        if (!this.ctx) return;
+        var t = this.ctx.currentTime, d = dur || 0.9;
+        for (var i = 0; i < 2; i++) {
+            var o = this.ctx.createOscillator();
+            var g = this.ctx.createGain();
+            o.connect(g); g.connect(this.ctx.destination);
+            o.type = 'sawtooth';
+            o.frequency.setValueAtTime(38 + i * 3, t);          // わずかにずらして"うなり"を作る
+            o.frequency.linearRampToValueAtTime(70 + i * 5, t + d);
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.14, t + 0.12); // 立ち上がり
+            g.gain.exponentialRampToValueAtTime(0.0001, t + d);  // 出切ったら収束
+            o.start(t); o.stop(t + d + 0.05);
+        }
+        var sub = this.ctx.createOscillator();
+        var sg = this.ctx.createGain();
+        sub.connect(sg); sg.connect(this.ctx.destination);
+        sub.type = 'square';
+        sub.frequency.setValueAtTime(26, t);
+        sub.frequency.linearRampToValueAtTime(44, t + d);
+        sg.gain.setValueAtTime(0.0001, t);
+        sg.gain.exponentialRampToValueAtTime(0.10, t + 0.16);
+        sg.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        sub.start(t); sub.stop(t + d + 0.05);
+    }
+
+    // 地響きを止める（1.556・ユーザー指定「せり上がり切ったところで止めて無音に」）。
+    // ⚠音源は10.8秒あるので、演出(0.9秒)が終わったら必ずこれを呼ぶこと。
+    // ⚠即 pause するとプツッと切れるので、120msだけフェードしてから止める（"無音になる"は同じ）。
+    stopRumble() {
+        var a = this.pipeRiseSE;
+        if (!a) return;
+        if (this._rumbleFade) { clearInterval(this._rumbleFade); this._rumbleFade = null; }
+        var self = this, steps = 6;
+        this._rumbleFade = setInterval(function () {
+            steps--;
+            try {
+                if (steps <= 0) {
+                    a.pause(); a.currentTime = 0; a.volume = 0.7;
+                    clearInterval(self._rumbleFade); self._rumbleFade = null;
+                } else {
+                    a.volume = Math.max(0, a.volume - 0.7 / 6);
+                }
+            } catch (_) { clearInterval(self._rumbleFade); self._rumbleFade = null; }
+        }, 20);
     }
 
     playItem() {

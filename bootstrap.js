@@ -49,6 +49,9 @@ function gameLoop(timestamp) {
             updatePlayer();
             updatePlatforms();
             updateEnemies();
+            // 地底ギミック（溶岩/トゲ/ファイアバー/火の玉）。⚠**updatePlayer より後**に呼ぶこと＝
+            // プレイヤーの最終位置で当たりを見る（前に置くと1フレーム古い位置で判定してすり抜ける）。
+            updateUndergroundHazards();
             updateCoins();
             updatePowerUps();
             updateBullets();
@@ -338,16 +341,45 @@ function bindTapDelegate(container, attrName, handler) {
     rightArea.addEventListener('touchcancel', onMoveEnd);
 
     // ─ ジャンプエリア（右側） ─
+    // 急降下斬りの下スワイプはジャンプエリアでも受け付ける（1.563・ユーザー指定）。
+    // ⚠従来は L/R エリア(onMoveMove→handleSwipeDown)だけが下スワイプを見ていたが、
+    //   「跳ぶ→落ちながら斬る」は同じ右手の親指で完結する操作なので、ジャンプを押した指のまま
+    //   下へ払えるほうが自然。ジャンプ指を L/R まで動かす必要があった従来は実質出しにくかった。
+    // ⚠ここで受けるのは**急降下斬りだけ**（土管入場/足場すり抜けは L/R のまま）。
+    //   ジャンプは押しっぱなしになる操作なので、すり抜けまで拾うと意図しない落下が起きる。
+    //   startSamuraiDive() は「侍スキン＋空中＋未発動」を自前で全部見て false を返すので、
+    //   侍以外のプレイヤーにはこの分岐は一切影響しない。
+    var jumpSwipeY = 0, jumpSwipeTime = 0, jumpSwiped = false;
     jumpArea.addEventListener('touchstart', function(e) {
         if (!gameState.gameStarted || gameState.gamePaused) return;
         e.preventDefault();
+        var jt = e.changedTouches[0];   // このエリアで今始まった指（L/R側と同じ流儀・1.459）
+        if (jt) { jumpSwipeY = jt.clientY; jumpSwipeTime = Date.now(); jumpSwiped = false; }
         if (ctrlJump) ctrlJump.classList.add('active');
         gameState.input.jump = true;
+    });
+    jumpArea.addEventListener('touchmove', function(e) {
+        if (!gameState.gameStarted || gameState.gamePaused) return;
+        e.preventDefault();
+        if (jumpSwiped) return;                 // 1回の押しにつき1回だけ（連続発火を防ぐ）
+        var jt = e.targetTouches[0];            // このエリア上の指だけを見る
+        if (!jt) return;
+        // しきい値は L/R の下スワイプ（handleSwipeDown）と同一＝どちらで払っても同じ手応えにする
+        if (jt.clientY - jumpSwipeY > 15 && Date.now() - jumpSwipeTime < 500) {
+            jumpSwiped = true;                  // 成否に関わらず latch（侍以外で毎フレーム試さない）
+            // ⚠土管を狙った下スワイプなら土管を優先する（L/R側 handleSwipeDown と同じ優先順）。
+            //   gameContainer の全画面ハンドラ(1.449)が dy>20 で同じ指の土管入場を拾うので、
+            //   ここで先に斬りを出すと「土管に入りつつ急降下斬りが発動している」状態になりうる。
+            var _wp = touchToWorld(jt);
+            if (_wp && typeof tryEnterPipeAtWorld === 'function' && tryEnterPipeAtWorld(_wp.x, _wp.y)) return;
+            if (typeof startSamuraiDive === 'function') startSamuraiDive();
+        }
     });
     // touchend と touchcancel(OS割込み)の両方でジャンプ解除。touchcancelを拾わないと、長押し
     // ジャンプ中にOS割込みで input.jump が true 固着し、以後 jumpJustPressed が発火せずジャンプ不可になる（監査M-2）。
     function onJumpEnd(e) {
         e.preventDefault();
+        jumpSwiped = false;
         if (ctrlJump) ctrlJump.classList.remove('active');
         gameState.input.jump = false;
     }

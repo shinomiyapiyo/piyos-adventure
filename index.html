@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.544";
+                content: "Ver.1.569";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.544</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.569</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1287,7 +1287,7 @@
                     flex-shrink: 0;
                     position: relative;">
                     <div style="display:flex; align-items:flex-start; gap:4px;">
-                        <img src="images/keeper_stage.png" class="dq-keeper-img">
+                        <img id="shopKeeperImg" src="images/keeper_stage.png" class="dq-keeper-img">
                         <span id="shopKeeperText" class="dq-keeper-text"></span>
                     </div>
                     <!-- はい/いいえ確認ボックス（DQ風） -->
@@ -2289,6 +2289,9 @@ function showSobaScene(healedLives, imgPath) {
     var img = document.createElement('img');
     img.src = imgPath || 'images/soba_shop_scene.jpg';
     img.alt = '';
+    // ⚠画像が無い/読めない時に「壊れた画像アイコン」を全画面で見せない（1.569）。
+    //   演出そのものは成立させたいので、画像だけ隠して暗幕＋回復量テキストで完結させる。
+    img.onerror = function() { img.style.display = 'none'; };
     img.style.cssText = 'max-width:100vw; max-height:100vh; width:auto; height:auto;' +
         'object-fit:contain; image-rendering:pixelated;' +
         'box-shadow:0 0 40px rgba(0,0,0,0.6);' +
@@ -2749,6 +2752,8 @@ function hasClaimableMission() {
 // ゲームオーバー時に呼ぶ: その日の累計へ差分加算（広告復活で2回gameOverしても二重計上しない）
 function recordMissionProgress() {
     if (tutorialState.active) return; // チュートリアルはミッション/実績/プレイ回数に計上しない
+    // ⚠テスト専用: 12,000m から始まるランなので、ミッション/実績/自己ベスト距離を汚さない（保険③）
+    if (typeof TEST_START_AFTER_R6 !== 'undefined' && TEST_START_AFTER_R6) return;
     checkDailyMissions(); // 日付が変わっていたら先にリセット
     var dm = gameSettings.dailyMissions;
     var as = gameSettings.achievementStats; // 実績の生涯累計（同じ差分・同じガードで加算＝二重計上しない）
@@ -3239,6 +3244,12 @@ var CYBER_DRONE_SIZE = 28;      // ドローン描画サイズpx（調整ノブ�
 var SAMURAI_DIVE_FORWARD = 7;   // 降下中の前方向(右)移動量px/f（スクリーン基準・調整ノブ・1.518=5→7）
 var SAMURAI_DIVE_BACKWARD = 10; // 後方向(左)移動量px/f。スクロール中は敵ごと左へ流れるため前より大きく（1.518）。
                                 // 画面固定時(ボス戦=gameSpeed0)は前後対称にSAMURAI_DIVE_FORWARDを使う
+// 地底での倍率（1.564・ユーザー指定「地底では横移動を倍・左右均等に」）。
+// ⚠地底は歩行が UG_SPEED_RATE(0.5) で半分になっており、急降下斬りだけ地上と同じ距離だと
+//   「歩くより斬って移動したほうが速い」逆転が起きる。倍にすることで**地上と同じ移動感**に戻る
+//   （地上7px/f 対 歩行6px/f ≒ 1.17倍 / 地底14px/f 対 歩行3px/f ではなく、
+//    地上の"1回の斬りで進む距離"の体感に合わせた値）。左右はもともと gameSpeed=0 で対称。
+var SAMURAI_DIVE_UG_MULT = 2;
 function startSamuraiDive() {
     if (!SKIN_FEATURE_ENABLED || runActiveSkin() !== 'samurai') return false;
     if (!gameState.gameStarted || gameState.gamePaused || pipeRoomState.active) return false;
@@ -3663,7 +3674,13 @@ function getBiomeIndex(distance) {
     // updateBiome（背景/パレット/地形タイプ）だけでなく、足場タイル(render)・雑魚の見た目・
     // 足場の地面物理など getBiomeIndex 直参照の全コードが自動で追従する。
     if (tutorialState.active) return distance < 600 ? 4 : 0;
-    return Math.floor((distance % 2400) / 600);
+    // ⚠stageShiftM を引く（1.553）: バイオームは絶対距離の2,400m周期、ボスも絶対距離の2,400m刻みで、
+    //   この一致があるから「1ラウンド＝草原→砂漠→雪山→夜→ボス」が成立している。地底は2,400mの倍数でない
+    //   量を足すので、退場時に exitUnderground がグリッドを引き直す。bossDistanceFor にも同じ値が入るので
+    //   バイオームとボスは常に同じグリッドに乗る。通常プレイでは 0＝従来と完全に同一
+    //   （R1=草原→砂漠 / R2=雪山→夜 / R3以降=草原→砂漠→雪山→夜 はそのまま）。
+    var rel = distance - (gameState.stageShiftM || 0);
+    return Math.floor((((rel % 2400) + 2400) % 2400) / 600);
 }
 
 function lerpColor(hex1, hex2, t) {
@@ -3713,6 +3730,7 @@ function rebuildTerrainSprites(palette) {
     // A-2: 地形スプライトの色が変わったので、焼き付け済みの地面キャッシュを破棄して次回再焼き付けさせる。
     // （これが無いと砂漠/雪山の地面が遷移時の中間色のまま固定される＝Ver.1.306で発生した色バグ）
     terrainCache = {};
+    caveStripCache = {}; // 地底の32pxタイル帯キャッシュも同じ理由で破棄（1.563）
 }
 
 function applyBiomePalette(idx) {
@@ -3890,6 +3908,58 @@ function dismissTutorialHints() {
     });
 }
 
+// ⚠テスト専用（Ver.1.569・core-state.js の TEST_START_AFTER_R6 が true の時だけ動く）。
+// ラン開始を「R6の闇のカカシを撃破した直後」＝R7の開始地点(12,000m)にワープさせる。
+// R6撃破後の実際の状態は「gameRound=7 / distance=bossDistanceFor(6)=12,000m / 地上を通常スクロール」なので、
+// それをそのまま再現する（distance は camera.x から算出されるので camera.x を動かすだけ＝距離の式は無改修）。
+// ⚠テスト専用: 指定m地点へワープ（地形を作り直してその場に立たせる）。開始位置と「地底前ワープ」で共用。
+// ⚠camera.x に ugDistOffset を足すのが肝＝距離は floor((camera.x - ugDistOffset)/10) なので、
+//   これを忘れると地底を1回通った後のワープで狙った距離にならない。camera.x は前進のみ（巻き戻さない）。
+function testWarpToM(m) {
+    var want = m * 10 + (gameState.ugDistOffset || 0);
+    if (want < gameState.camera.x) return;                         // 単調増加を壊さない
+    gameState.camera.x = want;
+    gameState.distance = m;
+    terrain.length = 0; platforms.length = 0;
+    enemies.length = 0; flyingEnemies.length = 0; powerUps.length = 0; coins.length = 0; bullets.length = 0;
+    gameState.lastTerrainX = gameState.camera.x - 200;
+    gameState.lastHoleX = null;
+    while (gameState.lastTerrainX < gameState.camera.x + GAME_WIDTH + 500) generateTerrain();
+    player.x = gameState.camera.x + 150; player.y = GROUND_Y - player.height;
+    player.velX = 0; player.velY = 0; player.onGround = true;
+}
+
+function applyTestStart() {
+    if (typeof TEST_START_AFTER_R6 === 'undefined' || !TEST_START_AFTER_R6) return;
+    tutorialState.active = false; tutorialState.forced = false;   // チュートリアルは飛ばす
+    // 'r6shop' = 闇のカカシ(R6)のおみせ手前から。checkShopTrigger が「ボス距離 - SHOP_SAFE_ZONE_START - 100」で
+    //   おみせを出すので、そのさらに200m手前に置く＝走り出すとおみせ→カカシ→撃破でR7、と自然に繋がる。
+    var r6 = (TEST_START_MODE !== 'r7');
+    gameRound = r6 ? (BOSS_CYCLE_ROUNDS - 1) : BOSS_CYCLE_ROUNDS;   // R6（カカシ）or R7（地底）
+    var baseM = r6 ? (bossDistanceFor(BOSS_CYCLE_ROUNDS - 1) - SHOP_SAFE_ZONE_START - 300)
+                   : bossDistanceFor(BOSS_CYCLE_ROUNDS - 1);        // R6のボス距離=12,000m
+    var startM = baseM + (TEST_START_OFFSET_M || 0);
+    gameState.ugDistOffset = 0; gameState.stageShiftM = 0;         // 圧縮量/ズレ補正ゼロから＝camera.x と距離が一致する
+    testWarpToM(startM);
+    // チュートリアル面が先に走っていた場合の置き土産（固定配置の土管/おみせ）を消す＝素の状態にする
+    pipeRoomState.placed = false; pipeRoomState.visited = false; pipeRoomState.x = 0;
+    pipeRoomState.targetDist = 0; pipeRoomState.targetRound = 0; pipeRoomState.extraDist = 0;
+    shopState.buildingPlaced = false; shopState.buildingX = 0;
+    // ⚠地底ラウンドから始める時は無音のまま（1.562）。本来は「撃破ファンファーレ→無音→地響き」なので、
+    //   ここでステージBGMを鳴らすとせり上がりの轟音が曲に埋もれて実機での確認にならない。
+    if (isUndergroundRound(gameRound)) { try { soundManager && soundManager.stopAllBGM(); } catch (_) {} }
+    else { try { playStageBGM(); } catch (_) {} }                  // gameRound 確定後にBGMを鳴らし直す
+    // ③消し忘れ防止バッジ（画面左上・常時表示）
+    if (!document.getElementById('testModeBadge')) {
+        var b = document.createElement('div');
+        b.id = 'testModeBadge';
+        b.textContent = 'TEST R' + gameRound + ' ' + TEST_START_MODE;
+        b.style.cssText = 'position:fixed;left:6px;top:6px;z-index:99999;background:#e0243c;color:#fff;' +
+            'font:bold 12px monospace;padding:3px 7px;border-radius:4px;pointer-events:none;opacity:0.9;';
+        document.body.appendChild(b);
+    }
+}
+
 function startGame() {
     // 初回のみ: ゲーム開始前に操作カードを表示（「はじめる」で実際に開始）
     if (!gameSettings.tutorialSeen && !isScreenVisible('tutorialScreen')) { showTutorialCard(); return; }
@@ -3929,6 +3999,7 @@ function startGame() {
         showRewardToast('<img src="images/icon_barrier.png" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' + escapeHtml(t('first_run_gift_toast')),
             'linear-gradient(180deg,#7ad0ff,#2a7fd0)', '#062a44');
     }
+    applyTestStart(); // ⚠テスト専用（TEST_START_AFTER_R6）。false の時は即returnするので通常プレイに影響なし
     gameState.gameStarted = true;
     gameState.gamePaused  = false;
     // ラン中のAndroid戻る/ブラウザバック用に履歴を1つ積む（無いと戻る=即アプリ離脱）。
@@ -4003,6 +4074,8 @@ function resetGame() {
     gameState.flyingEnemySpawnTimer = 0;
     gameState.powerUpSpawnTimer = 0;
     gameState.distance = 0;
+    gameState.ugDistOffset = 0; // 地底の距離圧縮量（前ランの持ち越し防止・UG_DIST_SCALE 参照）
+    gameState.stageShiftM = 0;  // ステージ進行のズレ補正（前ランの持ち越し防止・getBiomeIndex/bossDistanceFor 参照）
     gameState.gameSpeed = BASE_SCROLL_SPEED;
     gameState.camera.x = 0;
     gameState.camera.y = 0;
@@ -4010,6 +4083,7 @@ function resetGame() {
     gameState.puShield = 0;
     gameState.puEnergy = 0;
     gameState.puMagnet = 0;
+    gameState.ugElixir = 0; gameState.elixirFireTimer = 0;   // 老婆の劇薬はラン限定（持ち越さない）
     gameState.zapFireTimer = 0;   // きぐるみの電気弾タイマーを新ランでリセット
     gameState.droneFireTimer = 0; // サイバーぴよのドローン発射タイマー（1.520）
     gameState.droneX = undefined; gameState.droneY = undefined; // ドローン位置は次tickにスナップ初期化
@@ -4045,7 +4119,7 @@ function resetGame() {
     pipeRoomState.anim = 'none'; pipeRoomState.animTimer = 0; pipeRoomState.animPipe = null; // 出入り演出の残留防止
     // 地底ステージ（R7/R14…）の残留防止。ラン開始時は必ず地上から
     undergroundState.active = false; undergroundState.visited = false; undergroundState.cleared = false;
-    undergroundState.pipePlaced = false; undergroundState.pipeX = 0;
+    undergroundState.pipePlaced = false; undergroundState.pipeX = 0; undergroundState.pipeRise = 0;
     undergroundState.originX = 0; undergroundState.endX = 0; undergroundState.introTimer = 0;
     bonusRoomItems.length = 0;
     gameState.bossKills = 0;
@@ -4818,6 +4892,11 @@ function setScoreWithFallback(ref, data) {
 }
 
 function submitScore() {
+    // ⚠テスト専用: 12,000m スタートの記録がランキングに乗らないよう封じる（保険②）
+    if (typeof TEST_START_AFTER_R6 !== 'undefined' && TEST_START_AFTER_R6) {
+        showGameModal('⚠ TESTモード中はランキングに送信できません（core-state.js の TEST_START_AFTER_R6 を false に）');
+        return;
+    }
     var name = document.getElementById('playerNameInput').value.trim().replace(/[<>&"']/g, '').substring(0, 10);
     if (!name) { showGameModal(t('name_empty')); return; }
     if (containsNgWord(name)) { showGameModal(t('name_ng_word')); return; }
@@ -5262,14 +5341,21 @@ function isBuriedInSolid(obj) {
 function manageObjects() {
     var lb = gameState.camera.x - 200;
     // チュートリアルはコイン/土管などを開始時に前方へ確定配置するため、右側（未到達側）はカリングしない
-    var rb = tutorialState.active ? Number.MAX_SAFE_INTEGER : gameState.camera.x + GAME_WIDTH + 200;
+    // ⚠地底も同じ（1.563）。レベル全体（足場/コイン）を入場時に一括配置するので、右をカリングすると
+    //   **まだ到達していない前方の足場が消える**＝進めなくなる。P2-aまで露見しなかったのは地底に
+    //   platforms が1つも無かったから。敵だけは遅延スポーン(ugSpawnPendingEnemies)なので従来どおり刈ってよい。
+    var near = gameState.camera.x + GAME_WIDTH + 200;
+    // 地底は「置いた物（足場/コイン）」だけ前方を残す。敵は遅延スポーンなので従来どおり刈ってよい。
+    // ⚠チュートリアルは敵も開始時に前方配置しているので、従来どおり全部を残す（挙動を変えない）。
+    var rb    = (tutorialState.active || undergroundState.active) ? Number.MAX_SAFE_INTEGER : near;
+    var rbEnemy = tutorialState.active ? Number.MAX_SAFE_INTEGER : near;
 
-    cullByX(enemies, lb, rb, false);
-    cullByX(flyingEnemies, lb, rb, false);
+    cullByX(enemies, lb, rbEnemy, false);
+    cullByX(flyingEnemies, lb, rbEnemy, false);
     cullByX(platforms, lb, rb, true);
     cullByX(coins, lb, rb, false);
     cullByX(powerUps, lb, rb, false);
-    cullByX(bullets, lb, rb, false);
+    cullByX(bullets, lb, rbEnemy, false);
 
     // ゴールデンエッグ（日次・1日1回限りの一発抽選・1.455〜）: 2500mで30% → 外したらR4(≒4800m)で80%救済 → 両方外れたらその日は無し(farm不可)。
     // 一次抽選(2500m)を行った時点で当日の抽選を消費(goldenEggDrawDate)＝別ランでの再挑戦なし。救済はこのラン限定(per-run)。
@@ -5296,6 +5382,10 @@ function manageObjects() {
     // チュートリアルは台本配置のみ＝ランダム湧きなし（敵/飛行敵/足場/コイン/アイテム）
     if (tutorialState.active) return;
     if (undergroundState.active) return; // 地底も配置は作り込み（P2でレベルデータから配置する）
+    // 入場土管が出ている間は雑魚も足場もコインも湧かせない（1.556・ユーザー指定）。スクロールが止まって
+    // 1画面に閉じ込められるので、湧かせると土管に入るまでの間に敵が溜まって理不尽になる。
+    // ⚠placeUndergroundPipe は配置時に既存の敵を一掃するが、こちらが無いと直後からまた湧いてくる。
+    if (undergroundState.pipePlaced) return;
 
     // 安全地帯: 敵・飛行敵スポーン停止
     var inSafe = isInSafeZone(gameState.distance);
@@ -5369,9 +5459,10 @@ function findPlatformUnder() {
 
 function updateGameSpeed() {
     if (bossState.active) return; // ボス戦中はスピード固定
-    // 地底はオートスクロールしない（カメラはプレイヤー追従）。⚠毎tick再計算されるのでここで0に固定しないと
-    //   敵の相対移動(e.x += velX - gameSpeed)などが地上のスクロール前提で動いてしまう。
-    if (undergroundState.active) { gameState.gameSpeed = 0; return; }
+    // ⚠レベルは「距離だけで決まる進行の値」なので、**スクロールを止める分岐より前**で更新すること（1.564で修正）。
+    //   1.541で地底ガードをこの計算より上に置いたため、**地底の800mぶんだけレベルが上がらなくなっていた**
+    //   （ユーザー報告）。地底を出た瞬間にまとめて上がるので気付きにくいが、地底の間じゅうHUDが止まって見える。
+    //   ⚠ボス戦(冒頭のreturn)は距離自体が進まないので上げる必要がない＝従来どおり。
     var lvl = Math.floor(gameState.distance / SPEED_UP_INTERVAL) + 1;
     if (lvl > gameState.speedLevel) {
         gameState.speedLevel = lvl;
@@ -5379,6 +5470,12 @@ function updateGameSpeed() {
         gameState.speedUpNotificationTimer = 120;
         if (soundManager) soundManager.playLevelUp();
     }
+    // 地底はオートスクロールしない（カメラはプレイヤー追従）。⚠毎tick再計算されるのでここで0に固定しないと
+    //   敵の相対移動(e.x += velX - gameSpeed)などが地上のスクロール前提で動いてしまう。
+    if (undergroundState.active) { gameState.gameSpeed = 0; return; }
+    // 入場土管が出ている間もスクロールを止める（1.545）。⚠毎tick再計算されるのでここで固定しないと
+    //   土管が画面外へ流れていき「入る以外の選択肢がない」状況が崩れる。
+    if (undergroundState.pipePlaced) { gameState.gameSpeed = 0; return; }
     var mult = 1 + (lvl - 1) * SPEED_UP_RATE;
     var speed = Math.min(BASE_SCROLL_SPEED * mult, BASE_SCROLL_SPEED * 5.0);
     // 安全地帯: スクロール減速
@@ -5421,6 +5518,7 @@ function updatePlayer() {
     if (gameState.puShield > 0) gameState.puShield--;
     if (gameState.puEnergy > 0) gameState.puEnergy--;
     if (gameState.puMagnet > 0) gameState.puMagnet--;
+    if (gameState.ugElixir > 0) gameState.ugElixir--;   // 老婆の劇薬（1.569・地底ショップ）
 
     // コンボタイマー
     if (gameState.comboCount > 0) {
@@ -5439,7 +5537,10 @@ function updatePlayer() {
     // カメラ・距離
     // 地底はオートスクロールしない＝camera.x は updateUnderground がプレイヤー追従で進める（距離は同じ式で自動加算）
     if (!undergroundState.active) gameState.camera.x += gameState.gameSpeed;
-    gameState.distance = Math.floor(gameState.camera.x / 10);
+    // ⚠式そのものは不変（camera.x 由来の単一情報源・単調増加）。地底ぶんの加算だけを圧縮するため
+    //   ugDistOffset（地底でカメラが進んだ量の (1-UG_DIST_SCALE) 倍が積まれる）を差し引く。
+    //   地上では offset が増えないので、地上の距離の増え方は完全に従来どおり。updateUnderground 参照。
+    gameState.distance = Math.floor((gameState.camera.x - gameState.ugDistOffset) / 10);
 
     // ノーダメージ継続ボーナス: 被弾せず NODMG_STEP(m) 走るごとに加点（被弾/落下でリセット）
     // ※この関数内は後続の地形ループの「var t = terrain[i]」が i18n の t() を隠すため window.t で参照する
@@ -5537,8 +5638,13 @@ function updatePlayer() {
     // 通常時10（敵ごと左へ流れるので大きめ）/画面固定時(ボス戦=gameSpeed0)は前後対称7。
     // 直後の画面端/アリーナ壁クランプが効くので突き抜けない。distanceはcamera.x由来なので距離/Lvに影響なし。
     if (player.samuraiDive) {
-        var _dvBack = (gameState.gameSpeed === 0) ? SAMURAI_DIVE_FORWARD : SAMURAI_DIVE_BACKWARD;
-        player.x += ((player.facing === 'left') ? -_dvBack : SAMURAI_DIVE_FORWARD) + gameState.gameSpeed;
+        // ⚠地底(1.564)は**左右とも SAMURAI_DIVE_FORWARD × SAMURAI_DIVE_UG_MULT** ＝ 倍かつ完全対称。
+        //   gameSpeed=0 なので後方も FORWARD 側を使う既存分岐がそのまま対称性を担保している
+        //   （ボス戦も gameSpeed=0 だが、倍にするのは地底だけ＝ボスの間合いは変えない）。
+        var _dvMul = undergroundState.active ? SAMURAI_DIVE_UG_MULT : 1;
+        var _dvFwd = SAMURAI_DIVE_FORWARD * _dvMul;
+        var _dvBack = (gameState.gameSpeed === 0) ? _dvFwd : SAMURAI_DIVE_BACKWARD;
+        player.x += ((player.facing === 'left') ? -_dvBack : _dvFwd) + gameState.gameSpeed;
     }
 
     // 画面端制限
@@ -5702,7 +5808,9 @@ function updatePlayer() {
     }
 
     // 落下死（上から降ってくるリスポーン）
-    if (player.y > GAME_HEIGHT + 100) fallDeath();
+    // ⚠地底は縦カメラ(1.563)で下の部屋へ降りるので、画面座標(GAME_HEIGHT+100)では判定できない
+    //   ＝「降りただけで死ぬ」ことになる。部屋ごとにワールド座標の死亡ラインを持つ（ugDeathY）。
+    if (player.y > (undergroundState.active ? ugDeathY() : GAME_HEIGHT + 100)) fallDeath();
 }
 
 // ─── コンボシステム ───
@@ -5741,6 +5849,9 @@ function registerKill(scoreValue, effectX, effectY) {
 
 // 敵撃破の共通処理（爆発エフェクト + 配列から除去 + スコア/コンボ加算 + 撃破音）
 function killEnemy(arr, index, e, score) {
+    // シャレコ（1.563）は**倒せない敵**＝撃破の代わりに崩壊させる。配列からは消さない（N秒後に再生する）。
+    // ⚠踏み/シールド/急降下斬り/エナジー弾 の全経路がこの関数を通るので、ここ1箇所で漏れなく差し替わる。
+    if (e.type === 'skully') { ugCollapseSkully(e); return; }
     zukanAddKill(enemyZukanId(e)); // ずかん: 撃破数を加算（＝発見）
     spawnExplosionEffect(e.x + e.width / 2, e.y + e.height / 2);
     arr.splice(index, 1);
@@ -5783,6 +5894,9 @@ function applySpecialMoveImpact() {
         for (var i = arr.length - 1; i >= 0; i--) {
             var e = arr[i];
             if (e.x + e.width > cx - 20 && e.x < cx + vw + 20) {
+                // シャレコ（1.563）は必殺技でも消えない＝崩れるだけ（「倒せない敵」の一貫性を保つ）。
+                // 道は開くので必殺技が無駄になるわけではない。
+                if (e.type === 'skully') { ugCollapseSkully(e); continue; }
                 spawnExplosionEffect(e.x + e.width / 2, e.y + e.height / 2);
                 arr.splice(i, 1);
                 gameState.enemyKills++;
@@ -6026,8 +6140,15 @@ function updateEnemies() {
             e.x += e.velX - gameState.gameSpeed;    // ボスアリーナは従来挙動（平地・スクロール維持）
         } else {
             updateEnemyPhysics(e);                  // 通常フィールド: 重力＋地形＋穴落下
-            if (e.y > GAME_HEIGHT + 120) { enemies.splice(i, 1); continue; } // 穴に落ちて画面外→除去
+            // ⚠地底は部屋ごとに床の高さが違う（下の部屋の床は y=1180）。画面座標(570)で刈ると
+            //   **床の上に立っている敵がその場で消える**。地底ではワールドの死亡ラインで判定する。
+            var _cullY = undergroundState.active ? ugDeathY() + 200 : GAME_HEIGHT + 120;
+            if (e.y > _cullY) { enemies.splice(i, 1); continue; } // 穴に落ちて画面外→除去
         }
+
+        // シャレコ（1.563）: 崩壊中は骨の山＝**当たり判定を完全に消す**（踏みも被弾も無い＝素通りできる）。
+        // ここで continue するので、以降の踏み/ダメージ判定には一切入らない。
+        if (e.type === 'skully' && ugUpdateSkully(e)) continue;
 
         // 踏みつけ判定 (横広め) とダメージ判定 (横狭め) を分離
         var stompHit = aabbShrink(player, e, 4, 12);
@@ -6366,19 +6487,28 @@ function updatePlatforms() {
                 player.x + player.width > p.x && player.x < p.x + p.width) {
                 player.y += deltaY;
                 // 地面にめり込まないようクランプ（実際の地形を確認）
+                // ⚠1.563修正: 旧コードは「横に重なり、かつ上端が足元より上」の地形を**最初に見つけた1つ**へ
+                //   問答無用でスナップしていた。地上は地形が全部 GROUND_Y 以下なので偶然それで正しかったが、
+                //   地底は**天井がある**ため、天井の矩形(部屋の全幅・上端はずっと上)が条件に一致し、
+                //   動く床に乗った瞬間にプレイヤーが天井の上へ吹き飛ぶ（実測: y=479 → -596 を1フレームで）。
+                //   → ①移動前の足元より上にある地形（＝天井/壁）は候補から外す ②候補の中で**一番高い床**を選ぶ。
+                var feetBefore = player.y + player.height - deltaY;
+                var clampY = null, clampType = null;
                 for (var ti = 0; ti < terrain.length; ti++) {
                     var t = terrain[ti];
                     if (t.type === 'hole') continue;
-                    if (player.x + player.width > t.x && player.x < t.x + t.width &&
-                        player.y + player.height > t.y) {
-                        player.y = t.y - player.height;
-                        player.onGround = true;
-                        var gt = t.type || 'normal';
-                        if (gt === 'quicksand_elevated') gt = 'quicksand';
-                        else if (gt === 'ice_elevated') gt = 'ice';
-                        player.groundType = gt;
-                        break;
-                    }
+                    if (!(player.x + player.width > t.x && player.x < t.x + t.width)) continue;
+                    if (player.y + player.height <= t.y) continue;   // まだ上＝めり込んでいない
+                    if (t.y < feetBefore - 4) continue;              // 移動前から足元より上＝床ではない（天井/壁）
+                    if (clampY === null || t.y < clampY) { clampY = t.y; clampType = t.type; }
+                }
+                if (clampY !== null) {
+                    player.y = clampY - player.height;
+                    player.onGround = true;
+                    var gt = clampType || 'normal';
+                    if (gt === 'quicksand_elevated') gt = 'quicksand';
+                    else if (gt === 'ice_elevated') gt = 'ice';
+                    player.groundType = gt;
                 }
             }
         } else if (p.special === 'disappearing') {
@@ -6511,6 +6641,32 @@ function updateBullets() {
                 } catch (_) {}
             }
         }
+    } else if (gameState.ugElixir > 0 && gameState.gameStarted && !pipeRoomState.active) {
+        // 老婆の劇薬（1.569・地底ショップ）: 30秒間、エナジー弾と同じ間隔で撃てる。ダメージは1（エナジー弾2の半分）。
+        // ⚠分岐の位置が仕様そのもの: エナジー缶(dmg2)より**後**＝缶を持っている間は強い方だけが出る。
+        //   スキンの自動攻撃(dmg1・2秒/1秒に1発)より**前**＝金を払った劇薬のほうが必ず優先され、二重に撃たない。
+        gameState.elixirFireTimer = (gameState.elixirFireTimer || 0) + 1;
+        if (gameState.elixirFireTimer >= 20) {
+            gameState.elixirFireTimer = 0;
+            var xdir = player.facing === 'left' ? -1 : 1;
+            bullets.push({
+                x: xdir > 0 ? player.x + player.width : player.x - 16,
+                y: player.y + player.height / 2 - 8,
+                width: 16, height: 16,
+                velX: xdir * (gameState.gameSpeed + 8),
+                dir: xdir, isZap: true, dmg: 1
+            });
+            if (soundManager && soundManager.ctx && gameSettings.soundEnabled) {
+                try { // 劇薬の音（電気弾より低く濁った音＝毒々しさ）
+                    var xao = soundManager.ctx, xosc = xao.createOscillator(), xgn = xao.createGain();
+                    xosc.connect(xgn); xgn.connect(xao.destination);
+                    xosc.frequency.value = 620; xosc.type = 'sawtooth';
+                    xgn.gain.setValueAtTime(0.04, xao.currentTime);
+                    xgn.gain.exponentialRampToValueAtTime(0.001, xao.currentTime + 0.06);
+                    xosc.start(xao.currentTime); xosc.stop(xao.currentTime + 0.06);
+                } catch (_) {}
+            }
+        }
     } else if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
                runActiveSkin() === 'kigurumi' && gameState.gameStarted && !pipeRoomState.active) {
         // きぐるみの特殊効果: エナジー弾が出ていない時だけ、2秒に1発 水色のエネルギー弾（ダメージ1＝エナジー弾2の半分）。1.497で「電気弾」から改称（ピカチュウ連想回避）。
@@ -6625,8 +6781,12 @@ function updateBullets() {
         if (b.isShuriken) b.spin = (b.spin || 0) + 0.35 * (b.dir < 0 ? -1 : 1); // 手裏剣は回転
 
         // 画面外削除（縦はロックオン弾の斜め飛びで抜けた分を回収）
+        // ⚠縦は**カメラ相対**で見ること（1.564修正）。旧コードは素の画面座標(0〜GAME_HEIGHT)で判定していたため、
+        //   縦カメラのある地底では弾の y（例: 1132）が常に GAME_HEIGHT+120 を超え、**撃った次のフレームに消えていた**
+        //   ＝きぐるみ/サイバーぴよ/忍者ぴよの自動攻撃とエナジー弾が地底で一切出ない（ユーザー報告）。
+        //   地上は camera.y が常に 0 なので、この式は従来とまったく同じ値になる（挙動不変）。
         if (b.x > gameState.camera.x + GAME_WIDTH + 100 || b.x < gameState.camera.x - 100 ||
-            b.y < -120 || b.y > GAME_HEIGHT + 120) {
+            b.y < gameState.camera.y - 120 || b.y > gameState.camera.y + GAME_HEIGHT + 120) {
             bullets.splice(i, 1);
             continue;
         }

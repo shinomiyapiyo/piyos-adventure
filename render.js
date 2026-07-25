@@ -1057,6 +1057,25 @@ var EFFECT_RENDERERS = {
             ctx.restore();
         },
     // ボスジャンプ着地衝撃波
+    // 闇のカカシの召喚（1.558）: 湧いた雑魚の位置で紫黒の闇が弾ける＝「今ここに呼び出された」と分かる。
+    // ⚠これが無いと、雑魚が音もなく画面に増えるだけで召喚に気づけない（ユーザー報告）。
+    summon_burst: function(ef, wx, progress) {
+            ctx.save();
+            var r = 5 + progress * 26;
+            ctx.globalAlpha = (1 - progress) * 0.8;
+            ctx.fillStyle = '#3d1259';
+            for (var i = 0; i < 7; i++) {                        // 外へ弾ける闇の粒（2pxグリッド＝ドット絵に馴染ませる）
+                var a = (i / 7) * Math.PI * 2 + progress * 1.4;
+                var s = Math.max(2, Math.round((8 - progress * 6) / 2) * 2);
+                ctx.fillRect(Math.round((wx + Math.cos(a) * r) / 2) * 2,
+                             Math.round((ef.worldY + Math.sin(a) * r * 0.55) / 2) * 2, s, s);
+            }
+            ctx.globalAlpha = (1 - progress) * 0.95;             // 中心の閃光
+            ctx.fillStyle = '#c98cff';
+            var cs = Math.max(2, Math.round((10 - progress * 8) / 2) * 2);
+            ctx.fillRect(Math.round((wx - cs / 2) / 2) * 2, Math.round((ef.worldY - cs / 2) / 2) * 2, cs, cs);
+            ctx.restore();
+        },
     boss_shockwave: function(ef, wx, progress) {
             var swRadius = progress * 120;
             var swAlpha = (1 - progress) * 0.5;
@@ -1136,6 +1155,18 @@ function drawCaveBackdrop() {
     var camX = gameState.camera.x;
     var H = GAME_HEIGHT, W = GAME_WIDTH;
 
+    // ── 縦パララックスと「深さ」（1.563・SPEC §11.4 の Hollow Knight らしさ④⑥）──
+    // ⚠背景は translate の外＝ワールドの縦スクロールが効かないので、ここで camera.y を見て自分でずらす。
+    // ⚠ずらし量は**必ず有界**にすること（camera.y をそのまま掛けると層が画面外へ飛んで隙間が空く）。
+    //   depth = 0（王の廊下＝最上部）〜 1（回廊/尖塔の底）に正規化し、±1 の範囲でだけ動かす。
+    var camY  = undergroundState.active ? gameState.camera.y : 0;
+    var depth = (camY + 518) / 1344;                    // -518 = 最上部の camY / 826 = 最下部の camY
+    if (depth < 0) depth = 0; else if (depth > 1) depth = 1;
+    var vs = (depth - 0.5) * 2;                         // -1..+1
+    // ⚠ずらすのは「隙間が出ない作りにした層」だけ（①遠景の稜線・②石柱のリング/目地）。
+    //   ③の鍾乳石/石筍は額縁なので動かさない（1.564・上下移動で表示が壊れる報告への対応）。
+    var vFar = -vs * 26, vPil = -vs * 46;                     // 奥ほど動かない＝距離感が出る
+
     // ① 遠景の岩壁（ゴツゴツした稜線を2段）
     ctx.save();
     ctx.globalAlpha = 0.55;
@@ -1144,8 +1175,9 @@ function drawCaveBackdrop() {
     for (var f = -1; f < W / farW + 2; f++) {
         var fx = Math.floor(f * farW - (camX * 0.10) % farW);
         var fh = 54 + ((f % 3) * 16);
-        ctx.fillRect(fx, H - 150 - fh, farW, fh + 150);
-        ctx.fillRect(fx + 12, H - 168 - fh, farW - 24, 20); // 出っ張り
+        // ⚠+400 は縦にずらした時に下端が浮かないための余白（見た目は変わらない＝下は必ず画面外）
+        ctx.fillRect(fx, H - 150 - fh + vFar, farW, fh + 150 + 400);
+        ctx.fillRect(fx + 12, H - 168 - fh + vFar, farW - 24, 20); // 出っ張り
     }
     ctx.globalAlpha = 0.4;
     ctx.fillStyle = '#1f1830';
@@ -1153,33 +1185,46 @@ function drawCaveBackdrop() {
     for (var m = -1; m < W / midW + 2; m++) {
         var mx = Math.floor(m * midW - (camX * 0.14) % midW);
         var mh = 40 + ((m % 4) * 13);
-        ctx.fillRect(mx, H - 120 - mh, midW, mh + 120);
+        ctx.fillRect(mx, H - 120 - mh + vFar, midW, mh + 120 + 400);
     }
     ctx.restore();
 
     // ② 奥の石柱（城の遺構・アーチ）
+    // ⚠**柱の胴は画面いっぱいに通すこと**（1.564修正）。1.563は上端44/下端H-96の固定長で描いて全体を
+    //   縦にずらしていたため、上下に動くと柱の端が画面内に入ってきて「柱が浮く・下が途切れる」状態になった
+    //   （ユーザー報告「上下に移動すると背景の柱などの表示がおかしくなる」）。
+    //   → 胴は常に画面外まで伸ばし、**柱頭/柱脚のリングと目地だけを縦に流す**。これなら隙間が原理的に出ず、
+    //     「遺構の柱が縦にどこまでも続いている」＝Hollow Knight 的な深さの表現にもなる。
     ctx.save();
     ctx.globalAlpha = 0.5;
     var pilW = 34, pilGap = 210;
+    var ringP = 260;                                     // 柱頭〜柱脚の1区画ぶんの高さ
+    var ringOff = ((vPil % ringP) + ringP) % ringP;
+    var jointOff = ((vPil % 22) + 22) % 22;
     for (var p = -1; p < W / pilGap + 2; p++) {
         var px = Math.floor(p * pilGap - (camX * 0.18) % pilGap);
-        var topY = 44, botY = H - 96;
         ctx.fillStyle = '#2a2140';
-        ctx.fillRect(px, topY, pilW, botY - topY);
+        ctx.fillRect(px, -30, pilW, H + 60);             // 胴（画面外まで）
         ctx.fillStyle = '#352a4e';                       // 明るい面（左）
-        ctx.fillRect(px, topY, 7, botY - topY);
-        ctx.fillStyle = '#1d1730';                       // 目地
-        for (var by = topY + 16; by < botY; by += 22) ctx.fillRect(px, by, pilW, 2);
-        ctx.fillStyle = '#3c3058';                       // 柱頭・柱脚
-        ctx.fillRect(px - 6, topY, pilW + 12, 10);
-        ctx.fillRect(px - 6, botY - 12, pilW + 12, 12);
+        ctx.fillRect(px, -30, 7, H + 60);
+        ctx.fillStyle = '#1d1730';                       // 目地（縦に流れる）
+        for (var by = jointOff - 22; by < H + 22; by += 22) ctx.fillRect(px, by, pilW, 2);
+        ctx.fillStyle = '#3c3058';                       // 柱頭・柱脚（区画の切れ目）
+        for (var ry = ringOff - ringP; ry < H + ringP; ry += ringP) {
+            ctx.fillRect(px - 6, ry, pilW + 12, 10);
+            ctx.fillRect(px - 6, ry + ringP - 22, pilW + 12, 12);
+        }
     }
     ctx.restore();
 
     // ③ 天井の鍾乳石／床の石筍
     ctx.save();
     ctx.globalAlpha = 0.85;
-    var stW = 26, stGap = 78;
+    // ⚠この層は**縦にずらさない**（1.564修正）。1.563は 0.30x 相当で縦にも動かしていたが、下へ降りると
+    //   鍾乳石が画面上へ抜けて消え、代わりに埋め合わせの帯がベタ塗りの板として見えていた。
+    //   鍾乳石/石筍は「今見ている空間の天井と床」を示す**額縁**なので、画面に固定するのが正しい。
+    //   縦の深さは①遠景の稜線と②石柱のリング/目地が担当する（そちらは隙間が原理的に出ない作りにした）。
+    var stW = 26, stGap = 78, stTop = 0;
     for (var s = -1; s < W / stGap + 2; s++) {
         var sx = Math.floor(s * stGap - (camX * 0.30) % stGap);
         var seed = ((s % 5) + 5) % 5;
@@ -1187,11 +1232,11 @@ function drawCaveBackdrop() {
         var sh = 26 + seed * 11;
         ctx.fillStyle = '#241d38';
         ctx.beginPath();
-        ctx.moveTo(sx, 0); ctx.lineTo(sx + stW, 0); ctx.lineTo(sx + stW / 2, sh);
+        ctx.moveTo(sx, stTop); ctx.lineTo(sx + stW, stTop); ctx.lineTo(sx + stW / 2, stTop + sh);
         ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#31284a';                       // 縁のハイライト
         ctx.beginPath();
-        ctx.moveTo(sx + 3, 0); ctx.lineTo(sx + 9, 0); ctx.lineTo(sx + stW / 2 - 1, sh - 8);
+        ctx.moveTo(sx + 3, stTop); ctx.lineTo(sx + 9, stTop); ctx.lineTo(sx + stW / 2 - 1, stTop + sh - 8);
         ctx.closePath(); ctx.fill();
         // 床から生える石筍（1つおき）
         if (seed % 2 === 0) {
@@ -1207,8 +1252,11 @@ function drawCaveBackdrop() {
     // ④ 石柱の松明（城ステージらしい暖色のアクセント。⚠背景なので当たり判定は無い＝ただの飾り）
     ctx.save();
     for (var q = -1; q < W / pilGap + 2; q++) {
-        var qx = Math.floor(q * pilGap - (camX * 0.18) % pilGap) + pilW + 4;
-        var qy = 150;
+        // ⚠松明は石柱の**中央**に置く（1.561・ユーザー指定）。旧 `+ pilW + 4` は石柱の右端からさらに4px右＝
+        //   柱にくっついていない位置だった。石柱は px..px+pilW なので中央は px + pilW/2。
+        //   視差(0.18x)は石柱と同じ式なので、ずらしても常に同じ柱に乗り続ける。
+        var qx = Math.floor(q * pilGap - (camX * 0.18) % pilGap) + Math.round(pilW / 2);
+        var qy = 150 + vPil;   // ⚠石柱と同じ縦ずらし＝どの高さでも柱の上に乗り続ける（1.563）
         var flick = 0.75 + 0.25 * Math.sin(gameState.time * 0.25 + q * 2.1);
         // 受け皿
         ctx.fillStyle = '#3c3058';
@@ -1234,9 +1282,11 @@ function drawCaveBackdrop() {
     ctx.restore();
 
     // ⑤ 床の手前から立ちのぼる溶岩の照り返し（ゆっくり明滅＝生きている感じ）
-    // ⚠地面(GROUND_Y)より下は地形タイルで覆われるので、光は地面の“上”に置く。
-    var pulse = 0.20 + 0.07 * Math.abs(Math.sin(gameState.time * 0.02));
-    var glowTop = GROUND_Y - 78, glowH = 78;
+    // ⚠地面より下は地形タイルで覆われるので、光は地面の“上”に置く。地底は縦カメラなので画面基準にする。
+    // ⚠**深さで強さを変える**（1.563・SPEC の軸「登る＝報われる／降りる＝危険が増す」）:
+    //   最上部(王の廊下)では赤がほぼ抜け、最下部(尖塔の底/回廊)で最も濃くなる。
+    var pulse = (0.20 + 0.07 * Math.abs(Math.sin(gameState.time * 0.02))) * (0.30 + depth * 1.35);
+    var glowTop = GAME_HEIGHT - 102 - 78, glowH = 78 + 102;
     var lg = ctx.createLinearGradient(0, glowTop, 0, glowTop + glowH);
     lg.addColorStop(0, 'rgba(255,120,40,0)');
     lg.addColorStop(1, 'rgba(255,110,30,' + pulse.toFixed(3) + ')');
@@ -1587,10 +1637,245 @@ function getTerrainCache(type, width, height) {
     return cv;
 }
 
+// ─── 地底（P2-b・1.563）の地形タイル ───
+// ⚠地上の getTerrainCache は使えない。あちらは TILE=34 で「高さ+1行ぶん」余分に焼くので、
+//   ブロックの下へ約32pxはみ出す（地上の地面は下がずっと土なので見えないだけ）。地底は空中に
+//   ブロックを置くので、はみ出した土が宙に浮いて見えてしまう。→ **32pxちょうど**で敷き直す。
+// ⚠メモリ対策: 矩形まるごとを焼くと 4000×96 のような巨大キャッシュが何十枚もできる。
+//   **幅1タイルの縦帯**だけ焼いて横に並べる＝キャッシュは (種類×行数) の数十枚・各32px幅で済む。
+var caveStripCache = {};
+function getCaveStrip(type, rows) {
+    var key = type + '_' + rows;
+    if (caveStripCache[key]) return caveStripCache[key];
+    var cv = document.createElement('canvas');
+    cv.width = UG_TILE; cv.height = rows * UG_TILE;
+    var cc = cv.getContext('2d');
+    cc.imageSmoothingEnabled = false;
+    for (var r = 0; r < rows; r++) {
+        // 石積み(elevated)は全段が石材＝城の壁/遺構。岩(ground)は上段だけ岩肌で、下は洞窟の内部。
+        var tile = (type === 'elevated') ? 'terrain_cave_brick'
+                 : (r === 0 ? 'terrain_cave_top' : 'terrain_cave_dirt');
+        spriteManager.draw(cc, tile, 0, 0, r * UG_TILE, UG_TILE, UG_TILE, false);
+    }
+    caveStripCache[key] = cv;
+    return cv;
+}
+function drawCaveBlock(t) {
+    var camY = gameState.camera.y;
+    if (t.y > camY + GAME_HEIGHT || t.y + t.height < camY) return;   // 縦のカリング（塔の壁は画面外が長い）
+    var rows = Math.round(t.height / UG_TILE);
+    if (rows < 1) return;
+    var strip = getCaveStrip(t.type === 'elevated' ? 'elevated' : 'ground', rows);
+    var camX = gameState.camera.x;
+    var x0 = t.x, x1 = t.x + t.width;
+    if (x0 < camX - UG_TILE) x0 = t.x + Math.floor((camX - UG_TILE - t.x) / UG_TILE) * UG_TILE;
+    if (x1 > camX + GAME_WIDTH + UG_TILE) x1 = camX + GAME_WIDTH + UG_TILE;
+    for (var x = x0; x < x1; x += UG_TILE) ctx.drawImage(strip, x, t.y);
+}
+
 function drawTerrain(t) {
     if (t.type === 'hole') return;
+    if (t.ugTile) { drawCaveBlock(t); return; }   // 地底は32pxぴったりの専用描画（1.563）
     // 焼き付け済みの地面画像を1枚blitするだけ（原点 = 元コードの (t.x, t.y - GRASS_OFFSET)）
     ctx.drawImage(getTerrainCache(t.type, t.width, t.height), t.x, t.y - 5);
+}
+
+// ─── 地底ギミックの描画（1.563・当たり判定は gameplay.js の updateUndergroundHazards が正） ───
+
+// 溶岩の池: 明滅する面＋ゆっくり上下する波＋気泡。⚠見た目の面(y)と当たり判定の面を必ず一致させる
+function drawUndergroundLava(camL, camR) {
+    var lv = undergroundState.lava, camY = gameState.camera.y;
+    for (var i = 0; i < lv.length; i++) {
+        var L = lv[i];
+        if (L.x + L.width < camL || L.x > camR) continue;
+        if (L.y > camY + GAME_HEIGHT || L.y + L.height < camY) continue;
+        var g = ctx.createLinearGradient(0, L.y, 0, L.y + L.height);
+        g.addColorStop(0, '#ffcf5a');
+        g.addColorStop(0.18, '#ff8a1e');
+        g.addColorStop(1, '#8c1c06');
+        ctx.fillStyle = g;
+        ctx.fillRect(L.x, L.y, L.width, L.height);
+        // 表面の波（2pxグリッドに丸めてドット絵の粒に揃える）
+        ctx.fillStyle = '#ffe9a8';
+        for (var wx = L.x; wx < L.x + L.width; wx += 8) {
+            var wy = L.y + Math.round(Math.sin(gameState.time * 0.06 + wx * 0.05) * 2) - 2;
+            ctx.fillRect(Math.round(wx / 2) * 2, Math.round(wy / 2) * 2, 6, 4);
+        }
+        // 気泡（乱数を使わず time と位置から出す＝毎フレーム跳ねない）
+        ctx.save();
+        for (var b = 0; b < Math.max(1, Math.floor(L.width / 96)); b++) {
+            var ph = (gameState.time * 0.7 + b * 53) % 100;
+            var bx = L.x + 24 + b * 96 + Math.sin(b * 2.3) * 10;
+            if (bx > L.x + L.width - 8) continue;
+            ctx.globalAlpha = 0.75 * (1 - ph / 100);
+            ctx.fillStyle = '#ffd98a';
+            ctx.fillRect(Math.round(bx / 2) * 2, Math.round((L.y + 6 - ph * 0.16) / 2) * 2, 4, 4);
+        }
+        ctx.restore();
+    }
+}
+
+// トゲ床 / ファイアバー / 火の玉
+function drawUndergroundHazards(camL, camR) {
+    var ug = undergroundState, camY = gameState.camera.y, i, j;
+
+    // ── トゲ床: 石の台座＋鉄のトゲ（3本/タイル）。⚠当たりは下側 UG_SPIKE_H だけ＝見た目より寛容 ──
+    for (i = 0; i < ug.spikes.length; i++) {
+        var sp = ug.spikes[i];
+        if (sp.x + sp.w < camL || sp.x > camR) continue;
+        if (sp.y > camY + GAME_HEIGHT || sp.y + UG_TILE < camY) continue;
+        var baseY = sp.y + UG_SPIKE_H;
+        ctx.fillStyle = '#39304a';
+        ctx.fillRect(sp.x, baseY - 4, sp.w, 6);
+        // ⚠三角は**当たり判定(UG_SPIKE_INSET)より内側**に描く＝「絵に触れたら当たる」で、絵の手前では当たらない。
+        //   1タイルあたり3本。結合された幅(sp.w)ぶん繰り返す。
+        var spikeN = Math.max(1, Math.round(sp.w / UG_TILE) * 3);
+        for (j = 0; j < spikeN; j++) {
+            var tx = sp.x + UG_SPIKE_INSET + 1 + j * ((sp.w - UG_SPIKE_INSET * 2 - 8) / Math.max(1, spikeN - 1));
+            ctx.fillStyle = '#c8ccd8';
+            ctx.beginPath();
+            ctx.moveTo(tx, baseY - 3); ctx.lineTo(tx + 8, baseY - 3); ctx.lineTo(tx + 4, baseY - 3 - UG_SPIKE_H);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#7e8496';                    // 右側に陰＝立体に見せる
+            ctx.beginPath();
+            ctx.moveTo(tx + 4, baseY - 3); ctx.lineTo(tx + 8, baseY - 3); ctx.lineTo(tx + 4, baseY - 3 - UG_SPIKE_H);
+            ctx.closePath(); ctx.fill();
+        }
+    }
+
+    // ── ファイアバー: 支点の石＋炎セグメント。回転は updateUndergroundHazards が進める ──
+    for (i = 0; i < ug.fireBars.length; i++) {
+        var fb = ug.fireBars[i];
+        var reach = fb.len * UG_FIREBAR_SEG + 20;
+        if (fb.x + reach < camL || fb.x - reach > camR) continue;
+        if (fb.y - reach > camY + GAME_HEIGHT || fb.y + reach < camY) continue;
+        ctx.save();
+        ctx.fillStyle = '#4a3f5c';                        // 支点（石のハブ）
+        ctx.fillRect(fb.x - 7, fb.y - 7, 14, 14);
+        ctx.fillStyle = '#6b5c82';
+        ctx.fillRect(fb.x - 5, fb.y - 5, 10, 4);
+        for (j = 1; j <= fb.len; j++) {
+            var sg = j * UG_FIREBAR_SEG;
+            var sx = fb.x + Math.cos(fb.ang) * sg, sy = fb.y + Math.sin(fb.ang) * sg;
+            var fl = 1 + Math.sin(gameState.time * 0.3 + j) * 0.12;   // 揺らぎ
+            ctx.globalAlpha = 0.35;
+            ctx.fillStyle = '#ff7a1e';
+            ctx.beginPath(); ctx.arc(sx, sy, UG_FIREBAR_R * 1.7 * fl, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#ff9a2e';
+            ctx.beginPath(); ctx.arc(sx, sy, UG_FIREBAR_R * fl, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffe07a';
+            ctx.beginPath(); ctx.arc(sx, sy, UG_FIREBAR_R * 0.5 * fl, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    // ── 火の玉: 上がっている間だけ描く。尾を引かせて軌道（＝次に落ちる位置）を読ませる ──
+    for (i = 0; i < ug.fireballs.length; i++) {
+        var fl2 = ug.fireballs[i];
+        if (!fl2.live) continue;
+        if (fl2.x < camL || fl2.x > camR) continue;
+        if (fl2.cy > camY + GAME_HEIGHT || fl2.cy < camY - 60) continue;
+        ctx.save();
+        for (j = 3; j >= 1; j--) {                        // 尾（過去位置を近似で置く）
+            ctx.globalAlpha = 0.16 * j;
+            ctx.fillStyle = '#ff7a1e';
+            ctx.beginPath(); ctx.arc(fl2.x, fl2.cy - fl2.vy * j * 1.6, UG_FIREBALL_R * (1 - j * 0.16), 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = '#ff8a2a';
+        ctx.beginPath(); ctx.arc(fl2.x, fl2.cy, UG_FIREBALL_R * 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ffa63c';
+        ctx.beginPath(); ctx.arc(fl2.x, fl2.cy, UG_FIREBALL_R, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff0b0';
+        ctx.beginPath(); ctx.arc(fl2.x - 2, fl2.cy - 3, UG_FIREBALL_R * 0.45, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+// 地底への入場土管（1.549）。本体は sprites.js の buildUndergroundPipe（66x50のドット絵）を2倍で描く。
+// ⚠1.546〜1.548は楕円＋グラデーションのベクタ描画だったが「イラレで雑に描いたように見える／土管だけ浮く」
+//   というユーザー指摘により、地形タイルと同じドット絵システム(16色パレット＋ディザ)へ全面的に描き直した。
+//   ここに残すのは**アニメーションする飾りだけ**（グロー/溶岩の明滅/火の粉）。それらも2pxグリッドに丸めて粒を揃える。
+// ⚠幾何の原則:「一番広い部分（リップ＝乗る面）の幅を p.width ちょうどにし、下端を p.y+p.height（＝GROUND_Y）
+//   にぴったり置く」。スプライト側も同じ約束で描いてあるので、当たり判定と見た目が常に一致し地面から浮かない。
+// ⚠口の楕円の縦半径は UG_PIPE_MOUTH_RY 1つで決まる（スプライトの口＝中心y6/縦半径6 の2倍）。沈む演出のクリップも同じ定数。
+function drawUndergroundPipe(p) {
+    // ⚠描画原点は当たり判定の上面より UG_PIPE_MOUTH_RY ぶん**上**（1.559）。当たり判定の上面は
+    //   「口の楕円の中心」に置いてあり（＝プレイヤーが口の中に立って見える）、スプライトの最上端は
+    //   楕円の奥側の縁だから。サイズは判定用に詰めた p.width/p.height ではなく定数を使う。
+    var x = p.x, w = UG_PIPE_W, h = UG_PIPE_H;
+    var y = p.y - UG_PIPE_MOUTH_RY;
+    var cx = x + w / 2, bottom = y + h;
+    // せり上がり中（1.554）: 地面より下は「まだ地中」なので描かない＝地面から生えてくるように見える。
+    // ⚠プラットフォームは地形より**後**に描かれるので、クリップしないと地中部分が地面の上に見えてしまう。
+    var rising = undergroundState.pipeRise < UG_PIPE_RISE_FRAMES;
+    if (rising) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x - 60, GROUND_Y - 2000, w + 120, 2000);   // 地面から上だけ
+        ctx.clip();
+    }
+
+    // 誘目グロー（脈動）＝「ここが入口」の特別感。⚠ドット絵の後ろに敷く（上に乗せると絵がにじむ）
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 0.18 + Math.sin(gameState.time * 0.09) * 0.09);
+    var rg = ctx.createRadialGradient(cx, y + h * 0.35, 6, cx, y + h * 0.35, w);
+    rg.addColorStop(0, 'rgba(255,90,60,0.9)'); rg.addColorStop(1, 'rgba(255,90,60,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(cx - w, y - h * 0.5, w * 2, h * 1.8);
+    ctx.restore();
+    // 接地影（ドットに合わせて矩形2段・楕円にするとここだけ滑らかになって浮く）
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(x + 6, bottom, w - 12, 4);
+    ctx.fillRect(x + 16, bottom + 4, w - 32, 2);
+
+    // 本体＝ドット絵スプライト（sprites.js の buildUndergroundPipe・66x50を2倍で描く）。
+    // ⚠imageSmoothingEnabled=false でニアレストネイバー＝拡大してもドットの角が残る。
+    ctx.imageSmoothingEnabled = false;
+    spriteManager.draw(ctx, 'pipe_underground', 0, x, y, w, h, false);
+
+    // 口の奥の明滅（溶岩の照り返し）。⚠2pxグリッドに丸めてドット絵と粒を揃える
+    var lit = 0.22 + Math.sin(gameState.time * 0.13) * 0.16;
+    if (lit > 0) {
+        ctx.save();
+        ctx.globalAlpha = lit;
+        ctx.fillStyle = '#ff9a3c';
+        var lw = Math.round(w * 0.30 / 2) * 2, lh = 6;
+        ctx.fillRect(Math.round((cx - lw / 2) / 2) * 2, Math.round((y + 14) / 2) * 2, lw, lh);
+        ctx.restore();
+    }
+
+    // 口から立ちのぼる火の粉（飾り・当たり判定なし）。乱数を使わず time 基準＝毎フレーム跳ばない。
+    // ⚠2x2pxの矩形を2pxグリッドに丸める＝スプライトのドットと同じ粒に見える
+    ctx.save();
+    for (var i = 0; i < 5; i++) {
+        var ph = (gameState.time * 0.9 + i * 37) % 100;
+        ctx.globalAlpha = Math.max(0, 0.8 * (1 - ph / 100));
+        ctx.fillStyle = (i % 2) ? '#ffd98a' : '#ff9a3c';
+        var ex = Math.round((cx + Math.sin(gameState.time * 0.05 + i * 1.7) * (w * 0.22)) / 2) * 2;
+        ctx.fillRect(ex, Math.round((y + 12 - ph * 0.55) / 2) * 2, 2, 2);
+    }
+    ctx.restore();
+
+    if (rising) {
+        ctx.restore();                                  // クリップ解除（以降は地面より下にも描ける）
+        // せり上がりで押し出された土煙と、地面の割れ目から飛ぶ小石（当たり判定なしの飾り）。
+        // ⚠乱数を使わず index と time から出す＝毎フレーム位置が跳ねない。2pxグリッドでドットの粒を揃える。
+        var rp = undergroundState.pipeRise / UG_PIPE_RISE_FRAMES;
+        ctx.save();
+        for (var di = 0; di < 10; di++) {
+            var side = (di % 2) ? 1 : -1;
+            var spread = (18 + (di >> 1) * 22) * (0.4 + rp * 1.1);
+            var dx = Math.round((cx + side * (w * 0.42 + spread)) / 2) * 2;
+            var dy = Math.round((GROUND_Y - 4 - Math.sin(rp * Math.PI) * (10 + (di >> 1) * 5)) / 2) * 2;
+            ctx.globalAlpha = Math.max(0, 0.55 * Math.sin(rp * Math.PI)) * (1 - (di >> 1) / 6);
+            ctx.fillStyle = (di % 3) ? '#c8b49a' : '#8a7660';
+            ctx.fillRect(dx, dy, 4 + (di % 2) * 2, 4);
+        }
+        ctx.restore();
+    }
 }
 
 function drawPlatform(p) {
@@ -1601,33 +1886,64 @@ function drawPlatform(p) {
         // 見た目のズレが出る（1.429ユーザー報告）。可視部分（最広部=上のリップ＝乗る面）が判定幅ちょうどに
         // 広がるよう横も相殺して描く＝PIPE_Wを変えても見た目と判定は常に一致する。
         // 縦は従来どおり: 上へ16pxずらし＋高さ+25（見える管の上端=足元・下端=地面）。
-        if (pipeImg.complete && pipeImg.naturalWidth) {
+        if (p.ugEntrance) {
+            drawUndergroundPipe(p);                     // 地底の入場土管は専用の手続き描画（赤・大型・粗さゼロ）
+        } else if (pipeImg.complete && pipeImg.naturalWidth) {
             var _pw = p.width * (192 / 108);            // 全体描画幅（可視108pxが p.width になる倍率）
             var _px = p.x - p.width * (42 / 108);       // 左余白42pxぶん左へ
-            ctx.drawImage(pipeImg, _px, p.y - 16, _pw, p.height + 25);
+            // ⚠縦のオフセット(-16/+25)は PIPE_H=66 での実測値。高さを変えた土管に素で使うと管の下端が
+            //   地面から浮く（高さ100で実測3.5px）。p.height に比例させて高さが変わっても接地を保つ。
+            var _vs = p.height / PIPE_H;
+            ctx.drawImage(pipeImg, _px, p.y - 16 * _vs, _pw, p.height + 25 * _vs);
         } else {
             ctx.fillStyle = '#3cb043'; ctx.fillRect(p.x, p.y, p.width, p.height + 12);
         }
         if (pipeRoomState.anim !== 'none' && pipeRoomState.animPipe === p) return; // 出入り演出中は矢印/ヒントを消す（後描き側が管のみ描く）
-        if (pipeRoomState.visited) return; // 入室済み（このラウンドは入れない）土管には矢印/ヒントを出さない
+        // ⚠地底の入場土管(1.545)は visited を無視して必ずヒントを出す。同ラウンドで既にボーナス土管を使っていても
+        //   入場は可能（enterPipeRoom が visited より前で横取りする）ので、ここで消すと「入れるのに案内が出ない」になる。
+        if (pipeRoomState.visited && !p.ugEntrance) return; // 入室済み（このラウンドは入れない）土管には矢印/ヒントを出さない
+        // せり上がり中はまだ入れないのでヒントも出さない（1.554）。出切ってから案内する
+        if (p.ugEntrance && undergroundState.pipeRise < UG_PIPE_RISE_FRAMES) return;
         var ax = p.x + p.width / 2, ay = p.y - 30 + Math.sin(gameState.time * 0.12) * 3;
-        ctx.fillStyle = 'rgba(255,224,102,0.9)';
+        ctx.fillStyle = p.ugEntrance ? 'rgba(255,140,120,0.95)' : 'rgba(255,224,102,0.9)';
         ctx.beginPath();
         ctx.moveTo(ax, ay + 7); ctx.lineTo(ax - 6, ay - 2); ctx.lineTo(ax + 6, ay - 2);
         ctx.closePath(); ctx.fill();
         // 入場ヒント（1.407）: 矢印の上に「したにスワイプ」。土管タイム中は速い点滅で「今入れる」を強調
-        var hintA = pipeAssistTimer > 0
-            ? 0.55 + 0.45 * Math.sin(gameState.time * 0.4)
+        var hintA = (pipeAssistTimer > 0 || p.ugEntrance)
+            ? 0.55 + 0.45 * Math.sin(gameState.time * 0.4)   // 入場土管は常に速い点滅＝「ここに入る」と分かるように
             : 0.55 + 0.25 * Math.sin(gameState.time * 0.1);
+        var hintTxt = p.ugEntrance ? t('ug_pipe_hint') : t('pipe_enter_hint');
         ctx.save();
         ctx.globalAlpha = Math.max(0.2, hintA);
-        ctx.fillStyle = '#ffe066';
-        ctx.font = "bold 11px 'DotGothic16', monospace";
+        ctx.fillStyle = p.ugEntrance ? '#ffb0a0' : '#ffe066';
+        ctx.font = "bold " + (p.ugEntrance ? 13 : 11) + "px 'DotGothic16', monospace";
         ctx.textAlign = 'center';
         ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-        ctx.strokeText(t('pipe_enter_hint'), ax, ay - 8);
-        ctx.fillText(t('pipe_enter_hint'), ax, ay - 8);
+        ctx.strokeText(hintTxt, ax, ay - 8);
+        ctx.fillText(hintTxt, ax, ay - 8);
         ctx.restore();
+        return;
+    }
+    // 地底（1.563）: 作り込みの足場は城の石積み。⚠getBiomeIndex は距離から算出するので地底では
+    // 草原/砂漠のタイルを返してしまう（updateBiome の地底固定=5 はここに効かない）。先に分岐する。
+    if (p.ugTile) {
+        var pcamY = gameState.camera.y;
+        if (p.y > pcamY + GAME_HEIGHT || p.y + p.height < pcamY) return;
+        for (var ux = p.x; ux < p.x + p.width; ux += UG_TILE) {
+            spriteManager.draw(ctx, 'terrain_cave_brick', 0, ux, p.y, UG_TILE, UG_TILE, false);
+        }
+        if (p.special === 'moving') {   // 上下矢印（既存の動く床と同じ示唆）
+            var max = p.x + p.width / 2, mab = Math.sin(gameState.time * 0.1) * 3;
+            ctx.fillStyle = 'rgba(255,220,60,0.7)';
+            ctx.beginPath();
+            ctx.moveTo(max, p.y - 8 + mab); ctx.lineTo(max - 5, p.y - 3 + mab); ctx.lineTo(max + 5, p.y - 3 + mab);
+            ctx.closePath(); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(max, p.y + p.height + 8 - mab); ctx.lineTo(max - 5, p.y + p.height + 3 - mab);
+            ctx.lineTo(max + 5, p.y + p.height + 3 - mab);
+            ctx.closePath(); ctx.fill();
+        }
         return;
     }
     // ボス戦中は夜(3)固定＝ブロックも通常タイル(platform_ground/cloud・夜パレット)にして地面/背景と揃える
@@ -1720,6 +2036,7 @@ function drawCoin(c, time) {
 }
 
 function drawEnemy(e) {
+    if (e.type === 'skully') { drawSkully(e); return; }   // 骨だけの鳥は専用描画（崩壊/再生の状態がある・1.563）
     markZukanSeen(enemyZukanId(e)); // ずかん: 画面に映った＝遭遇として発見登録（既発見なら無処理）
     var bounce = Math.sin(e.animFrame / 3);
     var cy = e.y + bounce;
@@ -1734,6 +2051,363 @@ function drawEnemy(e) {
 
     var flipH = (e.velX > 0); // 右移動中なら反転して右向きに
     spriteManager.draw(ctx, spriteName, frameIdx, e.x, cy, e.width, e.height, flipH);
+    e.animFrame += frameSteps;
+}
+
+// ─── 紫の燭台（1.568）: ボス部屋が近いことの予告 ───
+// ⚠色は**紫**にする。洞窟の松明＝橙／老婆の店＝緑 と使い分けてあり、紫は闇の巫女の色（SPEC §7）。
+//   門へ近づくほど間隔が詰まるよう**マップ側で**置いてあるので、ここは1本を描くことに専念する。
+// ⚠数を増やすより「間隔が詰まっていく」ほうが予告として効く。等間隔にすると ただの街灯に見える。
+function drawUgBraziers(camL, camR) {
+    var bz = undergroundState.braziers;
+    if (!bz || !bz.length) return;
+    var camY = gameState.camera.y, t = gameState.time;
+    var g2 = function (v) { return Math.round(v / 2) * 2; };
+    for (var i = 0; i < bz.length; i++) {
+        var b = bz[i];
+        if (b.x < camL - 40 || b.x > camR + 40) continue;
+        if (b.baseY > camY + GAME_HEIGHT + 60 || b.baseY < camY - 120) continue;
+        var x = g2(b.x), base = b.baseY, top = g2(base - 54);
+        var flick = 0.72 + 0.28 * Math.sin(t * 0.26 + b.seed * 1.7);
+        var lean = Math.sin(t * 0.15 + b.seed * 0.9) * 3;
+        // 柱と受け皿（石）
+        ctx.fillStyle = '#2e2640';
+        ctx.fillRect(x - 4, top + 6, 8, 48);
+        ctx.fillStyle = '#463a5e';
+        ctx.fillRect(x - 4, top + 6, 3, 48);
+        ctx.fillRect(x - 9, top, 18, 7);
+        ctx.fillStyle = '#2e2640';
+        ctx.fillRect(x - 11, base - 6, 22, 6);                  // 台座
+        // 炎（外炎→中炎→芯。三角1枚だと矢印に見えるので必ず3層）
+        ctx.fillStyle = '#6a2fc0';
+        ctx.beginPath();
+        ctx.moveTo(x - 7, top);
+        ctx.quadraticCurveTo(g2(x - 8 + lean), g2(top - 14), g2(x + lean), g2(top - 26 * flick));
+        ctx.quadraticCurveTo(g2(x + 8 + lean), g2(top - 14), x + 7, top);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#b07cff';
+        ctx.beginPath();
+        ctx.moveTo(x - 4, top);
+        ctx.quadraticCurveTo(g2(x - 5 + lean), g2(top - 10), g2(x + lean * 0.7), g2(top - 16 * flick));
+        ctx.quadraticCurveTo(g2(x + 5 + lean), g2(top - 10), x + 4, top);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#e8d8ff';
+        ctx.fillRect(g2(x - 1 + lean * 0.4), g2(top - 9 * flick), 2, g2(8 * flick));
+        // 周囲のにじみ
+        ctx.save();
+        ctx.globalAlpha = 0.20 * flick;
+        var bg = ctx.createRadialGradient(x, top - 8, 2, x, top - 8, 54);
+        bg.addColorStop(0, 'rgba(176,124,255,1)'); bg.addColorStop(1, 'rgba(176,124,255,0)');
+        ctx.fillStyle = bg;
+        ctx.beginPath(); ctx.arc(x, top - 8, 54, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+// ─── 怪しい老婆の店（1.567）: 岩壁に掘られた洞窟の入口 ───
+// ⚠地上のショップは「建物が建っている」絵だが、地底でそれをやると壁から家が生えて見える。
+//   ここは**岩を掘った穴**として描く＝背景の岩壁と地続きに見えることを最優先にした。
+// ⚠「怪しい」を出しているのは3点: ①中が見えない深い闇 ②緑がかった不気味な灯り（松明の暖色と対比）
+//   ③奥にうずくまる人影と光る片目。看板や商品を並べると「普通の店」になってしまうので置かない。
+// ⚠ドット絵の粒を揃えるため座標は2pxグリッドに丸める（洞窟タイル/入場土管と同じ作法）。滑らかな
+//   グラデは「灯りのにじみ」だけに使う。
+function drawUgShop() {
+    var s = undergroundState.shop;
+    if (!s) return;
+    var camX = gameState.camera.x, camY = gameState.camera.y;
+    if (s.x + UG_SHOP_W < camX - 80 || s.x > camX + GAME_WIDTH + 80) return;
+    var W = UG_SHOP_W, H = UG_SHOP_H;
+    var bx = s.x, by = s.baseY;              // 左端・床
+    var top = by - H, cx = bx + W / 2;
+    var g2 = function (v) { return Math.round(v / 2) * 2; };   // 2pxグリッド
+    var t = gameState.time;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+
+    // ── ① 岩の張り出し（穴の周りだけ岩肌を厚くして「掘った」感じを出す）──
+    ctx.fillStyle = '#2a2334';
+    ctx.beginPath();
+    ctx.moveTo(g2(bx - 12), by);
+    ctx.lineTo(g2(bx - 6),  g2(top + 30));
+    ctx.lineTo(g2(bx + 16), g2(top + 6));
+    ctx.lineTo(g2(cx - 24), g2(top - 12));
+    ctx.lineTo(g2(cx + 26), g2(top - 8));
+    ctx.lineTo(g2(bx + W - 14), g2(top + 10));
+    ctx.lineTo(g2(bx + W + 6),  g2(top + 34));
+    ctx.lineTo(g2(bx + W + 12), by);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#3a3048';                                  // 岩の明部（左上から光が来ている想定）
+    ctx.beginPath();
+    ctx.moveTo(g2(bx - 12), by);
+    ctx.lineTo(g2(bx - 6), g2(top + 30));
+    ctx.lineTo(g2(bx + 16), g2(top + 6));
+    ctx.lineTo(g2(cx - 24), g2(top - 12));
+    ctx.lineTo(g2(cx - 18), g2(top + 4));
+    ctx.lineTo(g2(bx + 8), g2(top + 40));
+    ctx.lineTo(g2(bx + 2), by);
+    ctx.closePath(); ctx.fill();
+
+    // ── ② 穴（アーチ）──
+    // ⚠**中は真っ黒にしないこと**（初版の失敗）。真っ黒だと奥の老婆が黒地に黒で完全に消え、
+    //   ただのトンネルに見えた。「灯りのある奥＋手前に黒い人影」の順に重ねて初めてシルエットが立つ。
+    var oX = bx + 16, oW = W - 32, oTop = top + 22, oBot = by;
+    var arch = function () {
+        ctx.beginPath();
+        ctx.moveTo(g2(oX), oBot);
+        ctx.lineTo(g2(oX), g2(oTop + 26));
+        ctx.quadraticCurveTo(g2(cx), g2(oTop - 16), g2(oX + oW), g2(oTop + 26));
+        ctx.lineTo(g2(oX + oW), oBot);
+        ctx.closePath();
+    };
+    var pulse = 0.55 + 0.25 * Math.sin(t * 0.06) + 0.08 * Math.sin(t * 0.23);
+    arch();
+    ctx.fillStyle = '#0d1a16';                                  // 奥の壁（緑に寄せた暗色＝黒ではない）
+    ctx.fill();
+    ctx.strokeStyle = '#171224'; ctx.lineWidth = 4; ctx.stroke();   // 掘り口の縁
+
+    ctx.save();
+    arch(); ctx.clip();                                         // 以下は穴の中だけ
+
+    // ── ③ 中の灯り。奥の壁をしっかり照らす（松明の暖色と対比させて「別の場所」に見せる）──
+    var lg = ctx.createRadialGradient(cx, by - 30, 6, cx, by - 30, 92);
+    lg.addColorStop(0,   'rgba(170,255,205,' + (0.80 * pulse).toFixed(3) + ')');
+    lg.addColorStop(0.4, 'rgba(90,215,160,'  + (0.44 * pulse).toFixed(3) + ')');
+    lg.addColorStop(1,   'rgba(30,110,90,0)');
+    ctx.fillStyle = lg;
+    ctx.fillRect(oX, oTop - 20, oW, H + 20);
+
+    // ── ④ 大鍋（灯りの出どころ。これがあると「何かを煮ている店」になる）──
+    var potY = by - 10;
+    ctx.fillStyle = '#1a1420';
+    ctx.fillRect(g2(cx - 20), g2(potY - 12), 40, 12);
+    ctx.fillRect(g2(cx - 23), g2(potY - 14), 46, 3);
+    ctx.fillStyle = '#7affc0';                                  // 煮えている面
+    ctx.fillRect(g2(cx - 18), g2(potY - 12), 36, 3);
+    for (var pb = 0; pb < 3; pb++) {                            // 泡（乱数を使わず time から）
+        var ph = (t * 0.9 + pb * 33) % 40;
+        ctx.globalAlpha = Math.max(0, 0.85 * (1 - ph / 40));
+        ctx.fillStyle = '#c8ffe0';
+        ctx.fillRect(g2(cx - 12 + pb * 11), g2(potY - 14 - ph * 0.5), 3, 3);
+    }
+    ctx.globalAlpha = 1;
+
+    // ── ⑤ 奥にうずくまる老婆の影（丸めた背中＋鉤鼻＋光る片目）──
+    var sy = by - 12, bob = Math.sin(t * 0.03) * 1.5;
+    ctx.fillStyle = '#080610';
+    ctx.beginPath();                                            // 丸めた背中〜フード
+    ctx.moveTo(g2(cx - 34), sy);
+    ctx.lineTo(g2(cx - 32), g2(sy - 24 + bob));
+    ctx.quadraticCurveTo(g2(cx - 30), g2(sy - 54 + bob), g2(cx - 10), g2(sy - 58 + bob));
+    ctx.lineTo(g2(cx - 2),  g2(sy - 52 + bob));                 // フードの前が尖る＝鉤鼻の影
+    ctx.lineTo(g2(cx - 12), g2(sy - 46 + bob));
+    ctx.quadraticCurveTo(g2(cx - 4), g2(sy - 30 + bob), g2(cx - 8), sy);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#080610';                                  // 杖
+    ctx.fillRect(g2(cx - 40), g2(sy - 50 + bob), 3, 50);
+    ctx.fillRect(g2(cx - 43), g2(sy - 54 + bob), 9, 4);
+    var eyeA = (Math.sin(t * 0.11) > -0.8) ? 1 : 0.12;          // たまに瞬きする
+    ctx.globalAlpha = eyeA;
+    ctx.fillStyle = '#eaffe0';
+    ctx.fillRect(g2(cx - 20), g2(sy - 48 + bob), 5, 3);
+    ctx.globalAlpha = eyeA * 0.45;
+    ctx.fillRect(g2(cx - 23), g2(sy - 49 + bob), 11, 5);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // ── ⑥ 穴の外にこぼれる灯り（床を照らす）──
+    ctx.save();
+    ctx.globalAlpha = 0.28 * pulse;
+    var fg = ctx.createLinearGradient(0, by - 40, 0, by + 6);
+    fg.addColorStop(0, 'rgba(120,230,175,0)');
+    fg.addColorStop(1, 'rgba(120,230,175,0.9)');
+    ctx.fillStyle = fg;
+    ctx.fillRect(bx - 6, by - 40, W + 12, 46);
+    ctx.restore();
+
+    // ── ⑥ 入口に吊るしたお守り（骨と玉。ゆっくり揺れる＝生活感と不気味さ）──
+    ctx.save();
+    for (var ci = 0; ci < 5; ci++) {
+        var hx = g2(oX + 12 + ci * ((oW - 24) / 4));
+        var hy = g2(oTop + 10 + Math.abs(ci - 2) * 7);          // アーチなりに垂らす
+        var sw = Math.sin(t * 0.045 + ci * 1.3) * 2;
+        ctx.strokeStyle = '#5a4a3a'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(g2(hx + sw), g2(hy + 16)); ctx.stroke();
+        if (ci % 2 === 0) {                                     // 骨
+            ctx.fillStyle = '#ddd4c0';
+            ctx.fillRect(g2(hx + sw - 3), g2(hy + 16), 6, 2);
+            ctx.fillRect(g2(hx + sw - 4), g2(hy + 15), 2, 4);
+            ctx.fillRect(g2(hx + sw + 2), g2(hy + 15), 2, 4);
+        } else {                                                // 玉（灯りを弱く反射する）
+            ctx.fillStyle = '#7a5a8c';
+            ctx.fillRect(g2(hx + sw - 2), g2(hy + 16), 4, 4);
+            ctx.fillStyle = '#b08cc0';
+            ctx.fillRect(g2(hx + sw - 2), g2(hy + 16), 2, 2);
+        }
+    }
+    ctx.restore();
+
+    // ── ⑧ 入口脇の燭台（緑の炎。遠目に「ここが店だ」と分かる目印）──
+    // ⚠炎は三角1枚だと矢印に見える（初版の失敗）。**外炎を左右非対称に揺らして芯を重ねる**と炎に見える。
+    for (var qi = 0; qi < 2; qi++) {
+        var qx = g2(qi === 0 ? bx + 6 : bx + W - 8), qy = g2(by - 42);
+        var flick = 0.72 + 0.28 * Math.sin(t * 0.3 + qi * 2.2);
+        var lean = Math.sin(t * 0.17 + qi * 1.7) * 3;
+        ctx.fillStyle = '#4a3f5c';
+        ctx.fillRect(qx - 3, qy, 6, 42);                        // 燭台の柱
+        ctx.fillRect(qx - 6, qy - 2, 12, 4);                    // 受け皿
+        ctx.fillStyle = '#3fd894';                              // 外炎（揺れる）
+        ctx.beginPath();
+        ctx.moveTo(qx - 6, qy - 3);
+        ctx.quadraticCurveTo(g2(qx - 7 + lean), g2(qy - 14), g2(qx + lean), g2(qy - 3 - 22 * flick));
+        ctx.quadraticCurveTo(g2(qx + 7 + lean), g2(qy - 14), qx + 6, qy - 3);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#a8ffd0';                              // 中炎
+        ctx.beginPath();
+        ctx.moveTo(qx - 3, qy - 3);
+        ctx.quadraticCurveTo(g2(qx - 4 + lean), g2(qy - 11), g2(qx + lean * 0.7), g2(qy - 3 - 13 * flick));
+        ctx.quadraticCurveTo(g2(qx + 4 + lean), g2(qy - 11), qx + 3, qy - 3);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#f0fff6';                              // 芯
+        ctx.fillRect(g2(qx - 1 + lean * 0.4), g2(qy - 3 - 7 * flick), 2, g2(6 * flick));
+        ctx.save();                                             // 周囲のにじみ
+        ctx.globalAlpha = 0.22 * flick;
+        var qg = ctx.createRadialGradient(qx, qy - 10, 2, qx, qy - 10, 46);
+        qg.addColorStop(0, 'rgba(120,255,190,1)'); qg.addColorStop(1, 'rgba(120,255,190,0)');
+        ctx.fillStyle = qg;
+        ctx.beginPath(); ctx.arc(qx, qy - 10, 46, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
+    // ── ⑨ 入店ヒント（近づいた時だけ）。⚠地上のおみせ（drawShopBuilding）と同じ作法・同じ文言体系 ──
+    if (!shopState.visited && !shopState.active && undergroundState.bossPhase <= 0) {
+        var pcx2 = player.x + player.width / 2;
+        if (Math.abs(pcx2 - cx) < UG_SHOP_NEAR && player.onGround) {
+            var hb = Math.sin(t * 0.08) * 3;
+            ctx.fillStyle = '#b8ffd0';
+            ctx.font = "bold 12px 'DotGothic16', monospace";
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+            ctx.fillText(t('ug_shop_swipe_up'), cx, top - 16 + hb);
+            ctx.shadowBlur = 0;
+        }
+    }
+    ctx.restore();
+}
+
+// ─── ボス闘技場（1.564・ロックマン式の部屋切替） ───
+// ⚠ワールド座標系（カメラtranslateの中）で描く。HPバーだけは画面座標なので render の後半で描く。
+function drawUgBossRoom() {
+    var ug = undergroundState;
+    if (ug.bossPhase <= 0) return;
+    var ch = ug.rooms[ug.rooms.length - 1];
+    if (!ch) return;
+
+    // ── 背後の扉（フェーズ2で降りてくる／以降は降りきった位置で固定）──
+    if (ug.bossPhase >= 2) {
+        var dp = (ug.bossPhase === 2) ? Math.min(1, ug.bossTimer / UG_BOSS_DOOR_FRAMES) : 1;
+        var dTop = ch.topY + 2 * UG_TILE, dH = 10 * UG_TILE;
+        var dx = ug.bossDoorX - UG_TILE;
+        ctx.save();
+        ctx.beginPath(); ctx.rect(dx - 4, dTop, UG_TILE + 8, dH); ctx.clip();  // 降りてくる分だけ見せる
+        for (var dy = 0; dy < dH; dy += UG_TILE) {
+            spriteManager.draw(ctx, 'terrain_cave_brick', 0, dx, dTop - dH + dH * dp + dy, UG_TILE, UG_TILE, false);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';                                    // 縁の陰＝厚みを出す
+        ctx.fillRect(dx, dTop - dH + dH * dp, 3, dH);
+        ctx.restore();
+    }
+
+    // ── ボス登場の渦（フェーズ3）──
+    if (ug.bossPhase === 3) {
+        var ap = ug.bossTimer / UG_BOSS_APPEAR_FRAMES;
+        var vx = ch.x0 + (ch.x1 - ch.x0) * 0.62 + 48, vy = ch.topY + 6 * UG_TILE + 56;
+        ctx.save();
+        for (var vi = 0; vi < 5; vi++) {
+            var a = gameState.time * 0.12 + vi * 1.25;
+            var r = (110 - ap * 82) + vi * 7;
+            ctx.globalAlpha = 0.16 + ap * 0.5;
+            ctx.fillStyle = (vi % 2) ? '#b07cff' : '#6a3fb0';
+            ctx.beginPath();
+            ctx.arc(vx + Math.cos(a) * r, vy + Math.sin(a) * r * 0.55, 7 + ap * 9, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = ap * 0.6;
+        var vg = ctx.createRadialGradient(vx, vy, 4, vx, vy, 90);
+        vg.addColorStop(0, 'rgba(200,150,255,0.9)'); vg.addColorStop(1, 'rgba(120,60,200,0)');
+        ctx.fillStyle = vg;
+        ctx.beginPath(); ctx.arc(vx, vy, 90, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
+    // ── 仮ボス（フェーズ4）。⚠P3で「闇の巫女」の立ち絵/モーションに差し替える（SPEC §7.3）──
+    var b = ug.boss;
+    if (b) {
+        ctx.save();
+        if (b.hurt > 0 && Math.floor(gameState.time / 3) % 2 === 0) ctx.globalAlpha = 0.55;
+        var bcx = b.x + b.width / 2;
+        ctx.globalAlpha *= 0.9;                                                 // 周囲の闇
+        var bg = ctx.createRadialGradient(bcx, b.y + b.height * 0.5, 10, bcx, b.y + b.height * 0.5, b.width);
+        bg.addColorStop(0, 'rgba(90,40,150,0.55)'); bg.addColorStop(1, 'rgba(60,20,110,0)');
+        ctx.fillStyle = bg;
+        ctx.fillRect(b.x - b.width * 0.5, b.y - 30, b.width * 2, b.height + 70);
+        ctx.globalAlpha = (b.hurt > 0 && Math.floor(gameState.time / 3) % 2 === 0) ? 0.55 : 1;
+        // 黒紫のフード姿（シルエット）＋光る目。⚠緑の丸型はNG（SPEC §7）
+        ctx.fillStyle = '#1a1030';
+        ctx.beginPath();
+        ctx.moveTo(bcx, b.y);
+        ctx.lineTo(b.x + b.width, b.y + b.height * 0.45);
+        ctx.lineTo(b.x + b.width - 8, b.y + b.height);
+        ctx.lineTo(b.x + 8, b.y + b.height);
+        ctx.lineTo(b.x, b.y + b.height * 0.45);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#3a2260';                                              // フードの縁
+        ctx.beginPath();
+        ctx.moveTo(bcx, b.y + 6); ctx.lineTo(b.x + b.width - 10, b.y + b.height * 0.46);
+        ctx.lineTo(b.x + 10, b.y + b.height * 0.46);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#e4ccff';                                              // 光る目
+        ctx.fillRect(bcx - 17, b.y + 34, 9, 5);
+        ctx.fillRect(bcx + 8, b.y + 34, 9, 5);
+        ctx.fillStyle = '#b07cff';
+        ctx.fillRect(bcx - 19, b.y + 33, 13, 2); ctx.fillRect(bcx + 6, b.y + 33, 13, 2);
+        ctx.restore();
+        // 仮であることが一目で分かるように（P3で消す）
+        ctx.save();
+        ctx.globalAlpha = 0.5; ctx.fillStyle = '#fff';
+        ctx.font = "bold 10px 'DotGothic16', monospace"; ctx.textAlign = 'center';
+        ctx.fillText('(placeholder)', bcx, b.y - 10);
+        ctx.restore();
+    }
+}
+
+// シャレコ（骨だけの鳥・1.563）。⚠**図鑑は遭遇では登録しない**（1.474の「倒してないのに載る」是正に従う）。
+//   登録は ugCollapseSkully（＝崩壊させた時点）だけ＝プレイヤーの能動的な行動が要る点は撃破と同じ。
+function drawSkully(e) {
+    var flipH = (e.velX > 0);
+    if (e.collapsed) {
+        // 再生の予兆（1.563）: 残り UG_SKULLY_WARN フレームでガタガタ震え、紫の燐光が集まる。
+        // ⚠予兆なしで復活すると「理不尽に湧いた」になる。必ず「来るぞ」と分かるようにする。
+        var warn = e.reviveTimer <= UG_SKULLY_WARN;
+        var jit = warn ? Math.round(Math.sin(gameState.time * 1.1) * 2) : 0;
+        if (warn) {
+            var wp = 1 - e.reviveTimer / UG_SKULLY_WARN;
+            ctx.save();
+            ctx.globalAlpha = 0.20 + 0.30 * wp * (0.6 + 0.4 * Math.sin(gameState.time * 0.4));
+            var gr = ctx.createRadialGradient(e.x + e.width / 2, e.y + e.height * 0.75, 2,
+                                              e.x + e.width / 2, e.y + e.height * 0.75, e.width * 0.8);
+            gr.addColorStop(0, 'rgba(176,124,255,0.95)');
+            gr.addColorStop(1, 'rgba(176,124,255,0)');
+            ctx.fillStyle = gr;
+            ctx.fillRect(e.x - e.width * 0.4, e.y - e.height * 0.3, e.width * 1.8, e.height * 1.6);
+            ctx.restore();
+        }
+        spriteManager.draw(ctx, 'skully_bones', 0, e.x + jit, e.y, e.width, e.height, flipH);
+        return;
+    }
+    var frameIdx = Math.floor(e.animFrame / 9) % 4;
+    spriteManager.draw(ctx, 'skully_walk', frameIdx, e.x, e.y + Math.sin(e.animFrame / 4) * 0.6,
+                       e.width, e.height, flipH);
     e.animFrame += frameSteps;
 }
 
@@ -2070,6 +2744,31 @@ function drawBoss(b) {
     ctx.restore();
 }
 
+// ボスの立ち絵を「白いシルエット」にしたキャンバスを返す（1.550・予告の発光用）。
+// 立ち絵を描いてから source-atop で白を塗る＝不透明部分だけが白くなる＝輪郭どおりに光る。
+// ⚠スプライトは非同期読み込みなので、未ロードならnullを返して呼び出し側で描画をスキップさせる
+//   （空のキャンバスをキャッシュすると、以後ずっと光らなくなる）。
+var _bossWhiteCache = {};
+function getBossWhiteSilhouette(name, w, h, color) {
+    var frames = spriteManager.cache[name];
+    if (!frames || !frames.length || !frames[0]) return null;
+    var col = color || '#ffffff';
+    var cw = Math.max(1, Math.round(w)), ch = Math.max(1, Math.round(h));
+    var key = name + '_' + col;
+    var c = _bossWhiteCache[key];
+    if (c && c.w === cw && c.h === ch) return c.cv;
+    var cv = document.createElement('canvas');
+    cv.width = cw; cv.height = ch;
+    var cc = cv.getContext('2d');
+    cc.imageSmoothingEnabled = false;
+    spriteManager.draw(cc, name, 0, 0, 0, cw, ch, false);
+    cc.globalCompositeOperation = 'source-atop';
+    cc.fillStyle = col;
+    cc.fillRect(0, 0, cw, ch);
+    _bossWhiteCache[key] = { w: cw, h: ch, cv: cv };
+    return cv;
+}
+
 // ─── 闇のカカシ（scarecrow）の描画：OpenAI立ち絵1枚＋procedural overlay（露出グロー/腕薙ぎ赤帯）───
 // 定点・正面向き。expose中だけ頭が光って踏み/弾が通る（非露出は装甲＝弾かれる）。他の単一立ち絵ボス(owl/egg)と同系統。
 function drawScarecrow(b, drawY) {
@@ -2081,33 +2780,81 @@ function drawScarecrow(b, drawY) {
         ctx.fillRect(bossState.arenaLeft, GROUND_Y - SC_SWEEP_BAND_Y, bossState.arenaRight - bossState.arenaLeft, SC_SWEEP_BAND_Y);
         ctx.restore();
     }
-    // 対空「藁の棘」の予告/発動＝頭上の黄色い危険帯（腕薙ぎの赤と色で区別・真上に居座らせない）
-    if (b.scMode === 'spikeTele' || b.scMode === 'spike') {
-        var sActive = (b.scMode === 'spike');
+    // 対空「藁の棘」（1.550でリニューアル）。⚠旧版は頭上に黄色い**長方形**を敷いていたが「四角形でダサい」との
+    //   ユーザー指摘により廃止。代わりに①カカシ本体が白く発光して予告 ②棘が下から伸びてくる、の2段構えにした。
+    //   予告でも棘の位置が見える＝「どこが危ないか」は長方形より正確に伝わる（真上に居座らせない意図は維持）。
+    var spikeTele = (b.scMode === 'spikeTele'), spikeOn = (b.scMode === 'spike');
+    if (spikeTele || spikeOn) {
         var sx = b.x - SC_SPIKE_PAD, sw = b.width + SC_SPIKE_PAD * 2;
-        var sy = drawY - SC_SPIKE_H, sh = SC_SPIKE_H + b.height * 0.30;
+        var sTopY = drawY - SC_SPIKE_H, sBaseY = drawY + b.height * 0.28;
+        // 予告中は棘が伸びる途中（0→1）。発動で全長
+        var grow = spikeOn ? 1 : Math.max(0, Math.min(1, 1 - (b.scTimer / SC_SPIKE_TELEGRAPH)));
+        // ⚠予告中の棘は「これから生える」程度に留める（伸びきると発動と見分けがつかず回避判断を誤らせる）
+        var tipY = sBaseY - (sBaseY - (sTopY + 10)) * (spikeOn ? 1 : grow * 0.35);
         ctx.save();
-        ctx.globalAlpha = sActive ? 0.42 : (0.22 + Math.abs(Math.sin(b.animFrame * 0.4)) * 0.26);
-        ctx.fillStyle = sActive ? '#ffd24a' : '#ffe9a8';
-        ctx.fillRect(sx, sy, sw, sh);
-        ctx.restore();
-        if (sActive) { // 藁の棘（上向きのギザギザ）
-            ctx.save();
-            ctx.fillStyle = '#f2c14e';
-            var sN = 7, sTipY = sy + 10, sBaseY = drawY + b.height * 0.28;
-            for (var si = 0; si < sN; si++) {
-                var sbx = sx + (sw / sN) * (si + 0.5);
-                ctx.beginPath();
-                ctx.moveTo(sbx - 7, sBaseY);
-                ctx.lineTo(sbx, sTipY);
-                ctx.lineTo(sbx + 7, sBaseY);
-                ctx.closePath(); ctx.fill();
-            }
-            ctx.restore();
+        ctx.globalAlpha = spikeOn ? 1 : (0.25 + grow * 0.35);
+        ctx.fillStyle = spikeOn ? '#f2c14e' : '#ffe9a8';
+        for (var si = 0; si < 7; si++) {
+            var sbx = sx + (sw / 7) * (si + 0.5), sHalf = spikeOn ? 7 : 4 + grow * 3;
+            ctx.beginPath();
+            ctx.moveTo(sbx - sHalf, sBaseY); ctx.lineTo(sbx, tipY); ctx.lineTo(sbx + sHalf, sBaseY);
+            ctx.closePath(); ctx.fill();
         }
+        ctx.restore();
+    }
+    // 召喚の予告（1.558）。⚠これまで summonTele には描画が一切無く、攻撃モーションも無いため
+    //   「召喚していることに気づけない」とユーザー報告。**足元の魔法陣＋吸い上がる闇の粒**で可視化する
+    //   （対空=白、横薙ぎ=赤 に対し 召喚=紫 と色で役割を分ける）。
+    if (b.scMode === 'summonTele') {
+        var sp = 1 - Math.max(0, Math.min(1, b.scTimer / Math.max(1, SC_SUMMON_TELE)));  // 0→1で溜まる
+        var mcx = b.x + b.width / 2;
+        ctx.save();
+        // 足元の魔法陣（二重の楕円・回転）
+        ctx.globalAlpha = 0.35 + sp * 0.45;
+        ctx.strokeStyle = '#b06cff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(mcx, GROUND_Y - 4, b.width * (0.32 + sp * 0.38), 12 + sp * 8, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#5e2a99'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(mcx, GROUND_Y - 4, b.width * (0.20 + sp * 0.26), 8 + sp * 5, 0, 0, Math.PI * 2); ctx.stroke();
+        // 陣から吸い上がる闇の粒（2pxグリッドでドットの粒を揃える）
+        ctx.fillStyle = '#c98cff';
+        for (var mi = 0; mi < 8; mi++) {
+            var mph = ((gameState.time * 2.2 + mi * 19) % 60) / 60;
+            var mang = (mi / 8) * Math.PI * 2;
+            var mx = mcx + Math.cos(mang) * b.width * (0.34 - mph * 0.24);
+            var my = GROUND_Y - 4 - mph * (b.height * 0.55);
+            ctx.globalAlpha = (0.3 + sp * 0.5) * (1 - mph);
+            ctx.fillRect(Math.round(mx / 2) * 2, Math.round(my / 2) * 2, 3, 3);
+        }
+        ctx.restore();
     }
     // 立ち絵本体
     spriteManager.draw(ctx, 'boss_scarecrow', 0, b.x, drawY, b.width, b.height, false);
+    // 召喚の溜め＝本体を紫に発光させる（対空の白と役割で色分け）
+    if (b.scMode === 'summonTele') {
+        var pur = getBossWhiteSilhouette('boss_scarecrow', b.width, b.height, '#9b4dff');
+        if (pur) {
+            var sp2 = 1 - Math.max(0, Math.min(1, b.scTimer / Math.max(1, SC_SUMMON_TELE)));
+            ctx.save();
+            ctx.globalAlpha = Math.min(0.85, (0.25 + sp2 * 0.45) * (0.75 + Math.abs(Math.sin(b.animFrame * 0.4)) * 0.25));
+            ctx.drawImage(pur, b.x, drawY, b.width, b.height);
+            ctx.restore();
+        }
+    }
+    // 対空の予告＝**本体が白く光る**（ユーザー指定1.550）。立ち絵の不透明部分だけを白で塗ったシルエットを
+    // 重ねる＝輪郭どおりに発光する。⚠シルエットはサイズ変化時だけ作り直してキャッシュ（毎フレーム生成しない）。
+    if (spikeTele || spikeOn) {
+        var wht = getBossWhiteSilhouette('boss_scarecrow', b.width, b.height);
+        if (wht) {
+            ctx.save();
+            // ⚠予告の1フレーム目から必ず明るく光らせる（1.551）。旧版は b.animFrame の sin をそのまま使っていたため、
+            //   予告開始のタイミング次第では暗い位相から始まり「光ったと同時に攻撃が来た」ように見えていた。
+            //   ベースを予告の進行(grow)で単調に上げ、そこへ明滅を乗せる＝開始直後から確実に見える。
+            ctx.globalAlpha = spikeOn ? 0.30
+                : Math.min(0.95, (0.45 + grow * 0.35) * (0.7 + Math.abs(Math.sin(b.animFrame * 0.5)) * 0.3));
+            ctx.drawImage(wht, b.x, drawY, b.width, b.height);
+            ctx.restore();
+        }
+    }
     // 露出の予兆＝頭(上部)に弱点グロー。headLow(0→1)でランプ＝expose移行中からじわっと光る。
     var glowAmt = b.exposed ? 1 : (b.headLow || 0);
     if (glowAmt > 0.05) {
@@ -2729,7 +3476,10 @@ function render() {
     ctx.globalAlpha = 1;
 
     ctx.save();
-    ctx.translate(-gameState.camera.x, 0);
+    // ⚠縦カメラ（1.563）。世界の描画は全部この中にあるので、-camera.y を足すだけで縦スクロールが成立する。
+    //   物理はワールド座標なので無改修。**距離は camera.x のみ由来なので縦は距離/Lv/ランキングに影響しない**。
+    //   背景・パララックスは translate の外なので、縦の視差は drawCaveBackdrop 側で camera.y を見て作る。
+    ctx.translate(-gameState.camera.x, -gameState.camera.y);
 
     var camL = gameState.camera.x - 100, camR = gameState.camera.x + GAME_WIDTH + 100;
     var j;
@@ -2738,10 +3488,25 @@ function render() {
         var tr = terrain[j];
         if (tr.x + tr.width > camL && tr.x < camR) drawTerrain(tr);
     }
+    if (undergroundState.active) {
+        // 当たり判定なしの石積み（門/アーチ）。⚠**暗く落として奥に見せる**＝プレイヤーが
+        //   「通れる飾り」と「乗れる/ぶつかる石」を色の濃さで即座に見分けられるようにする。
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        for (var dk = 0; dk < undergroundState.decor.length; dk++) drawCaveBlock(undergroundState.decor[dk]);
+        ctx.restore();
+        drawUndergroundLava(camL, camR);   // 溶岩は地形の直後（足場より奥）
+        drawUgShop();                      // 怪しい老婆の店（地形の上・足場より奥＝壁に掘られて見える）
+        drawUgBraziers(camL, camR);        // 紫の燭台（ボス前の予告）
+    }
     drawShopBuilding(); // ショップ建物（地形の上、足場の下）
     for (j = 0; j < platforms.length; j++) {
         var p = platforms[j];
         if (p.x + p.width > camL && p.x < camR) drawPlatform(p);
+    }
+    if (undergroundState.active) {
+        drawUndergroundHazards(camL, camR);          // トゲ/ファイアバー/火の玉
+        drawUgBossRoom();                            // 闘技場の扉と仮ボス（1.564）
     }
 
     var time = Date.now() / 50;
@@ -2772,7 +3537,9 @@ function render() {
             // 「土管の裏に回った」ように見えてしまう。クリップなら穴に沈む/穴から出てくる見た目になる
             // （ラインより下は描かれず、下地の土管の穴と手前の縁がそのまま見える）。
             var _ap = pipeRoomState.animPipe;
-            var _mouthY = _ap.y + PIPE_MOUTH_LINE;
+            // ⚠クリップ位置＝「上面の穴の手前縁」。入場土管は**穴（暗い開口部）の最下部**を使う。
+            //   リップの縁(UG_PIPE_MOUTH_RY=12)で切ると穴の最下部より4px下まで体が残る（1.560で修正）。
+            var _mouthY = _ap.y + (_ap.ugEntrance ? UG_PIPE_MAW_BOTTOM : PIPE_MOUTH_LINE);
             ctx.save();
             ctx.beginPath();
             ctx.rect(gameState.camera.x - 60, _mouthY - 600, GAME_WIDTH + 120, 600);
@@ -2827,6 +3594,27 @@ function render() {
 
     // ─── 天候パーティクル描画 ───
     if (weatherParticles.length > 0) drawWeatherParticles();
+
+    // ─── 地底ボスのHPバー（画面座標なのでワールドのtranslateの外で描く） ───
+    // ⚠**画面下部**に置くこと（1.568・ユーザー報告）。1.564は画面上部に描いていたため、
+    //   上部中央の「ぴよフラッシュ」ゲージ(#specialMoveUI)と重なって読めなかった。
+    //   位置・サイズ・パネル/バーの描き方は通常ボス（この下のブロック）と完全に同じにし、色だけ紫にする。
+    if (undergroundState.active && undergroundState.boss) {
+        var _ub = undergroundState.boss;
+        var _uw = 300, _uh = 32;
+        var _ux = GAME_WIDTH / 2 - _uw / 2, _uy = GAME_HEIGHT - 48;
+        drawHudPanel(_ux, _uy, _uw, _uh,
+            'rgba(38,10,60,0.9)', 'rgba(22,5,40,0.95)', '#b07cff', 'rgba(176,124,255,0.3)');
+        ctx.font = "bold 11px 'M PLUS Rounded 1c', sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#e4ccff';
+        ctx.fillText('BOSS', _ux + 40, _uy + 10);
+        ctx.fillStyle = '#c8a8ff';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.max(0, Math.ceil(_ub.hp)) + '/' + _ub.maxHp, _ux + _uw - 12, _uy + 10);
+        ctx.textAlign = 'left';
+        drawProgressBar(_ux + 16, _uy + 19, _uw - 32, 8, Math.max(0, _ub.hp / _ub.maxHp), '#8a3fd0', '#e4ccff');
+    }
 
     // ─── ダメージ赤フラッシュ ───
     if (damageFlashTimer > 0) {
