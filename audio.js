@@ -20,17 +20,21 @@ class SoundManager {
         this.stage4BGM   = this._createBGM('sounds/stage4.mp3',   0.5);
         this.stage5BGM   = this._createBGM('sounds/stage5.mp3',   0.5);
         this.stage6BGM   = this._createBGM('sounds/stage6.mp3',   0.5); // R6（闇のカカシのラウンド・Suno生成/タグ除去済み）
-        // 🔜地底ステージ(R7)＋そのラスボスを実装したら、この2行のコメントを外して有効化する。
-        //   素材は配置済み・タグ除去済み（sounds/underground.mp3 / sounds/boss_underground.mp3）。
-        //   ⚠実装前に有効化しない: Audio生成＝起動時に未使用の音源を読み込むだけになるため。
-        //   有効化時は stopAllBGM の配列にも同名を追加し、ステージ側は gameplay.js の STAGE_BGM_CYCLE へ 'underground' を足す。
+        // 地底ステージ(R7)とそのボス「闇の巫女」。素材はタグ除去済み（[[piyo-suno-audio-tags]]）。
+        // ⚠**呼び名は playBGM(type) の type + 'BGM' で引かれる**（playBGM 参照）。つまり鳴らす側は
+        //   playBGM('underground') / playBGM('bossUnderground')。'boss_underground' と書くと
+        //   this['boss_undergroundBGM'] を探して見つからず、**stopAllBGM だけ効いて無音になる**（1.570で修正）。
         this.undergroundBGM     = this._createBGM('sounds/underground.mp3',     0.5); // R7 地底ステージ
-        // this.bossUndergroundBGM = this._createBGM('sounds/boss_underground.mp3', 0.6); // R7 ボス（ラスボス的存在）
+        this.bossUndergroundBGM = this._createBGM('sounds/boss_underground.mp3', 0.6); // R7 ボス（ラスボス的存在）
         this.tutorialBGM = this._createBGM('sounds/tutorial.mp3', 0.5); // チュートリアル「はじまりの地」（Suno生成・タグ除去済み）
         this.gameoverBGM = this._createBGM('sounds/gameover.mp3', 0.7);
         this.rankingBGM  = this._createBGM('sounds/ranking.mp3',  0.6);
         this.bossBGM     = this._createBGM('sounds/boss.mp3',     0.6);
         this.shopBGM     = this._createBGM('sounds/shop.mp3',     0.5);
+        // 怪しい老婆の店（地底）専用（1.570・ユーザー提供 "Oddity Cabinet.mp3"）。
+        // ⚠[[piyo-suno-audio-tags]] のとおり ffmpeg でタグとアルバムアート(mjpegストリーム)を全除去して
+        //   sounds/shop_underground.mp3 として置いてある。元ファイル名の空白もここで解消している。
+        this.shopUndergroundBGM = this._createBGM('sounds/shop_underground.mp3', 0.5);
         this.bonusBGM    = this._createBGM('sounds/bonus.mp3',    0.5);
         this.winBGM      = new Audio('sounds/win.mp3');
         this.winBGM.loop = false;
@@ -57,6 +61,17 @@ class SoundManager {
         //   原盤10.79秒は tools/_raw/pipe_rise_full.mp3 に保管。念のため stopRumble() でも止める。
         this.pipeRiseSE = new Audio('sounds/pipe_rise.mp3');
         this.pipeRiseSE.volume = 0.7;
+        // 闇の巫女の技（1.570・ユーザー提供の魔法SE 4種。⚠元のファイル名と用途は無関係＝
+        // 音の質感で割り当てた。暗黒魔法→大詠唱／重力魔法1→魔法陣の光柱／雷魔法1→呪弾／
+        // ステータス上昇魔法1→フェーズ移行の解放。タグとアルバムアートは ffmpeg で除去済み）。
+        this.ugCurseSE  = new Audio('sounds/ug_boss_curse.mp3');   // 呪弾（扇・螺旋・反撃）
+        this.ugCurseSE.volume  = 0.45;                             // ⚠連射するので他のSEより控えめに
+        this.ugSigilSE  = new Audio('sounds/ug_boss_sigil.mp3');   // 魔法陣→光柱
+        this.ugSigilSE.volume  = 0.6;
+        this.ugDarkSE   = new Audio('sounds/ug_boss_dark.mp3');    // 大詠唱（暗転）
+        this.ugDarkSE.volume   = 0.65;
+        this.ugAwakenSE = new Audio('sounds/ug_boss_awaken.mp3');  // フェーズ移行の解放
+        this.ugAwakenSE.volume = 0.7;
         // ぴよフラッシュ（必殺技）: チャージ音＋ビーム音
         this.specialChargeSE = new Audio('sounds/piyoflash_charge.mp3');
         this.specialChargeSE.volume = 0.6;
@@ -271,6 +286,12 @@ class SoundManager {
         if (!gameSettings.soundEnabled) return;
         this._playSE(this.criticalSE);
     }
+    // ─── 闇の巫女の技（1.570）───
+    // ⚠通常のSE(playFlash等)と分けてある＝地上の攻撃音と混ざらず「ボス専用の音」として聞こえる。
+    playUgCurse()  { if (gameSettings.soundEnabled) this._playSE(this.ugCurseSE); }   // 呪弾
+    playUgSigil()  { if (gameSettings.soundEnabled) this._playSE(this.ugSigilSE); }   // 魔法陣→光柱
+    playUgDark()   { if (gameSettings.soundEnabled) this._playSE(this.ugDarkSE); }    // 大詠唱
+    playUgAwaken() { if (gameSettings.soundEnabled) this._playSE(this.ugAwakenSE); }  // フェーズ移行の解放
     playPipeWarp() { // 土管出入りの「シュポッ」（dokan.mp3＝アルスパーク素材。読めない環境はオシレータ合成にフォールバック）
         if (!gameSettings.soundEnabled) return;
         if (this.pipeWarpSE && !this.pipeWarpSE.error) { this._playSE(this.pipeWarpSE); return; }
@@ -366,8 +387,8 @@ class SoundManager {
     }
 
     stopAllBGM() {
-        // 🔜地底ステージ実装時は this.undergroundBGM / this.bossUndergroundBGM もこの配列に追加する
-        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.stage4BGM, this.stage5BGM, this.stage6BGM, this.undergroundBGM, this.tutorialBGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.bonusBGM, this.winBGM];
+        // ⚠新しいBGMを足したら**必ずこの配列にも足す**（漏れると前の曲が止まらず二重に鳴る）
+        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.stage4BGM, this.stage5BGM, this.stage6BGM, this.undergroundBGM, this.bossUndergroundBGM, this.tutorialBGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.shopUndergroundBGM, this.bonusBGM, this.winBGM];
         for (var i = 0; i < bgms.length; i++) {
             if (bgms[i]) { bgms[i].pause(); bgms[i].currentTime = 0; }
         }

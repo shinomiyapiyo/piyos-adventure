@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.569";
+                content: "Ver.1.570";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.569</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.570</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3908,7 +3908,7 @@ function dismissTutorialHints() {
     });
 }
 
-// ⚠テスト専用（Ver.1.569・core-state.js の TEST_START_AFTER_R6 が true の時だけ動く）。
+// ⚠テスト専用（Ver.1.570・core-state.js の TEST_START_AFTER_R6 が true の時だけ動く）。
 // ラン開始を「R6の闇のカカシを撃破した直後」＝R7の開始地点(12,000m)にワープさせる。
 // R6撃破後の実際の状態は「gameRound=7 / distance=bossDistanceFor(6)=12,000m / 地上を通常スクロール」なので、
 // それをそのまま再現する（distance は camera.x から算出されるので camera.x を動かすだけ＝距離の式は無改修）。
@@ -5777,7 +5777,11 @@ function updatePlayer() {
                 player.velY = 0;
                 player.onGround = true;
                 // 足場もバイオームギミック適用（砂漠=流砂, 雪原=氷床）
-                var platBiome = getBiomeIndex(gameState.distance);
+                // ⚠**地底は必ず normal**（1.570・ユーザー報告「浮いているブロックの上だと動きが遅くなる」）。
+                //   getBiomeIndex は**距離から**バイオームを出すので、updateBiome の「地底中は5に固定」がここに効かない。
+                //   地底が始まる12,000m付近はちょうど砂漠(1)を返す区間なので、城の石積みの足場が流砂扱いになり
+                //   歩行が0.55倍＋ジャンプ0.9倍になっていた（描画側は同じ理由で 1.563 に p.ugTile で先に分岐済み）。
+                var platBiome = undergroundState.active ? -1 : getBiomeIndex(gameState.distance);
                 player.groundType = platBiome === 1 ? 'quicksand' : platBiome === 2 ? 'ice' : 'normal';
                 if (gameState.isRespawning) gameState.isRespawning = false;
             }
@@ -5913,6 +5917,16 @@ function applySpecialMoveImpact() {
         bossState.boss.angerTimer = (typeof BOSS_ANGER_DURATION !== 'undefined') ? BOSS_ANGER_DURATION : 60;
         spawnExplosionEffect(bossState.boss.x + bossState.boss.width / 2, bossState.boss.y + bossState.boss.height / 2);
         if (bossState.boss.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
+    }
+    // 地底ボス「闇の巫女」にも効かせる（1.570）。⚠通常ボスとは別ステートなので専用の分岐が要る。
+    //   実体化していない（瞬間移動の最中＝solid=false）時は当たらない＝踏み/弾と同じ扱いで一貫させる。
+    if (undergroundState.active && undergroundState.bossPhase === 4 &&
+        undergroundState.boss && undergroundState.boss.solid && undergroundState.boss.hp > 0) {
+        var _upb = undergroundState.boss;
+        _upb.hp -= dmg * critMultiplier(_upb.x + _upb.width / 2, _upb.y);
+        _upb.hurt = 20;
+        spawnExplosionEffect(_upb.x + _upb.width / 2, _upb.y + _upb.height / 2);
+        bossState.eggs = []; // 画面を一掃する技なので、飛んでいる呪弾も消す
     }
     comboFlashTimer = 20;
     screenShake.intensity = 9; screenShake.timer = 20;
@@ -6179,11 +6193,12 @@ function updateEnemies() {
     // 空中敵
     for (i = flyingEnemies.length - 1; i >= 0; i--) {
         e = flyingEnemies[i];
-        e.x += e.velX - gameState.gameSpeed;
         // 上下ふわふわ。旧render側(drawFlyingEnemy)から移設＝当たり判定と描画が常に一致し、
         // 高リフレッシュ端末でも60Hz進行（render側加算だとrAF毎=120Hzで揺れの速度と幅が変わっていた）
+        // ⚠アカバネは**横移動も updateDiveBird が持つ**（1.570）。ここで先に流してしまうと、
+        //   予告の30フレームでプレイヤーの後ろまで運ばれて一度も攻撃にならない（DIVE_BIRD_LOCK_SPD 参照）。
         if (e.type === 'dive_bird') updateDiveBird(e); // 急降下型（1.527）は専用AI。ここも60Hz固定ステップ
-        else e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
+        else { e.x += e.velX - gameState.gameSpeed; e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8; }
 
         var stompHitF = aabbShrink(player, e, 4, 12);
         var bodyHitF  = aabbShrink(player, e, 14, 12);
@@ -6837,6 +6852,22 @@ function updateBullets() {
                 }
             }
             bullets.splice(i, 1);
+            continue;
+        }
+
+        // 地底ボス「闇の巫女」との衝突（1.570）。⚠bossState を使わない**別ステート**なのでここに専用の分岐が要る。
+        //   ・浮遊中(worldY 916〜1036)は床から撃った弾(y≒1156)が届かない＝**跳んで撃つ**か、降りてきた詠唱中に当てる。
+        //     この高さ関係そのものが「弾は隙を突いて当てるもの」という設計＝装甲(exposed)判定は置いていない。
+        //   ・分身（にせもの）は弾がすり抜ける＝止まった先が本物、という手がかりにもなる（撃つのは本物だけ、と併せて2つ目の手がかり）。
+        if (undergroundState.active && undergroundState.bossPhase === 4 && undergroundState.boss) {
+            var _pb = undergroundState.boss;
+            if (_pb.solid && _pb.hp > 0 && aabb(b, _pb)) {
+                _pb.hp -= (b.dmg || 2) * critMultiplier(_pb.x + _pb.width / 2, _pb.y);
+                _pb.hurt = 10;
+                spawnExplosionEffect(b.x, b.y);
+                if (soundManager) soundManager.playKill();
+                bullets.splice(i, 1);
+            }
         }
     }
 }

@@ -47,6 +47,8 @@ function enterUnderground() {
     undergroundState.savedGameSpeed = gameState.gameSpeed;
     undergroundState.introTimer = UG_INTRO_FRAMES;
     undergroundState.bossPhase = 0; undergroundState.bossTimer = 0; undergroundState.boss = null;
+    undergroundState.sigils.length = 0; undergroundState.dark = null;   // 闇の巫女の攻撃（1.570）
+    undergroundState.flash = 0; undergroundState.mobTimer = 0;
     gameState.gameSpeed = 0; // オートスクロール停止（以後カメラはプレイヤー追従）
     // 地底の主の加護（1.569・老婆の店の永続品）: 以後、地底に入るたびにライフ+2で始まる。
     // ⚠上限10は超えない（他の回復と同じ扱い）。⚠applyUpgrades はラン開始時しか走らないので、ここで直接足す。
@@ -193,7 +195,7 @@ function setupUndergroundStage() {
     var ug = undergroundState, o = ug.originX;
     terrain.length = 0; platforms.length = 0; coins.length = 0; powerUps.length = 0;
     ug.rooms = []; ug.lava = []; ug.spikes = []; ug.fireBars = []; ug.fireballs = []; ug.decor = [];
-    ug.pendingEnemies = []; ug.shop = null; ug.braziers = [];
+    ug.pendingEnemies = []; ug.shop = null; ug.idol = null; ug.braziers = [];
     var col0 = 0;
 
     for (var ri = 0; ri < UG_LEVEL_ROOMS.length; ri++) {
@@ -266,6 +268,13 @@ function setupUndergroundStage() {
                         //   通り抜けられる飾りとして置き、入店は上スワイプで行う（既存ショップと同じ作法）。
                         //   マスの**下端が床**なので、そこを基準に上へ UG_SHOP_H ぶん描く。
                         ug.shop = { x: cx + UG_TILE / 2 - UG_SHOP_W / 2, baseY: cy + UG_TILE };
+                        break;
+                    case 'I':
+                        // 邪神の巨像（1.570・ユーザー指定）。⚠**当たり判定なしの飾り**＝通り抜けられる。
+                        //   置き場所は**ボス部屋の中ではなく「ボス部屋に入る直前の祭壇」**（ユーザー指定）＝
+                        //   門をくぐる前にこれを見上げることで「この先がボスだ」と分かる。
+                        //   マスの下端が床なので、そこを台座の底にして上へ UG_IDOL_H ぶん描く。
+                        ug.idol = { x: cx + UG_TILE / 2 - UG_IDOL_W / 2, baseY: cy + UG_TILE };
                         break;
                     case 'i':
                         // 紫の燭台（飾り・当たり判定なし）。⚠ボス前の予告に使う＝門へ近づくほど密に置く
@@ -608,58 +617,516 @@ function updateUgBoss() {
         return;
     }
 
-    // ③ ボス登場（紫の渦→実体化）。⚠P3で「闇の巫女」のスプライトと攻撃に差し替える
+    // ③ ボス登場（紫の渦→実体化）
     if (ug.bossPhase === 3) {
         gameState.input.jump = false;
+        // ⚠渦の位置は**画面内**で決める（1.570）。闘技場は40タイル=1,280pxあるが、カメラは camMaxX＝
+        //   闘技場の左端で止まるので、実際に見えているのは左から GAME_WIDTH(820〜1150) ぶんだけ。
+        //   部屋の幅(ch.x1-ch.x0)から比率で置くと、狭い端末では渦もボスも画面の外に出る。
+        if (ug.bossTimer === 1) ug.bossSpawnX = gameState.camera.x + GAME_WIDTH * 0.60;
         if (ug.bossTimer >= UG_BOSS_APPEAR_FRAMES) {
-            ug.boss = { x: ch.x0 + (ch.x1 - ch.x0) * 0.62, y: ch.topY + 6 * UG_TILE,
-                        width: 96, height: 112,
-                        hp: UG_BOSS_HP, maxHp: UG_BOSS_HP, vx: 1.1, hurt: 0 };
+            ug.boss = ugSpawnPriestess(ch, ug.bossSpawnX);
             ug.bossPhase = 4; ug.bossTimer = 0;
-            if (soundManager) { try { soundManager.playBGM('boss_underground'); } catch (_) {} }
+            if (soundManager) { try { soundManager.playBGM('bossUnderground'); } catch (_) {} }
         }
         return;
     }
 
-    // ④ 戦闘（仮）: 左右に漂う。踏むとダメージ、触れると被弾。
+    // ④ 戦闘（闇の巫女・SPEC §7）
     if (ug.bossPhase === 4) {
         var b = ug.boss;
         if (!b) { ug.bossPhase = 5; ug.bossTimer = 0; return; }
-        b.x += b.vx;
-        if (b.x < ch.x0 + 120) { b.x = ch.x0 + 120; b.vx = Math.abs(b.vx); }
-        if (b.x + b.width > ch.x1 - 90) { b.x = ch.x1 - 90 - b.width; b.vx = -Math.abs(b.vx); }
-        b.y = ch.topY + 6 * UG_TILE + Math.sin(gameState.time * 0.04) * 26;
-        if (b.hurt > 0) b.hurt--;
-        var hit = player.x + player.width - 10 > b.x && player.x + 10 < b.x + b.width &&
-                  player.y + player.height > b.y + 8 && player.y < b.y + b.height;
-        if (hit) {
-            // 上から踏んだか（通常ボスと同じ「落下中＋足が上半分」判定）
-            if (player.velY > 0 && player.y + player.height <= b.y + b.height * 0.55) {
-                b.hp -= UG_BOSS_STOMP_DMG; b.hurt = 12;
-                player.velY = JUMP_FORCE / 2;
-                spawnExplosionEffect(player.x + player.width / 2, b.y + 20);
-                if (soundManager) soundManager.playKill();
-                if (b.hp <= 0) { ug.bossPhase = 5; ug.bossTimer = 0; ug.boss = null;
-                    if (typeof screenShake !== 'undefined') { screenShake.intensity = 10; screenShake.timer = 24; } }
-            } else takeDamage();
-        }
+        // 弾/必殺で倒れた場合はここで拾う（AIを1フレーム余計に回して弾を撒かせない）
+        if (b.hp <= 0) { ugPriestessDefeated(b); return; }
+        ugPriestessAI(b);
+        ugPriestessCollision(b);
+        ugUpdateSigils();
+        ugSpawnArenaMobs(ch, b);
+        // ⚠呪弾は bossState.eggs を流用しているので、**ここで updateEggs を回さないと弾が動かない**
+        //   （通常ボスは updateBoss の phase3 からしか呼ばれない）。
+        updateEggs();
+        if (b.hp <= 0) ugPriestessDefeated(b);
         return;
     }
 
     // ⑤ 撃破演出 → 退場（報酬は SPEC §8）
     if (ug.bossPhase === 5) {
-        if (ug.bossTimer === 1) {
-            gainScore(UG_BOSS_SCORE);
-            for (var ci = 0; ci < UG_BOSS_COINS; ci++) {
-                coins.push({ x: player.x + (ci - UG_BOSS_COINS / 2) * 26, y: player.y - 40 - (ci % 3) * 24,
-                             width: 32, height: 32, collected: false, animFrame: Math.random() * 20 });
-            }
-            // ⚠ゴールデンエッグ（SPEC §8で「毎回1個」に決定済み）は**本ボス実装まで保留**。
-            //   仮ボスは10回踏むだけで倒せるため、今有効にするとエッグの希少性が壊れる。
-            //   P3で闇の巫女に差し替えたらこの行を有効化する: gameState.goldenEggs++ 相当の付与処理。
+        // 崩れ落ちる巫女（描画は drawUgBossRoom）。爆ぜる音と光を散らしてから消す
+        if (ug.boss && ug.bossTimer % 9 === 0 && ug.bossTimer < UG_BOSS_DEFEAT_FRAMES * 0.55) {
+            spawnExplosionEffect(ug.boss.x + Math.random() * ug.boss.width,
+                                 ug.boss.y + Math.random() * ug.boss.height);
+            if (soundManager) soundManager.playKill();
         }
+        if (ug.bossTimer === 1) ugGrantPriestessRewards();
         if (ug.bossTimer >= UG_BOSS_DEFEAT_FRAMES) exitUnderground();
         return;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 闇の巫女（地底のボス・P3/1.570・正の仕様は SPEC_UNDERGROUND.md §7）
+// ═══════════════════════════════════════════════════════════════════
+// 【設計の骨格】カカシ(1.535)で学んだ「攻撃と踏みチャンスを必ず交互に出す」をそのまま踏襲する。
+//   奇数サイクル=攻撃／偶数サイクル=詠唱（＝降りてきて硬直＝踏める窓）。倒し方の学習が1回の観察で済む。
+// 【この部屋の高さが全部を決めている】床 worldY=1180・天井の下端 860 の320pxしかない。
+//   地底の歩行3.0px/f・最高到達175px ＝ 床から跳んでも**足元は 1005 までしか上がらない**。
+//   ・浮遊時の上端 916 → 踏み判定線(上端+60%) 988 は 1005 より上 ＝ **届かない＝踏めない**（格上感）
+//   ・詠唱時の上端 1046 → 上端が足元の最高到達より41px下 ＝ **踏める**
+//   この2つの高さのどちらかだけを動かすと戦闘が成立しなくなる。必ずセットで見直すこと。
+// 【弾は bossState.eggs を流用】SPEC §7.2 の指定どおり。updateEggs のシールド判定・移動・被弾・
+//   消滅がそのまま効く（isFlame=闇の炎弾の見た目）。⚠その代わり updateEggs をここから呼ぶ必要がある。
+// ─────────────────────────────────────────────────────────────
+
+function ugSpawnPriestess(ch, spawnX) {
+    var hoverY = ch.topY + UG_BOSS_HOVER_DY;
+    return {
+        kind: 'priestess',
+        x: spawnX - UG_BOSS_W / 2, y: hoverY, baseY: hoverY,
+        width: UG_BOSS_W, height: UG_BOSS_H,
+        hp: UG_BOSS_HP, maxHp: UG_BOSS_HP,
+        hoverY: hoverY, castY: ch.topY + UG_BOSS_CAST_DY,
+        mode: 'recover', timer: 50, cycle: 0,      // 登場直後は少し間を置く（いきなり撃たない）
+        vx: 0.9, anim: 0, hurt: 0, flash: 0, stompCd: 0,
+        phaseSeen: 1,        // 到達済みのフェーズ。HP60%/30%を割った瞬間に「解放」演出を1回だけ挟むための記録
+        spiralLeft: 0, spiralAng: 0,               // 螺旋弾幕（P3）の残弾と現在角
+        trail: [],           // 残像 {x,y}（先頭が最新）。瞬間移動と高速移動で尾を引かせる
+        exposed: false,      // true の間だけ踏みでダメージが通る（＝詠唱/分身中）
+        solid: true,         // 瞬間移動の最中は false ＝当たり判定なし
+        facing: 'left',
+        clones: [],          // 分身（にせもの）。本物は b 自身
+        cloneFire: 0,
+        ghostTimer: 0, ghostX: 0, ghostY: 0        // 瞬間移動の残光（描画用）
+    };
+}
+
+// ボス戦中に画面外から歩いてくる雑魚（1.570・ユーザー指定）。
+// ⚠通常ボスの spawnEdgeEnemy / spawnEdgeFlyingEnemy は **GROUND_Y と bossState.arenaLeft/Right** を見るので
+//   地底では使えない（床は ch.topY+384、闘技場の左右は camera.x と GAME_WIDTH から出す）。専用に用意する。
+// ⚠**地上の雑魚だけ**にすること（✅ユーザー決定1.570）。空中雑魚を混ぜると、呪弾を避けるための
+//   縦の逃げ場（跳ぶ・くぐる）まで塞がってしまい、固定1画面では避け切れなくなる。
+// ⚠出すのは**右からだけ**。左は扉が降りて地形の壁になっているので、左に湧かせると壁の外で足踏みする。
+// ⚠**ゼロにはしない**（✅ユーザー指定）: 闘技場ではカメラが止まっていて距離が増えないため、
+//   ぴよフラッシュのゲージ加算源が**撃破(+4%/体)しか無い**（距離加算 0.08%/m はここでは効かない）。
+//   雑魚が湧かないとボス戦中に必殺技を貯める手段が消える。
+function ugSpawnArenaMobs(ch, b) {
+    var ug = undergroundState;
+    // 演出中と大詠唱中は湧かせない（暗転中に見えない敵が歩いてくるのは理不尽）
+    if (b.mode === 'awaken' || b.mode === 'dark' || b.mode === 'darkTele') return;
+    if (ug.mobTimer > 0) { ug.mobTimer--; return; }
+    var alive = 0, i;
+    for (i = 0; i < enemies.length; i++) if (enemies[i].arenaMob) alive++;
+    var enc = bossEncounter();
+    var cap = Math.min(4, 1 + enc);                    // 1巡目=2体まで（2巡目以降で増える＝周回強化のひとつ）
+    if (alive >= cap) { ug.mobTimer = 60; return; }
+    // ⚠キーは **kind**（ugMakeEnemy は pe.kind を見る）。'k' と書くと undefined → default で null が返り、
+    //   エラーも出ないまま**一体も湧かない**（1.570の実測で発覚）。
+    var e = ugMakeEnemy({
+        x: gameState.camera.x + GAME_WIDTH + 24,
+        bottom: ch.topY + 12 * UG_TILE,
+        kind: (Math.random() < 0.35) ? 'm' : 'c'
+    });
+    if (!e) return;
+    e.arenaMob = true;
+    enemies.push(e);
+    // 間隔は約6〜8秒（1.570でユーザー指定により約2倍に薄めた）。⚠ゲージは撃破+4%＝25体で満タンなので、
+    //   1回のボス戦（実測107秒）で十数体＝**半分強**貯まる程度。必殺技を撃てる目はあるが連発はできない。
+    ug.mobTimer = Math.max(240, Math.round((430 - (enc - 1) * 45) * (0.85 + Math.random() * 0.3)));
+}
+
+// HPで3段階（SPEC §7.2）。P1=呪弾のみ／P2=瞬間移動と魔法陣が加わる／P3=分身と大詠唱
+function ugPriestessPhase(b) {
+    var r = b.hp / b.maxHp;
+    return r > 0.6 ? 1 : r > 0.3 ? 2 : 3;
+}
+function ugPriestessMode(b, mode, frames) { b.mode = mode; b.timer = frames; }
+
+function ugPriestessAI(b) {
+    var ph = ugPriestessPhase(b);
+    // 周回強化（SPEC §7.2「2巡目以降は増加」）。⚠HPは増やさない＝**2巡目のHP仕様が未決**のため。
+    //   代わりに行動サイクルを詰める＝通常ボスと同じ「難度は攻撃パターンで上げる」方針（BOSS_MAX_HP のコメント）。
+    var enc = bossEncounter();                                  // R7=1 / R14=2 / R21=3 …
+    var mul = (enc >= 4 ? 0.66 : enc >= 3 ? 0.76 : enc >= 2 ? 0.87 : 1) *
+              (ph === 3 ? 0.78 : ph === 2 ? 0.89 : 1);
+    // ⚠左右の可動域は**画面**から出す（部屋の幅ではない）。camera.x は闘技場では固定なので実質「部屋の壁」。
+    var lo = gameState.camera.x + 80, hi = gameState.camera.x + GAME_WIDTH - 80 - b.width;
+
+    b.anim++;
+    if (b.hurt > 0) b.hurt--;
+    if (b.flash > 0) b.flash--;
+    if (b.ghostTimer > 0) b.ghostTimer--;
+    if (undergroundState.flash > 0) undergroundState.flash--;
+    b.facing = (player.x + player.width / 2 < b.x + b.width / 2) ? 'left' : 'right';
+    // 残像（描画用）。⚠先頭が最新。位置だけを持たせる＝当たり判定には一切関与しない
+    b.trail.unshift({ x: b.x, y: b.y });
+    if (b.trail.length > UG_BOSS_TRAIL) b.trail.length = UG_BOSS_TRAIL;
+
+    // ── フェーズ移行の「解放」演出（1.570）。HP60%/30%を割った瞬間に1回だけ割り込む ──
+    // ⚠**この間は無敵ではなく無防備でもない**（exposed=false・stompCdで踏み不可）＝ただの見せ場。
+    //   飛んでいる呪弾を消してから入るので、演出中に理不尽な被弾は起きない。
+    if (ph > b.phaseSeen && b.mode !== 'awaken') {
+        b.phaseSeen = ph;
+        b.exposed = false;
+        if (b.clones.length) ugEndClones(b);
+        bossState.eggs = [];
+        undergroundState.sigils.length = 0; undergroundState.dark = null;
+        b.stompCd = UG_BOSS_PHASE_TELE;
+        undergroundState.flash = 26; undergroundState.flashMax = 26;
+        if (typeof screenShake !== 'undefined') { screenShake.intensity = 11; screenShake.timer = 40; }
+        if (soundManager) { try { soundManager.playUgAwaken(); } catch (_) {} }
+        ugPriestessMode(b, 'awaken', UG_BOSS_PHASE_TELE);
+    }
+
+    // ── 高度: 目標へ滑らかに寄せる。⚠浮遊の上下は **b.y に直接入れる**（描画と当たりを絶対にズラさない） ──
+    var low = (b.mode === 'cast' || b.mode === 'castTele' || b.mode === 'clone' || b.mode === 'cloneTele');
+    b.baseY += ((low ? b.castY : b.hoverY) - b.baseY) * 0.16;
+    var still = (b.mode === 'cast' || b.mode === 'clone');       // 硬直中は揺れない＝止まったのが見て分かる
+    b.y = b.baseY + (still ? 0 : Math.sin(b.anim * 0.045) * 9);
+
+    // ── 横の漂い（硬直・詠唱・瞬間移動の最中は止まる） ──
+    if (b.mode === 'hover' || b.mode === 'curseTele' || b.mode === 'recover') {
+        b.x += b.vx * mul;
+        if (b.x < lo) { b.x = lo; b.vx = Math.abs(b.vx); }
+        if (b.x > hi) { b.x = hi; b.vx = -Math.abs(b.vx); }
+    }
+    if (b.clones.length) { for (var ci = 0; ci < b.clones.length; ci++) b.clones[ci].y = b.y; }
+
+    b.timer--;
+    switch (b.mode) {
+
+    case 'hover':                       // 次の行動を選ぶ
+        if (b.timer > 0) break;
+        b.cycle++;
+        if (b.cycle % 2 === 0) {
+            // 偶数＝踏みチャンス。P3は半分の確率で分身（見分けて本物を踏む窓）に置き換わる
+            if (ph === 3 && Math.random() < 0.5) ugPriestessMode(b, 'cloneTele', 26);
+            else ugPriestessMode(b, 'castTele', UG_BOSS_CAST_DROP);
+        } else {
+            var pool = (ph === 1) ? ['curse']
+                     : (ph === 2) ? ['curse', 'blink', 'sigil']
+                                  : ['curse', 'blink', 'sigil', 'dark', 'spiral'];
+            var pick = pool[Math.floor(Math.random() * pool.length)];
+            if (pick === 'curse') ugPriestessMode(b, 'curseTele', Math.max(20, Math.round(UG_BOSS_CURSE_TELE * mul)));
+            else if (pick === 'blink') ugPriestessMode(b, 'blinkOut', UG_BOSS_BLINK_OUT);
+            else if (pick === 'sigil') { ugSpawnSigils(ph === 3 ? 4 : 3); ugPriestessMode(b, 'sigilTele', UG_BOSS_SIGIL_TELE); }
+            else if (pick === 'dark') { ugStartDarkChant(); ugPriestessMode(b, 'darkTele', UG_BOSS_DARK_TELE); }
+            else {
+                // 螺旋弾幕（P3・見た目の山場）。⚠**避けやすさは角度差で担保**＝渦なので必ず隙間が回ってくる。
+                b.spiralLeft = UG_BOSS_SPIRAL_N; b.spiralAng = Math.random() * Math.PI * 2;
+                ugPriestessMode(b, 'spiralTele', Math.max(24, Math.round(UG_BOSS_CURSE_TELE * mul)));
+            }
+        }
+        break;
+
+    case 'spiralTele':                  // 螺旋の溜め（袖の光が強く回る＝描画側）
+        if (b.timer > 0) break;
+        ugPriestessMode(b, 'spiral', UG_BOSS_SPIRAL_GAP);
+        undergroundState.flash = 14; undergroundState.flashMax = 14;
+        break;
+
+    case 'spiral':                      // 2方向へ同時に、角度を回しながら連射＝渦
+        if (b.timer > 0) break;
+        ugSpawnCurseSpiral(b);
+        b.spiralAng += UG_BOSS_SPIRAL_STEP;
+        if (--b.spiralLeft > 0) { b.timer = UG_BOSS_SPIRAL_GAP; break; }
+        ugPriestessMode(b, 'recover', Math.max(18, Math.round(34 * mul)));
+        break;
+
+    case 'awaken':                      // フェーズ移行の解放（見せ場・攻撃はしない）
+        if (b.timer === Math.round(UG_BOSS_PHASE_TELE * 0.55)) {
+            ugSpawnCurseRing(b, ph === 3 ? 10 : 8);   // 力が弾けて周囲へ散る
+            undergroundState.flash = 22; undergroundState.flashMax = 22;
+        }
+        if (b.timer > 0) break;
+        ugPriestessMode(b, 'recover', Math.max(16, Math.round(26 * mul)));
+        break;
+
+    case 'curseTele':                   // 呪弾の予告（袖に紫が集まる＝描画側）
+        if (b.timer > 0) break;
+        // 本数は 3→5→7（1.570で 3/4/5 から増量＝派手さ）。⚠角度差は据え置きなので扇は広がるだけ＝
+        //   「隙間を抜けて避ける」設計は変わらない（詰めると避けられなくなるので UG_BOSS_CURSE_STEP は触らない）。
+        ugSpawnCurse(b, ph === 1 ? 3 : ph === 2 ? 5 : 7);
+        ugPriestessMode(b, 'recover', Math.max(18, Math.round(34 * mul)));
+        break;
+
+    case 'blinkOut':                    // 瞬間移動: 消える → 行き先はプレイヤーを挟んだ反対側
+        if (b.timer > 0) break;
+        b.solid = false;
+        b.ghostX = b.x; b.ghostY = b.y; b.ghostTimer = UG_BOSS_BLINK_IN;   // 紫の残光を置いてくる
+        b.x = (player.x + player.width / 2 > gameState.camera.x + GAME_WIDTH / 2) ? lo : hi;
+        ugPriestessMode(b, 'blinkIn', UG_BOSS_BLINK_IN);
+        if (soundManager) { try { soundManager.playUgSigil(); } catch (_) {} }
+        break;
+
+    case 'blinkIn':                     // 渦から実体化 → そのまま撃つ（予告は短い）
+        if (b.timer > 0) break;
+        b.solid = true;
+        ugPriestessMode(b, 'curseTele', Math.max(16, Math.round(UG_BOSS_CURSE_TELE * 0.62 * mul)));
+        break;
+
+    case 'sigilTele':                   // 魔法陣の予告（床に円）→ 光柱が立つ
+        if (b.timer > 0) break;
+        for (var si = 0; si < undergroundState.sigils.length; si++) undergroundState.sigils[si].live = 1;
+        if (soundManager) { try { soundManager.playUgSigil(); } catch (_) {} }
+        if (typeof screenShake !== 'undefined') { screenShake.intensity = 5; screenShake.timer = 12; }
+        ugPriestessMode(b, 'sigil', UG_BOSS_SIGIL_ACTIVE);
+        break;
+
+    case 'sigil':
+        if (b.timer > 0) break;
+        undergroundState.sigils.length = 0;
+        ugPriestessMode(b, 'recover', Math.max(18, Math.round(30 * mul)));
+        break;
+
+    case 'darkTele':                    // 大詠唱: 暗転していく（安全地帯はもう光っている）
+        if (b.timer > 0) break;
+        ugPriestessMode(b, 'dark', UG_BOSS_DARK_HOLD);
+        break;
+
+    case 'dark':
+        if (b.timer > 0) break;
+        ugResolveDarkChant();           // ⚠判定は**終わった瞬間に1回だけ**（暗い間ずっと判定すると理不尽）
+        ugPriestessMode(b, 'recover', Math.max(20, Math.round(36 * mul)));
+        break;
+
+    case 'castTele':                    // 詠唱: 高度を下げる（この間はまだ踏めない＝降りきってから）
+        if (b.timer > 0) break;
+        b.exposed = true;
+        if (soundManager) { try { soundManager.playSummon(); } catch (_) {} }
+        ugPriestessMode(b, 'cast', Math.max(48, Math.round(UG_BOSS_CAST_WINDOW * mul)));
+        break;
+
+    case 'cast':                        // 硬直＝踏みチャンス（踏まれたら ugPriestessCollision が counter へ飛ばす）
+        if (b.timer > 0) break;
+        b.exposed = false;
+        ugPriestessMode(b, 'recover', UG_BOSS_RISE);
+        break;
+
+    case 'cloneTele':                   // 分身の予告（紫が3つに割れる）
+        if (b.timer > 0) break;
+        ugStartClones(b);
+        break;
+
+    case 'clone':                       // ⚠**本物だけが撃つ**＝これが見分ける唯一の手がかり（SPEC §7.2）
+        if (--b.cloneFire <= 0) { b.cloneFire = UG_BOSS_CLONE_FIRE; ugSpawnCurse(b, 2); }
+        if (b.timer > 0) break;
+        ugEndClones(b);
+        ugPriestessMode(b, 'recover', Math.max(20, Math.round(30 * mul)));
+        break;
+
+    case 'counter':                     // ⚠踏まれた直後の反撃（必須・SPEC §7.2「カカシの教訓」）
+        if (b.timer > 0) break;         //   頭上に居座って踏み続けるだけで勝てないようにする
+        ugSpawnCurseRing(b, 6);
+        ugPriestessMode(b, 'recover', Math.max(20, Math.round(30 * mul)));
+        break;
+
+    default:                            // 'recover' もここ（袖を戻して浮遊高度へ）
+        if (b.timer > 0) break;
+        ugPriestessMode(b, 'hover', Math.max(16, Math.round((ph === 3 ? 26 : ph === 2 ? 34 : 44) * mul)));
+        break;
+    }
+}
+
+// 呪弾＝扇状の魔法弾（SPEC §7.2）。⚠**隙間を抜けて避ける**設計なので角度差を詰めない（UG_BOSS_CURSE_STEP）。
+// bossState.eggs を流用＝シールドで消える／被弾する／画面外で消える、が全部そのまま効く。
+function ugSpawnCurse(b, n) {
+    var oy = b.y + b.height * UG_BOSS_ORB_DY;          // 絵の中の「両手の間の玉」の高さ（実測値）
+    var ox = b.x + b.width / 2;
+    var base = Math.atan2(player.y + player.height / 2 - oy, player.x + player.width / 2 - ox);
+    for (var i = 0; i < n; i++) {
+        var a = base + (i - (n - 1) / 2) * UG_BOSS_CURSE_STEP;
+        ugPushCurse(ox, oy, a, UG_BOSS_CURSE_SPD);
+    }
+    b.flash = 14;
+    if (soundManager) { try { soundManager.playUgCurse(); } catch (_) {} }
+}
+
+// 呪弾1発。⚠isCurse は**描画専用のフラグ**（drawEggProjectiles が尾を引く彗星として描く）。
+//   移動/被弾/シールド/消滅は isFlame の既存経路のまま＝挙動は増やさず見た目だけ派手にする。
+function ugPushCurse(ox, oy, ang, spd) {
+    bossState.eggs.push({
+        x: ox - 8, y: oy - 8, width: 16, height: 16,
+        velX: Math.cos(ang) * spd, velY: Math.sin(ang) * spd,
+        grav: 0,                                       // 呪弾はまっすぐ飛ぶ（卵弾の微重力は使わない）
+        timer: 0, isFlame: true, isCurse: true, spin: ang
+    });
+}
+
+// 螺旋弾幕（P3・1.570）。2方向へ同時に撃ち、1発ごとに角度を回す＝渦を巻く。
+// ⚠見た目は最大級に派手だが、**必ず隙間が回ってくる**ので立ち位置を変えれば抜けられる。
+//   角度差(UG_BOSS_SPIRAL_STEP=0.55rad≒31°)は扇撃ち(0.40rad)より広い＝実は1発あたりは避けやすい。
+function ugSpawnCurseSpiral(b) {
+    var oy = b.y + b.height * UG_BOSS_ORB_DY, ox = b.x + b.width / 2;
+    ugPushCurse(ox, oy, b.spiralAng, UG_BOSS_CURSE_SPD * 0.92);
+    ugPushCurse(ox, oy, b.spiralAng + Math.PI, UG_BOSS_CURSE_SPD * 0.92);
+    b.flash = 10;
+    if (soundManager) { try { soundManager.playUgCurse(); } catch (_) {} }
+}
+
+// 踏まれた直後の反撃＝自分を中心に全方位へ。⚠真下にも飛ぶので「踏んだ位置に留まる」が一番危ない。
+function ugSpawnCurseRing(b, n) {
+    var ox = b.x + b.width / 2, oy = b.y + b.height * 0.5;
+    for (var i = 0; i < n; i++) ugPushCurse(ox, oy, (Math.PI * 2 / n) * i + 0.3, UG_BOSS_CURSE_SPD * 0.85);
+    b.flash = 18;
+    undergroundState.flash = 16; undergroundState.flashMax = 16;
+    if (typeof screenShake !== 'undefined') { screenShake.intensity = 6; screenShake.timer = 14; }
+    if (soundManager) { try { soundManager.playUgCurse(); } catch (_) {} }
+}
+
+// 魔法陣＝床に円の予告 → 光柱（SPEC §7.2「カカシの帯予告と同思想」）。
+// ⚠必ず**円と円の間に立てる幅**を残すこと。画面を等分して置けば、間隔(≒画面幅/n)は必ず直径より広い。
+function ugSpawnSigils(n) {
+    var ug = undergroundState;
+    ug.sigils.length = 0;
+    var seg = GAME_WIDTH / n;
+    for (var i = 0; i < n; i++) {
+        ug.sigils.push({
+            x: gameState.camera.x + seg * (i + 0.5) + (Math.random() - 0.5) * (seg * 0.3),
+            timer: 0, live: 0
+        });
+    }
+}
+function ugUpdateSigils() {
+    var ug = undergroundState, i, s;
+    for (i = 0; i < ug.sigils.length; i++) {
+        s = ug.sigils[i];
+        s.timer++;
+        if (!s.live) continue;
+        // 光柱は床から天井まで＝高さでは避けられない。横に出るしかない（予告54フレーム＝162px 歩ける）
+        // ⚠横の余裕はトゲ/炎と同じ UG_HAZARD_SHRINK_X ぶん削る＝地底の他の当たりと寛容さを揃える。
+        // ⚠シールドで防げる（トゲ等の「地形の罠」ではなく**ボスの攻撃**なので、呪弾=updateEggs と同じ扱いにする）。
+        var pcx = player.x + player.width / 2;
+        if (Math.abs(pcx - s.x) < UG_BOSS_SIGIL_R + player.width / 2 - UG_HAZARD_SHRINK_X &&
+            !isPlayerProtected()) takeDamage();
+    }
+}
+
+// 大詠唱＝画面が暗転し、安全地帯が1箇所だけ光る（SPEC §7.2・フクロウの暗転と同じ思想）。
+// ⚠安全地帯は**必ず歩いて届く距離**に置く: 3.0px/f × (予告60+保持96=156フレーム) = 468px 歩ける。
+//   プレイヤーから 150〜380px 離れた位置に置く（最大でも 380-100=280px の移動で入れる）。
+function ugStartDarkChant() {
+    var pcx = player.x + player.width / 2;
+    var lo = gameState.camera.x + UG_BOSS_SAFE_W / 2 + 20;
+    var hi = gameState.camera.x + GAME_WIDTH - UG_BOSS_SAFE_W / 2 - 20;
+    var dist = 150 + Math.random() * 230;
+    var sx = (pcx > gameState.camera.x + GAME_WIDTH / 2) ? pcx - dist : pcx + dist;
+    if (sx < lo) sx = lo; if (sx > hi) sx = hi;
+    undergroundState.dark = { timer: 0, safeX: sx, hit: false };
+    // ⚠暗転する前に**雑魚を巻き込んで消す**（1.570）。暗幕で見えない敵と接触するのは理不尽だし、
+    //   「巫女の力が闘技場ごと薙ぎ払う」という絵にもなる（＝派手さと公平さが両立する）。
+    for (var qi = enemies.length - 1; qi >= 0; qi--) {
+        if (!enemies[qi].arenaMob) continue;
+        spawnExplosionEffect(enemies[qi].x + enemies[qi].width / 2, enemies[qi].y + enemies[qi].height / 2);
+        enemies.splice(qi, 1);
+    }
+    for (var qf = flyingEnemies.length - 1; qf >= 0; qf--) {
+        if (!flyingEnemies[qf].arenaMob) continue;
+        spawnExplosionEffect(flyingEnemies[qf].x + flyingEnemies[qf].width / 2, flyingEnemies[qf].y + flyingEnemies[qf].height / 2);
+        flyingEnemies.splice(qf, 1);
+    }
+    if (soundManager) { try { soundManager.playUgDark(); } catch (_) {} }
+}
+function ugResolveDarkChant() {
+    var d = undergroundState.dark;
+    if (d) {
+        var pcx = player.x + player.width / 2;
+        // ⚠シールドで防げる（呪弾/光柱と同じ＝ボスの攻撃はすべてシールドが効く、で統一）
+        if (Math.abs(pcx - d.safeX) > UG_BOSS_SAFE_W / 2 && !isPlayerProtected()) takeDamage();
+        if (typeof screenShake !== 'undefined') { screenShake.intensity = 9; screenShake.timer = 20; }
+        if (soundManager) { try { soundManager.playUgSigil(); } catch (_) {} }
+    }
+    undergroundState.dark = null;
+}
+
+// 分身（P3）＝3体に分かれ、本物だけが撃つ。⚠にせものは**触れても踏んでも痛くない**（外しても損しない）。
+function ugStartClones(b) {
+    var seg = GAME_WIDTH / 3, slots = [], i;
+    for (i = 0; i < 3; i++) slots.push(gameState.camera.x + seg * (i + 0.5) - b.width / 2);
+    var real = Math.floor(Math.random() * 3);
+    b.x = slots[real];
+    b.clones.length = 0;
+    for (i = 0; i < 3; i++) if (i !== real) b.clones.push({ x: slots[i], y: b.y });
+    b.exposed = true;
+    b.cloneFire = Math.round(UG_BOSS_CLONE_FIRE * 0.6);
+    ugPriestessMode(b, 'clone', UG_BOSS_CLONE_TIME);
+    if (soundManager) { try { soundManager.playSummon(); } catch (_) {} }
+}
+function ugEndClones(b) {
+    for (var i = 0; i < b.clones.length; i++) spawnExplosionEffect(b.clones[i].x + b.width / 2, b.clones[i].y + 30);
+    b.clones.length = 0;
+    b.exposed = false;
+}
+
+function ugPriestessCollision(b) {
+    if (b.stompCd > 0) b.stompCd--;
+    if (!b.solid || b.hp <= 0) return;
+
+    // ── にせもの: 踏むと弾けて消えるだけ。ダメージのやり取りは一切ない ──
+    for (var i = b.clones.length - 1; i >= 0; i--) {
+        var c = b.clones[i];
+        var cbox = { x: c.x, y: c.y, width: b.width, height: b.height };
+        if (player.velY > 0 && aabbShrink(player, cbox, 12, 14) &&
+            player.y + player.height <= c.y + b.height * 0.6) {
+            b.clones.splice(i, 1);
+            player.velY = JUMP_FORCE / 2;
+            spawnExplosionEffect(c.x + b.width / 2, c.y + 30);
+            if (soundManager) soundManager.playProtect();   // 「キン」＝手応えが無い音（装甲弾きと同じ音）
+        }
+    }
+
+    // ── 本体。⚠踏めるのは exposed（＝詠唱/分身で降りている間）だけ ──
+    if (b.stompCd <= 0 && b.exposed && player.velY > 0 &&
+        aabbShrink(player, b, 12, 14) && player.y + player.height <= b.y + b.height * 0.6) {
+        b.hp -= (UG_BOSS_STOMP_DMG + samuraiDiveDmgBonus()) * critMultiplier(b.x + b.width / 2, b.y);
+        b.hurt = 16; b.stompCd = UG_BOSS_STOMP_CD;
+        player.velY = JUMP_FORCE / 2;
+        endSamuraiDiveOnBossStomp();
+        spawnExplosionEffect(player.x + player.width / 2, b.y + 24);
+        gainScore(500);                                     // 通常ボスの踏みと同額（撃破数には入れない）
+        if (soundManager) soundManager.playKill();
+        if (b.hp > 0) {
+            // ⚠踏んだら**必ず**反撃へ移す。ここを外すと頭の上に居座って踏み続けるだけで勝ててしまう（1.535の反省）
+            b.exposed = false;
+            if (b.clones.length) ugEndClones(b);
+            ugPriestessMode(b, 'counter', UG_BOSS_COUNTER_TELE);
+        }
+        return;
+    }
+    // 触れて被弾するのは**浮遊中だけ**。硬直（踏みチャンス）中に触っても痛くない＝跳び込みが罠にならない
+    if (!b.exposed && b.stompCd <= 0 && !isPlayerProtected() && aabbShrink(player, b, 18, 14)) takeDamage();
+}
+
+function ugPriestessDefeated(b) {
+    var ug = undergroundState;
+    b.hp = 0;
+    b.exposed = false; b.solid = false;
+    b.clones.length = 0;
+    ug.sigils.length = 0; ug.dark = null;
+    bossState.eggs = [];                                    // 残った呪弾で勝利中に被弾させない
+    ug.bossPhase = 5; ug.bossTimer = 0;
+    if (typeof screenShake !== 'undefined') { screenShake.intensity = 12; screenShake.timer = 30; }
+    if (soundManager) { try { soundManager.stopAllBGM(); soundManager.playBossFanfare(); } catch (_) {} }
+}
+
+// 撃破報酬（SPEC §8・✅ユーザー決定）＝スコア10,000（通常ボスの倍額）＋コイン多め＋**ゴールデンエッグ1個（毎回）**。
+// ⚠エッグは1.565まで「仮ボスは10回踏めば倒せる＝希少性が壊れる」ため保留していた。本実装で解禁。
+function ugGrantPriestessRewards() {
+    var b = undergroundState.boss;
+    var cx = b ? b.x + b.width / 2 : player.x, cy = b ? b.y + 20 : player.y - 40;
+    gainScore(UG_BOSS_SCORE);
+    for (var ci = 0; ci < UG_BOSS_COINS; ci++) {
+        coins.push({ x: cx + (Math.random() - 0.5) * 260, y: cy + (Math.random() - 0.5) * 120,
+                     width: 32, height: 32, collected: false, animFrame: Math.random() * 20 });
+    }
+    gameState.enemyKills++;
+    gameState.bossKills++;
+    zukanAddKill('boss:priestess');                         // ずかん: 撃破時のみ登録（1.474の統一ルール）
+    floatEffects.push({ type: 'boss_defeated_text', worldX: cx, worldY: cy, timer: 0, duration: 180, offsetY: 0 });
+    floatEffects.push({ type: 'score_text', worldX: cx, worldY: cy - 40, timer: 0, duration: 90, offsetY: 0, score: UG_BOSS_SCORE });
+    // ゴールデンエッグ1個。⚠既存の取得経路と同じ関数を通す（図鑑登録・保存がここに集約されている）
+    if (typeof collectGoldenEgg === 'function') collectGoldenEgg(false);
+    if (typeof showRewardToast === 'function') {
+        showRewardToast('<img src="images/item_golden_egg.png" width="22" height="22" style="image-rendering:pixelated; vertical-align:middle;"> ×1 ' +
+                        escapeHtml(t('ug_boss_egg_toast')), 'linear-gradient(180deg,#ffe07a,#ffb400)', '#5a3d00');
     }
 }
 
@@ -695,8 +1162,15 @@ function exitUnderground() {
     undergroundState.lava.length = 0; undergroundState.spikes.length = 0; undergroundState.decor.length = 0;
     undergroundState.fireBars.length = 0; undergroundState.fireballs.length = 0;
     undergroundState.rooms.length = 0; undergroundState.pendingEnemies = [];
-    undergroundState.shop = null; undergroundState.braziers.length = 0;
+    undergroundState.shop = null; undergroundState.idol = null; undergroundState.braziers.length = 0;
     undergroundState.bossPhase = 0; undergroundState.bossTimer = 0; undergroundState.boss = null;
+    // 闇の巫女の攻撃の後始末（1.570）。⚠**呪弾は bossState.eggs を借りているので必ずここで空にする**。
+    //   残すと地上へ戻った直後に画面外から飛んできて当たる（弾は世界座標のまま生き続けるため）。
+    undergroundState.sigils.length = 0; undergroundState.dark = null;
+    undergroundState.flash = 0; undergroundState.mobTimer = 0;
+    bossState.eggs = [];
+    // ⚠闘技場に湧かせた雑魚を残さない（地上へ持ち帰ると、床の高さが違うので宙に浮いたまま流れてくる）
+    enemies.length = 0; flyingEnemies.length = 0;
     player.y = GROUND_Y - player.height; player.velY = 0; player.onGround = true;
     // ⚠ステージ進行のグリッドを引き直す（1.553・ユーザー指定「地底のあとも草原→砂漠→雪山→夜→ボス」）。
     //   地底は2,400mの倍数でない量(800m)を足すので、そのままだと以降ずっとバイオームとボスがずれる
@@ -1715,7 +2189,9 @@ function openStageShop() {
     // updateStockUI が shopState.active を見て onclick 無し(使用不可)で描画する。
     updateStockUI();
     preloadShopImages();
-    if (soundManager) soundManager.playBGM('shop');
+    // 怪しい老婆の店だけ専用BGM（1.570・ユーザー提供）。⚠ここは地上のステージショップと**同じ関数**を通るので、
+    //   分岐しないと地上の陽気な店の曲が洞窟で鳴る。退店後に地底の曲へ戻すのは playStageBGM 側（1.569）が担当。
+    if (soundManager) soundManager.playBGM(undergroundState.active ? 'shopUnderground' : 'shop');
     showStageShopScreen();
 }
 
@@ -2055,13 +2531,13 @@ function setShopBg(name, revertMs) {
     if (!bgEl) return;
     shopBgCurrent = name;
     // 地底＝怪しい老婆の店（1.569）は地上の店の背景（明るい木の店内 shop01〜05）を使わない。
-    // ⚠専用の一枚絵はまだ無いので、**暗い洞窟のグラデーション**で代用する。画像が無いと
-    //   background-image が空になって前の絵が残る/真っ黒になるため、必ず色で塗り潰しておくこと。
-    //   絵が用意できたら、この分岐を url('images/ug_shop01.jpg') に差し替えるだけで済む。
+    // ✅1.570で専用の一枚絵を配置（OpenAI生成・洞窟の中の薬屋）。⚠**中央〜下が暗い絵を選んである**＝
+    //   商品リストと老婆のセリフがその上に乗るため。明るい絵に差し替えるとUIが読めなくなる。
+    // ⚠画像の読み込みに失敗しても真っ黒/前の絵の残りにならないよう、下地の色は必ず塗っておく。
+    // ⚠地上のように名前(shop01〜05)で切り替えず1枚に固定＝老婆の店は1軒しかない。
     if (undergroundState.active) {
         bgEl.style.backgroundImage =
-            'radial-gradient(ellipse at 62% 78%, rgba(70,190,140,0.30) 0%, rgba(20,60,50,0.10) 38%, rgba(0,0,0,0) 62%),' +
-            'linear-gradient(180deg, #0a0812 0%, #140f1e 45%, #1d1526 78%, #0c0a12 100%)';
+            "url('images/ug_shop01.jpg'), linear-gradient(180deg, #0a0812 0%, #140f1e 45%, #1d1526 78%, #0c0a12 100%)";
         bgEl.style.backgroundColor = '#0a0812';
         if (shopBgTimer) { clearTimeout(shopBgTimer); shopBgTimer = null; }
         return;
@@ -3133,17 +3609,25 @@ function buildPermaSlots() {
 //   dive = プレイヤー目がけて急降下（真下だけだと避けやすすぎるので少しだけ横に寄せる）
 //   leave= 地面で跳ねて上へ抜ける（そのまま画面外へ＝cullByXが回収）
 // ⚠踏み・弾・ぴよフラッシュ・急降下斬りの処理は既存の空中敵と共通＝倒し方は変わらない。
+// ⚠**横移動もこの関数が持つ**（1.570）。以前は updateEnemies 側の共通処理
+//   `e.x += e.velX - gameState.gameSpeed` に任せていたが、それだと予告中もスクロールに流され続け、
+//   降下を始める頃にはプレイヤーの遥か後ろ＝一度も攻撃せずに離脱していた（DIVE_BIRD_LOCK_SPD のコメントに実測）。
 function updateDiveBird(e) {
     if (e.diveState === 'warn') {
         e.diveTimer--;
         e.y += Math.sin(gameState.time * 0.4 + e.waveOffset) * 0.6; // 予告中は小刻みに震える
+        // 狙いを定める＝スクロール分を打ち消しつつ、上限速度でプレイヤーの真上へ寄せる。
+        // ⚠一気に真上へは行かない（上限 DIVE_BIRD_LOCK_SPD）＝「寄ってくる」のが見えるので避ける判断ができる。
+        var lockDx = (player.x + player.width / 2) - (e.x + e.width / 2);
+        e.x += gameState.gameSpeed + Math.max(-DIVE_BIRD_LOCK_SPD, Math.min(DIVE_BIRD_LOCK_SPD, lockDx * 0.25));
         if (e.diveTimer <= 0) { e.diveState = 'dive'; e.diveVelY = 0; }
         return;
     }
     if (e.diveState === 'dive') {
         e.diveVelY = Math.min(DIVE_BIRD_SPEED_Y, e.diveVelY + DIVE_BIRD_ACC_Y);
         e.y += e.diveVelY;
-        e.x += (player.x - e.x) * DIVE_BIRD_HOME_X; // わずかに追尾
+        // 降下中も画面に置いていかれないようスクロール分を足す（＋わずかに追尾）
+        e.x += gameState.gameSpeed + (player.x - e.x) * DIVE_BIRD_HOME_X;
         var surf = terrainTopAt(e.x + e.width / 2);
         var floorY = (surf !== null ? surf : GROUND_Y) - e.height;
         if (e.y >= floorY) { e.y = floorY; e.diveState = 'leave'; e.diveVelY = DIVE_BIRD_BOUNCE_Y; }
@@ -3153,14 +3637,17 @@ function updateDiveBird(e) {
         // 地面で跳ねたあとは機首を引き起こして上へ抜ける（必ず上昇＝地面をすり抜けて落ち続けない）
         e.diveVelY = Math.min(-3, e.diveVelY + 0.2);
         e.y += e.diveVelY;
+        e.x += e.velX - gameState.gameSpeed;        // 離脱は従来どおり流れて画面外へ（cullByXが回収）
         return;
     }
     // fly: 通常飛行。プレイヤーの前方(右)で射程に入ったら予告へ。すでに追い越していたら降下しない
+    e.x += e.velX - gameState.gameSpeed;
     e.y += Math.sin(gameState.time * 0.05 + e.waveOffset) * 0.8;
     var dx = e.x - player.x;
     if (dx > 0 && dx < DIVE_BIRD_TRIGGER_X) {
         e.diveState = 'warn';
         e.diveTimer = DIVE_BIRD_WARN_F;
+        if (soundManager) { try { soundManager.playFlash(); } catch (_) {} }  // 予告に音をつける（画面外を見ていても気づける）
     }
 }
 
@@ -5001,11 +5488,14 @@ function updateEggs() {
     for (var i = bossState.eggs.length - 1; i >= 0; i--) {
         var egg = bossState.eggs[i];
         egg.x += egg.velX;
-        egg.velY += 0.15; // 微重力
+        // 微重力。⚠闇の巫女の呪弾だけ grav:0 ＝まっすぐ飛ぶ（扇の隙間を抜けて避ける設計・1.570）
+        egg.velY += (egg.grav === undefined ? 0.15 : egg.grav);
         egg.y += egg.velY;
         egg.timer++;
-        // 画面外除去
-        if (egg.y > GAME_HEIGHT + 50 || egg.timer > 300 ||
+        // 画面外除去。⚠**カメラ相対で見ること**（1.570）: 縦カメラのある地底では画面座標(y > GAME_HEIGHT+50)で
+        //   判定すると、闘技場のワールドy(860〜1180)が最初から条件を満たし**撃った次のフレームに全部消える**
+        //   （1.564でプレイヤーの弾に起きたのと同じ罠）。地上は camera.y=0 なので式の値は従来と完全に同じ。
+        if (egg.y > gameState.camera.y + GAME_HEIGHT + 50 || egg.timer > 300 ||
             egg.x < gameState.camera.x - 50 || egg.x > gameState.camera.x + GAME_WIDTH + 50) {
             bossState.eggs.splice(i, 1);
             continue;

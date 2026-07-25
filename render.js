@@ -2318,67 +2318,292 @@ function drawUgBossRoom() {
         ctx.restore();
     }
 
+    // ── 魔法陣→光柱（P2〜・床から天井まで立つので高さでは避けられない）──
+    drawUgSigils(ch);
+
     // ── ボス登場の渦（フェーズ3）──
+    // ⚠中心は ug.bossSpawnX（＝画面内で決めた実体化位置）。部屋の幅から比率で置くと、
+    //   闘技場40タイル(1,280px)は画面幅(820〜1,150)より広いので**渦だけ画面の外**に出る（1.570で修正）。
     if (ug.bossPhase === 3) {
-        var ap = ug.bossTimer / UG_BOSS_APPEAR_FRAMES;
-        var vx = ch.x0 + (ch.x1 - ch.x0) * 0.62 + 48, vy = ch.topY + 6 * UG_TILE + 56;
-        ctx.save();
-        for (var vi = 0; vi < 5; vi++) {
-            var a = gameState.time * 0.12 + vi * 1.25;
-            var r = (110 - ap * 82) + vi * 7;
-            ctx.globalAlpha = 0.16 + ap * 0.5;
-            ctx.fillStyle = (vi % 2) ? '#b07cff' : '#6a3fb0';
-            ctx.beginPath();
-            ctx.arc(vx + Math.cos(a) * r, vy + Math.sin(a) * r * 0.55, 7 + ap * 9, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.globalAlpha = ap * 0.6;
-        var vg = ctx.createRadialGradient(vx, vy, 4, vx, vy, 90);
-        vg.addColorStop(0, 'rgba(200,150,255,0.9)'); vg.addColorStop(1, 'rgba(120,60,200,0)');
-        ctx.fillStyle = vg;
-        ctx.beginPath(); ctx.arc(vx, vy, 90, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
+        drawUgVortex(ug.bossSpawnX || (gameState.camera.x + GAME_WIDTH * 0.6),
+                     ch.topY + UG_BOSS_HOVER_DY + UG_BOSS_H * 0.5,
+                     ug.bossTimer / UG_BOSS_APPEAR_FRAMES);
     }
 
-    // ── 仮ボス（フェーズ4）。⚠P3で「闇の巫女」の立ち絵/モーションに差し替える（SPEC §7.3）──
     var b = ug.boss;
-    if (b) {
+    if (!b) return;
+
+    // ── 残像（1.570）。動いた軌跡に薄い分身が残る＝常時ふわっと尾を引いて「実体が薄い」感じを出す ──
+    if (b.trail && b.trail.length > 2) {
+        for (var tr = b.trail.length - 1; tr >= 2; tr -= 2) {
+            var tp = b.trail[tr];
+            if (Math.abs(tp.x - b.x) < 1.2 && Math.abs(tp.y - b.y) < 1.2) continue;  // 止まっている時は出さない
+            drawPriestessBody(tp.x, tp.y, b, 1, (1 - tr / b.trail.length) * 0.20);
+        }
+    }
+    // ── 瞬間移動の残光（消えた場所に紫が尾を引く＝「どこへ行った」を追う手がかり）──
+    if (b.ghostTimer > 0) drawPriestessBody(b.ghostX, b.ghostY, b, 1, (b.ghostTimer / UG_BOSS_BLINK_IN) * 0.42);
+    // 実体化していない間は渦だけ（当たり判定も無い＝b.solid=false ＝ 'blinkIn' の間だけ）
+    if (!b.solid && ug.bossPhase === 4) {
+        drawUgVortex(b.x + b.width / 2, b.y + b.height / 2, 1 - b.timer / UG_BOSS_BLINK_IN);
+        return;
+    }
+    // ── 分身（P3）。⚠**本物と一切見分けがつかないように描く**＝手がかりは「撃つかどうか」だけ ──
+    for (var cl = 0; cl < b.clones.length; cl++) drawPriestessBody(b.clones[cl].x, b.clones[cl].y, b, 1, 1);
+
+    // ── 本体 ──
+    if (ug.bossPhase === 5) {
+        // 撃破: 光に灼かれて崩れ落ちる（沈みながら消える）
+        var dp = Math.min(1, ug.bossTimer / (UG_BOSS_DEFEAT_FRAMES * 0.8));
+        drawPriestessBody(b.x, b.y + dp * 40, b, 1, 1 - dp);
+        return;
+    }
+    // 消えかけ（blinkOut）はだんだん透ける＝「今から消える」が見て分かる
+    drawPriestessBody(b.x, b.y, b, 0,
+                      b.mode === 'blinkOut' ? Math.max(0.12, b.timer / UG_BOSS_BLINK_OUT) : 1);
+}
+
+// 闇の巫女の本体1体ぶん。分身も撃破演出も残光も全部これを通す＝見た目が絶対にズレない。
+// スプライトは sprites.js の手続き生成（32×40を96×120＝**3倍**で表示＝地形32pxタイルと粒が揃う）。
+// ⚠alpha は**掛け算で使う**こと（残光/消えかけ/撃破の透過を、中で使う個々の globalAlpha が上書きしないため）。
+function drawPriestessBody(x, y, b, quiet, alpha) {
+    if (alpha <= 0.01) return;
+    var cx = x + b.width / 2, cy = y + b.height * 0.5;
+    var casting = (b.mode === 'cast' || b.mode === 'castTele' || b.mode === 'clone' ||
+                   b.mode === 'cloneTele' || b.mode === 'counter');
+    var awake = (b.mode === 'awaken');
+    var charging = (b.mode === 'curseTele' || b.mode === 'spiralTele' || b.mode === 'spiral' || awake);
+    ctx.save();
+    // ── 背後の魔法陣（1.570）。⚠**逆回転の二重リング**にすると、静止画でも「回っている」と分かる。
+    //   詠唱/溜め/解放のときだけ濃くする＝今が何のモーションか色で読める。
+    var ringP = (charging ? 1 : casting ? 0.7 : 0.34) * (awake ? 1.35 : 1);
+    ctx.globalAlpha = alpha * 0.55 * ringP;
+    var rr = b.width * (0.78 + (awake ? 0.35 : 0)) + Math.sin(b.anim * 0.06) * 4;
+    for (var ri = 0; ri < 2; ri++) {
+        var rot = b.anim * (ri ? -0.014 : 0.021), rad = rr * (ri ? 0.62 : 1);
         ctx.save();
-        if (b.hurt > 0 && Math.floor(gameState.time / 3) % 2 === 0) ctx.globalAlpha = 0.55;
-        var bcx = b.x + b.width / 2;
-        ctx.globalAlpha *= 0.9;                                                 // 周囲の闇
-        var bg = ctx.createRadialGradient(bcx, b.y + b.height * 0.5, 10, bcx, b.y + b.height * 0.5, b.width);
-        bg.addColorStop(0, 'rgba(90,40,150,0.55)'); bg.addColorStop(1, 'rgba(60,20,110,0)');
-        ctx.fillStyle = bg;
-        ctx.fillRect(b.x - b.width * 0.5, b.y - 30, b.width * 2, b.height + 70);
-        ctx.globalAlpha = (b.hurt > 0 && Math.floor(gameState.time / 3) % 2 === 0) ? 0.55 : 1;
-        // 黒紫のフード姿（シルエット）＋光る目。⚠緑の丸型はNG（SPEC §7）
-        ctx.fillStyle = '#1a1030';
-        ctx.beginPath();
-        ctx.moveTo(bcx, b.y);
-        ctx.lineTo(b.x + b.width, b.y + b.height * 0.45);
-        ctx.lineTo(b.x + b.width - 8, b.y + b.height);
-        ctx.lineTo(b.x + 8, b.y + b.height);
-        ctx.lineTo(b.x, b.y + b.height * 0.45);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#3a2260';                                              // フードの縁
-        ctx.beginPath();
-        ctx.moveTo(bcx, b.y + 6); ctx.lineTo(b.x + b.width - 10, b.y + b.height * 0.46);
-        ctx.lineTo(b.x + 10, b.y + b.height * 0.46);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#e4ccff';                                              // 光る目
-        ctx.fillRect(bcx - 17, b.y + 34, 9, 5);
-        ctx.fillRect(bcx + 8, b.y + 34, 9, 5);
-        ctx.fillStyle = '#b07cff';
-        ctx.fillRect(bcx - 19, b.y + 33, 13, 2); ctx.fillRect(bcx + 6, b.y + 33, 13, 2);
-        ctx.restore();
-        // 仮であることが一目で分かるように（P3で消す）
-        ctx.save();
-        ctx.globalAlpha = 0.5; ctx.fillStyle = '#fff';
-        ctx.font = "bold 10px 'DotGothic16', monospace"; ctx.textAlign = 'center';
-        ctx.fillText('(placeholder)', bcx, b.y - 10);
+        ctx.translate(cx, cy); ctx.rotate(rot); ctx.scale(1, 0.42);   // 床に寝かせず、やや斜めの円＝奥行きが出る
+        ctx.strokeStyle = ri ? '#f2e6ff' : '#a273f0';
+        ctx.lineWidth = ri ? 2 : 3;
+        ctx.beginPath(); ctx.arc(0, 0, rad, 0, Math.PI * 2); ctx.stroke();
+        for (var rk = 0; rk < 8; rk++) {                              // 呪符（回るドット）
+            var ra = (Math.PI / 4) * rk;
+            ctx.fillStyle = (rk % 2) ? '#f2e6ff' : '#c9a4ff';
+            ctx.fillRect(Math.cos(ra) * rad - 3, Math.sin(ra) * rad - 3, 6, 6);
+        }
         ctx.restore();
     }
+    // ── 周囲の闇（大きさで格上感を出す。⚠緑は使わない＝SPEC §7 のハロ回避）──
+    ctx.globalAlpha = alpha * (awake ? 1 : 0.92);
+    var bg = ctx.createRadialGradient(cx, cy, 10, cx, cy, b.width * (awake ? 1.5 : 1));
+    bg.addColorStop(0, awake ? 'rgba(190,140,255,0.75)' : 'rgba(96,44,166,0.5)');
+    bg.addColorStop(1, 'rgba(60,20,110,0)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(x - b.width, y - 60, b.width * 3, b.height + 130);
+    // ── 詠唱中は足元に光が落ちる＝「今は降りている＝踏める」を色でも伝える ──
+    if (casting && !b.hurt) {
+        ctx.globalAlpha = alpha * (0.30 + 0.14 * Math.sin(b.anim * 0.18));
+        var lg = ctx.createRadialGradient(cx, y + b.height, 6, cx, y + b.height, 74);
+        lg.addColorStop(0, 'rgba(201,164,255,0.9)'); lg.addColorStop(1, 'rgba(122,74,208,0)');
+        ctx.fillStyle = lg;
+        ctx.beginPath(); ctx.ellipse(cx, y + b.height, 74, 20, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    // ── 予告（呪弾の溜め）: 両手の間の玉に紫が集まり、光の粒が渦を巻いて吸い込まれる ──
+    var orbY = y + b.height * UG_BOSS_ORB_DY;
+    if (charging && !quiet) {
+        var tp = charging && b.mode === 'curseTele' ? (1 - b.timer / Math.max(1, UG_BOSS_CURSE_TELE)) : 0.85;
+        ctx.globalAlpha = alpha * Math.min(0.95, 0.3 + tp * 0.7);
+        var tg = ctx.createRadialGradient(cx, orbY, 2, cx, orbY, 14 + tp * 26);
+        tg.addColorStop(0, 'rgba(255,245,255,0.98)'); tg.addColorStop(1, 'rgba(162,115,240,0)');
+        ctx.fillStyle = tg;
+        ctx.beginPath(); ctx.arc(cx, orbY, 14 + tp * 26, 0, Math.PI * 2); ctx.fill();
+        // 吸い込まれる粒（決定的な式＝配列を持たない＝実機の負荷が読める）
+        for (var sp = 0; sp < 7; sp++) {
+            var sa = b.anim * 0.16 + sp * 0.9, sr = 44 - ((b.anim * 2.2 + sp * 13) % 44);
+            ctx.globalAlpha = alpha * (1 - sr / 44) * 0.9;
+            ctx.fillStyle = (sp % 2) ? '#f2e6ff' : '#c9a4ff';
+            ctx.fillRect(cx + Math.cos(sa) * sr - 2, orbY + Math.sin(sa) * sr - 2, 4, 4);
+        }
+    }
+    // ── 目から伸びる細い光（狙いを定めている＝次に来る方向が読める）──
+    if ((b.mode === 'curseTele' || b.mode === 'spiralTele') && !quiet) {
+        var eyY = y + b.height * UG_BOSS_EYE_DY;
+        var pa = Math.atan2(player.y + player.height / 2 - eyY, player.x + player.width / 2 - cx);
+        ctx.globalAlpha = alpha * (0.28 + 0.22 * Math.sin(b.anim * 0.35));
+        ctx.strokeStyle = '#e6d0ff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(cx, eyY);
+        ctx.lineTo(cx + Math.cos(pa) * 420, eyY + Math.sin(pa) * 420); ctx.stroke();
+    }
+    // 被弾の点滅（通常ボスと同じ見せ方）
+    ctx.globalAlpha = alpha * ((b.hurt > 0 && !quiet && Math.floor(gameState.time / 3) % 2 === 0) ? 0.5 : 1);
+    // ⚠スプライトは**右向きで描いてある**（顔の闇と目が右へ1ドット寄っている）＝左を向く時に反転する
+    // ⚠立ち絵1枚（OpenAI生成・104×132を等倍で描く）。他のボス(owl/snake/scarecrow)と同じ「1枚＋procedural」方式。
+    //   姿勢の差（浮遊/詠唱/被弾）はコマではなく**高さと光**で作る＝この下の目の光・足元の光・閃光が担当。
+    spriteManager.draw(ctx, 'boss_priestess', 0, x, y, b.width, b.height, false);
+    // ── 光る目（絵の中の目の位置=UG_BOSS_EYE_DY に光をにじませる＝暗い洞窟でも位置が分かる）──
+    ctx.globalAlpha = alpha * (0.85 + 0.15 * Math.sin(b.anim * 0.11)) * (awake ? 1.3 : 1);
+    for (var e = -1; e <= 1; e += 2) {
+        var ex = cx + e * 4, ey = y + b.height * UG_BOSS_EYE_DY;   // 絵の顔は小さい＝目の間隔も狭い（実測±3px）
+        var eg = ctx.createRadialGradient(ex, ey, 1, ex, ey, awake ? 17 : 11);
+        eg.addColorStop(0, 'rgba(255,245,255,0.98)');
+        eg.addColorStop(0.4, 'rgba(201,164,255,0.72)');
+        eg.addColorStop(1, 'rgba(122,74,208,0)');
+        ctx.fillStyle = eg;
+        ctx.beginPath(); ctx.arc(ex, ey, awake ? 17 : 11, 0, Math.PI * 2); ctx.fill();
+    }
+    // ── 発射／解放の閃光（広がる二重リング）──
+    if (b.flash > 0 && !quiet) {
+        var fp = b.flash / 18;
+        ctx.globalAlpha = alpha * fp;
+        ctx.fillStyle = 'rgba(245,235,255,0.9)';
+        ctx.beginPath(); ctx.arc(cx, orbY, 10 + (18 - b.flash) * 1.6, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = alpha * fp * 0.8;
+        ctx.strokeStyle = '#c9a4ff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, orbY, 18 + (18 - b.flash) * 3.4, 0, Math.PI * 2); ctx.stroke();
+    }
+    // ── 解放（フェーズ移行）: 立ち昇る光の柱＋弾ける輪 ──
+    if (awake && !quiet) {
+        // ⚠0..1 に必ず収めること。JS の % は負の被除数で**負を返す**ので、下の awp が負になると
+        //   ellipse の半径が負になり IndexSizeError で**そのフレームの描画が丸ごと落ちる**
+        //   （1.570の負荷試験で timer を人為的に伸ばして再現した）。通常プレイでは起きないが保険を置く。
+        var ap2 = Math.max(0, Math.min(1, 1 - b.timer / UG_BOSS_PHASE_TELE));
+        ctx.globalAlpha = alpha * (0.45 + 0.35 * Math.sin(b.anim * 0.5)) * (1 - Math.abs(ap2 - 0.5) * 1.2);
+        var pg = ctx.createLinearGradient(cx - 44, 0, cx + 44, 0);
+        pg.addColorStop(0, 'rgba(162,115,240,0)');
+        pg.addColorStop(0.5, 'rgba(255,245,255,0.85)');
+        pg.addColorStop(1, 'rgba(162,115,240,0)');
+        ctx.fillStyle = pg;
+        ctx.fillRect(cx - 44, y - 300, 88, b.height + 320);
+        for (var aw = 0; aw < 3; aw++) {                     // 弾ける輪（時間差で3枚）
+            var awp = ((ap2 * 2.2 + aw * 0.33) % 1);
+            ctx.globalAlpha = alpha * (1 - awp) * 0.7;
+            ctx.strokeStyle = '#f2e6ff'; ctx.lineWidth = 4 - awp * 3;
+            ctx.beginPath(); ctx.ellipse(cx, cy, 40 + awp * 240, (40 + awp * 240) * 0.42, 0, 0, Math.PI * 2); ctx.stroke();
+        }
+    }
+    ctx.restore();
+}
+
+// 紫の渦（登場・瞬間移動で共用）。p=0..1 で密度が上がり中心へ収束する
+function drawUgVortex(vx, vy, p) {
+    p = Math.max(0, Math.min(1, p));
+    ctx.save();
+    for (var vi = 0; vi < 5; vi++) {
+        var a = gameState.time * 0.12 + vi * 1.25;
+        var r = (110 - p * 82) + vi * 7;
+        ctx.globalAlpha = 0.16 + p * 0.5;
+        ctx.fillStyle = (vi % 2) ? '#b07cff' : '#6a3fb0';
+        ctx.beginPath();
+        ctx.arc(vx + Math.cos(a) * r, vy + Math.sin(a) * r * 0.55, 7 + p * 9, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = p * 0.6;
+    var vg = ctx.createRadialGradient(vx, vy, 4, vx, vy, 90);
+    vg.addColorStop(0, 'rgba(200,150,255,0.9)'); vg.addColorStop(1, 'rgba(120,60,200,0)');
+    ctx.fillStyle = vg;
+    ctx.beginPath(); ctx.arc(vx, vy, 90, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+}
+
+// 魔法陣（床の円で予告）→ 光柱（床から天井まで）。カカシの帯予告と同じ「見てから横へ逃げる」設計。
+function drawUgSigils(ch) {
+    var ug = undergroundState;
+    if (!ug.sigils.length) return;
+    var floorY = ch.topY + 12 * UG_TILE, ceilY = ch.topY + 2 * UG_TILE;
+    for (var i = 0; i < ug.sigils.length; i++) {
+        var s = ug.sigils[i], R = UG_BOSS_SIGIL_R;
+        ctx.save();
+        if (!s.live) {
+            // 予告: 床に紫の円が浮かび、二重の輪が逆回転しながら濃くなる
+            var tp = Math.min(1, s.timer / UG_BOSS_SIGIL_TELE);
+            ctx.globalAlpha = 0.25 + tp * 0.6;
+            ctx.strokeStyle = '#c9a4ff'; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.ellipse(s.x, floorY - 3, R, R * 0.32, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalAlpha = 0.18 + tp * 0.42;
+            ctx.beginPath(); ctx.ellipse(s.x, floorY - 3, R * 0.6, R * 0.19, 0, 0, Math.PI * 2); ctx.stroke();
+            for (var k = 0; k < 6; k++) {                       // 回る呪符の点
+                var a = s.timer * 0.05 * (k % 2 ? -1 : 1) + k * (Math.PI / 3);
+                ctx.fillStyle = (k % 2) ? '#f2e6ff' : '#a273f0';
+                ctx.fillRect(s.x + Math.cos(a) * R * 0.8 - 2, floorY - 3 + Math.sin(a) * R * 0.26 - 2, 4, 4);
+            }
+        } else {
+            // 光柱: 床→天井。⚠横幅は予告の円と同じ＝見た目と当たりを一致させる
+            var lp = 0.55 + 0.45 * Math.sin(s.timer * 0.5);
+            ctx.globalAlpha = 0.55 * lp;
+            var pg = ctx.createLinearGradient(s.x - R, 0, s.x + R, 0);
+            pg.addColorStop(0, 'rgba(122,74,208,0)');
+            pg.addColorStop(0.5, 'rgba(242,230,255,0.95)');
+            pg.addColorStop(1, 'rgba(122,74,208,0)');
+            ctx.fillStyle = pg;
+            ctx.fillRect(s.x - R, ceilY, R * 2, floorY - ceilY);
+            ctx.globalAlpha = 0.85 * lp;
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.fillRect(s.x - 4, ceilY, 8, floorY - ceilY);
+        }
+        ctx.restore();
+    }
+}
+
+// 邪神の巨像（1.570・ユーザー指定）。⚠**飾り＝当たり判定なし**（マップの 'I' から設置）。
+// ⚠置き場所は**ボス部屋の中ではなく「ボス部屋に入る直前の祭壇」**（巫女の門・列96）。
+//   門をくぐる前にこれを見上げる＝「この先がボスだ」と目で分かる、というのが狙い。
+// ⚠地形より手前・足場より奥に描く（岩壁から迫り出して立っている見え方）。
+function drawUgIdol() {
+    var idol = undergroundState.idol;
+    if (!idol) return;
+    var ix = idol.x, iy = idol.baseY - UG_IDOL_H;                 // 台座の底＝マスの下端＝床の面
+    if (ix + UG_IDOL_W < gameState.camera.x - 60 || ix > gameState.camera.x + GAME_WIDTH + 60) return;
+    ctx.save();
+    // 背後の紫の光（脈打つ）＝「起きている」感じ。⚠光は像の後ろだけ＝手前のプレイヤーを白くしない
+    ctx.globalAlpha = 0.30 + 0.12 * Math.sin(gameState.time * 0.05);
+    var g = ctx.createRadialGradient(ix + UG_IDOL_W / 2, iy + UG_IDOL_H * 0.42, 20,
+                                     ix + UG_IDOL_W / 2, iy + UG_IDOL_H * 0.42, UG_IDOL_W * 0.9);
+    g.addColorStop(0, 'rgba(150,90,235,0.85)'); g.addColorStop(1, 'rgba(70,25,130,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(ix - UG_IDOL_W * 0.5, iy - 40, UG_IDOL_W * 2, UG_IDOL_H + 80);
+    ctx.globalAlpha = 0.88;                                       // わずかに落として岩壁に馴染ませる
+    spriteManager.draw(ctx, 'ug_idol', 0, ix, iy, UG_IDOL_W, UG_IDOL_H, false);
+    ctx.restore();
+}
+
+// 画面全体の閃光（1.570・フェーズ移行や大技の瞬間）。⚠**画面座標**なのでワールドの translate の外から呼ぶ。
+function drawUgFlash() {
+    var ug = undergroundState;
+    if (ug.flash <= 0) return;
+    var p = ug.flash / (ug.flashMax || 1);
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.62, p * 0.62);
+    ctx.fillStyle = '#d9bcff';
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    ctx.restore();
+}
+
+// 大詠唱（P3）＝画面が暗転し、安全地帯が1箇所だけ光る（SPEC §7.2・フクロウの暗転を流用した思想）。
+// ⚠**画面座標**で描く＝ワールドの translate の外から呼ぶこと（呼び出しは render の後半）。
+function drawUgDarkChant() {
+    var d = undergroundState.dark;
+    if (!d) return;
+    var b = undergroundState.boss;
+    // 予告(darkTele)の間に濃くなり、保持(dark)の間は最大のまま
+    var p = (b && b.mode === 'darkTele') ? (1 - b.timer / UG_BOSS_DARK_TELE) : 1;
+    var sx = d.safeX - gameState.camera.x, hw = UG_BOSS_SAFE_W / 2;
+    ctx.save();
+    ctx.globalAlpha = 0.92 * p;
+    ctx.fillStyle = 'rgba(3,0,12,1)';
+    ctx.fillRect(0, 0, sx - hw, GAME_HEIGHT);                   // 安全地帯の左右だけ塗る＝安全地帯は素通しで明るい
+    ctx.fillRect(sx + hw, 0, GAME_WIDTH - (sx + hw), GAME_HEIGHT);
+    // 安全地帯の縁を光らせる（どこが安全かを線で断言する）
+    ctx.globalAlpha = (0.5 + 0.4 * Math.sin(gameState.time * 0.18)) * p;
+    var eg = ctx.createLinearGradient(sx - hw, 0, sx + hw, 0);
+    eg.addColorStop(0, 'rgba(255,236,160,0.85)');
+    eg.addColorStop(0.5, 'rgba(255,236,160,0)');
+    eg.addColorStop(1, 'rgba(255,236,160,0.85)');
+    ctx.fillStyle = eg;
+    ctx.fillRect(sx - hw, 0, hw * 2, GAME_HEIGHT);
+    ctx.globalAlpha = p;
+    ctx.fillStyle = '#ffec9f';
+    ctx.fillRect(sx - hw - 2, 0, 3, GAME_HEIGHT); ctx.fillRect(sx + hw, 0, 3, GAME_HEIGHT);
+    ctx.restore();
 }
 
 // シャレコ（骨だけの鳥・1.563）。⚠**図鑑は遭遇では登録しない**（1.474の「倒してないのに載る」是正に従う）。
@@ -2877,6 +3102,21 @@ function drawEggProjectiles() {
             var fx = egg.x + egg.width / 2;
             var fy = egg.y + egg.height / 2;
             var flicker = Math.sin(egg.timer * 0.5) * 2;
+            // 闇の巫女の呪弾（1.570）だけ**尾を引く彗星**にする。⚠見た目だけ＝当たり判定は元の16pxのまま。
+            //   飛んできた方向が尾で分かる＝どこへ避ければいいかが一目で読める（派手さと親切さの両立）。
+            if (egg.isCurse) {
+                var sp = Math.sqrt(egg.velX * egg.velX + egg.velY * egg.velY) || 1;
+                var tx = -egg.velX / sp, ty = -egg.velY / sp;
+                ctx.save();
+                for (var ti = 1; ti <= 6; ti++) {
+                    ctx.globalAlpha = 0.30 * (1 - ti / 7);
+                    ctx.fillStyle = (ti % 2) ? '#c9a4ff' : '#7a4ad0';
+                    ctx.beginPath();
+                    ctx.arc(fx + tx * ti * 7, fy + ty * ti * 7, 7 - ti * 0.9, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
             // 外側の闇オーラ（色停止定数・中心均一→原点に1度だけ生成し translate+scale で再利用。flickerの膨張も保持・監査LOW）
             if (!_flameEggGrad) {
                 _flameEggGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 14);
@@ -3491,6 +3731,10 @@ function render() {
     if (undergroundState.active) {
         // 当たり判定なしの石積み（門/アーチ）。⚠**暗く落として奥に見せる**＝プレイヤーが
         //   「通れる飾り」と「乗れる/ぶつかる石」を色の濃さで即座に見分けられるようにする。
+        // ⚠邪神の巨像は**石積みの飾りより先**に描く（1.570）。門のまぐさが像の頭に重なって
+        //   「壁龕（へきがん）に据えられた像」に見える＝建築と像がひとつの祭壇として読める。
+        //   後に描くと、像がアーチの石を塗りつぶして門が消える。
+        drawUgIdol();
         ctx.save();
         ctx.globalAlpha = 0.55;
         for (var dk = 0; dk < undergroundState.decor.length; dk++) drawCaveBlock(undergroundState.decor[dk]);
@@ -3599,6 +3843,8 @@ function render() {
     // ⚠**画面下部**に置くこと（1.568・ユーザー報告）。1.564は画面上部に描いていたため、
     //   上部中央の「ぴよフラッシュ」ゲージ(#specialMoveUI)と重なって読めなかった。
     //   位置・サイズ・パネル/バーの描き方は通常ボス（この下のブロック）と完全に同じにし、色だけ紫にする。
+    // ⚠大詠唱の暗転は**HPバーより先**に描く（バーが暗幕に隠れると残りHPが読めなくなる）
+    if (undergroundState.active) { drawUgDarkChant(); drawUgFlash(); }
     if (undergroundState.active && undergroundState.boss) {
         var _ub = undergroundState.boss;
         var _uw = 300, _uh = 32;
@@ -3606,9 +3852,9 @@ function render() {
         drawHudPanel(_ux, _uy, _uw, _uh,
             'rgba(38,10,60,0.9)', 'rgba(22,5,40,0.95)', '#b07cff', 'rgba(176,124,255,0.3)');
         ctx.font = "bold 11px 'M PLUS Rounded 1c', sans-serif";
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         ctx.fillStyle = '#e4ccff';
-        ctx.fillText('BOSS', _ux + 40, _uy + 10);
+        ctx.fillText(t('ug_boss_name'), _ux + 16, _uy + 10);   // ラスボス格なので名前を出す（通常ボスの'BOSS'と差をつける）
         ctx.fillStyle = '#c8a8ff';
         ctx.textAlign = 'right';
         ctx.fillText(Math.max(0, Math.ceil(_ub.hp)) + '/' + _ub.maxHp, _ux + _uw - 12, _uy + 10);

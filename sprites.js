@@ -227,7 +227,18 @@ var IMAGE_SPRITES = {
     boss_owl:        { files: ['images/boss_owl_idle.png'] },
 
     // ボス6/門番 (128x128, OpenAI生成 闇のカカシ - 立ち絵1枚。定点＝正面向き。露出中の弱点グロー/腕薙ぎ赤帯は drawScarecrow で procedural)
-    boss_scarecrow:  { files: ['images/boss_scarecrow_idle.png'] }
+    boss_scarecrow:  { files: ['images/boss_scarecrow_idle.png'] },
+
+    // ボス7/地底 (104x132, OpenAI生成 闇の巫女 - 立ち絵1枚。⚠**手続き描画は不可**（ユーザー指定1.570）＝
+    //   tools/generate-boss-priestess-openai.mjs で生成したもの以外を使わないこと。
+    //   縦長なのは人型だから＝他のボス(128x128)と違い**実寸をそのまま描く**（core-state.js の UG_BOSS_W/H と一致）。
+    //   浮遊/詠唱/被弾/瞬間移動の見え方は drawPriestessBody 側の光と高さで作る procedural。
+    //   ⚠動きの差分コマが欲しくなったら [[piyo-sprite-motion-rule]] に従い**Veo動画からコマ切り出し**すること。
+    boss_priestess:  { files: ['images/boss_priestess_idle.png'] },
+
+    // 邪神の巨像 (220x300, OpenAI生成・1.570)。ボス闘技場の奥に立つ**飾り**＝当たり判定なし。
+    // 門を歩いている間から見えて「この先がボス部屋」と分かるようにするための目印（ユーザー指定）。
+    ug_idol:         { files: ['images/ug_idol.png'] }
 };
 
 // ─── 地形/背景用パレット定義 (SFC 16色) ───
@@ -467,10 +478,14 @@ var PALETTES = {
         R(g, 0, 7, 32, 25, 3);           // 岩の本体
         R(g, 0, 12, 32, 20, 4);          // 下ほど暗く
         // 砕けた上端（高さを不規則に・2px刻みで細かく）
-        var edge = [4, 6, 3, 7, 5, 3, 6, 4, 7, 5, 4, 6, 3, 5, 7, 4];
+        // ⚠**上端は必ず y=0 に届かせる**（1.570・ユーザー報告「地底でプレイヤーが地面から浮いて見える」）。
+        //   旧版は top = 8-h で岩肌が y=1〜5 から始まっていた。当たり判定の面はタイルの y=0 なので、
+        //   足が最大5px宙に浮いて見えていた（地上のタイルは草が足に重なるので同じ隙間でも目立たない）。
+        //   ⚠ドット絵の「砕けた岩」らしさは残したいので、**大半を0にして所々1〜2だけ凹ませる**形にした。
+        var edge = [0, 2, 1, 0, 1, 2, 0, 1, 0, 2, 1, 0, 2, 0, 1, 1];
         for (var i = 0; i < 16; i++) {
-            var x = i * 2, h = edge[i], top = 8 - h;
-            R(g, x, top, 2, h + 4, 2);             // 明るい岩の面
+            var x = i * 2, top = edge[i];
+            R(g, x, top, 2, 12 - top, 2);          // 明るい岩の面（下端は旧版と同じ y=11 まで）
             P(g, x, top, 1);                        // 縁のハイライト
             if (i % 3 === 0) P(g, x + 1, top + 1, 1);
         }
