@@ -109,9 +109,12 @@ function updateUnderground() {
     // 追従カメラ（左壁クランプ＝単調増加のみ。巻き戻すと距離が減りランキングの単調性が壊れる）
     var target = player.x - GAME_WIDTH * UG_CAM_LEAD;
     if (target > undergroundState.camMaxX) target = undergroundState.camMaxX; // ⚠画面幅に依存しない終端
-    // ⚠距離加算の速さに上限をかける（1.542）: 地底は自分の足で進むため、はやあし(1.3倍)を持っていると
-    //   地上の上限(BASE_SCROLL_SPEED*5 = 6px/f = 36m/秒)を超える速さで距離が増えてしまう＝地上では出せない稼ぎ方になる。
-    var maxAdvance = BASE_SCROLL_SPEED * 5.0 * UG_DIST_RATE;
+    // ⚠距離加算の速さに上限をかける（1.542／1.544で歩行と一本化）: 地底は自分の足で進むため上限が要る。
+    //   MOVE_SPEED を基準にするのが肝＝**地底の歩行速度と完全に一致**するので、プレイヤーが画面右端の
+    //   クランプに貼り付かない（貼り付くと velX=0 されて前方へジャンプできなくなる）。
+    //   MOVE_SPEED(6) === BASE_SCROLL_SPEED*5.0(6)＝地上のスクロール上限なので、0.5 なら地上の半分＝18m/秒。
+    //   はやあし(1.3倍)は speedMul 側で地底無効にしてあるので、ここには掛からない。
+    var maxAdvance = MOVE_SPEED * UG_SPEED_RATE;
     var capped = gameState.camera.x + maxAdvance;
     if (target > capped) target = capped;
     if (target > gameState.camera.x) gameState.camera.x = target;
