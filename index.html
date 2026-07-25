@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.571";
+                content: "Ver.1.572";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.571</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.572</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4106,6 +4106,9 @@ function resetGame() {
     gameState.revivesLeft = 0;
     gameState.revivalFlashTimer = 0;
     gameState.hasRecordedHighScore = false;
+    // 前ランの送信を打ち切ったまま再送しなかった場合の枠を捨てる（1.572）。
+    // 残したままだと次ランの送信が前ランと同じキーへ書き、2ラン分が1エントリに潰れる。
+    pendingScoreRef = null;
     gameState.missionCountedDistance = 0;
     gameState.missionCountedKills = 0;
     gameState.missionPlayCounted = false;
@@ -4285,6 +4288,33 @@ function showRanking() {
 
 function stopProp(e) { e.stopPropagation(); }
 
+// ─── Firebase の「永久に返らない」対策（1.572）───
+// 圏外・機内モード・キャプティブポータルでは .once('value') / .set() が reject もせず**永久に pending** になる。
+// これが起きると .then も .catch も走らないので、呼び出し側の後始末（ボタン復活・画面遷移）が丸ごと止まる。
+// ⚠実害（1.571まで）: checkHighScore が返らず finalizeRunAndThen の next() に到達せず、
+//   ゲームオーバー画面の「もう一度／タイトルへ」を押しても無反応＝Androidの戻るも効かないソフトロック。
+//   送信側はさらに重症で、submitBtn/skipBtn を disabled にしてから投げるため名前入力画面から出られなくなる。
+// fetchAllRanks だけは先に 6秒の Promise.race で手当済みだった（iPhone実機報告）＝それを全経路へ広げたもの。
+// **reject 側で打ち切る**のがポイント。各呼び出し側の既存 catch がそのまま正しい後始末をしてくれる。
+var NET_TIMEOUT_MS = 8000;
+function withNetTimeout(promise, ms) {
+    return new Promise(function(resolve, reject) {
+        var settled = false;
+        var timer = setTimeout(function() {
+            if (settled) return;
+            settled = true;
+            reject(new Error('net-timeout'));
+        }, ms || NET_TIMEOUT_MS);
+        promise.then(function(v) {
+            if (settled) return;
+            settled = true; clearTimeout(timer); resolve(v);
+        }, function(e) {
+            if (settled) return;
+            settled = true; clearTimeout(timer); reject(e);
+        });
+    });
+}
+
 function showRankingByType(type) {
     currentRankingType = type;
     updateRankingButtons(type);
@@ -4296,7 +4326,8 @@ function showRankingByType(type) {
     }
     list.innerHTML = '<div style="text-align:center;color:#fff;">' + escapeHtml(t('ranking_loading')) + '</div>';
 
-    database.ref('scores').orderByChild(type).limitToLast(20).once('value').then(function(snapshot) {
+    // 打ち切ると下の catch が「読み込みに失敗」を出す（従来は「読み込み中…」のまま永久に固まっていた）
+    withNetTimeout(database.ref('scores').orderByChild(type).limitToLast(20).once('value')).then(function(snapshot) {
         var data = snapshot.val();
         if (!data) {
             list.innerHTML = '<div style="text-align:center;color:#fff;">' + escapeHtml(t('ranking_empty')) + '</div>';
@@ -4404,10 +4435,10 @@ function reportRankingName(name, value) {
             value: Number(value) || 0,
             ts: Date.now()
         };
-        database.ref('reports').push().set(data).then(function() {
+        withNetTimeout(database.ref('reports').push().set(data)).then(function() {
             showGameModal(t('report_done'));
         }).catch(function() {
-            showGameModal(t('report_fail'));
+            showGameModal(t('report_fail'));   // 打ち切りもここ。非表示はローカルに永続済みなので通報者の体験は変わらない
         });
     });
 }
@@ -4888,14 +4919,26 @@ function buildRankMessage(name, ranks) {
 // スコア送信の共通処理。レベルは真の値(最大9999)を送るが、旧DBルール(speedLevel<=100)で
 // 弾かれた場合は100に丸めて再送＝スコアは必ず記録される（ルール未更新でも損しない）。
 // ※レベル100超を実際にランキングへ表示するにはFirebase側の .validate 上限引き上げが必要。
+// ⚠1.572: 圏外だと .set() が永久に返らず、送信/スキップの両ボタンを disabled にしたまま名前入力から
+//   出られなくなっていた（withNetTimeout の説明参照）。丸め再送も含めて全体を8秒で打ち切る。
 function setScoreWithFallback(ref, data) {
-    return ref.set(data).catch(function(err) {
+    return withNetTimeout(ref.set(data).catch(function(err) {
         if ((Number(data.speedLevel) || 0) > 100) {
             data.speedLevel = 100;      // 旧ルールでrejected → 丸めて確実に記録
             return ref.set(data);
         }
         throw err;                       // その他のエラーは呼び出し側の catch へ委譲
-    });
+    }));
+}
+
+// 打ち切ったあとの再送・スキップで**同じキー**へ書くための保持（1.572）。
+// ⚠これが無いと二重登録になる: Firebase は圏外で捨てた書き込みをメモリに溜め、電波が戻った瞬間に流す。
+//   打ち切り→ボタン復活→再送 で push() を引き直すと、復帰時に両方が着弾して1ランで2エントリになる。
+//   同じ ref なら後勝ちで必ず1件。1ラン=1エントリ（1.523の方針）を通信不良下でも守る。
+var pendingScoreRef = null;
+function acquireScoreRef() {
+    if (!pendingScoreRef) pendingScoreRef = database.ref('scores').push();
+    return pendingScoreRef;
 }
 
 function submitScore() {
@@ -4941,10 +4984,11 @@ function submitScore() {
 
     st.textContent = t('submit_sending');
 
-    var newRef = database.ref('scores').push();
+    var newRef = acquireScoreRef();   // 打ち切り後の再送でも同じキー＝二重登録しない
 
     setScoreWithFallback(newRef, scoreData).then(function() {
         gameState.hasRecordedHighScore = true;
+        pendingScoreRef = null;       // 着弾した＝このランの枠は用済み
         // ⚠ここでボタンを復活させない: ランク確認中に再タップされると同じスコアが二重登録される
         st.textContent = t('submit_rank_check');
         return fetchAllRanks(scoreData);
@@ -4987,8 +5031,9 @@ function skipSubmit() {
     };
 
     if (database) {
-        setScoreWithFallback(database.ref('scores').push(), scoreData).then(function() {
+        setScoreWithFallback(acquireScoreRef(), scoreData).then(function() {   // 送信を打ち切った後にスキップしても同じキー
             gameState.hasRecordedHighScore = true;
+            pendingScoreRef = null;
             st.textContent = t('submit_rank_check');
             return fetchAllRanks(scoreData);
         }).then(function(ranks) {
@@ -5081,10 +5126,14 @@ function checkHighScore(stats) {
             return stats[cat] > min;
         });
     });
-    return Promise.all(queries).then(function(results) {
+    // ⚠1.572: ここが返らないと finalizeRunAndThen の next() に到達せず、ゲームオーバー画面の
+    //   「もう一度／タイトルへ」が無反応になる（Androidの戻るも同じ経路なので効かない）＝最も重いソフトロック。
+    //   打ち切り時は false ＝ 名前入力を開かずに遷移だけ進める（圏外ではどのみち送信できない）。
+    //   通常の reject（権限エラー等）は従来どおり true＝送信を試させる、という区別を保つ。
+    return withNetTimeout(Promise.all(queries), 6000).then(function(results) {
         return results.some(function(r) { return r; });
-    }).catch(function() {
-        return true;
+    }).catch(function(err) {
+        return !(err && err.message === 'net-timeout');
     });
 }
 
