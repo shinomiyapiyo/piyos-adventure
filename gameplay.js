@@ -20,7 +20,16 @@ function playStageBGM() {
     // ⚠地底に居る間は地底の曲へ戻す（1.569）。おみせを出る時に confirmCloseShop がこの関数を呼ぶので、
     //   地底判定が無いと**老婆の店を出た瞬間に地上のステージ曲が鳴る**。
     //   exitUnderground は active=false にしてからここを呼ぶので、地上復帰は従来どおり通常曲になる。
-    if (undergroundState.active) { soundManager.playBGM('underground'); return; }
+    // ⚠**闘技場で戦っている最中はボス曲へ戻すこと**（1.571）。闇の巫女は bossState ではなく
+    //   undergroundState 系で動くので `bossState.active` が false のまま＝広告復活(monetization.js)の
+    //   「ボス戦中はボスBGMを維持」の分岐に入らず、ここへ落ちてくる。地底判定だけだと
+    //   playBGM('underground') が stopAllBGM() ごと走り、**ボス戦の途中で地底フィールド曲に差し替わる**。
+    //   bossPhase 1〜3（入場〜登場演出）はまだフィールド曲が鳴っている段階なので 'underground' が正しく、
+    //   phase5 は撃破ファンファーレ中でこの関数を通らない。
+    if (undergroundState.active) {
+        soundManager.playBGM(undergroundState.bossPhase === 4 ? 'bossUnderground' : 'underground');
+        return;
+    }
     soundManager.playBGM(STAGE_BGM_CYCLE[(gameRound - 1) % STAGE_BGM_CYCLE.length]);
 }
 
@@ -1011,8 +1020,10 @@ function ugStartDarkChant() {
     var sx = (pcx > gameState.camera.x + GAME_WIDTH / 2) ? pcx - dist : pcx + dist;
     if (sx < lo) sx = lo; if (sx > hi) sx = hi;
     undergroundState.dark = { timer: 0, safeX: sx, hit: false };
-    // ⚠暗転する前に**雑魚を巻き込んで消す**（1.570）。暗幕で見えない敵と接触するのは理不尽だし、
+    // ⚠暗転する前に**雑魚と飛んでいる呪弾を巻き込んで消す**（1.570／弾は1.571で追加）。
+    //   暗幕で見えない敵や弾に当たるのは理不尽（雑魚だけ消して弾を残していたのは片手落ちだった）。
     //   「巫女の力が闘技場ごと薙ぎ払う」という絵にもなる（＝派手さと公平さが両立する）。
+    bossState.eggs = [];
     for (var qi = enemies.length - 1; qi >= 0; qi--) {
         if (!enemies[qi].arenaMob) continue;
         spawnExplosionEffect(enemies[qi].x + enemies[qi].width / 2, enemies[qi].y + enemies[qi].height / 2);
@@ -1091,8 +1102,18 @@ function ugPriestessCollision(b) {
         }
         return;
     }
-    // 触れて被弾するのは**浮遊中だけ**。硬直（踏みチャンス）中に触っても痛くない＝跳び込みが罠にならない
-    if (!b.exposed && b.stompCd <= 0 && !isPlayerProtected() && aabbShrink(player, b, 18, 14)) takeDamage();
+    // 触れて被弾するのは**浮遊高度に戻りきっている時だけ**。
+    // ⚠**`!b.exposed` だけで判定してはいけない**（1.571で修正）。高度の更新は switch より前にあり、
+    //   `low`（＝降りるモードか）は**更新前の mode** で評価される。そのため:
+    //     ①`case 'cast'` が exposed を false にするフレームの巫女は**まだ castY(1034) に静止したまま**で、
+    //       同じフレームの当たり判定が通る＝踏み損ねて真下に立っているだけで**予告ゼロの確定被弾**。
+    //       分身の終了（ugEndClones）も同じ。5秒間「触って本物を探せ」と言いながら終了フレームで殴っていた。
+    //     ②降下(castTele)の後半も exposed はまだ false なので、踏みに行くと降りてくる巫女に当たっていた。
+    //   ＝「踏めた時だけ安全・踏み損ねると必ず殴られる」という、設計意図と正反対の挙動になっていた。
+    // ⚠高さで見れば①②の両方が一度に閉じる。浮遊高度(916±9)なら true＝**跳び込みは従来どおり痛い**。
+    //   +80 の根拠: 立位プレイヤー(y=1132)と箱が重なり始めるのは b.y>1014 なので、それより上の 996 で切る。
+    var settled = (b.y <= b.hoverY + 80);
+    if (!b.exposed && settled && b.stompCd <= 0 && !isPlayerProtected() && aabbShrink(player, b, 18, 14)) takeDamage();
 }
 
 function ugPriestessDefeated(b) {
@@ -1102,6 +1123,22 @@ function ugPriestessDefeated(b) {
     b.clones.length = 0;
     ug.sigils.length = 0; ug.dark = null;
     bossState.eggs = [];                                    // 残った呪弾で勝利中に被弾させない
+    // ⚠**乱入していた雑魚も消すこと**（1.571）。撃破演出は180フレーム（3秒）あり、その間プレイヤーは
+    //   操作できるが「勝った」と思って気を抜く。残った雑魚に当たってゲームオーバーになるのは理不尽。
+    //   巫女の力が解けて道連れに消える、という絵にもなる。
+    for (var qi = enemies.length - 1; qi >= 0; qi--) {
+        if (!enemies[qi].arenaMob) continue;
+        spawnExplosionEffect(enemies[qi].x + enemies[qi].width / 2, enemies[qi].y + enemies[qi].height / 2);
+        enemies.splice(qi, 1);
+    }
+    for (var qf = flyingEnemies.length - 1; qf >= 0; qf--) {
+        if (!flyingEnemies[qf].arenaMob) continue;
+        spawnExplosionEffect(flyingEnemies[qf].x + flyingEnemies[qf].width / 2, flyingEnemies[qf].y + flyingEnemies[qf].height / 2);
+        flyingEnemies.splice(qf, 1);
+    }
+    // ⚠画面の閃光も消す。⚠**減算しているのは ugPriestessAI だけ**で、フェーズ5ではAIが回らないので、
+    //   閃光の最中に倒すと紫の膜が張ったまま撃破演出3秒が終わるまで固まる。
+    ug.flash = 0;
     ug.bossPhase = 5; ug.bossTimer = 0;
     if (typeof screenShake !== 'undefined') { screenShake.intensity = 12; screenShake.timer = 30; }
     if (soundManager) { try { soundManager.stopAllBGM(); soundManager.playBossFanfare(); } catch (_) {} }
@@ -1110,11 +1147,18 @@ function ugPriestessDefeated(b) {
 // 撃破報酬（SPEC §8・✅ユーザー決定）＝スコア10,000（通常ボスの倍額）＋コイン多め＋**ゴールデンエッグ1個（毎回）**。
 // ⚠エッグは1.565まで「仮ボスは10回踏めば倒せる＝希少性が壊れる」ため保留していた。本実装で解禁。
 function ugGrantPriestessRewards() {
-    var b = undergroundState.boss;
+    var ug = undergroundState;
+    var b = ug.boss;
+    var ch = ug.rooms[ug.rooms.length - 1];
     var cx = b ? b.x + b.width / 2 : player.x, cy = b ? b.y + 20 : player.y - 40;
     gainScore(UG_BOSS_SCORE);
+    // ⚠**コインは床の近くに撒くこと**（1.571）。ボスのワールドYを基準にすると、浮遊高度(上端916)で
+    //   倒した時にコインが y=876〜996 に散り、**跳んでも届かない高さ**になる（立位1132からの
+    //   最高到達で頭が957・足元1005まで。876〜925のぶんは取れない）。20回踏んで得た報酬を
+    //   取り逃がさせないため、床から少し上に固定する。⚠横方向はボス中心のままでよい。
+    var floorY = ch ? (ch.topY + 12 * UG_TILE) : (cy + 200);
     for (var ci = 0; ci < UG_BOSS_COINS; ci++) {
-        coins.push({ x: cx + (Math.random() - 0.5) * 260, y: cy + (Math.random() - 0.5) * 120,
+        coins.push({ x: cx + (Math.random() - 0.5) * 260, y: floorY - 52 - Math.random() * 96,
                      width: 32, height: 32, collected: false, animFrame: Math.random() * 20 });
     }
     gameState.enemyKills++;
@@ -1755,6 +1799,11 @@ function enterPipeRoom(targetPipe) { // 公開API（下スワイプ/キーボー
     if (!pipe) return;
     pipeRoomState.visited = true;               // 演出開始時点で消費（多重開始・再入場防止）
     pipeAssistTimer = 0; pipeAssistPipe = null; // 土管タイム解除（速度はupdateGameSpeedが次tickで復帰）
+    // ⚠**通常のボーナス土管は必ず pipeAnim を降ろしてから始める**（1.571の保険）。
+    //   この関数は地上の土管専用で、地底の入場土管は startUndergroundPipeAnim が pipeAnim=true にして入る。
+    //   前のランの残留フラグがここに残っていると、演出の完了時に _enterPipeRoomNow() ではなく
+    //   enterUnderground() が走る（resetGame 側でも消しているが、経路が2つあるので二重の保険にする）。
+    undergroundState.pipeAnim = false;
     pipeRoomState.anim = 'in';
     pipeRoomState.animTimer = 0;
     pipeRoomState.animPipe = pipe;
@@ -3628,8 +3677,16 @@ function updateDiveBird(e) {
         e.y += e.diveVelY;
         // 降下中も画面に置いていかれないようスクロール分を足す（＋わずかに追尾）
         e.x += gameState.gameSpeed + (player.x - e.x) * DIVE_BIRD_HOME_X;
-        var surf = terrainTopAt(e.x + e.width / 2);
-        var floorY = (surf !== null ? surf : GROUND_Y) - e.height;
+        // ⚠**足元より下の地形**を探すこと（1.571）。terrainTopAt は「一番高い地形」を返すので、
+        //   天井のある地底では天井が返り、降下1フレーム目に上へワープして貫通していた。
+        //   床が1枚も無い（溶岩の裂け目の真上）場合、地上用の GROUND_Y へ落とすと地底では大きくズレるので、
+        //   地底ではその部屋の落下死ラインを使う＝そのまま下へ抜けて消える（＝穴の上を通過した時と同じ絵）。
+        // ⚠基準は**鳥の上端(e.y)**であって足元ではない。足元を渡すと、着地の直前に足が床面を1pxでも
+        //   下回った瞬間に床が候補(t.y >= fromY)から外れて null になり、**床を突き抜けて落下死ラインまで落ちる**
+        //   （1.571の実測で踏んだ。最高落下速度9px/fに対し体高54pxあるので、上端基準なら必ず着地判定が先に立つ）。
+        var surf = terrainTopBelow(e.x + e.width / 2, e.y);
+        var floorY = (surf !== null ? surf
+                      : (undergroundState.active ? ugDeathY() : GROUND_Y)) - e.height;
         if (e.y >= floorY) { e.y = floorY; e.diveState = 'leave'; e.diveVelY = DIVE_BIRD_BOUNCE_Y; }
         return;
     }

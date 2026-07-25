@@ -2400,8 +2400,10 @@ function drawPriestessBody(x, y, b, quiet, alpha) {
     bg.addColorStop(1, 'rgba(60,20,110,0)');
     ctx.fillStyle = bg;
     ctx.fillRect(x - b.width, y - 60, b.width * 3, b.height + 130);
-    // ── 詠唱中は足元に光が落ちる＝「今は降りている＝踏める」を色でも伝える ──
-    if (casting && !b.hurt) {
+    // ── 足元の光＝「今なら踏める」の合図 ──
+    // ⚠**`b.exposed` で出すこと**（1.571）。以前は casting（castTele＝降下中も含む）で光らせていたので、
+    //   まだ踏めない降下中から光っていた＝「光っている＝踏める」という約束が守られていなかった。
+    if (b.exposed && !b.hurt) {
         ctx.globalAlpha = alpha * (0.30 + 0.14 * Math.sin(b.anim * 0.18));
         var lg = ctx.createRadialGradient(cx, y + b.height, 6, cx, y + b.height, 74);
         lg.addColorStop(0, 'rgba(201,164,255,0.9)'); lg.addColorStop(1, 'rgba(122,74,208,0)');
@@ -2672,8 +2674,11 @@ function drawFlyingEnemy(e) {
 // ⚠ワールド座標系で描く（ctxはカメラ変換済み・土管部屋では空中敵を描かないので座標系の食い違いは起きない）。
 function drawDiveBirdTelegraph(e) {
     var cx = e.x + e.width / 2;
-    var surf = terrainTopAt(cx);
-    var gy = (surf !== null ? surf : GROUND_Y);
+    // ⚠**AI側(updateDiveBird)と同じ関数を使うこと**（1.571）。別々の式にすると照準線の着弾点と
+    //   実際の着地点がズレる。terrainTopAt だと地底では天井を拾い、照準線が**上向き**に伸びていた。
+    var surf = terrainTopBelow(cx, e.y);
+    var gy = (surf !== null ? surf
+              : (undergroundState.active ? ugDeathY() : GROUND_Y));
     var warn = (e.diveState === 'warn');
     var pulse = warn ? (0.45 + 0.4 * Math.abs(Math.sin(gameState.time * 0.35))) : 0.55;
     ctx.save();

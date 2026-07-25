@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.570";
+                content: "Ver.1.571";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.570</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.571</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3908,7 +3908,7 @@ function dismissTutorialHints() {
     });
 }
 
-// ⚠テスト専用（Ver.1.570・core-state.js の TEST_START_AFTER_R6 が true の時だけ動く）。
+// ⚠テスト専用（Ver.1.571・core-state.js の TEST_START_AFTER_R6 が true の時だけ動く）。
 // ラン開始を「R6の闇のカカシを撃破した直後」＝R7の開始地点(12,000m)にワープさせる。
 // R6撃破後の実際の状態は「gameRound=7 / distance=bossDistanceFor(6)=12,000m / 地上を通常スクロール」なので、
 // それをそのまま再現する（distance は camera.x から算出されるので camera.x を動かすだけ＝距離の式は無改修）。
@@ -4120,6 +4120,13 @@ function resetGame() {
     // 地底ステージ（R7/R14…）の残留防止。ラン開始時は必ず地上から
     undergroundState.active = false; undergroundState.visited = false; undergroundState.cleared = false;
     undergroundState.pipePlaced = false; undergroundState.pipeX = 0; undergroundState.pipeRise = 0;
+    // ⚠**pipeAnim も必ず戻す**（1.571）。土管に沈む演出(39フレーム)の途中でポーズ→リタイアすると、
+    //   これを false にする updatePipeAnim の完了処理（gameplay.js）へ到達しないまま次のランが始まる。
+    //   残ったまま通常のボーナス土管に入ると、完了時に _enterPipeRoomNow() ではなく enterUnderground() が走り、
+    //   R1の300m地点で地底1,200m＋闇の巫女戦が始まる。しかも exitUnderground の stageShiftM が
+    //   bossDistanceFor(gameRound-1)＝bossDistanceFor(0) で計算されるため、**以後ずっとバイオーム境界と
+    //   ボス距離が壊れたまま**になり、ゴールデンエッグも土管のたびに手に入ってしまう。
+    undergroundState.pipeAnim = false;
     undergroundState.originX = 0; undergroundState.endX = 0; undergroundState.introTimer = 0;
     bonusRoomItems.length = 0;
     gameState.bossKills = 0;
@@ -6054,6 +6061,22 @@ function terrainTopAt(x) {
         var t = terrain[i];
         if (t.type === 'hole' || t.width <= 0) continue;
         if (x >= t.x && x <= t.x + t.width) { if (top === null || t.y < top) top = t.y; }
+    }
+    return top;
+}
+
+// その x で「fromY より下にある」ソリッド地形の上面Y。無ければ null。＝**落下先を求める用**。
+// ⚠**地底では terrainTopAt を落下先に使ってはいけない**（1.571で判明）。terrainTopAt は「最小の t.y」
+//   ＝一番高いものを返すが、地底の terrain には**天井も入っている**（ugMergeCells が天井行の '#' も積む）。
+//   例: 部屋5「王の廊下」(topY=-548) では床 y=-164 ではなく天井 y=-548 が返り、アカバネの落下先が
+//   -602 になって、降下の1フレーム目に**264px上へワープ→天井を貫通して離脱**していた（＝一度も攻撃しない）。
+//   地上は天井が無いので、この関数は terrainTopAt と同じ結果を返す＝挙動は変わらない。
+function terrainTopBelow(x, fromY) {
+    var top = null;
+    for (var i = 0; i < terrain.length; i++) {
+        var t = terrain[i];
+        if (t.type === 'hole' || t.width <= 0) continue;
+        if (x >= t.x && x <= t.x + t.width && t.y >= fromY) { if (top === null || t.y < top) top = t.y; }
     }
     return top;
 }
