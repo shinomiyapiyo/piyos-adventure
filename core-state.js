@@ -224,7 +224,14 @@ var BACK_HANDLERS = [
     { isOpen: function() { return isScreenVisible('guideScreen'); }, onBack: function() { hideGuide(); } },
     { isOpen: function() { return isScreenVisible('tutorialScreen'); }, onBack: function() { tutorialCancel(); } },
     { isOpen: function() { return isScreenVisible('settingsScreen'); }, onBack: function() { hideSettings(); } },
-    { isOpen: function() { return isScreenVisible('nameInputScreen'); }, onBack: function() { hideNameInputDirect(); resetGame(); } },
+    // ⚠resetGame() だけでは足りない（1.573で修正）。名前入力は gameOverScreen(z:25) を**開いたまま**その上に
+    //   出るので、resetGame がタイトル(z:20)を出しても GAME OVER がタイトルの上に残ってしまう。
+    //   しかも resetGame は reviveUsedThisRun を false に戻すため、残った「広告を見て復活」が再び有効になり、
+    //   押すとリセット済みのランがタイトル画面の裏で走り出す（render.js がタイトル表示中はワールド描画を飛ばす）。
+    //   showStartScreen() が markScreenTransition→resetGame→hideGameOverScreen まで一括で面倒を見る。
+    //   pendingRunEndAction も捨てる＝記録フローを中断した以上、後から遷移が暴発しないように。
+    { isOpen: function() { return isScreenVisible('nameInputScreen'); },
+      onBack: function() { hideNameInputDirect(); pendingRunEndAction = null; showStartScreen(); } },
     { isOpen: function() { return isScreenVisible('gameOverScreen'); }, onBack: function() { goToTitle(); } },
     { isOpen: function() { return isScreenVisible('rankingScreen'); }, onBack: function() { hideRanking(); } },
     // タイトルメニュー（P4）: 上に重ねて開く各画面より後＝最後に閉じる。

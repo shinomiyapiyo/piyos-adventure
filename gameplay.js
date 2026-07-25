@@ -1235,6 +1235,17 @@ function exitUnderground() {
     gameRound++;
     undergroundState.visited = false; // 次の地底ラウンド(R14…)のために解除
     bossState.bossTriggered = false;
+    // ⚠ショップの「1ラウンド1回」フラグもここで戻すこと（1.573で修正）。
+    //   地底の老婆の店も地上と同じ openStageShop() を通って shopState.visited=true を立てるが、
+    //   ラウンド前進をするのが通常ボスの撃破処理(下の updateBoss case 5)と**この2箇所**あるのに、
+    //   こちらだけ戻し忘れていた＝老婆の店に入ると R8/R15/R22 の地上おみせが最初から訪問済み扱いになり、
+    //   建物は建つのに「CLOSED」で入店も貯金もできなくなっていた（次のボスを倒すまで直らない）。
+    //   ⚠この4行は updateBoss の case 5 と対で維持すること（片方だけ足すと同じバグが再発する）。
+    shopState.visited = false;
+    shopState.deposited = false;
+    shopState.buildingPlaced = false;
+    shopState.buildingX = 0;
+    // pipeRoomState は checkPipeTrigger が targetRound !== gameRound で毎ラウンド引き直す＝ここでは不要。
     try { playStageBGM(); } catch (_) {}
 }
 
@@ -4336,7 +4347,7 @@ function updateBoss() {
             //   ここでステージBGMを鳴らすと、せり上がりの轟音が通常曲に埋もれて緊張感が出ない。
             if (isUndergroundRound(gameRound)) { try { soundManager && soundManager.stopAllBGM(); } catch (_) {} }
             else playStageBGM();
-            // ショップ訪問フラグリセット（次ラウンド用）
+            // ショップ訪問フラグリセット（次ラウンド用）。⚠exitUnderground にも同じ4行がある＝対で維持（1.573）
             shopState.visited = false;
             shopState.deposited = false;
             shopState.buildingPlaced = false;
