@@ -11,3 +11,6 @@ www/
 # Android署名鍵（絶対にコミットしない）
 android/upload-keystore.jks
 android/keystore.properties
+
+# Xcodeのアーカイブ/エクスポート先（1.608・アプリへの混入事故を受けて）
+build/

@@ -19,6 +19,13 @@ const SKIP = new Set([
   'スクショ用', 'HANDOFF.md', 'ROADMAP.md', 'SPEC.md',
   'resources', // @capacitor/assets のアイコン/スプラッシュ源泉（アプリ同梱不要）
   'wall', // PWA廃止ウォール（Web配信専用・ネイティブに同梱しない）
+  // ⚠1.608: Xcodeのアーカイブ/エクスポート先（PiyosAdventure.xcarchive など・122MB）。
+  //   これを除外し忘れると**アプリ自身のアーカイブがアプリに同梱**され、配信サイズが3倍近くになる。
+  //   実際に 1.4.1(build7/versionCode6) のビルドへ混入していた（2026-07-27に発見・再ビルドで是正）。
+  //   ⚠**denylist方式なのでリポジトリ直下に新しいフォルダを置いたら必ずここへ追加すること**
+  //   （1.487の「スクショ用」混入と同じ事故。今回で2回目）。
+  'build',
+  'dist', 'out', // 同種の生成物ディレクトリも先回りで塞ぐ
 ]);
 const skip = (name) => SKIP.has(name) || name.endsWith('.md') || name.endsWith('.py');
 
