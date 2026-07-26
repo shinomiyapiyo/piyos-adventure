@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.578";
+                content: "Ver.1.579";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.578</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.579</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4632,6 +4632,29 @@ function drawStageThumb(cx, px, entryId) {
             var s = px * 0.1; cx.fillRect(-s / 2, -s / 2, s, s * 0.7);
             cx.restore();
         }
+        return;
+    }
+    if (entryId === 'biome:underground') {
+        // 地底（1.579）: 天井と床に岩、奥は暗い空洞、下に溶岩の帯、紫の燭台の灯り。
+        // ⚠ZUKAN_BIOME_NAMES / BIOME_CONFIGS に地底は無いので、bonus と同じく専用に描く。
+        cx.fillStyle = '#120d18'; cx.fillRect(0, 0, px, px);                    // 空洞の闇
+        cx.fillStyle = '#3a2f3d';                                              // 岩肌（天井・床）
+        cx.fillRect(0, 0, px, px * 0.20);
+        cx.fillRect(0, px * 0.74, px, px * 0.26);
+        cx.fillStyle = '#4a3d4e';                                              // 岩の明るい面
+        cx.fillRect(0, px * 0.74, px, Math.max(2, px * 0.05));
+        for (var st = 0; st < 5; st++) {                                       // 天井から垂れる鍾乳石
+            var sx = px * (0.10 + st * 0.20), sw = px * 0.055, sh = px * (0.06 + (st % 3) * 0.045);
+            cx.fillStyle = '#3a2f3d';
+            cx.beginPath(); cx.moveTo(sx - sw, px * 0.20); cx.lineTo(sx + sw, px * 0.20); cx.lineTo(sx, px * 0.20 + sh); cx.closePath(); cx.fill();
+        }
+        var lg = cx.createLinearGradient(0, px * 0.60, 0, px * 0.76);          // 溶岩の帯（床の手前）
+        lg.addColorStop(0, 'rgba(255,120,40,0)'); lg.addColorStop(1, 'rgba(255,150,50,0.85)');
+        cx.fillStyle = lg; cx.fillRect(0, px * 0.60, px, px * 0.16);
+        cx.fillStyle = '#ff9a3c'; cx.fillRect(0, px * 0.72, px, Math.max(2, px * 0.035));
+        var pg = cx.createRadialGradient(px * 0.5, px * 0.42, 1, px * 0.5, px * 0.42, px * 0.42); // 紫の燭台の灯り
+        pg.addColorStop(0, 'rgba(186,120,255,0.55)'); pg.addColorStop(1, 'rgba(186,120,255,0)');
+        cx.fillStyle = pg; cx.fillRect(0, 0, px, px);
         return;
     }
     var idx = ZUKAN_BIOME_NAMES.indexOf(entryId.split(':')[1]);

@@ -1167,6 +1167,15 @@ var ZUKAN_ENTRIES = [
     { id: 'item:lemon_special', cat: 'item', nameKey: 'shop_item_lemon',      descKey: 'shop_item_lemon_desc',      img: 'images/icon_lemon_special.png' },
     { id: 'item:full_charge',   cat: 'item', nameKey: 'shop_item_fullcharge', descKey: 'shop_item_fullcharge_desc', img: 'images/icon_full_charge.png' },
     { id: 'item:revive_potion', cat: 'item', nameKey: 'shop_item_revive',     descKey: 'shop_item_revive_desc',     img: 'images/icon_revive_potion.png' },
+    // ── アイテム：地底「怪しい老婆の店」の専用3品（1.578でアイコン作成・1.579で図鑑に登録）──
+    // ⚠発見の記録は既に動いている: buyStageItem の markZukanSeen('item:' + itemId) が共通経路にあるため、
+    //   1.569の実装当時から購入のたびに 'item:ug_manju' 等が記録されていた。**ここに項目が無かっただけ**で、
+    //   図鑑の赤いNEWバッジだけ点いて中身が無い状態になっていた（1.575の監査でも指摘済み）。
+    { id: 'item:ug_manju',    cat: 'item', nameKey: 'shop_item_ug_manju',    descKey: 'shop_item_ug_manju_desc',    img: 'images/icon_ug_manju.png' },
+    { id: 'item:ug_elixir',   cat: 'item', nameKey: 'shop_item_ug_elixir',   descKey: 'shop_item_ug_elixir_desc',   img: 'images/icon_ug_elixir.png' },
+    // ⚠加護は買い切りの永続品なので、下の永続アップグレード群と同じく seenIf も付ける
+    //   （1.579より前に購入済みのプレイヤーも、遡って発見済みとして扱う）。
+    { id: 'item:ug_blessing', cat: 'item', nameKey: 'shop_item_ug_blessing', descKey: 'shop_item_ug_blessing_desc', img: 'images/icon_ug_blessing.png', seenIf: function(gs){ return ((gs.upgrades || {}).ug_blessing || 0) > 0; } },
     // ── アイテム：永続アップグレード（所持レベルから発見を派生・既存の説明文を流用）──
     { id: 'item:coin_master',     cat: 'item', nameKey: 'tshop_coin_master',     descKey: 'tshop_coin_master_desc',     img: 'images/icon_coin_master.png',     seenIf: function(gs){ return ((gs.upgrades || {}).coin_master || 0) > 0; } },
     { id: 'item:special_move',    cat: 'item', nameKey: 'tshop_special_move',    descKey: 'tshop_special_move_desc',    img: 'images/icon_special_move.png',    seenIf: function(gs){ return ((gs.upgrades || {}).special_move || 0) > 0; } },
@@ -1194,7 +1203,11 @@ var ZUKAN_ENTRIES = [
     { id: 'biome:desert',    cat: 'biome', nameKey: 'zukan_bio_desert', descKey: 'zukan_bio_desert_d' },
     { id: 'biome:snow',      cat: 'biome', nameKey: 'zukan_bio_snow',   descKey: 'zukan_bio_snow_d' },
     { id: 'biome:night',     cat: 'biome', nameKey: 'zukan_bio_night',  descKey: 'zukan_bio_night_d' },
-    { id: 'biome:bonus',     cat: 'biome', nameKey: 'zukan_bio_bonus',  descKey: 'zukan_bio_bonus_d' }
+    { id: 'biome:bonus',     cat: 'biome', nameKey: 'zukan_bio_bonus',  descKey: 'zukan_bio_bonus_d' },
+    // 地底ステージ（R7/R14/R21…・1.579で追加）。⚠地上の5バイオームと違い ZUKAN_BIOME_NAMES には入れない。
+    //   あの配列は getBiomeIndex（草原→砂漠→雪山→夜の巡回）と1対1で対応しており、足すと巡回自体が壊れる。
+    //   発見の記録は enterUnderground の markZukanSeen、サムネは drawStageThumb の専用分岐（bonus と同じ作法）。
+    { id: 'biome:underground', cat: 'biome', nameKey: 'zukan_bio_underground', descKey: 'zukan_bio_underground_d' }
 ];
 // 図鑑コンプリート報酬（ゴールデンエッグ）。各カテゴリ100%＋全種コンプで付与。gameSettings.zukan.claimed で二重防止。
 var ZUKAN_REWARDS = { enemy: 3, item: 3, boss: 3, biome: 3, all: 10 };

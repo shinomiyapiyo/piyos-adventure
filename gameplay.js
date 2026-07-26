@@ -52,6 +52,9 @@ function enterUnderground() {
     undergroundState.active = true;
     undergroundState.visited = true;
     undergroundState.cleared = false;
+    // ずかん(ステージ): 地底を発見（1.579）。⚠地上の5バイオームは getBiomeIndex の巡回から自動記録されるが、
+    //   地底はその巡回に乗らないので、ボーナス部屋(biome:bonus)と同じく入場時に明示的に記録する。
+    if (typeof markZukanSeen === 'function') markZukanSeen('biome:underground');
     undergroundState.originX = gameState.camera.x;
     // 強制土管の後片付け（入場したので役目は終わり。地形/足場は setupUndergroundStage が全消しする）
     undergroundState.pipePlaced = false; undergroundState.pipeX = 0; undergroundState.pipeAnim = false;
