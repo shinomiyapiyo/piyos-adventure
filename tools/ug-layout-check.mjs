@@ -255,6 +255,13 @@ function checkRound(round, rooms, overlaps, out) {
             if (!ok) err(`${tag} 足場 y=${p.y} 列${p.x0}-${p.x1} にどこからも乗れない（跳躍135px/175pxの外）`);
         });
 
+        // ── 「上から下へ絶対に落ちられない」床（R28の分水嶺の上ルート）に穴が1マスも無いか ──
+        if (room.sealedFloor) {
+            const { row, from, to } = room.sealedFloor;
+            for (let c = from; c <= to; c++) if (!SOLID.has(g[row][c]))
+                err(`${tag} 行${row} 列${c} で上ルートの床に穴（＝上から下ルートへ落ちられてしまう）`);
+        }
+
         // ── 'c'(ひよこ)は穴/溶岩に落ちる種。床に穴のある部屋に置いたら警告 ──
         const hasHole = !vertical && [...Array(room.wT).keys()].some((c) => !SOLID.has(g[floorRow][c]));
         if (hasHole) for (let c = 0; c < room.wT; c++) for (let r = 0; r < rowsN; r++)
@@ -273,14 +280,18 @@ function checkRound(round, rooms, overlaps, out) {
 
 // ─────────────────────────────────────────────────────────────────
 const { forRound, overlaps } = loadRooms();
-const want = process.argv[2] ? [Number(process.argv[2])] : [7, 14, 21];
+const want = process.argv[2] ? [Number(process.argv[2])] : [7, 14, 21, 28];
 const out = { errors: [], warns: [], stats: {} };
 
 // 例外指定（落下線の上のコインを許す列範囲・追加の床ライン）
 const EXTRA = {
-    fall:  { dropCols: [0, 4] },                                   // R7/R14 の落下部屋
-    shaft: { dropCols: [0, 4] },                                   // R21 の落下部屋
-    rift:  { dropCols: [44, 47], extraFloor: { row: 12, from: 0, to: 43 } }  // R21 の落下口＋中段の桟道
+    fall:    { dropCols: [0, 4] },                                 // R7/R14 の落下部屋
+    shaft:   { dropCols: [0, 4] },                                 // R21 の落下部屋
+    plummet: { dropCols: [0, 4] },                                 // R28 の落下部屋
+    rift:    { dropCols: [44, 49], extraFloor: { row: 12, from: 0, to: 43 } }, // R21 の落下口＋中段の桟道
+    // R28 の分水嶺: 中段の通路(行32・入口側)と上ルートのトンネル床(行11)も穴が無いことを確かめる。
+    // ⚠上ルートの床に穴があると「上から下へ落ちられる」＝この面の前提が崩れるので、ここは必ず見る。
+    divide:  { extraFloor: { row: 32, from: 0, to: 39 }, sealedFloor: { row: 11, from: 60, to: 149 } }
 };
 
 for (const r of want) {

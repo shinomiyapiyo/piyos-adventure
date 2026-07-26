@@ -2627,6 +2627,54 @@ function getUgIdolRedCanvas() {
     return cv;
 }
 
+// 滝（1.611・**演出専用**／ユーザー指定「ただの演出でありギミックではない」）。
+// ⚠当たり判定は一切無い＝通り抜けられる。プレイヤーより奥（地形の直後・足場より手前でない）に描く。
+// ⚠グラデーションは**高さごとに1つだけ作って使い回す**（毎フレーム createLinearGradient すると
+//   滝の本数ぶんアロケーションが増える。エッグ弾のグラデをキャッシュしたのと同じ理由）。
+var _ugFallGrad = {};
+function drawUgFalls(camL, camR) {
+    var fs = undergroundState.falls, i, f;
+    if (!fs || !fs.length) return;
+    var t = gameState.time;
+    for (i = 0; i < fs.length; i++) {
+        f = fs[i];
+        if (f.x + f.w < camL || f.x > camR) continue;
+        // ⚠**滝ごとに save/restore する**。setTransform で行列を組み直すと、画面揺れなど
+        //   呼び出し元が積んでいるオフセットを取りこぼす（1.611で一度やりかけた）。
+        ctx.save();
+        var key = f.h;
+        if (!_ugFallGrad[key]) {
+            var g = ctx.createLinearGradient(0, 0, 0, f.h);
+            g.addColorStop(0.00, 'rgba(150,198,224,0.34)');   // 落ち口＝岩から染み出す
+            g.addColorStop(0.12, 'rgba(196,228,242,0.46)');
+            g.addColorStop(0.80, 'rgba(178,216,235,0.38)');
+            g.addColorStop(1.00, 'rgba(206,234,245,0.22)');   // 着水点はぼかす
+            _ugFallGrad[key] = g;
+        }
+        ctx.translate(f.x, f.y);
+        ctx.fillStyle = _ugFallGrad[key];
+        ctx.fillRect(0, 0, f.w, f.h);
+        // 流れの筋。位相を seed でずらす＝隣の列と揃わないので「幅のある流れ」に見える
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = 'rgba(238,250,255,0.55)';
+        ctx.lineWidth = 2;
+        for (var k = 3; k < f.w; k += 9) {
+            var off = ((t * (3.0 + (k % 3) * 0.6) + f.seed * 13 + k * 29) % (f.h + 60)) - 60;
+            ctx.beginPath();
+            ctx.moveTo(k, Math.max(0, off));
+            ctx.lineTo(k, Math.min(f.h, off + 54));
+            ctx.stroke();
+        }
+        // 着水の水煙
+        ctx.globalAlpha = 0.22 + 0.06 * Math.sin(t * 0.06 + f.seed);
+        ctx.fillStyle = '#dff2fb';
+        ctx.beginPath();
+        ctx.ellipse(f.w / 2, f.h, f.w * 0.85, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
 function drawUgIdol() {
     var idol = undergroundState.idol;
     if (!idol) return;
@@ -3985,6 +4033,7 @@ function render() {
         // ⚠邪神の巨像は**石積みの飾りより先**に描く（1.570）。門のまぐさが像の頭に重なって
         //   「壁龕（へきがん）に据えられた像」に見える＝建築と像がひとつの祭壇として読める。
         //   後に描くと、像がアーチの石を塗りつぶして門が消える。
+        drawUgFalls(camL, camR);           // 滝（演出専用・一番奥＝石積みの飾りより手前に出さない）
         drawUgIdol();
         ctx.save();
         ctx.globalAlpha = 0.55;

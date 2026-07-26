@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.610";
+                content: "Ver.1.611";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.610</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.611</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3951,7 +3951,8 @@ function applyTestStart() {
     //   その場で土管を出すので、「そのラウンドの開始距離＝1つ前のボス距離」へワープするだけでよい。
     var mode = TEST_START_MODE;
     var r6 = (mode === 'r6shop');
-    var targetRound = (mode === 'r21') ? BOSS_CYCLE_ROUNDS * 3       // R21（3周目の地底「亀裂」・1.610）
+    var targetRound = (mode === 'r28') ? BOSS_CYCLE_ROUNDS * 4       // R28（4周目の地底「分水嶺」・1.611）
+                    : (mode === 'r21') ? BOSS_CYCLE_ROUNDS * 3       // R21（3周目の地底「亀裂」・1.610）
                     : (mode === 'r14') ? BOSS_CYCLE_ROUNDS * 2       // R14（2周目の地底）
                     : r6 ? (BOSS_CYCLE_ROUNDS - 1)                   // R6（カカシ）
                     : BOSS_CYCLE_ROUNDS;                             // R7（1周目の地底）

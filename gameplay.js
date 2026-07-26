@@ -225,6 +225,7 @@ function setupUndergroundStage() {
     var ug = undergroundState, o = ug.originX;
     terrain.length = 0; platforms.length = 0; coins.length = 0; powerUps.length = 0;
     ug.rooms = []; ug.lava = []; ug.spikes = []; ug.fireBars = []; ug.fireballs = []; ug.decor = [];
+    ug.falls = [];
     ug.pendingEnemies = []; ug.shop = null; ug.idol = null; ug.braziers = [];
     var col0 = 0;
 
@@ -249,10 +250,11 @@ function setupUndergroundStage() {
         room.vertical = (mapBottom - GAME_HEIGHT - topY) > 64;
         ug.rooms.push(room);
 
-        var solid = [], lava = [], plat = [], deco = [], spikeRow = [], r, c;
+        var solid = [], lava = [], plat = [], deco = [], spikeRow = [], fallCell = [], r, c;
         for (r = 0; r < rowsN; r++) {
             solid.push(new Array(w)); lava.push(new Array(w));
             plat.push(new Array(w)); deco.push(new Array(w)); spikeRow.push(new Array(w));
+            fallCell.push(new Array(w));
         }
 
         for (r = 0; r < rowsN; r++) {
@@ -315,6 +317,11 @@ function setupUndergroundStage() {
                         // 紫の燭台（飾り・当たり判定なし）。⚠ボス前の予告に使う＝門へ近づくほど密に置く
                         ug.braziers.push({ x: cx + UG_TILE / 2, baseY: cy + UG_TILE, seed: c });
                         break;
+                    case 'w':
+                        // 滝（1.611・**演出専用**）。⚠当たり判定は一切持たせない＝通り抜けられる。
+                        //   縦に続く分はあとで1本に結合する（下の第2パス）。
+                        fallCell[r][c] = 1;
+                        break;
                     default:
                         // 敵（遅延スポーン）。⚠全部を最初に実体化すると、到達前に歩いて穴/溶岩へ落ちてしまう
                         ug.pendingEnemies.push({ x: cx, bottom: cy + UG_TILE, kind: ch });
@@ -353,6 +360,19 @@ function setupUndergroundStage() {
                 ug.spikes.push({ x: x0 + s0 * UG_TILE, y: topY + r * UG_TILE + UG_TILE - UG_SPIKE_H,
                                  w: (c - s0 + 1) * UG_TILE });
                 c++;
+            }
+        }
+        // 滝: **縦に**続く分を1本に結合する（トゲ/足場は横だが、滝は落ちるので縦に伸ばす）。
+        // ⚠横に隣り合う列はそれぞれ別の滝にしておく＝描画側で筋の位相をずらして「幅のある流れ」に見せる。
+        for (c = 0; c < w; c++) {
+            r = 0;
+            while (r < rowsN) {
+                if (!fallCell[r][c]) { r++; continue; }
+                var f0 = r;
+                while (r + 1 < rowsN && fallCell[r + 1][c]) r++;
+                ug.falls.push({ x: x0 + c * UG_TILE, y: topY + f0 * UG_TILE,
+                                w: UG_TILE, h: (r - f0 + 1) * UG_TILE, seed: (c * 7 + f0) % 100 });
+                r++;
             }
         }
         ugMergeCells(solid, rowsN, w, x0, topY, terrain, true);
