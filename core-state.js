@@ -1021,15 +1021,20 @@ var STAGE_SHOP_ITEMS = [
         // 極楽まんじゅう: HP3回復。⚠2個で売り切れ（maxPerVisit）＝地上の回復薬(6,000/+2)より高いぶん効率は良い。
         //   買うと専用の一枚絵（食べるシーン）を出す＝そば/いちごショートと同じ showSobaScene の仕組み。
         id: 'ug_manju', nameKey: 'shop_item_ug_manju', descKey: 'shop_item_ug_manju_desc',
-        icon: '🍡', price: 9000, maxPerVisit: 2, ugOnly: true,
+        icon: '🍡', iconImg: 'images/icon_ug_manju.png', price: 12000, maxPerVisit: 2, ugOnly: true,   // 9,000→12,000（1.583・ユーザー決定）
         effect: function() { gameState.lives = Math.min(gameState.lives + 3, 10); }
     },
     {
         // 老婆の劇薬: 30秒間、エナジー弾と同じ攻撃を撃てる（ダメージは1＝エナジー弾2の半分）。
         // ⚠エナジー缶(dmg2)を持っている間はそちらが優先される（updateBullets の分岐順）。重ねて撃たない。
+        // ⚠**ストックアイテム**（1.583でユーザー指摘により修正）。買った瞬間に発動していたため、
+        //   店を出た時点で30秒が始まり、ボスに着く前に切れて意味が無かった。
+        //   barrier / lemon_special と同じ stockItem 方式にして、**好きなタイミングで発動**できるようにする。
         id: 'ug_elixir', nameKey: 'shop_item_ug_elixir', descKey: 'shop_item_ug_elixir_desc',
-        icon: '⚗️', price: 8000, maxPerVisit: 2, ugOnly: true,
-        effect: function() { gameState.ugElixir = (gameState.ugElixir || 0) + UG_ELIXIR_FRAMES; }
+        // ⚠stockItem にするなら iconImg が必須。updateStockUI の iconFor は iconImg が無いと **'?' を出す**
+        icon: '⚗️', iconImg: 'images/icon_ug_elixir.png', price: 10000, maxPerVisit: 2, ugOnly: true,   // 8,000→10,000（1.583・ユーザー決定）
+        stockItem: true,
+        stockEffect: function() { gameState.ugElixir = (gameState.ugElixir || 0) + UG_ELIXIR_FRAMES; }
     },
     {
         // 地底の主の加護（永続）: 以後、地底に入るときライフ+2で始まる。
@@ -1037,7 +1042,7 @@ var STAGE_SHOP_ITEMS = [
         //   **地底でしか買えず地底でしか効かない**ので、既存の恒久商品（ポーチ/コインマスター等）と食い合わない。
         // ⚠買い切り。所持後は stageShopLineup が陳列から外す（maxPerVisit は訪問ごとの制限なので再訪で復活してしまう）。
         id: 'ug_blessing', nameKey: 'shop_item_ug_blessing', descKey: 'shop_item_ug_blessing_desc',
-        icon: '👁', price: 200000, maxPerVisit: 1, ugOnly: true,
+        icon: '👁', iconImg: 'images/icon_ug_blessing.png', price: 200000, maxPerVisit: 1, ugOnly: true,
         permaUpgrade: 'ug_blessing'
     }
 ];
