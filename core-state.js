@@ -1143,12 +1143,21 @@ var ZUKAN_ENTRIES = [
     //   **スプライト名は必ず boss_priestess**（sprites.js の手続き生成で登録済み）。
     { id: 'boss:priestess', cat: 'boss', nameKey: 'zukan_b_priestess', descKey: 'zukan_b_priestess_d', kind: 'priestess', kill: true },
     // ── アイテム：フィールドで拾う ──
-    { id: 'item:heart',      cat: 'item', nameKey: 'zukan_i_heart',  descKey: 'zukan_i_heart_d',  img: 'images/icon_lives.png' },
+    // ⚠フィールドのドロップ品は **sprite でゲーム内の実物を指すこと**（1.578で修正）。
+    //   従来は img に「同じ効果を持つショップ品のアイコン」を当てていたため、図鑑の絵と拾える物の絵が
+    //   別物になっていた（レモン=レモンの実 vs 実物は黄色い缶／シールド=盾の紋章 vs 実物は青い円形バリア／
+    //   マグネット=U字磁石 vs 実物は赤青の棒磁石／エナジー=星 vs 実物はオレンジの球）。
+    //   sprite を指定すると zukanThumb が spriteManager の実フレームを描くので、
+    //   **今後アートを差し替えても図鑑が自動で追随する**（img は読み込み前のフォールバックとして残す）。
+    //   ⚠マグネットは buildMagnet() の手続き生成でPNGが存在しない＝sprite 指定でしか正しく出せない。
+    { id: 'item:heart',      cat: 'item', nameKey: 'zukan_i_heart',  descKey: 'zukan_i_heart_d',  sprite: 'powerup_heart',  img: 'images/item_heart.png' },
+    // ⚠コインだけ img のまま（ユーザー保留・1.578）。実物は銀色の星コインだが、ゲーム側を
+    //   図鑑と同じゴールドに差し替える案が検討中のため、決まるまで触らない。
     { id: 'item:coin',       cat: 'item', nameKey: 'zukan_i_coin',   descKey: 'zukan_i_coin_d',   img: 'images/icon_money.png' },
-    { id: 'item:lemon',      cat: 'item', nameKey: 'zukan_i_lemon',  descKey: 'zukan_i_lemon_d',  img: 'images/icon_lemon_special.png' },
-    { id: 'item:shield',     cat: 'item', nameKey: 'zukan_i_shield', descKey: 'zukan_i_shield_d', img: 'images/icon_barrier.png' },
-    { id: 'item:energy',     cat: 'item', nameKey: 'zukan_i_energy', descKey: 'zukan_i_energy_d', img: 'images/icon_full_charge.png' },
-    { id: 'item:magnet',     cat: 'item', nameKey: 'zukan_i_magnet', descKey: 'zukan_i_magnet_d', img: 'images/icon_magnet_boost.png' },
+    { id: 'item:lemon',      cat: 'item', nameKey: 'zukan_i_lemon',  descKey: 'zukan_i_lemon_d',  sprite: 'powerup_lemon',  img: 'images/item_lemon.png' },
+    { id: 'item:shield',     cat: 'item', nameKey: 'zukan_i_shield', descKey: 'zukan_i_shield_d', sprite: 'powerup_shield', img: 'images/item_shield.png' },
+    { id: 'item:energy',     cat: 'item', nameKey: 'zukan_i_energy', descKey: 'zukan_i_energy_d', sprite: 'powerup_energy', img: 'images/item_energy.png' },
+    { id: 'item:magnet',     cat: 'item', nameKey: 'zukan_i_magnet', descKey: 'zukan_i_magnet_d', sprite: 'powerup_magnet', img: 'images/icon_magnet_boost.png' },
     { id: 'item:golden_egg', cat: 'item', nameKey: 'zukan_i_egg',    descKey: 'zukan_i_egg_d',    img: 'images/item_golden_egg.png' },
     // ── アイテム：ステージショップ（購入で発見・既存の説明文を流用）──
     { id: 'item:heal',          cat: 'item', nameKey: 'shop_item_heal',       descKey: 'shop_item_heal_desc',       img: 'images/icon_heal.png' },
