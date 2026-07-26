@@ -696,11 +696,15 @@ function updateUgBoss() {
 
 function ugSpawnPriestess(ch, spawnX) {
     var hoverY = ch.topY + UG_BOSS_HOVER_DY;
+    // 周回でHPが上がる（1.581・ユーザー決定）: R7=200 / R14=250 / R21以降=300。
+    // ⚠生成時に1回だけ確定させること（毎フレーム引き直すと、周回をまたいだ時に最大HPが動いて
+    //   フェーズ判定 hp/maxHp の比率が飛ぶ）。ボスは毎戦つくり直すのでこれで足りる。
+    var _hp = ugBossHpFor(bossEncounter());
     return {
         kind: 'priestess',
         x: spawnX - UG_BOSS_W / 2, y: hoverY, baseY: hoverY,
         width: UG_BOSS_W, height: UG_BOSS_H,
-        hp: UG_BOSS_HP, maxHp: UG_BOSS_HP,
+        hp: _hp, maxHp: _hp,
         hoverY: hoverY, castY: ch.topY + UG_BOSS_CAST_DY,
         mode: 'recover', timer: 50, cycle: 0,      // 登場直後は少し間を置く（いきなり撃たない）
         vx: 0.9, anim: 0, hurt: 0, flash: 0, stompCd: 0,

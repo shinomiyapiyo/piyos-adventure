@@ -515,9 +515,15 @@ const UG_BOSS_ORB_DY       = 0.42; // 絵の中で両手の間の玉がある高
 // ⚠**飾り＝当たり判定なし**。闘技場の左端＝カメラ終端なので、門を歩いている間から巨像が見える＝予告になる。
 const UG_IDOL_W            = 220;  // images/ug_idol.png の実寸
 const UG_IDOL_H            = 300;
-const UG_BOSS_HP           = 200;  // SPEC §7.2（✅ユーザー決定・通常ボス100の2倍）。
-                                   // ⚠2巡目以降(R14…)のHP増は**仕様未決**（SPEC §7.2「2巡目の仕様決定時に確定」）。
-                                   //   代わりに難度は encMul（行動サイクルの速さ）で上げる＝通常ボスと同じ方針。
+const UG_BOSS_HP           = 200;  // 1巡目(R7)のHP。SPEC §7.2（✅ユーザー決定・通常ボス100の2倍）
+// 2巡目以降のHP（✅ユーザー決定・1.581）: R14=250 / R21以降=300 で頭打ち。
+// ⚠通常ボスの BOSS_HP_PER_ROUND とは別建て。あちらは「ラウンドごと+20・上限240」だが、
+//   巫女は7ラウンドに1回しか出ないので**周回(bossEncounter)で段階的に上げる**方が実感に合う。
+// 踏み(UG_BOSS_STOMP_DMG=10)だけで倒す場合の回数: 20回 → 25回 → 30回。
+// ⚠フェーズ判定は b.hp / b.maxHp の比率なので、HPを変えても解放演出(60%/30%)は自動で追随する。
+const UG_BOSS_HP_R2        = 250;  // R14
+const UG_BOSS_HP_R3PLUS    = 300;  // R21以降（据え置き）
+function ugBossHpFor(enc) { return enc <= 1 ? UG_BOSS_HP : enc === 2 ? UG_BOSS_HP_R2 : UG_BOSS_HP_R3PLUS; }
 const UG_BOSS_STOMP_DMG    = 10;   // 通常ボスの踏みと同一（＋侍ぴよ急降下斬りで+1）
 const UG_BOSS_STOMP_CD     = 40;   // 踏み無敵。⚠反撃(counter)へ必ず移るので連打では削れない
 const UG_BOSS_CURSE_TELE   = 38;   // 呪弾の予告フレーム（3.0px/f ＝ この間に114px 動ける）
