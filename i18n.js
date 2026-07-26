@@ -115,6 +115,9 @@ ja: {
     hud_sec: '秒',
     hud_invincible: '無敵時間  ',
     hud_speedup: 'SPEED UP! Lv.',
+    // 地底ステージ専用（1.586）。地底はオートスクロールせず速さが変わらないので、
+    // 「SPEED UP」「%」を出さずレベルだけを伝える。
+    hud_levelup: 'LEVEL UP! Lv.',
     hud_pause: 'ポーズ中',
     hud_lifeup: 'LIFE UP!',
     hud_goldenegg: 'ゴールデンエッグ GET！',
@@ -718,6 +721,9 @@ en: {
     hud_sec: 's',
     hud_invincible: 'Invincible  ',
     hud_speedup: 'SPEED UP! Lv.',
+    // 地底ステージ専用（1.586）。地底はオートスクロールせず速さが変わらないので、
+    // 「SPEED UP」「%」を出さずレベルだけを伝える。
+    hud_levelup: 'LEVEL UP! Lv.',
     hud_pause: 'Paused',
     hud_lifeup: 'LIFE UP!',
     hud_goldenegg: 'GOLDEN EGG!',

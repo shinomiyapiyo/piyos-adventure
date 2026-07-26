@@ -4109,17 +4109,29 @@ function render() {
 
     if (gameState.speedUpNotification) {
         var a = Math.min(1.0, gameState.speedUpNotificationTimer / 30);
-        var sp = Math.min(MAX_SPEED_PERCENT, 100 + (gameState.speedLevel - 1) * 20);
+        // ⚠地底は専用の表示にする（1.586・ユーザー指摘）。地底はオートスクロールせず
+        //   updateGameSpeed が gameSpeed=0 に固定するので、**速さは一切変わらない**。
+        //   それなのに「SPEED UP! (500%)」と出るのは嘘になるので、地底では
+        //   速さの話を消して「LEVEL UP! Lv.41」だけにする（レベル自体は距離で上がり続ける）。
+        var ugLv = undergroundState.active;
+        var sx2 = GAME_WIDTH / 2 - 150, sy2 = 68 + hudTopOffset;
         ctx.save();
         ctx.globalAlpha = a;
-        var sx2 = GAME_WIDTH / 2 - 150, sy2 = 68 + hudTopOffset;
-        drawHudPanel(sx2, sy2, 300, 52, 'rgba(100,20,60,0.9)', 'rgba(60,10,35,0.92)', '#ff69b4', 'rgba(255,100,180,0.4)');
-        // Rocket + text
+        // 地底は紫（地底のUIと同系）、地上は従来のピンク
+        if (ugLv) drawHudPanel(sx2, sy2, 300, 52, 'rgba(56,20,100,0.9)', 'rgba(30,10,60,0.92)', '#b07cff', 'rgba(176,124,255,0.4)');
+        else      drawHudPanel(sx2, sy2, 300, 52, 'rgba(100,20,60,0.9)', 'rgba(60,10,35,0.92)', '#ff69b4', 'rgba(255,100,180,0.4)');
         ctx.font = "bold 18px 'M PLUS Rounded 1c', sans-serif";
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillStyle = '#fff';
-        ctx.shadowColor = 'rgba(255,100,180,0.7)'; ctx.shadowBlur = 8;
-        ctx.fillText(t('hud_speedup') + gameState.speedLevel + ' (' + sp + '%)', GAME_WIDTH / 2, sy2 + 27);
+        ctx.shadowColor = ugLv ? 'rgba(176,124,255,0.7)' : 'rgba(255,100,180,0.7)'; ctx.shadowBlur = 8;
+        var label;
+        if (ugLv) {
+            label = t('hud_levelup') + gameState.speedLevel;                 // 速度%は出さない
+        } else {
+            var sp = Math.min(MAX_SPEED_PERCENT, 100 + (gameState.speedLevel - 1) * 20);
+            label = t('hud_speedup') + gameState.speedLevel + ' (' + sp + '%)';
+        }
+        ctx.fillText(label, GAME_WIDTH / 2, sy2 + 27);
         ctx.shadowBlur = 0;
         ctx.restore();
     }
