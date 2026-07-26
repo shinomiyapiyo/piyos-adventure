@@ -2068,7 +2068,26 @@ function drawUgBraziers(camL, camR) {
         if (b.x < camL - 40 || b.x > camR + 40) continue;
         if (b.baseY > camY + GAME_HEIGHT + 60 || b.baseY < camY - 120) continue;
         var x = g2(b.x), base = b.baseY, top = g2(base - 54);
-        var flick = 0.72 + 0.28 * Math.sin(t * 0.26 + b.seed * 1.7);
+        // 撃破後は1本ずつ消える（1.584）。seed で順番をばらして「静まっていく」感じを出す。
+        // ⚠柱と受け皿(石)は消さない＝炎だけ落とす。calm=1 で完全に消灯し、紫の煙だけが残る。
+        var calm = undergroundState.endCalm || 0;
+        var outAt = 0.25 + ((b.seed * 7) % 10) / 10 * 0.55;      // この進行度で消える
+        var lit = calm <= 0 ? 1 : Math.max(0, 1 - Math.max(0, (calm - outAt) / 0.22));
+        var flick = (0.72 + 0.28 * Math.sin(t * 0.26 + b.seed * 1.7)) * lit;
+        if (lit <= 0.001) {                                       // 消えた後: 立ちのぼる紫の煙だけ
+            ctx.fillStyle = '#2e2640'; ctx.fillRect(x - 4, top + 6, 8, 48);
+            ctx.fillStyle = '#463a5e'; ctx.fillRect(x - 4, top + 6, 3, 48);
+            ctx.fillRect(x - 9, top, 18, 7);
+            ctx.fillStyle = '#2e2640'; ctx.fillRect(x - 11, base - 6, 22, 6);
+            ctx.save(); ctx.globalAlpha = 0.28;
+            ctx.fillStyle = '#8f6fd0';
+            for (var sm = 0; sm < 3; sm++) {
+                var sy = top - 6 - sm * 12 - ((t * 0.6 + b.seed * 9) % 14);
+                ctx.fillRect(g2(x - 2 + Math.sin(t * 0.05 + sm + b.seed) * 4), g2(sy), 3, 5);
+            }
+            ctx.restore();
+            continue;
+        }
         var lean = Math.sin(t * 0.15 + b.seed * 0.9) * 3;
         // 柱と受け皿（石）
         ctx.fillStyle = '#2e2640';
@@ -2308,9 +2327,11 @@ function drawUgBossRoom() {
     var ch = ug.rooms[ug.rooms.length - 1];
     if (!ch) return;
 
-    // ── 背後の扉（フェーズ2で降りてくる／以降は降りきった位置で固定）──
+    // ── 背後の扉（フェーズ2で降りてくる／撃破後は上がって道が開く・1.584）──
     if (ug.bossPhase >= 2) {
         var dp = (ug.bossPhase === 2) ? Math.min(1, ug.bossTimer / UG_BOSS_DOOR_FRAMES) : 1;
+        // 撃破後は endCalm に合わせて巻き上がる＝「帰り道が開いた」ことを絵で言う
+        if (ug.bossPhase === 5) dp = Math.max(0, 1 - (ug.endCalm || 0));
         var dTop = ch.topY + 2 * UG_TILE, dH = 10 * UG_TILE;
         var dx = ug.bossDoorX - UG_TILE;
         ctx.save();
@@ -2585,6 +2606,62 @@ function drawUgFlash() {
     ctx.restore();
 }
 
+// ─── 地底クリアの「真のエンディング」（1.584）───
+// ⚠**画面座標**で描く＝ワールドの translate の外から呼ぶこと（drawUgDarkChant と同じ扱い）。
+// 流れは updateUndergroundBoss の bossPhase 5 が ug.bossTimer で駆動する:
+//   〜110F 崩れる ／ 〜300F 洞窟が静まる（燭台が消える=drawUgBraziers・扉が上がる=drawUgBossRoom・ここで光が差す）
+//   300F〜 一枚絵をフェードイン → 保持 → フェードアウト → exitUnderground
+function drawUgEnding() {
+    var ug = undergroundState;
+    if (ug.bossPhase !== 5) return;
+    var tt = ug.bossTimer;
+
+    // ① 天井から差し込む光（洞窟が静まるのに合わせて強くなる）。一枚絵が出る前だけ。
+    var calm = ug.endCalm || 0;
+    if (calm > 0 && !ug.ending) {
+        var lx = GAME_WIDTH * 0.5, lw = GAME_WIDTH * 0.26;
+        ctx.save();
+        ctx.globalAlpha = 0.42 * calm;
+        var lg = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+        lg.addColorStop(0, 'rgba(255,236,180,0.95)');
+        lg.addColorStop(1, 'rgba(255,236,180,0)');
+        ctx.fillStyle = lg;
+        ctx.beginPath();                                  // 上が細く下が広がる光の柱
+        ctx.moveTo(lx - lw * 0.30, 0); ctx.lineTo(lx + lw * 0.30, 0);
+        ctx.lineTo(lx + lw, GAME_HEIGHT); ctx.lineTo(lx - lw, GAME_HEIGHT);
+        ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 0.18 * calm;                    // 光の中に舞う塵
+        ctx.fillStyle = '#fff4d0';
+        for (var d = 0; d < 14; d++) {
+            var dx = lx + Math.sin(gameState.time * 0.02 + d * 1.7) * lw * 0.8;
+            var dy = ((gameState.time * 0.5 + d * 43) % GAME_HEIGHT);
+            ctx.fillRect(Math.round(dx), Math.round(dy), 2, 2);
+        }
+        ctx.restore();
+    }
+
+    // ② 一枚絵（フェードイン → 保持 → フェードアウト）
+    if (!ug.ending) return;
+    var e = tt - UG_END_CALM;
+    var a = e < UG_END_SCENE_IN ? (e / UG_END_SCENE_IN)
+          : e < UG_END_SCENE_IN + UG_END_SCENE_HOLD ? 1
+          : Math.max(0, 1 - (e - UG_END_SCENE_IN - UG_END_SCENE_HOLD) / UG_END_SCENE_OUT);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);          // 暗幕（画像が無くても演出は成立する）
+    // ⚠画像は index.html で先読みしている ugEndingImg。読み込み失敗時は暗幕だけで完結させる
+    //   （壊れた画像アイコンを全画面で見せない＝showSobaScene と同じ作法）。
+    if (typeof ugEndingImg !== 'undefined' && ugEndingImg.complete && ugEndingImg.naturalWidth > 0) {
+        var iw = ugEndingImg.naturalWidth, ih = ugEndingImg.naturalHeight;
+        var sc = Math.min(GAME_WIDTH / iw, GAME_HEIGHT / ih);   // contain（切らずに全部見せる）
+        var dw = iw * sc, dh = ih * sc;
+        ctx.imageSmoothingEnabled = false;                       // ドット絵なので補間しない
+        ctx.drawImage(ugEndingImg, (GAME_WIDTH - dw) / 2, (GAME_HEIGHT - dh) / 2, dw, dh);
+    }
+    ctx.restore();
+}
+
 // 大詠唱（P3）＝画面が暗転し、安全地帯が1箇所だけ光る（SPEC §7.2・フクロウの暗転を流用した思想）。
 // ⚠**画面座標**で描く＝ワールドの translate の外から呼ぶこと（呼び出しは render の後半）。
 function drawUgDarkChant() {
@@ -2610,6 +2687,16 @@ function drawUgDarkChant() {
     ctx.globalAlpha = p;
     ctx.fillStyle = '#ffec9f';
     ctx.fillRect(sx - hw - 2, 0, 3, GAME_HEIGHT); ctx.fillRect(sx + hw, 0, 3, GAME_HEIGHT);
+    // ── 判定後の余韻（1.584）: 結果を暗幕の**上**に重ねて必ず分かるようにする ──
+    // ⚠-1 の浮上テキスト(floatEffects)はこの暗幕より先に描かれるので、暗幕が出ている間は見えない。
+    //   だから「被弾したか否か」は色で断言する: 被弾=赤／回避成功=金。
+    //   暗幕が明けた後も -1 は52フレーム残るので、二段構えで気づける。
+    if (d.impact) {
+        var ip = d.impact / UG_DARK_IMPACT;
+        ctx.globalAlpha = 0.6 * ip;
+        ctx.fillStyle = d.hit ? '#ff2b3c' : '#ffe08a';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
     ctx.restore();
 }
 
@@ -3855,7 +3942,7 @@ function render() {
     //   位置・サイズ・パネル/バーの描き方は通常ボス（この下のブロック）と完全に同じにし、色だけ紫にする。
     // ⚠大詠唱の暗転は**HPバーより先**に描く（バーが暗幕に隠れると残りHPが読めなくなる）
     if (undergroundState.active) { drawUgDarkChant(); drawUgFlash(); }
-    if (undergroundState.active && undergroundState.boss) {
+    if (undergroundState.active && undergroundState.boss && undergroundState.bossPhase !== 5) {   // ⚠撃破演出中は出さない（0/200 が残る／一枚絵に被る・1.584）
         var _ub = undergroundState.boss;
         var _uw = 300, _uh = 32;
         var _ux = GAME_WIDTH / 2 - _uw / 2, _uy = GAME_HEIGHT - 48;
@@ -4157,6 +4244,8 @@ function render() {
 
     drawSpecialCutin();
     gameState.time += frameSteps;
+    // ⚠**最後に描く**（1.584）。真のエンディングの一枚絵は HUD・ボスHPバー・SPEED UP 表示より上に出す。
+    if (undergroundState.active) drawUgEnding();
 }
 
 // チュートリアルの案内バナー: 紺地+白枠のDQ風・複数行対応・残り20フレームでフェードアウト

@@ -64,6 +64,7 @@ function enterUnderground() {
     undergroundState.savedGameSpeed = gameState.gameSpeed;
     undergroundState.introTimer = UG_INTRO_FRAMES;
     undergroundState.bossPhase = 0; undergroundState.bossTimer = 0; undergroundState.boss = null;
+    undergroundState.endCalm = 0; undergroundState.ending = 0;   // 真のエンディング演出の残留を防ぐ（1.584）
     undergroundState.sigils.length = 0; undergroundState.dark = null;   // 闇の巫女の攻撃（1.570）
     undergroundState.flash = 0; undergroundState.mobTimer = 0;
     gameState.gameSpeed = 0; // オートスクロール停止（以後カメラはプレイヤー追従）
@@ -582,6 +583,16 @@ function ugCollapseSkully(e) {
 //   ボス戦の長さがランキングに影響しない（通常ボスのアリーナと同じ思想）。
 // ⚠ボス本体（闇の巫女）はP3。ここに居るのは**闘技場が成立するかを検証するための仮ボス**。
 // ─────────────────────────────────────────────────────────────
+// 真のエンディングの一枚絵の間だけ、DOMのHUD(#ui)と操作バー(#controlBar)を隠す（1.584）。
+// ⚠canvasより上に乗る要素なので、これをやらないと一枚絵の上に体力やボタンが残る。
+// ⚠必ず true に戻すこと。戻す場所は exitUnderground（撃破後は必ず通る）と resetGame（保険）。
+function ugHudVisible(on) {
+    try {
+        var ui = document.getElementById('ui'); if (ui) ui.style.display = on ? 'block' : 'none';
+        var cb = document.getElementById('controlBar'); if (cb) cb.style.display = on ? 'flex' : 'none';
+    } catch (_) {}
+}
+
 function updateUgBoss() {
     var ug = undergroundState;
     if (!ug.active || ug.cleared) return;
@@ -658,6 +669,7 @@ function updateUgBoss() {
         ugPriestessAI(b);
         ugPriestessCollision(b);
         ugUpdateSigils();
+        ugUpdateDarkImpact();       // 大詠唱の判定後の余韻（1.584・ここで暗幕が明ける）
         ugSpawnArenaMobs(ch, b);
         // ⚠呪弾は bossState.eggs を流用しているので、**ここで updateEggs を回さないと弾が動かない**
         //   （通常ボスは updateBoss の phase3 からしか呼ばれない）。
@@ -666,16 +678,37 @@ function updateUgBoss() {
         return;
     }
 
-    // ⑤ 撃破演出 → 退場（報酬は SPEC §8）
+    // ⑤ 撃破演出 → 真のエンディング → 退場（報酬は SPEC §8・演出は 1.584）
     if (ug.bossPhase === 5) {
-        // 崩れ落ちる巫女（描画は drawUgBossRoom）。爆ぜる音と光を散らしてから消す
-        if (ug.boss && ug.bossTimer % 9 === 0 && ug.bossTimer < UG_BOSS_DEFEAT_FRAMES * 0.55) {
+        var tt = ug.bossTimer;
+        // ── 崩れ落ちる巫女（描画は drawUgBossRoom）。爆ぜる音と光を散らしてから消す ──
+        if (ug.boss && tt % 9 === 0 && tt < UG_END_CRUMBLE) {
             spawnExplosionEffect(ug.boss.x + Math.random() * ug.boss.width,
                                  ug.boss.y + Math.random() * ug.boss.height);
             if (soundManager) soundManager.playKill();
         }
-        if (ug.bossTimer === 1) ugGrantPriestessRewards();
-        if (ug.bossTimer >= UG_BOSS_DEFEAT_FRAMES) exitUnderground();
+        if (tt === 1) ugGrantPriestessRewards();
+        // ── 洞窟が静まる（1.584）。燭台が1本ずつ消え、扉が上がり、天井から光が差す ──
+        //    ug.endCalm 0→1 が描画側(drawUgBossRoom / drawUgBraziers)の進行度。
+        ug.endCalm = Math.max(0, Math.min(1, (tt - UG_END_CRUMBLE) / (UG_END_CALM - UG_END_CRUMBLE)));
+        // ── 一枚絵＋専用BGMへ移行。⚠切り替え点は通常ボスの撃破演出と同じ300F（ユーザー指定） ──
+        if (tt === UG_END_CALM) {
+            ug.ending = 1;                       // 0..1 の進行度は描画側が bossTimer から出す
+            // ⚠HUDと操作バーはDOM＝canvasの上に乗るので、一枚絵の間だけ隠す（1.584）。
+            //   canvas側（ボスHPバー・SPEED UP表示）は drawUgEnding を render の最後に置くことで覆っている。
+            //   戻すのは exitUnderground（＝必ず通る）。
+            ugHudVisible(false);
+            // ⚠BGMが未配置なら**何もしない**＝ファンファーレの余韻をそのまま続ける。
+            //   playBGM は stopAllBGM から入るので、鳴らない曲へ切り替えると無音になってしまう。
+            if (soundManager) {
+                try {
+                    if (typeof soundManager.hasBGM !== 'function' || soundManager.hasBGM('ugEnding')) {
+                        soundManager.playBGM('ugEnding');
+                    }
+                } catch (_) {}
+            }
+        }
+        if (tt >= UG_END_TOTAL) { ug.endCalm = 0; ug.ending = 0; exitUnderground(); }
         return;
     }
 }
@@ -1053,11 +1086,23 @@ function ugResolveDarkChant() {
     if (d) {
         var pcx = player.x + player.width / 2;
         // ⚠シールドで防げる（呪弾/光柱と同じ＝ボスの攻撃はすべてシールドが効く、で統一）
-        if (Math.abs(pcx - d.safeX) > UG_BOSS_SAFE_W / 2 && !isPlayerProtected()) takeDamage();
+        d.hit = (Math.abs(pcx - d.safeX) > UG_BOSS_SAFE_W / 2) && !isPlayerProtected();
+        if (d.hit) takeDamage();
         if (typeof screenShake !== 'undefined') { screenShake.intensity = 9; screenShake.timer = 20; }
         if (soundManager) { try { soundManager.playUgSigil(); } catch (_) {} }
+        // ⚠ここで暗幕を消さないこと（1.584）。判定と暗転解除が同フレームだと -1 の表示が
+        //   「画面が急に明るくなる」変化に埋もれて被弾に気づけない（ユーザー報告）。
+        //   UG_DARK_IMPACT フレームだけ暗幕を保ち、その上に結果の閃光を重ねる（drawUgDarkChant）。
+        //   実際に消すのは ugUpdateDarkImpact。
+        d.impact = UG_DARK_IMPACT;
     }
-    undergroundState.dark = null;
+}
+// 判定後の余韻を進める。ここで初めて暗幕を消す（1.584）
+// ⚠ボス撃破・フェーズ移行・退場は従来どおり dark を直接 null にするので、余韻は自動的に打ち切られる。
+function ugUpdateDarkImpact() {
+    var d = undergroundState.dark;
+    if (!d || !d.impact) return;
+    if (--d.impact <= 0) undergroundState.dark = null;
 }
 
 // 分身（P3）＝3体に分かれ、本物だけが撃つ。⚠にせものは**触れても踏んでも痛くない**（外しても損しない）。
@@ -1173,6 +1218,14 @@ function ugGrantPriestessRewards() {
         coins.push({ x: cx + (Math.random() - 0.5) * 260, y: floorY - 52 - Math.random() * 96,
                      width: 32, height: 32, collected: false, animFrame: Math.random() * 20 });
     }
+    // ハート3個（✅ユーザー決定・1.584）。⚠コインと同じく**床の近く**に撒くこと。
+    //   ボスのワールドYを基準にすると浮遊高度(上端916)で倒した時に跳んでも届かない高さに散る（1.571の教訓）。
+    //   形は spawnPowerUp と同一（updatePowerUps は type で分岐するだけ）。
+    for (var hi = 0; hi < UG_BOSS_HEARTS; hi++) {
+        powerUps.push({ x: cx + (hi - (UG_BOSS_HEARTS - 1) / 2) * 96 - 18, y: floorY - 96,
+                        width: 36, height: 36, type: 'heart',
+                        collected: false, animFrame: 0, floatOffset: hi * 1.4 });
+    }
     gameState.enemyKills++;
     gameState.bossKills++;
     zukanAddKill('boss:priestess');                         // ずかん: 撃破時のみ登録（1.474の統一ルール）
@@ -1220,6 +1273,8 @@ function exitUnderground() {
     undergroundState.rooms.length = 0; undergroundState.pendingEnemies = [];
     undergroundState.shop = null; undergroundState.idol = null; undergroundState.braziers.length = 0;
     undergroundState.bossPhase = 0; undergroundState.bossTimer = 0; undergroundState.boss = null;
+    undergroundState.endCalm = 0; undergroundState.ending = 0;   // 真のエンディング演出の残留を防ぐ（1.584）
+    ugHudVisible(true);          // ⚠一枚絵で隠したHUDと操作バーを必ず戻す（1.584）
     // 闇の巫女の攻撃の後始末（1.570）。⚠**呪弾は bossState.eggs を借りているので必ずここで空にする**。
     //   残すと地上へ戻った直後に画面外から飛んできて当たる（弾は世界座標のまま生き続けるため）。
     undergroundState.sigils.length = 0; undergroundState.dark = null;

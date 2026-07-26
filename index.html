@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.583";
+                content: "Ver.1.585";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.583</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.585</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2107,6 +2107,10 @@ var specialCutinImg = new Image();
 specialCutinImg.src = 'images/special_cutin.png';
 var eyesImg = new Image();             // 来るぞ感の両目アップ
 eyesImg.src = 'images/eyes_closeup.png';
+// 地底クリアの「真のエンディング」一枚絵（1.584）。⚠先読みしておく＝撃破の5秒後に確実に出る。
+//   読み込めなかった時は drawUgEnding が暗幕だけで演出を成立させる（壊れた画像を全画面で見せない）。
+var ugEndingImg = new Image();
+ugEndingImg.src = 'images/ug_ending.jpg';
 var sobaSceneImg = new Image();        // たちぐいそば購入時のフルスクリーン演出（先読みで初回もカクつかない）
 sobaSceneImg.src = 'images/soba_shop_scene.jpg';
 var shortcakeSceneImg = new Image();   // いちごショート購入時のフルスクリーン演出（チュートリアルショップ限定）
@@ -4143,6 +4147,8 @@ function resetGame() {
     // 前ランの送信を打ち切ったまま再送しなかった場合の枠を捨てる（1.572）。
     // 残したままだと次ランの送信が前ランと同じキーへ書き、2ラン分が1エントリに潰れる。
     pendingScoreRef = null;
+    // 真のエンディングでHUDを隠したまま中断した場合の保険（1.584）
+    if (typeof ugHudVisible === 'function') ugHudVisible(true);
     gameState.missionCountedDistance = 0;
     gameState.missionCountedKills = 0;
     gameState.missionPlayCounted = false;

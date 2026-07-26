@@ -36,6 +36,12 @@ class SoundManager {
         //   sounds/shop_underground.mp3 として置いてある。元ファイル名の空白もここで解消している。
         this.shopUndergroundBGM = this._createBGM('sounds/shop_underground.mp3', 0.5);
         this.bonusBGM    = this._createBGM('sounds/bonus.mp3',    0.5);
+        // 地底クリアの「真のエンディング」専用BGM（1.584・Suno生成予定）。
+        // ⚠mp3がまだ無い間は play() が失敗するだけで落ちない。hasBGM() が false を返すので、
+        //   呼び出し側（ugPriestessDefeated 後の演出）はファンファーレの余韻をそのまま続ける。
+        //   届いたら sounds/ug_ending.mp3 として置くだけで自動的に鳴る（[[piyo-suno-audio-tags]]＝タグ除去を忘れずに）。
+        this.ugEndingBGM = this._createBGM('sounds/ug_ending.mp3', 0.6);
+        this.ugEndingBGM.loop = false;
         this.winBGM      = new Audio('sounds/win.mp3');
         this.winBGM.loop = false;
         this.winBGM.volume = 0.7;
@@ -376,6 +382,14 @@ class SoundManager {
         this.currentBGM = this.bossBGM;
     }
 
+    // そのBGMの音源が実在するか（未配置のmp3を鳴らそうとして「無音になるだけ」を避ける）。
+    // ⚠networkState===3 は NETWORK_NO_SOURCE＝取得に失敗した状態。error も併せて見る。
+    hasBGM(type) {
+        var a = this[type + 'BGM'];
+        if (!a) return false;
+        return !a.error && a.networkState !== 3;
+    }
+
     playBGM(type) {
         this.stopAllBGM();
         if (!gameSettings.soundEnabled) return;
@@ -388,7 +402,7 @@ class SoundManager {
 
     stopAllBGM() {
         // ⚠新しいBGMを足したら**必ずこの配列にも足す**（漏れると前の曲が止まらず二重に鳴る）
-        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.stage4BGM, this.stage5BGM, this.stage6BGM, this.undergroundBGM, this.bossUndergroundBGM, this.tutorialBGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.shopUndergroundBGM, this.bonusBGM, this.winBGM];
+        var bgms = [this.titleBGM, this.stageBGM, this.stage2BGM, this.stage3BGM, this.stage4BGM, this.stage5BGM, this.stage6BGM, this.undergroundBGM, this.bossUndergroundBGM, this.tutorialBGM, this.gameoverBGM, this.rankingBGM, this.bossBGM, this.shopBGM, this.shopUndergroundBGM, this.bonusBGM, this.winBGM, this.ugEndingBGM];
         for (var i = 0; i < bgms.length; i++) {
             if (bgms[i]) { bgms[i].pause(); bgms[i].currentTime = 0; }
         }
