@@ -65,6 +65,8 @@ function enterUnderground() {
     undergroundState.introTimer = UG_INTRO_FRAMES;
     undergroundState.bossPhase = 0; undergroundState.bossTimer = 0; undergroundState.boss = null;
     undergroundState.endCalm = 0; undergroundState.ending = 0;   // 真のエンディング演出の残留を防ぐ（1.584）
+    undergroundState.endLine = 0; undergroundState.endLineTimer = 0;
+    undergroundState.endTapped = 0; undergroundState.endOut = 0;   // テロップの状態も必ず戻す（1.587）
     undergroundState.sigils.length = 0; undergroundState.dark = null;   // 闇の巫女の攻撃（1.570）
     undergroundState.flash = 0; undergroundState.mobTimer = 0;
     gameState.gameSpeed = 0; // オートスクロール停止（以後カメラはプレイヤー追従）
@@ -593,6 +595,30 @@ function ugHudVisible(on) {
     } catch (_) {}
 }
 
+// 真のエンディングのテロップ送り（1.587）。⚠操作バーは隠しているので**画面全体**でタップを拾う。
+// ⚠必ず ugEndTapOff() で外すこと（残すと次のランでもタップを拾い続ける）。exitUnderground でも保険で外す。
+var _ugEndTapHandler = null;
+function ugEndTapOn() {
+    if (_ugEndTapHandler) return;
+    _ugEndTapHandler = function (ev) {
+        if (!undergroundState.ending) return;
+        undergroundState.endTapped = 1;
+        if (ev && ev.cancelable) ev.preventDefault();
+    };
+    try {
+        document.addEventListener('touchstart', _ugEndTapHandler, { passive: false });
+        document.addEventListener('mousedown', _ugEndTapHandler);
+    } catch (_) {}
+}
+function ugEndTapOff() {
+    if (!_ugEndTapHandler) return;
+    try {
+        document.removeEventListener('touchstart', _ugEndTapHandler);
+        document.removeEventListener('mousedown', _ugEndTapHandler);
+    } catch (_) {}
+    _ugEndTapHandler = null;
+}
+
 function updateUgBoss() {
     var ug = undergroundState;
     if (!ug.active || ug.cleared) return;
@@ -698,6 +724,8 @@ function updateUgBoss() {
             //   canvas側（ボスHPバー・SPEED UP表示）は drawUgEnding を render の最後に置くことで覆っている。
             //   戻すのは exitUnderground（＝必ず通る）。
             ugHudVisible(false);
+            ug.endLine = 1; ug.endLineTimer = 0; ug.endTapped = 0; ug.endOut = 0;
+            ugEndTapOn();
             // ⚠BGMが未配置なら**何もしない**＝ファンファーレの余韻をそのまま続ける。
             //   playBGM は stopAllBGM から入るので、鳴らない曲へ切り替えると無音になってしまう。
             if (soundManager) {
@@ -708,7 +736,21 @@ function updateUgBoss() {
                 } catch (_) {}
             }
         }
-        if (tt >= UG_END_TOTAL) { ug.endCalm = 0; ug.ending = 0; exitUnderground(); }
+        // ── テロップ（1.587）: 一枚絵の上に会話と同じ作法で1文ずつ出し、タップで送る ──
+        if (ug.ending) {
+            ug.endLineTimer = (ug.endLineTimer || 0) + 1;
+            if (ug.endOut > 0) {                       // 最後の文を送った後のフェードアウト
+                if (--ug.endOut <= 0) { ug.endCalm = 0; ug.ending = 0; ugEndTapOff(); exitUnderground(); }
+            } else if (ug.endTapped) {                 // タップを1回消費して次の文へ
+                ug.endTapped = 0;
+                if (ug.endLineTimer >= UG_END_LINE_MIN) {
+                    ug.endLine = (ug.endLine || 1) + 1;
+                    ug.endLineTimer = 0;
+                    if (soundManager) { try { soundManager.playCursorMove(); } catch (_) {} }
+                    if (ug.endLine > UG_END_LINES) { ug.endLine = UG_END_LINES; ug.endOut = UG_END_SCENE_OUT; }
+                }
+            }
+        }
         return;
     }
 }
@@ -1274,7 +1316,10 @@ function exitUnderground() {
     undergroundState.shop = null; undergroundState.idol = null; undergroundState.braziers.length = 0;
     undergroundState.bossPhase = 0; undergroundState.bossTimer = 0; undergroundState.boss = null;
     undergroundState.endCalm = 0; undergroundState.ending = 0;   // 真のエンディング演出の残留を防ぐ（1.584）
+    undergroundState.endLine = 0; undergroundState.endLineTimer = 0;
+    undergroundState.endTapped = 0; undergroundState.endOut = 0;   // テロップの状態も必ず戻す（1.587）
     ugHudVisible(true);          // ⚠一枚絵で隠したHUDと操作バーを必ず戻す（1.584）
+    ugEndTapOff();               // ⚠テロップ送りのタップ受付を必ず外す（1.587）
     // 闇の巫女の攻撃の後始末（1.570）。⚠**呪弾は bossState.eggs を借りているので必ずここで空にする**。
     //   残すと地上へ戻った直後に画面外から飛んできて当たる（弾は世界座標のまま生き続けるため）。
     undergroundState.sigils.length = 0; undergroundState.dark = null;
@@ -2553,40 +2598,14 @@ function handleConfirmNo() { shopConfirmUI.tapNo(); }
 // ⚠地底の老婆は専用の画像アセットがまだ無いので、**その場で描いた32pxのドット絵**を data URL にして使う。
 //   洞窟タイル/入場土管/宝箱と同じ「画像を増やさず手続きで描く」方針。絵が用意できたら
 //   ugKeeperFaceURL() を捨てて images/keeper_crone.png を指すだけで差し替わる。
-var _ugKeeperURL = null;
-function ugKeeperFaceURL() {
-    if (_ugKeeperURL) return _ugKeeperURL;
-    var c = document.createElement('canvas'); c.width = 32; c.height = 32;
-    var x = c.getContext('2d');
-    x.imageSmoothingEnabled = false;
-    x.fillStyle = '#0d1a16'; x.fillRect(0, 0, 32, 32);                 // 洞窟の闇
-    x.fillStyle = '#16302a';                                           // 奥の灯り
-    x.beginPath(); x.arc(16, 26, 15, 0, Math.PI * 2); x.fill();
-    x.fillStyle = '#1a1424';                                           // フード（外）
-    x.beginPath();
-    x.moveTo(16, 3); x.quadraticCurveTo(30, 8, 29, 32);
-    x.lineTo(3, 32); x.quadraticCurveTo(2, 8, 16, 3);
-    x.closePath(); x.fill();
-    x.fillStyle = '#090610';                                           // フードの内側＝顔の影
-    x.beginPath();
-    x.moveTo(16, 8); x.quadraticCurveTo(25, 12, 24, 32);
-    x.lineTo(8, 32); x.quadraticCurveTo(7, 12, 16, 8);
-    x.closePath(); x.fill();
-    x.fillStyle = '#6b5f52';                                           // 鉤鼻（横向きに突き出す）
-    x.fillRect(12, 18, 5, 2); x.fillRect(11, 19, 3, 2); x.fillRect(10, 20, 2, 2);
-    x.fillStyle = '#b8ffd0';                                           // 光る目
-    x.fillRect(11, 15, 4, 2); x.fillRect(18, 15, 4, 2);
-    x.fillStyle = '#3fd894';
-    x.fillRect(10, 14, 6, 1); x.fillRect(17, 14, 6, 1);
-    x.fillStyle = '#2a2334';                                           // フードの縁のハイライト
-    x.fillRect(6, 11, 2, 12); x.fillRect(24, 11, 2, 12);
-    _ugKeeperURL = c.toDataURL('image/png');
-    return _ugKeeperURL;
-}
+// ⚠ugKeeperFaceURL()（canvasで32pxの老婆を描いて data URL 化していた手続き描画）は1.587で削除。
+//   画像はキャラクター＝手続き描画禁止（ユーザー厳命）。images/keeper_crone.png（Gemini生成）に差し替え済み。
 function applyShopKeeperFace() {
     var el = document.getElementById('shopKeeperImg');
     if (!el) return;
-    el.src = undergroundState.active ? ugKeeperFaceURL() : 'images/keeper_stage.png';
+    // ⚠1.587で手続き描画(ugKeeperFaceURL)を捨てて生成画像に差し替えた。
+    //   キャラクターの手続き描画はユーザー厳命で禁止（Geminiで生成した keeper_crone.png を使う）。
+    el.src = undergroundState.active ? 'images/keeper_crone.png' : 'images/keeper_stage.png';
 }
 
 function showStageShopScreen() {

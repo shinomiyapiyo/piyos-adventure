@@ -2643,9 +2643,9 @@ function drawUgEnding() {
     // ② 一枚絵（フェードイン → 保持 → フェードアウト）
     if (!ug.ending) return;
     var e = tt - UG_END_CALM;
-    var a = e < UG_END_SCENE_IN ? (e / UG_END_SCENE_IN)
-          : e < UG_END_SCENE_IN + UG_END_SCENE_HOLD ? 1
-          : Math.max(0, 1 - (e - UG_END_SCENE_IN - UG_END_SCENE_HOLD) / UG_END_SCENE_OUT);
+    // フェードイン → テロップを読んでいる間は不透明 → 最後の文を送ったらフェードアウト（1.587）
+    var a = (ug.endOut > 0) ? (ug.endOut / UG_END_SCENE_OUT)
+          : Math.min(1, e / UG_END_SCENE_IN);
     ctx.save();
     ctx.globalAlpha = a;
     ctx.fillStyle = '#000';
@@ -2658,6 +2658,29 @@ function drawUgEnding() {
         var dw = iw * sc, dh = ih * sc;
         ctx.imageSmoothingEnabled = false;                       // ドット絵なので補間しない
         ctx.drawImage(ugEndingImg, (GAME_WIDTH - dw) / 2, (GAME_HEIGHT - dh) / 2, dw, dh);
+    }
+    // ── テロップ（1.587）: 会話と同じ作法で画面下部に1文ずつ。タップで送る ──
+    // ⚠フェードイン中は出さない（絵が見えないうちに文字だけ浮くのを避ける）。
+    if (a >= 1 && ug.endLine) {
+        var bw = Math.min(GAME_WIDTH - 60, 720), bh = 96;
+        var bx = (GAME_WIDTH - bw) / 2, by = GAME_HEIGHT - bh - 26;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(12,6,26,0.86)';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.strokeStyle = '#b07cff'; ctx.lineWidth = 2;
+        ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
+        ctx.font = "16px 'DotGothic16', monospace";
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.fillStyle = '#fff';
+        var lines = String(t('ug_end_' + ug.endLine)).split('\n');
+        for (var li = 0; li < lines.length; li++) ctx.fillText(lines[li], bx + 22, by + 22 + li * 24);
+        // 「タップですすむ」＝送れるようになってから点滅で出す
+        if ((ug.endLineTimer || 0) >= UG_END_LINE_MIN && ug.endOut <= 0) {
+            ctx.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(gameState.time * 0.09));
+            ctx.font = "12px 'DotGothic16', monospace";
+            ctx.textAlign = 'right'; ctx.fillStyle = '#e4ccff';
+            ctx.fillText('\u25B6 ' + t('ug_end_tap'), bx + bw - 18, by + bh - 22);
+        }
     }
     ctx.restore();
 }

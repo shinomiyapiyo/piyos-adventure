@@ -503,9 +503,13 @@ const UG_BOSS_DEFEAT_FRAMES= 180;  // ⑤崩れ落ちる演出の基準（1.584�
 const UG_END_CRUMBLE    = 110;  // 崩れ落ちる（爆ぜる光と音）
 const UG_END_CALM       = 300;  // ここまでで洞窟が静まる＝通常ボスの撃破演出と同じ長さ
 const UG_END_SCENE_IN   = 45;   // 一枚絵のフェードイン
-const UG_END_SCENE_HOLD = 420;  // 一枚絵の表示。⚠Sunoの専用BGMが届いたらその尺に合わせて調整する（暫定7秒）
-const UG_END_SCENE_OUT  = 45;   // フェードアウト（暗転しきってから地上へ）
-const UG_END_TOTAL      = UG_END_CALM + UG_END_SCENE_IN + UG_END_SCENE_HOLD + UG_END_SCENE_OUT;
+// ⚠1.587から一枚絵は**タップでテロップを送る**方式（ユーザー決定）。固定時間で終わらせない。
+//   専用BGM sounds/ug_ending.mp3（"Last Warp Home" / 64.5秒）が流れる間、
+//   会話と同じ作法で1文ずつ読ませ、最後の文を送ったら地上へ戻る。
+//   ⚠読み終わらないまま曲が終わっても構わない（BGMは loop=false なので静かに終わるだけ）。
+const UG_END_LINES      = 5;    // テロップの文数（i18n の ug_end_1..5 と必ず一致させること）
+const UG_END_LINE_MIN   = 24;   // 1文が出てから送れるようになるまで（誤タップで飛ばさないため）
+const UG_END_SCENE_OUT  = 45;   // 最後の文を送ってからのフェードアウト（暗転しきってから地上へ）
 const UG_BOSS_HEARTS    = 3;    // 撃破報酬のハート数（✅ユーザー決定・1.584）
 const UG_BOSS_SCORE        = 10000; // SPEC §8: 通常ボス5,000の倍額
 const UG_BOSS_COINS        = 12;    // SPEC §8: 「多め」
@@ -600,6 +604,7 @@ var undergroundState = {
     braziers: [],         // 紫の燭台 {x,baseY}（マップの 'i'・飾りのみ／ボス前の予告に使う）
     endCalm: 0,           // 撃破後「洞窟が静まる」進行度 0→1（燭台が消える/扉が上がる/光が差す・1.584）
     ending: 0,            // 真のエンディングの一枚絵を出しているか（1=出す・1.584）
+    endLine: 0, endLineTimer: 0, endTapped: 0, endOut: 0,   // テロップの現在行/経過/タップ受付/フェードアウト残（1.587）
     lava: [],             // 溶岩の池 {x,y,w,h}（触れたら fallDeath＝穴と同じ扱い）
     spikes: [],           // トゲ床 {x,y,w}（触れたら takeDamage＝無敵3秒）
     fireBars: [],         // ファイアバー {x,y,len,speed,ang}
