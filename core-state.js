@@ -1151,9 +1151,9 @@ var ZUKAN_ENTRIES = [
     //   **今後アートを差し替えても図鑑が自動で追随する**（img は読み込み前のフォールバックとして残す）。
     //   ⚠マグネットは buildMagnet() の手続き生成でPNGが存在しない＝sprite 指定でしか正しく出せない。
     { id: 'item:heart',      cat: 'item', nameKey: 'zukan_i_heart',  descKey: 'zukan_i_heart_d',  sprite: 'powerup_heart',  img: 'images/item_heart.png' },
-    // ⚠コインだけ img のまま（ユーザー保留・1.578）。実物は銀色の星コインだが、ゲーム側を
-    //   図鑑と同じゴールドに差し替える案が検討中のため、決まるまで触らない。
-    { id: 'item:coin',       cat: 'item', nameKey: 'zukan_i_coin',   descKey: 'zukan_i_coin_d',   img: 'images/icon_money.png' },
+    // ⚠1.580で決着（ユーザー決定）: 図鑑に合わせて**ゲーム側をゴールドに差し替えた**（sprites.js の coin_spin）。
+    //   他のドロップ品と同じく sprite で実物を指すので、以後どちらを差し替えても自動で一致する。
+    { id: 'item:coin',       cat: 'item', nameKey: 'zukan_i_coin',   descKey: 'zukan_i_coin_d',   sprite: 'coin_spin', img: 'images/icon_money.png' },
     { id: 'item:lemon',      cat: 'item', nameKey: 'zukan_i_lemon',  descKey: 'zukan_i_lemon_d',  sprite: 'powerup_lemon',  img: 'images/item_lemon.png' },
     { id: 'item:shield',     cat: 'item', nameKey: 'zukan_i_shield', descKey: 'zukan_i_shield_d', sprite: 'powerup_shield', img: 'images/item_shield.png' },
     { id: 'item:energy',     cat: 'item', nameKey: 'zukan_i_energy', descKey: 'zukan_i_energy_d', sprite: 'powerup_energy', img: 'images/item_energy.png' },

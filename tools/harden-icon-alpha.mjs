@@ -19,7 +19,10 @@ const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const IMAGES_DIR = path.resolve(__dirname, '..', 'images');
 const RAW_DIR    = path.resolve(__dirname, '_raw');
 
-const TARGETS = ['icon_shortcake.png', 'icon_ug_manju.png', 'icon_ug_elixir.png', 'icon_ug_blessing.png'];
+// ⚠老婆の店の3点(icon_ug_*)は**対象外**（1.580・ユーザー判断）。
+//   2値化すると輪郭は締まるが、まんじゅうの紫の霊気が煙状→塊状になって雰囲気が変わるため、
+//   生成そのままのふわっとした見た目を採用した。ここに足し戻さないこと。
+const TARGETS = ['icon_shortcake.png'];
 const SRC_T = 128;   // 生成元(1024px)のしきい値。これ未満は背景とみなして落とす
 const DST_T = 96;    // 縮小後(32px)のしきい値。低めにして輪郭の細りを防ぐ
 

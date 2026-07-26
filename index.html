@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.579";
+                content: "Ver.1.580";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.579</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.580</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2067,7 +2067,7 @@ var MISSION_POOL = [
     { id: 'play',     type: 'plays',    objKey: 'mission_obj_play',     iconImg: 'images/icon_play.png',         variants: [{ target: 2, reward: 1500 }, { target: 3, reward: 2000 }, { target: 5, reward: 3000 }] },
     { id: 'distance', type: 'distance', objKey: 'mission_obj_distance', iconImg: 'images/icon_distance.png',     variants: [{ target: 1500, reward: 2000 }, { target: 2500, reward: 3000 }, { target: 4000, reward: 4000 }] },
     { id: 'kills',    type: 'kills',    objKey: 'mission_obj_kills',    iconImg: 'images/icon_kills.png',        variants: [{ target: 30, reward: 2000 }, { target: 50, reward: 3000 }, { target: 80, reward: 4000 }] },
-    { id: 'coins',    type: 'coins',    objKey: 'mission_obj_coins',    iconImg: 'images/item_coin.png',         variants: [{ target: 30, reward: 2000 }, { target: 60, reward: 3000 }, { target: 100, reward: 4000 }] },
+    { id: 'coins',    type: 'coins',    objKey: 'mission_obj_coins',    iconImg: 'images/icon_money.png',        variants: [{ target: 30, reward: 2000 }, { target: 60, reward: 3000 }, { target: 100, reward: 4000 }] }, // ⚠1.580でゴールドへ。coin_spin と揃える（ここだけ旧・銀の item_coin.png が残ると，ミッション欄だけ拾う物と違う絵になる）
     { id: 'boss',     type: 'boss',     objKey: 'mission_obj_boss',     iconImg: 'images/icon_skull.png',        variants: [{ target: 1, reward: 2500 }, { target: 2, reward: 4000 }, { target: 3, reward: 5000 }] },
     { id: 'special',  type: 'special',  objKey: 'mission_obj_special',  iconImg: 'images/icon_special_move.png', variants: [{ target: 1, reward: 2000 }, { target: 2, reward: 3000 }, { target: 3, reward: 4000 }] }
 ];
@@ -2086,6 +2086,15 @@ function pickDailyMissions(dateStr) {
         var v = m.variants[Math.floor(rng() * m.variants.length)];
         return { id: m.id, type: m.type, objKey: m.objKey, iconImg: m.iconImg, target: v.target, reward: v.reward };
     });
+}
+// 表示に使うミッションのアイコン。⚠**保存済みの iconImg をそのまま使わないこと**（1.580）。
+// 生成時に MISSION_POOL の値をセーブへ焼き込んでいるので、アートを差し替えても
+// 「今日のミッション」を既に持っているプレイヤーは翌日まで古い絵のままになる
+// （コインを銀→金にした時に実際に起きた）。id から定義を引き直せば即座に反映される。
+function missionIconImg(m) {
+    if (!m) return '';
+    for (var i = 0; i < MISSION_POOL.length; i++) if (MISSION_POOL[i].id === m.id) return MISSION_POOL[i].iconImg;
+    return m.iconImg || '';
 }
 
 // ─── ぴよフラッシュ（必殺技・内部ID special_move） ───
@@ -2810,7 +2819,7 @@ function updateMissionToasts() {
         if (remaining <= 0) {
             if (shown[doneKey]) continue;
             shown[doneKey] = 1; shown[nearKey] = 1;      // 達成したら「あと少し」も抑止
-            showRewardToast('<img src="' + m.iconImg + '" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' + escapeHtml(t('mission_toast_done')),
+            showRewardToast('<img src="' + missionIconImg(m) + '" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' + escapeHtml(t('mission_toast_done')),
                 'linear-gradient(180deg,#7ee081,#2ba84f)', '#06340f');
             if (soundManager) soundManager.playCoin();
             gameState.missionToastCooldown = 120;        // 2秒は次のトーストを出さない
@@ -2819,7 +2828,7 @@ function updateMissionToasts() {
         var nearTh = MISSION_NEAR_THRESHOLD[m.type] || 0;
         if (nearTh && remaining <= nearTh && m.target > nearTh && !shown[nearKey]) {
             shown[nearKey] = 1;
-            showRewardToast('<img src="' + m.iconImg + '" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' +
+            showRewardToast('<img src="' + missionIconImg(m) + '" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' +
                 escapeHtml(t('mission_toast_near', { n: remaining, unit: t('mission_unit_' + m.type) })),
                 'linear-gradient(180deg,#ffe07a,#ff9d2e)', '#5a3d00');
             gameState.missionToastCooldown = 120;
@@ -2883,7 +2892,7 @@ function renderMissionRow(i) {
     }
     var barColor = complete ? '#4CAF50' : '#ffd700';
     return '<div style="display:flex; align-items:center; gap:8px; background:rgba(0,0,40,0.55); border:1px solid rgba(255,255,255,0.12); border-radius:9px; padding:5px 9px;">' +
-        '<img src="' + m.iconImg + '" width="26" height="26" style="image-rendering:pixelated; flex-shrink:0;">' +
+        '<img src="' + missionIconImg(m) + '" width="26" height="26" style="image-rendering:pixelated; flex-shrink:0;">' +
         '<div style="flex:1 1 auto; min-width:0;">' +
             '<div style="color:#fff; font-size:clamp(10px,2.1vw,14px); font-weight:700; font-family:\'M PLUS Rounded 1c\',sans-serif; margin-bottom:2px;">' + escapeHtml(t(m.objKey, { target: m.target.toLocaleString() })) + '</div>' +
             '<div style="display:flex; align-items:center; gap:6px;">' +

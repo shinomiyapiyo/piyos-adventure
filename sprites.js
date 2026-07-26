@@ -170,7 +170,12 @@ var IMAGE_SPRITES = {
     recolor: { desat: 0.75, lift: 100 } },
 
     // アイテム
-    coin_spin:       { files: ['images/item_coin.png'] },
+    // ⚠1.580でゴールドへ変更（ユーザー決定）。旧 images/item_coin.png は銀色の星コインで、
+    //   ①図鑑・HUD・ランキング・ショップの金額表示がすべて icon_money.png のゴールドなのに拾う物だけ銀
+    //   ②空色の背景（草原/昼）で白っぽく沈んで見つけにくい、の2点があった。
+    //   UIの金額アイコンと**同じファイルを共有**することで、今後どちらかだけ差し替えてもズレない。
+    //   旧ファイルは images/item_coin.png に残してある（戻す場合はここを差し替えるだけ）。
+    coin_spin:       { files: ['images/icon_money.png'] },
     powerup_lemon:   { files: ['images/item_lemon.png'] },
     powerup_shield:  { files: ['images/item_shield.png'] },
     powerup_heart:   { files: ['images/item_heart.png'] },
