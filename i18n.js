@@ -467,6 +467,21 @@ ja: {
     ug_shop_keeper_sold_out: 'それは もう しまいさ。\nわしも 年でねぇ。',
     ug_shop_keeper_heal_maxhp: 'おまえさん、まだ 元気だろう。\nもったいない。',
     ug_shop_keeper_close: 'ふぉっふぉ……\nこの先は もう もどれんよ。',
+    // 以下1.577で追加。ここまでは地上の店員の丁寧語（「〜ですか？」「お預かり！」）が
+    // そのまま出ていて、購入確認と退店確認は**必ず通る**ので一番目立っていた。
+    ug_shop_keeper_confirm: '{item}を {price}円。\nもらって いくかい？',
+    ug_shop_keeper_sell_confirm: '{item}を {price}円で\nひきとろうかね？',
+    ug_shop_keeper_sell_ok: '{price}円だ。\nたしかに あずかったよ。',
+    ug_shop_keeper_sell_empty: 'ふぉっふぉ……\nなにも もっとらんじゃないか。',
+    ug_shop_keeper_stock_full: 'もう ふところが いっぱいさね。\nなにか おいて おいき。',
+    ug_shop_keeper_leave_confirm: 'もう いくのかい。\nひきとめは せんよ。',
+    ug_shop_keeper_deposit_confirm: 'もちがねの 半分 {amount}円……\nわしが あずかって おこうかね？',
+    ug_shop_keeper_deposit_ok: '{amount}円 たしかに。\nしめて {total}円だよ。',
+    ug_shop_keeper_deposit_zero: 'ふぉっふぉ、からっぽ じゃないか。\nあずかる ものが ないねぇ。',
+    // 広告ボーナス（老婆の店は定額5,000円＝REWARD_AD_SHOP_BONUS_UG・ユーザー指定）
+    ug_reward_ad_shop_money_ok: 'ふぉっふぉ、{amount}円だ。\nとって おおき。',
+    ug_ad_preparing: 'まあ おまち。\nいま したくを しておるよ。',
+    ug_ad_load_failed: 'ふぉっふぉ、しくじったねぇ。\nまた あとで おいで。',
     shop_item_revive_desc: 'たおれたとき\nライフ2で ふっかつする（1回）',
     revive_auto_hint: 'ふっかつやくは たおれたときに じどうで はつどうするよ！',
     // ── ログインボーナス ──
@@ -1040,6 +1055,20 @@ en: {
     ug_shop_keeper_sold_out: "That's the last of it.\nI am old, you know.",
     ug_shop_keeper_heal_maxhp: 'You have plenty of life yet.\nSave your coin.',
     ug_shop_keeper_close: 'Heh heh...\nThere is no going back from here.',
+    // Added in 1.577 — until now the crone spoke the surface keeper's polite lines here.
+    ug_shop_keeper_confirm: '{item} for {price}.\nWill you take it?',
+    ug_shop_keeper_sell_confirm: "I'll take {item}\noff your hands for {price}?",
+    ug_shop_keeper_sell_ok: 'Here is {price}.\nIt is mine now.',
+    ug_shop_keeper_sell_empty: 'Heh heh...\nYou carry nothing I want.',
+    ug_shop_keeper_stock_full: 'Your hands are full, child.\nLeave something behind.',
+    ug_shop_keeper_leave_confirm: 'Leaving already?\nI shall not stop you.',
+    ug_shop_keeper_deposit_confirm: 'Half your coin, {amount}...\nShall I keep it for you?',
+    ug_shop_keeper_deposit_ok: '{amount} taken.\n{total} in all, child.',
+    ug_shop_keeper_deposit_zero: 'Heh heh, empty-handed.\nNothing for me to keep.',
+    // Ad bonus (the crone pays a flat 5,000 — REWARD_AD_SHOP_BONUS_UG)
+    ug_reward_ad_shop_money_ok: 'Heh heh. {amount}.\nTake it, child.',
+    ug_ad_preparing: 'Patience now.\nI am making ready.',
+    ug_ad_load_failed: 'Heh heh, that failed.\nCome back later.',
     shop_item_revive_desc: 'Auto-revive with 2 life\nwhen defeated (1 use)',
     revive_auto_hint: 'The revival potion activates automatically when you fall.',
     // ── Login Bonus ──

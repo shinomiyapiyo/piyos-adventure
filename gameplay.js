@@ -2449,11 +2449,17 @@ function stageShopLineup() {
 // ⚠地底（怪しい老婆の店・1.569）は**ここ1箇所でセリフを差し替える**。呼び出し側は10箇所以上あるので、
 //   個別に分岐を足すと必ず取りこぼす。「ug_ を前置したキーが辞書にあればそれを使う」方式にして、
 //   用意した分だけ老婆の口調になり、無い分は地上の文言にそのまま落ちる（＝壊れない）。
+// 地底（怪しい老婆の店）では「ug_ を前置したキーがあればそちらを使う」。無ければ地上の店員の文言に落ちる。
+// ⚠1.577で関数に切り出した。従来は setKeeperTextFor の中だけで置換していたため、
+//   **セリフ枠を経由しない t() 直呼びの2箇所**（購入確認 shop_keeper_confirm／売却確認 shop_keeper_sell_confirm）に
+//   置換が効かず、老婆が地上の店員の丁寧語で「お買い上げですか？」と喋っていた。購入確認は必ず通るので一番目立つ。
+function keeperKey(key) {
+    if (typeof undergroundState === 'undefined' || !undergroundState.active) return key;
+    var ugKey = 'ug_' + key;
+    return (typeof LANG !== 'undefined' && LANG && LANG.ja && (ugKey in LANG.ja)) ? ugKey : key;
+}
 function setKeeperTextFor(elementId, key, replacements) {
-    if (undergroundState.active && elementId === 'shopKeeperText') {
-        var ugKey = 'ug_' + key;
-        if (typeof LANG !== 'undefined' && LANG && LANG.ja && (ugKey in LANG.ja)) key = ugKey;
-    }
+    if (elementId === 'shopKeeperText') key = keeperKey(key);
     var txt = t(key);
     if (replacements) {
         for (var k in replacements) {
@@ -2876,7 +2882,7 @@ function selectShopItem(itemId) {
         shopSellHighlightIndex = sellIdx;
         shopSellingIndex = sellIdx;
         var el = document.getElementById('shopKeeperText');
-        if (el) el.textContent = t(shopItem.descKey) + '\n' + t('shop_keeper_sell_confirm', { item: t(shopItem.nameKey), price: sellPrice });
+        if (el) el.textContent = t(shopItem.descKey) + '\n' + t(keeperKey('shop_keeper_sell_confirm'), { item: t(shopItem.nameKey), price: sellPrice });
         showShopConfirm(true, tshopSellLabels());
         updateStageShopUI();
         return;
@@ -2892,14 +2898,21 @@ function selectShopItem(itemId) {
     var blockKey = null;
     var moneyBg = false;
     if (bought >= item.maxPerVisit) { blockKey = 'shop_keeper_sold_out'; moneyBg = true; }
-    else if ((item.id === 'heal' || item.id === 'shortcake') && gameState.lives >= 10) { blockKey = 'shop_keeper_heal_maxhp'; }
+    // ⚠1.577で ug_manju を追加。極楽まんじゅう(HP+3)だけこの判定から漏れていて、ライフ満タンでも
+    //   購入ダイアログが開き、9,000円払って効果ゼロ（lives は Math.min(...,10) で頭打ち）だった。
+    //   老婆の専用セリフ ug_shop_keeper_heal_maxhp「まだ 元気だろう。もったいない。」はこの品のために
+    //   書かれているのに、条件に入っていないため一度も再生されない状態でもあった。
+    else if ((item.id === 'heal' || item.id === 'shortcake' || item.id === 'ug_manju') && gameState.lives >= 10) { blockKey = 'shop_keeper_heal_maxhp'; }
     else if (gameState.score < item.price) { blockKey = 'shop_keeper_no_money'; moneyBg = true; }
     else if (item.stockItem && !stockHasRoom(item.id) && !isTempReviveCase(item.id)) { blockKey = 'shop_keeper_stock_full'; }
     if (blockKey) {
         shopConfirmingItem = null;
         showShopConfirm(false);
         var blockEl = document.getElementById('shopKeeperText');
-        if (blockEl) blockEl.textContent = t(item.descKey) + '\n' + t(blockKey); // 説明は見せつつ買えない理由を添える
+        // ⚠keeperKey を通すこと（1.577で修正）。ここだけ t(blockKey) の直呼びだったため、
+        //   老婆の店でも**地上の店員の丁寧語**（「お金が 足りないみたいです…」等）が出ていた。
+        //   ug_shop_keeper_no_money / _sold_out / _heal_maxhp は1.569から存在するのに一度も表示されていない。
+        if (blockEl) blockEl.textContent = t(item.descKey) + '\n' + t(keeperKey(blockKey)); // 説明は見せつつ買えない理由を添える
         if (soundManager) soundManager.playDamage();
         if (moneyBg) setShopBg('shop04', 1200);
         updateStageShopUI();
@@ -2916,7 +2929,7 @@ function selectShopItem(itemId) {
     // 説明+価格＋確認ダイアログ
     shopConfirmingItem = itemId;
     var descEl = document.getElementById('shopKeeperText');
-    if (descEl) descEl.textContent = t(item.descKey) + '\n' + t('shop_keeper_confirm', { item: t(item.nameKey), price: item.price });
+    if (descEl) descEl.textContent = t(item.descKey) + '\n' + t(keeperKey('shop_keeper_confirm'), { item: t(item.nameKey), price: item.price });
     showShopConfirm(true, tshopBuyLabels());
     updateStageShopUI();
 }

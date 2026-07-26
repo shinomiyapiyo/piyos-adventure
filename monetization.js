@@ -343,6 +343,10 @@ var REWARD_AD_REVIVE_LIVES = 3;        // 広告復活で回復するライフ�
 var REWARD_AD_SHOP_BONUS_RATE = 0.3;   // ステージショップ: 現在所持金の30%ボーナス
 var REWARD_AD_SHOP_BONUS_MIN = 100;    // ステージショップ: 最低ボーナス額
 var REWARD_AD_SHOP_BONUS_MAX = 3000;   // ステージショップ: 上限ボーナス額
+// 怪しい老婆の店（地底）だけは所持金に関係なく定額（1.577・ユーザー指定）。
+// ⚠地上は「所持金の30%・上限3,000」なので、所持金が少ないと100円しか出ない。地底の品は
+//   9,000〜200,000円と桁が違い、割合式だと広告を見る意味がほぼ無くなるため定額にしてある。
+var REWARD_AD_SHOP_BONUS_UG = 5000;    // 老婆の店: 定額ボーナス額
 var REWARD_AD_TSHOP_BONUS = 3000;      // タイトルショップ: 固定3,000円ボーナス
 var REWARD_AD_TSHOP_COOLDOWN = 14400000; // タイトルショップ: クールダウン4時間
 
@@ -388,7 +392,10 @@ function adShopBonus() {
         // 二重視聴の悪用は showReward の進行中ガード＋「表示された時のみ消費」で防ぐ（旧1.484のタップ即消費の欠点を解消）。
         if (success || (info && info.shown)) { rewardAdState.shopAdUsedThisVisit = true; }
         if (!success) { setKeeperText('ad_load_failed'); updateStageShopUI(); return; }
-        var bonus = Math.min(REWARD_AD_SHOP_BONUS_MAX, Math.max(REWARD_AD_SHOP_BONUS_MIN, Math.floor(gameState.score * REWARD_AD_SHOP_BONUS_RATE)));
+        // 老婆の店は定額5,000円／地上は所持金の30%（100〜3,000円）
+        var _ug = (typeof undergroundState !== 'undefined' && undergroundState.active);
+        var bonus = _ug ? REWARD_AD_SHOP_BONUS_UG
+                        : Math.min(REWARD_AD_SHOP_BONUS_MAX, Math.max(REWARD_AD_SHOP_BONUS_MIN, Math.floor(gameState.score * REWARD_AD_SHOP_BONUS_RATE)));
         gameState.score += bonus;
         if (soundManager) soundManager.playItem();
         setKeeperText('reward_ad_shop_money_ok', { amount: bonus });
