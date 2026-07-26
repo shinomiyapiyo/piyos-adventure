@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.587";
+                content: "Ver.1.607";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -830,7 +830,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.587</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.607</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2702,7 +2702,7 @@ function spawnDailyGoldenEgg() {
 function collectGoldenEgg(isDaily) {
     markZukanSeen('item:golden_egg'); // ずかん: ゴールデンエッグ発見（フィールド/日次/土管部屋の全経路を集約）
     gameSettings.goldenEggs = (gameSettings.goldenEggs || 0) + 1;
-    if (isDaily) {                                                         // 2500m日次エッグのみ日付を確定（部屋1/20は無制限）
+    if (isDaily) {                                 // 日次枠を消費した経路(2500m/R4救済/闇の巫女撃破)だけ日付を確定（部屋1/20は無制限・1.588）
         gameSettings.lastGoldenEggDate = getDateString();
         gameSettings.lastGoldenEggTimestamp = Date.now();
     }
@@ -3947,10 +3947,16 @@ function applyTestStart() {
     tutorialState.active = false; tutorialState.forced = false;   // チュートリアルは飛ばす
     // 'r6shop' = 闇のカカシ(R6)のおみせ手前から。checkShopTrigger が「ボス距離 - SHOP_SAFE_ZONE_START - 100」で
     //   おみせを出すので、そのさらに200m手前に置く＝走り出すとおみせ→カカシ→撃破でR7、と自然に繋がる。
-    var r6 = (TEST_START_MODE !== 'r7');
-    gameRound = r6 ? (BOSS_CYCLE_ROUNDS - 1) : BOSS_CYCLE_ROUNDS;   // R6（カカシ）or R7（地底）
+    // ⚠1.599: 'r14'（2周目の地底＝新レイアウト）を追加。地底ラウンドは checkBossTrigger が距離を待たず
+    //   その場で土管を出すので、「そのラウンドの開始距離＝1つ前のボス距離」へワープするだけでよい。
+    var mode = TEST_START_MODE;
+    var r6 = (mode === 'r6shop');
+    var targetRound = (mode === 'r14') ? BOSS_CYCLE_ROUNDS * 2       // R14（2周目の地底）
+                    : r6 ? (BOSS_CYCLE_ROUNDS - 1)                   // R6（カカシ）
+                    : BOSS_CYCLE_ROUNDS;                             // R7（1周目の地底）
+    gameRound = targetRound;
     var baseM = r6 ? (bossDistanceFor(BOSS_CYCLE_ROUNDS - 1) - SHOP_SAFE_ZONE_START - 300)
-                   : bossDistanceFor(BOSS_CYCLE_ROUNDS - 1);        // R6のボス距離=12,000m
+                   : bossDistanceFor(targetRound - 1);               // R7=12,000m / R14=28,800m
     var startM = baseM + (TEST_START_OFFSET_M || 0);
     gameState.ugDistOffset = 0; gameState.stageShiftM = 0;         // 圧縮量/ズレ補正ゼロから＝camera.x と距離が一致する
     testWarpToM(startM);
@@ -4171,6 +4177,7 @@ function resetGame() {
     //   ボス距離が壊れたまま**になり、ゴールデンエッグも土管のたびに手に入ってしまう。
     undergroundState.pipeAnim = false;
     undergroundState.originX = 0; undergroundState.endX = 0; undergroundState.introTimer = 0;
+    groundReturnFade.phase = ''; groundReturnFade.timer = 0;   // 白フェードの残留防止（1.588）
     bonusRoomItems.length = 0;
     gameState.bossKills = 0;
     gameState.specialUses = 0;
@@ -4263,6 +4270,9 @@ function clearHeldInput() {
 
 function pauseGame() {
     if (!gameState.gameStarted) return;
+    // ⚠1.604: 真のエンディング中はポーズさせない（ユーザー実機報告「エンディング中にポーズを押すと操作不能」）。
+    //   演出中は世界が止まっているのでポーズに意味が無く、ポーズ画面とテロップ送りのタップが取り合いになる。
+    if (typeof undergroundState !== 'undefined' && undergroundState.ending) return;
     if (isInTransitionCooldown()) return;
     markScreenTransition();
     gameState.gamePaused = !gameState.gamePaused;
@@ -5543,6 +5553,14 @@ function aabbNear(a, b, r) {
     return a.x < b.x + b.width + r && a.x + a.width > b.x - r &&
            a.y < b.y + b.height + r && a.y + a.height > b.y - r;
 }
+// 弾の被弾判定を「かすっても死なない」体感にする（1.588・怒首領蜂などの弾幕STGの定石）。
+// ⚠**弾(b)ではなくプレイヤー(a)側だけを全方向に m 縮める**＝弾は見た目どおりの迫力を保ったまま、
+//   実際の当たりは自機中心の小さな判定のみ。aabbShrink は頭側だけ縮めて足元(踏みつけ)を守る形だが、
+//   弾は下からも横からも来るので全方向に縮めないと片側だけ理不尽に判定が残る。
+function aabbGraze(a, b, m) {
+    return a.x + m < b.x + b.width && a.x + a.width - m > b.x &&
+           a.y + m < b.y + b.height && a.y + a.height - m > b.y;
+}
 
 function isOnPlatform() {
     if (!player.onGround) return false;
@@ -5586,6 +5604,9 @@ function updateGameSpeed() {
     // 入場土管が出ている間もスクロールを止める（1.545）。⚠毎tick再計算されるのでここで固定しないと
     //   土管が画面外へ流れていき「入る以外の選択肢がない」状況が崩れる。
     if (undergroundState.pipePlaced) { gameState.gameSpeed = 0; return; }
+    // 地底エンディング→地上復帰の白フェード中もスクロールを止める（1.588）。⚠毎tick再計算されるので
+    //   ここで固定しないと、白一色の間に地上のスクロールが先に始まってしまい「余韻」にならない。
+    if (groundReturnFade.phase) { gameState.gameSpeed = 0; return; }
     var mult = 1 + (lvl - 1) * SPEED_UP_RATE;
     var speed = Math.min(BASE_SCROLL_SPEED * mult, BASE_SCROLL_SPEED * 5.0);
     // 安全地帯: スクロール減速
@@ -6308,10 +6329,14 @@ function updateEnemies() {
 
         stomped = falling && player.y + player.height <= e.y + e.height * 0.65;
 
+        // ⚠ダメージ判定は aabbGraze に統一（プレイヤー側だけ全方向へ均等に縮める＝ボスの弾と同じ方式）。
+        //   bodyHit(aabbShrink)は頭側しか縮まらず足元/敵側は生判定のまま＝見た目で触れていないのに
+        //   被弾する主因だった。bodyHit自体は上のニアミス早期continue判定にのみ残す
+        //   （踏みつけ判定のstompHit/stompedの式はここでは一切変更していない）。
         if (stomped) {
             killEnemy(enemies, i, e, 200);
             player.velY = JUMP_FORCE / 2;
-        } else if (bodyHit) {
+        } else if (aabbGraze(player, e, BOSS_BULLET_GRAZE)) {
             takeDamage();
         }
     }
@@ -6344,10 +6369,13 @@ function updateEnemies() {
         // 空中敵は下方向からも来るため、位置関係のみで踏みつけ判定
         stomped = player.y + player.height <= e.y + e.height * 0.7;
 
+        // ⚠ダメージ判定は地上敵と同じく aabbGraze に統一（bodyHitFは上のニアミス早期continueにのみ残す）。
+        //   空中敵は毎フレーム上下にふわふわ揺れる(sin波)うえアカバネは急降下もするため、頭側しか
+        //   縮まらない旧判定だと縦方向のかすりが素通りできず理不尽に被弾しやすかった。
         if (stomped) {
             killEnemy(flyingEnemies, i, e, 300);
             if (player.velY >= 0) player.velY = JUMP_FORCE / 2;
-        } else if (bodyHitF) {
+        } else if (aabbGraze(player, e, BOSS_BULLET_GRAZE)) {
             flyingEnemies.splice(i, 1);
             takeDamage();
         }
@@ -6885,6 +6913,11 @@ function updateBullets() {
             for (dq = 0; dq < enemies.length; dq++) dConsider(enemies[dq]);
             for (dq = 0; dq < flyingEnemies.length; dq++) dConsider(flyingEnemies[dq]);
             if (bossState.active && bossState.phase === 3 && bossState.boss) dConsider(bossState.boss);
+            // ⚠1.594: 地底ボス「闇の巫女」はbossStateを使わない別ステート(undergroundState)なので、
+            //   ここに専用の分岐が無いとドローンが一切ロックオンしなかった（ユーザー報告「ボスを攻撃してくれない」）。
+            //   下の衝突判定（7009行目付近）と同じゲート（solid中のみ・exposed判定は無し＝地底ボスの仕様どおり）に揃える。
+            if (undergroundState.active && undergroundState.bossPhase === 4 &&
+                undergroundState.boss && undergroundState.boss.solid) dConsider(undergroundState.boss);
             var dTargets = [];
             if (dFront) dTargets.push(dFront);
             if (dBack) dTargets.push(dBack);

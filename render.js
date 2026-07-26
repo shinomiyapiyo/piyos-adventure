@@ -2576,21 +2576,107 @@ function drawUgSigils(ch) {
 // ⚠置き場所は**ボス部屋の中ではなく「ボス部屋に入る直前の祭壇」**（巫女の門・列96）。
 //   門をくぐる前にこれを見上げる＝「この先がボスだ」と目で分かる、というのが狙い。
 // ⚠地形より手前・足場より奥に描く（岩壁から迫り出して立っている見え方）。
+// 像が「起きる」時に重ねる赤版スプライト（1.597）。生成画像の**光っている紫の画素だけ**を赤へ置き換えた
+// 複製を1度だけ作って使い回す。⚠キャラクターを手続き描画しているのではなく、既存の生成画像の色を
+// 置換しているだけ＝絵柄は元のまま。目の位置を狙い撃ちしないので、頭部の目・その下のもう1つの顔の目・
+// 胸元の光を取りこぼさない。⚠左右の燭台の炎（UG_IDOL_FLAME_BOX）は紫のまま残す（ユーザー指定）。
+var _ugIdolRedCanvas;   // undefined=未生成（スプライト未ロードならこのまま＝次フレームで再挑戦）
+function getUgIdolRedCanvas() {
+    if (_ugIdolRedCanvas) return _ugIdolRedCanvas;
+    var frames = spriteManager.cache['ug_idol'];
+    var src = frames && frames[0] && frames[0].normal;
+    if (!src || !src.width) return null;
+    var w = src.width, h = src.height;
+    var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    var c2 = cv.getContext('2d');
+    c2.drawImage(src, 0, 0);
+    var im, d;
+    try { im = c2.getImageData(0, 0, w, h); d = im.data; } catch (_) { return null; }
+    // 炎の箱は画像座標(220×300)基準なので、実際のスプライト解像度へ合わせる
+    var sx = w / UG_IDOL_W, sy = h / UG_IDOL_H;
+    for (var y = 0; y < h; y++) {
+        // この行にかかる炎の箱だけ拾っておく（左右2つとも同じ行に来る）
+        var bands = [];
+        for (var f = 0; f < UG_IDOL_FLAME_BOX.length; f++) {
+            var bx = UG_IDOL_FLAME_BOX[f];
+            if (y >= bx.y0 * sy && y <= bx.y1 * sy) bands.push([bx.x0 * sx, bx.x1 * sx]);
+        }
+        for (var x = 0; x < w; x++) {
+            var inFlame = false;
+            for (var k = 0; k < bands.length; k++) if (x >= bands[k][0] && x <= bands[k][1]) { inFlame = true; break; }
+            if (inFlame) continue;                                      // 炎は紫のまま残す
+            var i = (y * w + x) * 4;
+            if (!d[i + 3]) continue;
+            var r = d[i], g = d[i + 1], b = d[i + 2];
+            // 紫らしさ＝赤と青がそろって緑を上回る量。金の王冠や灰色の石はここで弾かれる
+            var purple = Math.min(r - g, b - g);
+            if (purple <= 4) continue;
+            var lum = 0.299 * r + 0.587 * g + 0.114 * b;
+            // 「光っている紫」ほど強く赤へ寄せる。暗い紫の石はほとんど変えない＝石は石のまま
+            var wgt = Math.min(1, purple / 55) * Math.min(1, lum / 110);
+            if (wgt <= 0.02) continue;
+            // 赤へ寄せる先。⚠緑と青をしっかり落とさないとサーモン色になって「不穏さ」が出ない（実測して調整）
+            var peak = Math.max(r, b);
+            d[i]     = r + (peak - r) * wgt;
+            d[i + 1] = g + (g * 0.24 - g) * wgt;
+            d[i + 2] = b + (Math.min(g, b) * 0.20 - b) * wgt;
+        }
+    }
+    c2.putImageData(im, 0, 0);
+    _ugIdolRedCanvas = cv;
+    return cv;
+}
+
 function drawUgIdol() {
     var idol = undergroundState.idol;
     if (!idol) return;
     var ix = idol.x, iy = idol.baseY - UG_IDOL_H;                 // 台座の底＝マスの下端＝床の面
     if (ix + UG_IDOL_W < gameState.camera.x - 60 || ix > gameState.camera.x + GAME_WIDTH + 60) return;
+    // 像の前を通ると赤くなる（1.597）。0=遠い（紫のまま） / 1=像の前（赤）。updateIdolGaze が距離から決める。
+    var gaze = idol.eyeGlow || 0;
     ctx.save();
-    // 背後の紫の光（脈打つ）＝「起きている」感じ。⚠光は像の後ろだけ＝手前のプレイヤーを白くしない
+    // 背後の光（脈打つ）＝「起きている」感じ。⚠光は像の後ろだけ＝手前のプレイヤーを白くしない
+    // ⚠近づくと紫→赤へ色そのものを寄せる（後光だけ紫のままだと目や胸元の赤が浮く）
+    var mix = function (a, b) { return Math.round(a + (b - a) * gaze); };
     ctx.globalAlpha = 0.30 + 0.12 * Math.sin(gameState.time * 0.05);
     var g = ctx.createRadialGradient(ix + UG_IDOL_W / 2, iy + UG_IDOL_H * 0.42, 20,
                                      ix + UG_IDOL_W / 2, iy + UG_IDOL_H * 0.42, UG_IDOL_W * 0.9);
-    g.addColorStop(0, 'rgba(150,90,235,0.85)'); g.addColorStop(1, 'rgba(70,25,130,0)');
+    g.addColorStop(0, 'rgba(' + mix(150, 240) + ',' + mix(90, 40) + ',' + mix(235, 40) + ',0.85)');
+    g.addColorStop(1, 'rgba(' + mix(70, 130) + ',' + mix(25, 10) + ',' + mix(130, 15) + ',0)');
     ctx.fillStyle = g;
     ctx.fillRect(ix - UG_IDOL_W * 0.5, iy - 40, UG_IDOL_W * 2, UG_IDOL_H + 80);
     ctx.globalAlpha = 0.88;                                       // わずかに落として岩壁に馴染ませる
     spriteManager.draw(ctx, 'ug_idol', 0, ix, iy, UG_IDOL_W, UG_IDOL_H, false);
+    // 赤版を上から重ねてクロスフェード＝発光部分だけが赤く灯る
+    if (gaze > 0.01) {
+        var red = getUgIdolRedCanvas();
+        if (red) {
+            // ゆっくり揺らす＝石が脈打って見える。⚠揺れを深くすると下の紫が透けて濁るので浅くする
+            var flick = 0.94 + 0.06 * Math.sin(gameState.time * 0.11);
+            ctx.globalAlpha = 0.88 * gaze * flick;
+            ctx.drawImage(red, ix, iy, UG_IDOL_W, UG_IDOL_H);
+            // ⚠1.605: 点いた瞬間だけ**強く閃かせる**（ユーザー指定「いきなり一気に赤くなる」）。
+            //   加算合成で赤版をもう一枚重ねる＝発光部分だけが白熱したように跳ねる。
+            //   閃きは flashTimer が切れれば消えるので、通常時の見た目は変わらない。
+            var ft = idol.flashTimer || 0;
+            if (ft > 0) {
+                var fp = ft / UG_IDOL_FLASH_FRAMES;              // 1→0
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = 0.85 * fp * fp;                // 二乗で落として「バッと光ってスッと引く」
+                ctx.drawImage(red, ix, iy, UG_IDOL_W, UG_IDOL_H);
+                // 像の周りにも赤い光を散らす（背後の後光より手前・広がりながら薄れる）
+                var fr = UG_IDOL_W * (0.55 + 0.75 * (1 - fp));
+                var fg2 = ctx.createRadialGradient(ix + UG_IDOL_W / 2, iy + UG_IDOL_H * 0.30, 0,
+                                                   ix + UG_IDOL_W / 2, iy + UG_IDOL_H * 0.30, fr);
+                fg2.addColorStop(0, 'rgba(255,70,50,0.55)');
+                fg2.addColorStop(1, 'rgba(255,0,0,0)');
+                ctx.globalAlpha = 0.9 * fp;
+                ctx.fillStyle = fg2;
+                ctx.fillRect(ix - UG_IDOL_W, iy - 60, UG_IDOL_W * 3, UG_IDOL_H + 120);
+                ctx.globalCompositeOperation = 'source-over';
+            }
+        }
+    }
     ctx.restore();
 }
 
@@ -2640,11 +2726,13 @@ function drawUgEnding() {
         ctx.restore();
     }
 
-    // ② 一枚絵（フェードイン → 保持 → フェードアウト）
+    // ② 一枚絵（フェードイン → 保持 → 白へ覆われる）
     if (!ug.ending) return;
     var e = tt - UG_END_CALM;
-    // フェードイン → テロップを読んでいる間は不透明 → 最後の文を送ったらフェードアウト（1.587）
-    var a = (ug.endOut > 0) ? (ug.endOut / UG_END_SCENE_OUT)
+    // フェードイン → テロップを読んでいる間は不透明 → 最後の文を送ったら**不透明のまま**（1.588）。
+    // ⚠白く覆っていくのは drawGroundReturnFade が上に重ねて描く（ここで a を下げると、白が完全に
+    //   覆いきる前に下地が先に透けて見え、絵と文字が先にチラつく）。
+    var a = (ug.endOut > 0) ? 1
           : Math.min(1, e / UG_END_SCENE_IN);
     ctx.save();
     ctx.globalAlpha = a;
@@ -2683,6 +2771,49 @@ function drawUgEnding() {
         }
     }
     ctx.restore();
+}
+
+// \u5730\u5E95\u30A8\u30F3\u30C7\u30A3\u30F3\u30B0\u2192\u5730\u4E0A\u5FA9\u5E30\u306E\u767D\u30D5\u30A7\u30FC\u30C9\uFF081.588\uFF09\u3002\u26A0undergroundState.active \u306B\u95A2\u4FC2\u306A\u304F\u6BCE\u30D5\u30EC\u30FC\u30E0\u547C\u3076\u3053\u3068
+//   \uFF08\u5730\u4E0A\u306B\u623B\u3063\u305F\u76F4\u5F8C\u306E 'hold'/'in' \u306F\u3001\u5730\u5E95\u306E\u72B6\u614B\u304C\u3082\u3046\u30EA\u30BB\u30C3\u30C8\u3055\u308C\u305F\u5F8C\u3060\u304B\u3089\uFF09\u3002
+// \u767D\u3078\u8986\u308F\u308C\u308B(ug.endOut\u30FB\u4E00\u679A\u7D75\u306E\u4E0A\u306B\u91CD\u306D\u308B) \u2192 \u767D\u4E00\u8272\u3067\u9759\u6B62(groundReturnFade.phase='hold') \u2192
+//   \u767D\u304B\u3089\u660E\u3051\u308B('in')\u3002**render \u306E\u6700\u5F8C**\u3067\u547C\u3076\uFF1DHUD\u30FB\u30DC\u30B9HP\u30D0\u30FC\u30FB\u30DC\u30B9\u6483\u7834/ROUND \u30C6\u30AD\u30B9\u30C8\u3088\u308A\u4E0A\u306B\u51FA\u3059\u3002
+function drawGroundReturnFade() {
+    var ug = undergroundState;
+    var alpha = 0;
+    if (ug.ending && ug.endOut > 0) {
+        alpha = 1 - ug.endOut / UG_END_SCENE_OUT;                  // 0\u21921\uFF08\u4E00\u679A\u7D75\u306E\u4E0A\u306B\u767D\u304C\u6E80\u3061\u3066\u3044\u304F\uFF09
+    } else if (groundReturnFade.phase === 'hold') {
+        alpha = 1;
+    } else if (groundReturnFade.phase === 'in') {
+        alpha = groundReturnFade.timer / UG_RETURN_FADE_IN;        // 1\u21920\uFF08\u767D\u304B\u3089\u5143\u306E\u8272\u5408\u3044\u3078\uFF09
+    }
+    if (alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    ctx.restore();
+
+    // 「ROUND N」テロップ（1.592）。⚠HUD常時表示は「行はいらない」と却下されたので、通常ボスの
+    //   撃破後に出る一過性テロップ（bossState.roundTextTimer・render.js「─── ラウンドテキスト ───」）と
+    //   同じ体裁に揃える。白一色(hold)の間だけ、台形状（フェードイン→保持→フェードアウト）で出す。
+    //   ⚠通常ボス版は gameRound+1（まだ増える前の予告）だが、地底は exitUnderground で既に増えているので +1 しない。
+    if (groundReturnFade.phase === 'hold') {
+        var elapsed = UG_RETURN_HOLD - groundReturnFade.timer;
+        var remaining = groundReturnFade.timer;
+        var rAlpha = Math.min(1, elapsed / UG_RETURN_ROUND_FADE, remaining / UG_RETURN_ROUND_FADE);
+        if (rAlpha > 0) {
+            ctx.save();
+            ctx.globalAlpha = rAlpha;
+            ctx.font = "bold 50px 'M PLUS Rounded 1c', sans-serif";
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#3a2266';                              // 白背景の上で読める濃い紫（通常版の白文字は白背景に沈むため専用色）
+            ctx.shadowColor = 'rgba(176,124,255,0.7)'; ctx.shadowBlur = 15;
+            ctx.fillText(t('boss_round') + gameRound, GAME_WIDTH / 2, GAME_HEIGHT / 2);
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+    }
 }
 
 // 大詠唱（P3）＝画面が暗転し、安全地帯が1箇所だけ光る（SPEC §7.2・フクロウの暗転を流用した思想）。
@@ -4281,6 +4412,8 @@ function render() {
     gameState.time += frameSteps;
     // ⚠**最後に描く**（1.584）。真のエンディングの一枚絵は HUD・ボスHPバー・SPEED UP 表示より上に出す。
     if (undergroundState.active) drawUgEnding();
+    // ⚠地上に戻った後（undergroundState.active=false）も白フェードは続くので、上の if の外＝無条件で呼ぶ（1.588）。
+    drawGroundReturnFade();
 }
 
 // チュートリアルの案内バナー: 紺地+白枠のDQ風・複数行対応・残り20フレームでフェードアウト

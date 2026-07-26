@@ -67,6 +67,7 @@ function enterUnderground() {
     undergroundState.endCalm = 0; undergroundState.ending = 0;   // 真のエンディング演出の残留を防ぐ（1.584）
     undergroundState.endLine = 0; undergroundState.endLineTimer = 0;
     undergroundState.endTapped = 0; undergroundState.endOut = 0;   // テロップの状態も必ず戻す（1.587）
+    groundReturnFade.phase = ''; groundReturnFade.timer = 0;   // 白フェードの残留防止（1.588）
     undergroundState.sigils.length = 0; undergroundState.dark = null;   // 闇の巫女の攻撃（1.570）
     undergroundState.flash = 0; undergroundState.mobTimer = 0;
     gameState.gameSpeed = 0; // オートスクロール停止（以後カメラはプレイヤー追従）
@@ -78,6 +79,15 @@ function enterUnderground() {
 
     // 進行中のエンティティを一掃（地上のものを持ち込まない）
     enemies.length = 0; flyingEnemies.length = 0; powerUps.length = 0; bullets.length = 0; coins.length = 0;
+
+    // ⚠1.598: バイオームを**この tick のうちに**地底へ切り替える（ユーザー報告
+    //   「地底に入った瞬間に一瞬だけ地上の色が表示される」）。
+    //   真因: enterUnderground は updatePipeAnim から呼ばれるが、その分岐(bootstrap.js の
+    //   `pipeRoomState.anim === 'in'`)は **updateBiome() を呼ばない**。よって差し替え済みの
+    //   地底の地形が、草原のタイル・空・山のまま render() され、1フレームだけ地上の色で映っていた。
+    //   updateBiome() は undergroundState.active=true なら地底固定の分岐に入って
+    //   パレット適用と bgCache/terrainCache のクリアまでやるので、ここで直接呼ぶのが確実（重複実装しない）。
+    if (typeof updateBiome === 'function') updateBiome();
 
     setupUndergroundStage();
 
@@ -218,8 +228,11 @@ function setupUndergroundStage() {
     ug.pendingEnemies = []; ug.shop = null; ug.idol = null; ug.braziers = [];
     var col0 = 0;
 
-    for (var ri = 0; ri < UG_LEVEL_ROOMS.length; ri++) {
-        var def = UG_LEVEL_ROOMS[ri];
+    // ⚠1.599: ラウンドでレイアウトを選ぶ（R7=1周目 / R14以降=2周目）。総幅はどちらも790タイルなので
+    //   カメラ走行も距離加算も変わらない＝ランキングの前提は不変。
+    var levelRooms = (typeof ugRoomsForRound === 'function') ? ugRoomsForRound(gameRound) : UG_LEVEL_ROOMS;
+    for (var ri = 0; ri < levelRooms.length; ri++) {
+        var def = levelRooms[ri];
         var map = def.map, rowsN = map.length, w = def.wT, topY = def.topY;
         var x0 = o + col0 * UG_TILE;
         var mapBottom = topY + rowsN * UG_TILE;
@@ -294,7 +307,9 @@ function setupUndergroundStage() {
                         //   置き場所は**ボス部屋の中ではなく「ボス部屋に入る直前の祭壇」**（ユーザー指定）＝
                         //   門をくぐる前にこれを見上げることで「この先がボスだ」と分かる。
                         //   マスの下端が床なので、そこを台座の底にして上へ UG_IDOL_H ぶん描く。
-                        ug.idol = { x: cx + UG_TILE / 2 - UG_IDOL_W / 2, baseY: cy + UG_TILE };
+                        //   eyeGlow: 目に灯る赤の強さ(0〜1)。awoken/riseTimer/flashTimer は updateIdolGaze が使う（1.605）
+                        ug.idol = { x: cx + UG_TILE / 2 - UG_IDOL_W / 2, baseY: cy + UG_TILE,
+                                    eyeGlow: 0, awoken: false, riseTimer: 0, flashTimer: 0 };
                         break;
                     case 'i':
                         // 紫の燭台（飾り・当たり判定なし）。⚠ボス前の予告に使う＝門へ近づくほど密に置く
@@ -513,11 +528,17 @@ function updateUndergroundHazards() {
 
     // トゲ床。⚠**プレイヤーもトゲも削る**（1.564）。既存の敵ダメージ判定 aabbShrink(player,e,14,12) は
     //   両方を14pxずつ削っているので、片側だけ8px削っていた1.563は他のどの当たりより20px厳しかった。
+    // ⚠Y軸だけ「sp.y+4」固定のアドホックな式で、X軸やこの下のファイアバー/火の玉と違いプレイヤー側を
+    //   全く削っていなかった（UG_HAZARD_SHRINK_Yはコメント上『炎/トゲ両方の縦版』の想定だが実装がトゲに
+    //   未反映＝取りこぼし）。見た目の三角(sp.y〜sp.y+UG_SPIKE_H)のほぼ中間点で発火していたのを、
+    //   他と同じUG_HAZARD_SHRINK_Yでプレイヤー側を上下対称に削る式へ統一。
+    //   ⚠UG_SPIKE_H自体が14しかないため、ここにUG_HAZARD_SHRINK_X(=14)は使えない
+    //   （上下14ずつ削ると「乗っているだけ」の状態でも判定が消え、トゲが無効化される）。
     for (i = 0; i < ug.spikes.length; i++) {
         var sp = ug.spikes[i];
         if (px + pw - UG_HAZARD_SHRINK_X > sp.x + UG_SPIKE_INSET &&
             px + UG_HAZARD_SHRINK_X < sp.x + sp.w - UG_SPIKE_INSET &&
-            py + ph > sp.y + 4 && py < sp.y + UG_SPIKE_H) { takeDamage(); return; }
+            py + ph - UG_HAZARD_SHRINK_Y > sp.y && py + UG_HAZARD_SHRINK_Y < sp.y + UG_SPIKE_H) { takeDamage(); return; }
     }
     // ファイアバー: 円弧上の各セグメントを円として当てる（矩形×円の最短距離）
     var pcx = px + pw / 2, pcy = py + ph / 2;
@@ -592,6 +613,12 @@ function ugHudVisible(on) {
     try {
         var ui = document.getElementById('ui'); if (ui) ui.style.display = on ? 'block' : 'none';
         var cb = document.getElementById('controlBar'); if (cb) cb.style.display = on ? 'flex' : 'none';
+        // ⚠1.601: **アイテム欄も必ず隠す**（ユーザー報告「一枚絵の裏でアイテムを消費しないか心配」）。
+        //   #stockSlots は #ui でも #controlBar でもない**独立した要素**なので、上の2つを消しても
+        //   残って前面(z-index:100)に居座り、一枚絵の上からタップで使用できてしまっていた。
+        //   ⚠戻すのは on=true 側で updateStockUI に任せる（表示条件はあちらが持っている）。
+        var ss = document.getElementById('stockSlots');
+        if (ss && !on) ss.style.display = 'none';
     } catch (_) {}
 }
 
@@ -602,6 +629,10 @@ function ugEndTapOn() {
     if (_ugEndTapHandler) return;
     _ugEndTapHandler = function (ev) {
         if (!undergroundState.ending) return;
+        // ⚠1.604: ポーズ中は**何もしない**（ユーザー実機報告「エンディング中にポーズを押すと操作不能」）。
+        //   このハンドラは document 全体で touchstart を preventDefault するので、ポーズ画面が出ている間も
+        //   効いていると「再開」ボタンも「画面をタップで再開」も押せなくなり、詰む。
+        if (typeof gameState !== 'undefined' && gameState.gamePaused) return;
         undergroundState.endTapped = 1;
         if (ev && ev.cancelable) ev.preventDefault();
     };
@@ -665,7 +696,9 @@ function updateUgBoss() {
             terrain.push({ x: ug.bossDoorX - UG_TILE, y: ch.topY + 2 * UG_TILE,
                            width: UG_TILE, height: 10 * UG_TILE, type: 'elevated', ugTile: true, ugDoor: true });
             if (typeof screenShake !== 'undefined') { screenShake.intensity = 6; screenShake.timer = 14; }
-            if (soundManager) { try { soundManager.stopRumble(); soundManager.playDamage(); } catch (_) {} }
+            // ⚠1.596: ここは playDamage() を流用していた＝被弾していないのに被弾音が鳴り、直後に出る
+            //   闇の巫女と結びついて「現れた瞬間に喰らった」と聞こえていた（ユーザー報告）。石扉専用の音に差し替え。
+            if (soundManager) { try { soundManager.stopRumble(); soundManager.playStoneSlam(); } catch (_) {} }
             ug.bossPhase = 3; ug.bossTimer = 0;
         }
         return;
@@ -716,14 +749,21 @@ function updateUgBoss() {
         if (tt === 1) ugGrantPriestessRewards();
         // ── 洞窟が静まる（1.584）。燭台が1本ずつ消え、扉が上がり、天井から光が差す ──
         //    ug.endCalm 0→1 が描画側(drawUgBossRoom / drawUgBraziers)の進行度。
+        //    ⚠1になった後はそのまま UG_END_GRACE ぶん据え置き（下の一枚絵トリガーが遅れて発火するだけ）。
         ug.endCalm = Math.max(0, Math.min(1, (tt - UG_END_CRUMBLE) / (UG_END_CALM - UG_END_CRUMBLE)));
-        // ── 一枚絵＋専用BGMへ移行。⚠切り替え点は通常ボスの撃破演出と同じ300F（ユーザー指定） ──
-        if (tt === UG_END_CALM) {
+        // ── 一枚絵＋専用BGMへ移行。⚠切り替え点は通常ボスの撃破演出と同じ300F＋拾い時間の猶予（1.595）。
+        //   静まる演出自体のテンポ(UG_END_CALM)は変えず、静まりきった状態をUG_END_GRACEぶん延ばして
+        //   「コイン/ハートを拾いきれない」を解消する。
+        if (tt === UG_END_CALM + UG_END_GRACE) {
             ug.ending = 1;                       // 0..1 の進行度は描画側が bossTimer から出す
             // ⚠HUDと操作バーはDOM＝canvasの上に乗るので、一枚絵の間だけ隠す（1.584）。
             //   canvas側（ボスHPバー・SPEED UP表示）は drawUgEnding を render の最後に置くことで覆っている。
             //   戻すのは exitUnderground（＝必ず通る）。
             ugHudVisible(false);
+            // ⚠1.601: 操作バーを消す瞬間に指が乗っていると touchend が来ず、入力が**押しっぱなしのまま固着**して
+            //   一枚絵の裏でぴよ氏が走り続け・跳び続ける（ユーザー報告「エンディング中にジャンプ音がする」）。
+            //   ここで一度落とし、さらに下のテロップ進行中も毎フレーム落とす（新しい入力経路が増えても効く保険）。
+            if (typeof clearHeldInput === 'function') clearHeldInput();
             ug.endLine = 1; ug.endLineTimer = 0; ug.endTapped = 0; ug.endOut = 0;
             ugEndTapOn();
             // ⚠BGMが未配置なら**何もしない**＝ファンファーレの余韻をそのまま続ける。
@@ -738,9 +778,24 @@ function updateUgBoss() {
         }
         // ── テロップ（1.587）: 一枚絵の上に会話と同じ作法で1文ずつ出し、タップで送る ──
         if (ug.ending) {
+            // ⚠1.601: テロップ中は毎フレーム入力を落とす。操作バーは display:none にしてあるが、
+            //   ①消える瞬間に押していた入力が残る ②document へ張ったテロップ送りのタップが
+            //   将来ほかの入力経路に拾われる、の両方を塞ぐ＝**一枚絵の裏では絶対に動かない**を保証する。
+            if (typeof clearHeldInput === 'function') clearHeldInput();
             ug.endLineTimer = (ug.endLineTimer || 0) + 1;
-            if (ug.endOut > 0) {                       // 最後の文を送った後のフェードアウト
-                if (--ug.endOut <= 0) { ug.endCalm = 0; ug.ending = 0; ugEndTapOff(); exitUnderground(); }
+            if (ug.endOut > 0) {                       // 最後の文を送った後、画面が白く覆われていく（1.588）
+                if (--ug.endOut <= 0) {
+                    ug.endCalm = 0; ug.ending = 0; ugEndTapOff();
+                    exitUnderground();                 // ⚠白一色の最中に呼ぶ＝地形の組み直しが画面に映らない
+                    // ⚠HUDはDOM（z-index:100）でキャンバスの上に乗るので、白いオーバーレイ(canvas)では覆えない。
+                    //   exitUnderground が復帰させた直後にもう一度隠す＝白の間はHUDが浮いて見えるのを防ぐ。
+                    //   戻すのは updateGroundReturnFade（'in'が明けきった瞬間）。
+                    ugHudVisible(false);
+                    // 白のまま一呼吸 → 白から明けるまではスクロールさせない（「もう少し余韻がほしい」1.588）。
+                    // updateGameSpeed 側の groundReturnFade.phase ガードが解けるまで gameSpeed=0 が保たれる。
+                    groundReturnFade.phase = 'hold';
+                    groundReturnFade.timer = UG_RETURN_HOLD;
+                }
             } else if (ug.endTapped) {                 // タップを1回消費して次の文へ
                 ug.endTapped = 0;
                 if (ug.endLineTimer >= UG_END_LINE_MIN) {
@@ -750,6 +805,26 @@ function updateUgBoss() {
                     if (ug.endLine > UG_END_LINES) { ug.endLine = UG_END_LINES; ug.endOut = UG_END_SCENE_OUT; }
                 }
             }
+        }
+        return;
+    }
+}
+
+// 地底エンディング→地上復帰の白フェード（1.588）。⚠exitUnderground 後は undergroundState.active が
+//   false になり updateUnderground/updateUgBoss がもう回らないので、gameLoop から**毎tick無条件で**呼ぶこと。
+// 'hold'（白一色で一呼吸）→ 'in'（白から元の色合いへ）の順に進み、明けきったら非アクティブに戻る。
+// ⚠白の間スクロールを止めているのは updateGameSpeed 側（phase が立っている間 gameSpeed=0 を強制）。
+function updateGroundReturnFade() {
+    var f = groundReturnFade;
+    if (!f.phase) return;
+    if (f.phase === 'hold') {
+        if (--f.timer <= 0) { f.phase = 'in'; f.timer = UG_RETURN_FADE_IN; }
+        return;
+    }
+    if (f.phase === 'in') {
+        if (--f.timer <= 0) {
+            f.phase = '';        // 明けきった＝以後 updateGameSpeed の固定が解除されスクロール再開
+            ugHudVisible(true);  // 白の間だけ隠していたHUD/操作バーをここで戻す
         }
         return;
     }
@@ -1243,8 +1318,11 @@ function ugPriestessDefeated(b) {
     if (soundManager) { try { soundManager.stopAllBGM(); soundManager.playBossFanfare(); } catch (_) {} }
 }
 
-// 撃破報酬（SPEC §8・✅ユーザー決定）＝スコア10,000（通常ボスの倍額）＋コイン多め＋**ゴールデンエッグ1個（毎回）**。
+// 撃破報酬（SPEC §8・✅ユーザー決定）＝スコア10,000（通常ボスの倍額）＋コイン多め＋**ゴールデンエッグ1個（1日1回）**。
 // ⚠エッグは1.565まで「仮ボスは10回踏めば倒せる＝希少性が壊れる」ため保留していた。本実装で解禁。
+// ⚠1.588: 「毎回」だと2,400mの2巡目・3巡目（R14/R21…）を同日中に何度倒しても無制限に貰えてしまい、
+//   2500m日次エッグと同じ farm防止のガード(goldenEggDrawDate)を素通りしていた。フィールド抽選と
+//   **同じ日次枠を共有**させる＝この日もう貰っていたら（フィールドでも撃破でも）撃破報酬のエッグは出さない。
 function ugGrantPriestessRewards() {
     var ug = undergroundState;
     var b = ug.boss;
@@ -1273,11 +1351,16 @@ function ugGrantPriestessRewards() {
     zukanAddKill('boss:priestess');                         // ずかん: 撃破時のみ登録（1.474の統一ルール）
     floatEffects.push({ type: 'boss_defeated_text', worldX: cx, worldY: cy, timer: 0, duration: 180, offsetY: 0 });
     floatEffects.push({ type: 'score_text', worldX: cx, worldY: cy - 40, timer: 0, duration: 90, offsetY: 0, score: UG_BOSS_SCORE });
-    // ゴールデンエッグ1個。⚠既存の取得経路と同じ関数を通す（図鑑登録・保存がここに集約されている）
-    if (typeof collectGoldenEgg === 'function') collectGoldenEgg(false);
-    if (typeof showRewardToast === 'function') {
-        showRewardToast('<img src="images/item_golden_egg.png" width="22" height="22" style="image-rendering:pixelated; vertical-align:middle;"> ×1 ' +
-                        escapeHtml(t('ug_boss_egg_toast')), 'linear-gradient(180deg,#ffe07a,#ffb400)', '#5a3d00');
+    // ゴールデンエッグ1個。⚠1日1回（1.588）＝2500m日次エッグ/R4救済と同じ goldenEggDrawDate を消費する。
+    //   今日すでに枠を使っていたら（フィールドでも、別の周回の撃破でも）ここでは出さない＝スコア/コイン/ハートは通常どおり。
+    if (typeof canDrawDailyEggToday === 'function' && canDrawDailyEggToday()) {
+        gameSettings.goldenEggDrawDate = getDateString();       // 日次枠を消費（フィールド抽選と共有）
+        gameSettings.lastGoldenEggTimestamp = Date.now();
+        if (typeof collectGoldenEgg === 'function') collectGoldenEgg(true);
+        if (typeof showRewardToast === 'function') {
+            showRewardToast('<img src="images/item_golden_egg.png" width="22" height="22" style="image-rendering:pixelated; vertical-align:middle;"> ×1 ' +
+                            escapeHtml(t('ug_boss_egg_toast')), 'linear-gradient(180deg,#ffe07a,#ffb400)', '#5a3d00');
+        }
     }
 }
 
@@ -1289,7 +1372,9 @@ function ugUpdateSkully(e) {
     if (e.reviveTimer <= 0) {
         e.collapsed = false;
         e.velX = e.savedVelX || -0.9;
-        if (soundManager) { try { soundManager.playJump(); } catch (_) {} }
+        // ⚠1.596: ここは playJump() を流用していた＝プレイヤーが跳んでいないのにジャンプ音が鳴っていた
+        //   （ユーザー報告「ジャンプしていない時にジャンプのSEが流れる」）。骨が組み上がる専用の音に差し替え。
+        if (soundManager) { try { soundManager.playBoneRattle(); } catch (_) {} }
     }
     return true;
 }
@@ -1327,6 +1412,10 @@ function exitUnderground() {
     bossState.eggs = [];
     // ⚠闘技場に湧かせた雑魚を残さない（地上へ持ち帰ると、床の高さが違うので宙に浮いたまま流れてくる）
     enemies.length = 0; flyingEnemies.length = 0;
+    // ⚠1.595: 「ROUND8が元の立ち位置からスタートしてしまう」というユーザー指摘に対応。x を明示していなかった
+    //   ので、地底の闘技場内でどこに立っていたかがそのまま地上に持ち越されていた。ROUND1開始と同じ
+    //   「カメラ左端から150px」（testWarpToM等と同じ既存の定番値）へスナップし、走り出す起点を揃える。
+    player.x = gameState.camera.x + 150;
     player.y = GROUND_Y - player.height; player.velY = 0; player.onGround = true;
     // ⚠ステージ進行のグリッドを引き直す（1.553・ユーザー指定「地底のあとも草原→砂漠→雪山→夜→ボス」）。
     //   地底は2,400mの倍数でない量(800m)を足すので、そのままだと以降ずっとバイオームとボスがずれる
@@ -1362,6 +1451,30 @@ function exitUnderground() {
 }
 
 // 地底の毎フレーム更新（通常の updatePlayer 等はそのまま走る。ここは地底固有の処理だけ）
+// 邪神の巨像の目（1.597・ユーザー指定「像の前を通ると目が赤くなる」）。
+// ⚠**演出だけ**＝当たり判定もダメージも一切増やさない。像は元から飾り（'I' で設置・通り抜けられる）。
+// 像の中心とプレイヤーの水平距離で目標の明るさを決め、そこへ毎フレーム少しずつ寄せる（パッと切り替わらない）。
+// ⚠横距離だけで判定する＝縦カメラの地底で上下の段に居ても「像の前」なら灯る。
+function updateIdolGaze() {
+    var idol = undergroundState.idol;
+    if (!idol) return;
+    // ── 点灯前: 真ん前に入った瞬間だけを見る（1.605）──
+    if (!idol.awoken) {
+        var dx = Math.abs((player.x + player.width / 2) - (idol.x + UG_IDOL_W / 2));
+        if (dx > UG_IDOL_GAZE_TRIGGER) return;          // まだ遠い＝消えたまま（＝距離で薄く光ったりしない）
+        idol.awoken = true;
+        idol.riseTimer = 0;
+        idol.flashTimer = UG_IDOL_FLASH_FRAMES;
+        // ⚠専用SE（ユーザー提供・音量控えめ）＋軽い画面揺れ。「今この瞬間に何かが起きた」と分からせる。
+        if (soundManager) { try { soundManager.playUgIdolAwake(); } catch (_) {} }
+        if (typeof screenShake !== 'undefined') { screenShake.intensity = 3.5; screenShake.timer = 10; }
+    }
+    // ── 点灯後: 数フレームで一気に上げ切り、以後は**消さない**（像は「起きた」ままにする）──
+    if (idol.riseTimer < UG_IDOL_GAZE_RISE) idol.riseTimer++;
+    idol.eyeGlow = idol.riseTimer / UG_IDOL_GAZE_RISE;
+    if (idol.flashTimer > 0) idol.flashTimer--;
+}
+
 function updateUnderground() {
     // ── 入場土管のせり上がり（1.554）。⚠地上に居る間＝地底に入る前に進む演出なので active 判定より前に置く ──
     // 当たり判定(platform.y)も一緒に動かす＝見た目とズレない。せり上がり切るまでは入場もヒント表示もしない。
@@ -1390,6 +1503,7 @@ function updateUnderground() {
         }
     }
     if (!undergroundState.active) return;
+    updateIdolGaze();          // 邪神の巨像の目（1.597・演出のみ）
     // 落下導入中は入力ロック＋無敵（着地したら解除）
     if (undergroundState.introTimer > 0) {
         undergroundState.introTimer--;
@@ -4056,6 +4170,13 @@ function swapStockSlots(a, b) {
 function updateStockUI() {
     var container = document.getElementById('stockSlots');
     if (!container) return;
+    // ⚠1.604: 真のエンディング（一枚絵＋テロップ）の間は**常に隠す**。ugHudVisible(false) で一度隠しても、
+    //   ポーズ等でこの関数が呼ばれると下の display='flex' で復活してしまい、一枚絵の上に枠が戻っていた
+    //   （ユーザー実機報告のスクショで確認）。表示条件より先に判定する。
+    if (typeof undergroundState !== 'undefined' && undergroundState.ending) {
+        container.style.display = 'none';
+        return;
+    }
     // ボーナス部屋(土管)中も枠は表示する（「でる」は左へずらして重なり回避）。ただし部屋では使わないので読み取り専用にする。
     var inPipeRoom = (typeof pipeRoomState !== 'undefined' && pipeRoomState.active);
     // ゲームプレイ中は、空でも maxSlots ぶんの枠を常に表示する（所持可能数を可視化＋拡張アイテム購入の動機）。
@@ -4086,7 +4207,7 @@ function updateStockUI() {
             var pslot = stockState.perma[i] || { id: '', used: false };
             var badge = '<span class="perma-badge">' + (i + 1) + '</span>';
             if (pslot.id && !pslot.used) {
-                // 使用可能な永続アイテム: タップ=使用／ドラッグ=入替
+                // 使用可能な永続アイテム: タップ=使用／長押し=つかむ→ドラッグで入替（1.597）
                 if (readOnly) {
                     html += '<div class="stock-slot stock-slot-perma stock-slot-readonly">' + badge + iconFor(pslot.id) + '</div>';
                 } else {
@@ -4108,7 +4229,7 @@ function updateStockUI() {
                     // ショップ/部屋中: アイコンは見せるが操作不可（pointer-events:none）
                     html += '<div class="stock-slot stock-slot-readonly">' + iconFor(itm.id) + '</div>';
                 } else {
-                    // ゲーム中: data-idx で識別。委譲タップ(touchend)で即使用／ドラッグ=入替
+                    // ゲーム中: data-idx で識別。委譲タップ(touchend)で即使用／長押し=つかむ→ドラッグで入替（1.597）
                     html += '<div class="stock-slot" data-idx="' + i + '" data-slot="' + i + '">' + iconFor(itm.id) + '</div>';
                 }
             } else {
@@ -4401,7 +4522,8 @@ function updateBoss() {
             bossState.flashAttackTimer--;
             // 発動直後（残り27フレーム時点）にダメージ判定：地面近くにいたら被弾
             if (bossState.flashAttackTimer === 27) {
-                if (!isPlayerProtected() && player.y + player.height >= GROUND_Y - 70) {
+                // ⚠全画面攻撃なので横の猶予は不要だが、しきい値ぴったりは際どいジャンプ回避を理不尽被弾にする。6px緩める。
+                if (!isPlayerProtected() && player.y + player.height >= GROUND_Y - 64) {
                     takeDamage();
                 }
             }
@@ -4969,8 +5091,9 @@ function updateBossAI_egg(b) {
             b.y = groundY;
             b.velY = 0;
             floatEffects.push({ type: 'boss_shockwave', worldX: b.x + b.width / 2, worldY: GROUND_Y, timer: 0, duration: 22 });
-            if (!isPlayerProtected() && player.y + player.height >= GROUND_Y - 60 &&
-                Math.abs((player.x + player.width / 2) - (b.x + b.width / 2)) < b.width * 1.3) {
+            // ⚠しきい値ぴったりは際どいジャンプ回避を理不尽被弾にする。縦を6px緩め、横の判定半径もわずかに縮小。
+            if (!isPlayerProtected() && player.y + player.height >= GROUND_Y - 54 &&
+                Math.abs((player.x + player.width / 2) - (b.x + b.width / 2)) < b.width * 1.2) {
                 takeDamage(); // 着地の衝撃波（地上にいると被弾／ジャンプで回避）
             }
             if (enc >= 2) spawnEggShards(b, phase); // 【2回目〜(R9+)】着地で殻の破片を左右へ飛散＝遠距離の脅威を追加
@@ -5200,7 +5323,8 @@ function updateBossAI_owl(b) {
             floatEffects.push({ type: 'boss_shockwave', worldX: b.x + b.width / 2, worldY: GROUND_Y, timer: 0, duration: 30 });
             if (soundManager) soundManager.playFlash();
         }
-        if (b.owlTimer <= 14 && b.owlTimer >= 8 && !isPlayerProtected() && player.y + player.height >= GROUND_Y - 42) {
+        // ⚠装甲卵のslamと同種攻撃。しきい値ぴったりの理不尽被弾を避けるため同じく6px緩める。
+        if (b.owlTimer <= 14 && b.owlTimer >= 8 && !isPlayerProtected() && player.y + player.height >= GROUND_Y - 36) {
             takeDamage(); b.owlTimer = 7; // 着弾（地上）＝一度だけ
         }
         if (b.owlTimer <= 0) { b.owlMode = 'hover'; b.owlTimer = (phase === 3 ? 45 : 65); }
@@ -5504,8 +5628,9 @@ function updateBossCollision_egg(b) {
         return;
     }
     // 転がり中の本体接触（地上付近のみ被弾＝ジャンプで回避可）
+    // ⚠従来は8,6＝他ボスの本体接触(sx14-20)より狭く、地底ハザード基準(14,10)より厳しかった。値を引き上げて揃える。
     if (b.eggMode === 'roll' && !isPlayerProtected() && b.stompCooldown <= 0) {
-        var lowHit = aabbShrink(player, b, 8, 6);
+        var lowHit = aabbShrink(player, b, 14, 10);
         if (lowHit && player.y + player.height >= GROUND_Y - 55) {
             takeDamage();
         }
@@ -5521,11 +5646,14 @@ function updateBossCollision_snake(b) {
     var headTop = b.headY;
     var headBox = { x: b.x + 16, y: headTop, width: b.width - 32, height: 58 };
 
+    // ⚠生のaabbは猶予ゼロ＝見た目で触れていなくても被弾する。弾と同じaabbGraze(14px)でプレイヤー側だけ縮めて判定。
     if (b.serpMode === 'strike' && !isPlayerProtected() && b.stompCooldown <= 0) {
-        if (aabb(player, headBox)) { takeDamage(); return; } // 下から突かれる
+        if (aabbGraze(player, headBox, 14)) { takeDamage(); return; } // 下から突かれる
     }
+    // ⚠帯もaabbGraze(14px)で猶予を持たせる（直前のstrikeと同じ理由）。
     if (b.serpMode === 'sweep' && !isPlayerProtected() && b.stompCooldown <= 0) {
-        if (aabb(player, { x: b.x + 10, y: GROUND_Y - 46, width: b.width - 20, height: 46 }) &&
+        var sweepBand = { x: b.x + 10, y: GROUND_Y - 46, width: b.width - 20, height: 46 };
+        if (aabbGraze(player, sweepBand, 14) &&
             player.y + player.height >= GROUND_Y - 42) { takeDamage(); return; } // 地上=被弾（ジャンプ回避）
     }
     if (b.exposed && b.stompCooldown <= 0) {
@@ -5581,7 +5709,8 @@ function updateBossCollision_scarecrow(b) {
     // 腕薙ぎ: 低い横薙ぎの危険帯（GROUND_Y近く）に接地していたら被弾
     if (b.scMode === 'sweep' && !isPlayerProtected() && b.stompCooldown <= 0) {
         var band = { x: bossState.arenaLeft, y: GROUND_Y - SC_SWEEP_BAND_Y, width: bossState.arenaRight - bossState.arenaLeft, height: SC_SWEEP_BAND_Y };
-        if (aabb(player, band) && player.y + player.height >= GROUND_Y - (SC_SWEEP_BAND_Y - 6)) { takeDamage(); return; }
+        // ⚠生のaabbは猶予ゼロ。aabbGraze(14px)でプレイヤー側だけ縮めて判定。
+        if (aabbGraze(player, band, 14) && player.y + player.height >= GROUND_Y - (SC_SWEEP_BAND_Y - 6)) { takeDamage(); return; }
     }
 
     // 対空「藁の棘」: 頭上の危険帯に居たら被弾（1.535）。
@@ -5590,7 +5719,8 @@ function updateBossCollision_scarecrow(b) {
     if (b.scMode === 'spike' && !isPlayerProtected() && b.stompCooldown <= 0) {
         var scol = { x: b.x - SC_SPIKE_PAD, y: b.y - SC_SPIKE_H,
                      width: b.width + SC_SPIKE_PAD * 2, height: SC_SPIKE_H + b.height * 0.30 };
-        if (aabb(player, scol)) { takeDamage(); return; }
+        // ⚠「見た目は触れていないのに被弾した」が最も起きやすい形。aabbGraze(14px)でプレイヤー側だけ縮めて判定。
+        if (aabbGraze(player, scol, 14)) { takeDamage(); return; }
     }
 
     // 頭（上部）を踏む
@@ -5751,7 +5881,9 @@ function updateEggs() {
             continue;
         }
         // プレイヤー衝突（シールド中は卵を消滅させてダメージなし）
-        if (aabb(player, egg)) {
+        // ⚠1.588: 生のaabbは弾の見た目まるごとが即当たりで、地底の他の判定より厳しかった。
+        //   aabbGraze でプレイヤー側だけ縮める＝弾は見た目どおり、実際の当たりはギリギリかすめても喰らわない。
+        if (aabbGraze(player, egg, BOSS_BULLET_GRAZE)) {
             if (isPlayerProtected()) {
                 bossState.eggs.splice(i, 1);
             } else {

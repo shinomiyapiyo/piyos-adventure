@@ -78,6 +78,11 @@ class SoundManager {
         this.ugDarkSE.volume   = 0.65;
         this.ugAwakenSE = new Audio('sounds/ug_boss_awaken.mp3');  // フェーズ移行の解放
         this.ugAwakenSE.volume = 0.7;
+        // 邪神の巨像の目が赤く灯る瞬間（1.605・ユーザー提供「敵ユニット出現.mp3」）。
+        // ⚠[[piyo-suno-audio-tags]] のとおり ffmpeg でタグ/アルバムアートを全除去して
+        //   sounds/ug_idol_awake.mp3 にリネーム済み（1.49秒）。⚠**音量は控えめ**（ユーザー指定）。
+        this.ugIdolAwakeSE = new Audio('sounds/ug_idol_awake.mp3');
+        this.ugIdolAwakeSE.volume = 0.42;
         // ぴよフラッシュ（必殺技）: チャージ音＋ビーム音
         this.specialChargeSE = new Audio('sounds/piyoflash_charge.mp3');
         this.specialChargeSE.volume = 0.6;
@@ -219,6 +224,81 @@ class SoundManager {
         }, 20);
     }
 
+    // ─── 闘技場の落とし扉が閉まる衝撃（1.596）───
+    // ⚠それまで playDamage() を流用していた（gameplay.js の bossPhase 2）。被弾していないのに被弾音が鳴るため
+    //   「闇の巫女が現れた瞬間に喰らった」とユーザーに聞こえていた＝playSummon(1.558) と同じ流用バグ。
+    //   石の扉が落ちて嵌まる音を専用に合成する（mp3は増やさない＝playRumble と同方式）。
+    //   低音を一気に落として「ドンッ」の芯を作り、少し上の帯を短く鳴らして石が擦れる粒を足す。
+    playStoneSlam() {
+        if (!this.ctx || !gameSettings.soundEnabled) return;
+        var t = this.ctx.currentTime;
+        // 衝撃の芯（ピッチを急降下させて「ドンッ」）
+        var o = this.ctx.createOscillator(), g = this.ctx.createGain();
+        o.connect(g); g.connect(this.ctx.destination);
+        o.type = 'square';
+        o.frequency.setValueAtTime(96, t);
+        o.frequency.exponentialRampToValueAtTime(30, t + 0.10);
+        g.gain.setValueAtTime(0.30, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+        o.start(t); o.stop(t + 0.5);
+        // 質量（重い石が嵌まって残る低い余韻）
+        var sub = this.ctx.createOscillator(), sg = this.ctx.createGain();
+        sub.connect(sg); sg.connect(this.ctx.destination);
+        sub.type = 'sawtooth';
+        sub.frequency.setValueAtTime(58, t);
+        sub.frequency.exponentialRampToValueAtTime(27, t + 0.35);
+        sg.gain.setValueAtTime(0.18, t);
+        sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+        sub.start(t); sub.stop(t + 0.6);
+        // 石が擦れる粒（2本デチューンして短く＝ザリッとした質感。伸ばすと金属的になるので0.16秒で切る）
+        for (var i = 0; i < 2; i++) {
+            var n = this.ctx.createOscillator(), ng = this.ctx.createGain();
+            n.connect(ng); ng.connect(this.ctx.destination);
+            n.type = 'sawtooth';
+            n.frequency.setValueAtTime(148 + i * 17, t);
+            n.frequency.exponentialRampToValueAtTime(64 + i * 9, t + 0.16);
+            ng.gain.setValueAtTime(0.075, t);
+            ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+            n.start(t); n.stop(t + 0.2);
+        }
+    }
+
+    // ─── シャレコが骨の山から組み上がる（1.596）───
+    // ⚠それまで playJump() を流用していた（gameplay.js の ugUpdateSkully）。プレイヤーは跳んでいないのに
+    //   ジャンプ音が鳴るため「ジャンプしていないのにジャンプSEが流れる」とユーザーに聞こえていた。
+    //   ⚠ジャンプ音（sine 200→600 の上昇）と紛れないよう、上昇形は使わない。矩形波の短い連打で
+    //   骨が当たる乾いた粒を作り、最後に低い音で「据わった＝立ち上がった」を示す。
+    playBoneRattle() {
+        if (!this.ctx || !gameSettings.soundEnabled) return;
+        var t = this.ctx.currentTime;
+        // 連打スロットル: 複数のシャレコが同時に復活した時のoscillator大量生成を防ぐ（playKill と同方式）
+        if (this._boneT && t - this._boneT < 0.06) return;
+        this._boneT = t;
+        var clack = [520, 645, 470, 715];             // 音程を散らして不規則な「カタカタ」に
+        var at    = [0, 0.045, 0.085, 0.130];
+        for (var i = 0; i < clack.length; i++) {
+            var s = t + at[i];
+            var o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.connect(g); g.connect(this.ctx.destination);
+            o.type = 'square';
+            o.frequency.setValueAtTime(clack[i], s);
+            o.frequency.exponentialRampToValueAtTime(clack[i] * 0.55, s + 0.04); // 一粒ずつ下降＝乾いた「カッ」
+            g.gain.setValueAtTime(0.085, s);
+            g.gain.exponentialRampToValueAtTime(0.0001, s + 0.05);
+            o.start(s); o.stop(s + 0.06);
+        }
+        // 骨が据わる低い音（立ち上がりきった合図）
+        var e = t + 0.175;
+        var b = this.ctx.createOscillator(), bg = this.ctx.createGain();
+        b.connect(bg); bg.connect(this.ctx.destination);
+        b.type = 'triangle';
+        b.frequency.setValueAtTime(165, e);
+        b.frequency.exponentialRampToValueAtTime(92, e + 0.13);
+        bg.gain.setValueAtTime(0.13, e);
+        bg.gain.exponentialRampToValueAtTime(0.0001, e + 0.16);
+        b.start(e); b.stop(e + 0.2);
+    }
+
     playItem() {
         if (!this.ctx || !gameSettings.soundEnabled) return;
         var notes = [523, 659, 784];
@@ -298,6 +378,7 @@ class SoundManager {
     playUgSigil()  { if (gameSettings.soundEnabled) this._playSE(this.ugSigilSE); }   // 魔法陣→光柱
     playUgDark()   { if (gameSettings.soundEnabled) this._playSE(this.ugDarkSE); }    // 大詠唱
     playUgAwaken() { if (gameSettings.soundEnabled) this._playSE(this.ugAwakenSE); }  // フェーズ移行の解放
+    playUgIdolAwake() { if (gameSettings.soundEnabled) this._playSE(this.ugIdolAwakeSE); } // 巨像の目が灯る瞬間（1.605）
     playPipeWarp() { // 土管出入りの「シュポッ」（dokan.mp3＝アルスパーク素材。読めない環境はオシレータ合成にフォールバック）
         if (!gameSettings.soundEnabled) return;
         if (this.pipeWarpSE && !this.pipeWarpSE.error) { this._playSE(this.pipeWarpSE); return; }
@@ -442,5 +523,34 @@ class SoundManager {
         if (this.ctx && this.ctx.state !== 'running') { try { this.ctx.resume(); } catch (_) {} }
         var b = this.currentBGM;
         if (b && b.paused && !b.ended) { b.play().then(function(){}).catch(function(){}); }
+    }
+
+    // ─── 広告から戻った時の強制復帰（1.597）───
+    // ⚠実機報告「広告を挟むとBGM/SEが完全に鳴らなくなる（広告自体の音は鳴る）」への対策。
+    //   BGMは全て HTML5 <audio> 要素（_createBGM）なので、要素が **paused=false のまま無音**に
+    //   固まると、上の resume() は `b.paused` ガードに阻まれて**永久に何もしない**＝一度無音になると
+    //   何度復帰しても戻らない。ここでは再生位置を保ったまま一度 pause→play し直して出力を張り直す。
+    //   ⚠通常の一時停止（paused=true）は resume() と同じ扱いで良いので、張り直しは
+    //   「再生中のつもりなのに音が出ていない」ケースだけに限定する＝正常時に音が途切れない。
+    resumeHard() {
+        if (!gameSettings.soundEnabled) return;
+        if (this.ctx && this.ctx.state !== 'running') { try { this.ctx.resume(); } catch (_) {} }
+        var b = this.currentBGM;
+        if (!b || b.ended) return;
+        if (b.paused) { b.play().then(function(){}).catch(function(){}); return; }  // 通常の一時停止＝resume()と同じ
+        // ⚠ここから先は「要素は再生中のつもりなのに音が出ていない」疑いのケース。
+        //   正常時に pause→play を挟むと毎回わずかに音が途切れるので、**再生位置が進んでいない**ことを
+        //   確認してから張り直す（進んでいれば正常＝何もしない）。
+        var t0 = b.currentTime;
+        setTimeout(function () {
+            try {
+                if (b.paused || b.ended) return;
+                if (b.currentTime > t0 + 0.01) return;   // 時間が進んでいる＝正常なので触らない
+                var at = b.currentTime;                  // 曲の頭に戻すと違和感が出るので位置は保つ
+                b.pause();
+                b.currentTime = at;
+                b.play().then(function(){}).catch(function(){});
+            } catch (_) {}
+        }, 180);
     }
 }

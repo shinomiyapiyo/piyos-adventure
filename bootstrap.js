@@ -38,6 +38,7 @@ function gameLoop(timestamp) {
                 updateSpecialCutin(); // 必殺技カットイン中は世界を止め演出だけ進める
             } else {
             updateGameSpeed();
+            updateGroundReturnFade(); // 地底エンディング→地上復帰の白フェード（非アクティブ時は即return・1.588）
             checkShopTrigger();
             checkPipeTrigger();
             updatePipeAssist(); // 土管タイム（土管上でスクロール減速・updateGameSpeedの直後に判定）
@@ -439,17 +440,42 @@ function bindTapDelegate(container, attrName, handler) {
     window.onRewardReadyChange = function() { if (typeof refreshRewardButtons === 'function') refreshRewardButtons(); };
     // （UPDATEボタンのバインドはPWA廃止に伴い撤去 — 1.510）
 
-    // ストックアイテム: タップ=使用／ドラッグ=枠の中身を入替（永続枠の並べ替え）。枠は動的生成のため委譲。
-    // 使用可能枠(data-idx)からドラッグ開始・任意の枠(data-slot)へドロップ。閾値未満の動きはタップ=即使用（iOS遅延/微動回避）。
+    // ストックアイテム: **タップ=使用／長押し=つかむ→ドラッグで入替**（1.597・ユーザー指定）。枠は動的生成のため委譲。
+    // ⚠1.596までは「少しでも動かしたらドラッグ」だったため、使おうとして指がわずかに滑るだけで入替に化けていた。
+    //   長押しでしかつかめないようにして、タップ（使用）と入替を明確に分ける。
+    //   ⚠**長押しに至らないまま動かした場合は「何もしない」**（使用もしない・入替もしない）＝ユーザー指定
+    //   「それ以外の挙動はいらない」。誤操作でアイテムを失わないための安全側の倒し方でもある。
     (function bindStockTaps() {
         var sc = document.getElementById('stockSlots');
         if (!sc) return;
-        var DRAG_THRESH = 8;       // これ以上動いたらドラッグ扱い
+        var DRAG_THRESH = 8;       // 長押し成立前にこれ以上動いたら「操作をやめた」とみなす
+        var LONG_PRESS_MS = 350;   // この時間押し続けるとつかむ（.dragging の見た目で分かる）
         var fired = false;         // touchend 処理済み→直後の click 無視
-        var suppressClick = false; // mouseドラッグ後の click 無視
-        var drag = null;           // {from,x,y,dragging,el}
+        var suppressClick = false; // ドラッグ/取り消しの後の click 無視
+        var drag = null;           // {from,x,y,dragging,cancelled,el,timer}
 
         function srcSlot(e) { return (e.target && e.target.closest) ? e.target.closest('.stock-slot[data-idx]') : null; }
+        // 長押しの計時を止める（つかんだ後／指を離した後／取り消した後は必ず呼ぶ）
+        function clearHold() { if (drag && drag.timer) { clearTimeout(drag.timer); drag.timer = null; } }
+        // 押し始め。ここではまだ何も起きない＝長押しが成立して初めて「つかむ」
+        function beginPress(el, x, y) {
+            drag = { from: parseInt(el.getAttribute('data-idx'), 10), x: x, y: y,
+                     dragging: false, cancelled: false, el: el, timer: null };
+            var d0 = drag;
+            drag.timer = setTimeout(function () {
+                if (drag !== d0 || drag.cancelled || drag.dragging) return;
+                drag.dragging = true;                    // つかんだ
+                drag.timer = null;
+                drag.el.classList.add('dragging');       // 半透明＋少し縮む＝持ち上がった合図
+            }, LONG_PRESS_MS);
+        }
+        // 長押し成立前に動いた＝操作の取り消し（使用も入替もしない）
+        function cancelPress() {
+            if (!drag || drag.dragging) return false;
+            clearHold();
+            drag.cancelled = true;
+            return true;
+        }
         function clearVisuals() {
             var els = sc.querySelectorAll('.stock-slot');
             for (var i = 0; i < els.length; i++) els[i].classList.remove('dragging', 'drag-over');
@@ -483,42 +509,56 @@ function bindTapDelegate(container, attrName, handler) {
             var el = srcSlot(e); if (!el) return;
             e.stopPropagation();
             var tt = e.touches[0];
-            drag = { from: parseInt(el.getAttribute('data-idx'), 10), x: tt.clientX, y: tt.clientY, dragging: false, el: el };
+            beginPress(el, tt.clientX, tt.clientY);
         }, { passive: true });
         sc.addEventListener('touchmove', function(e) {
             if (!drag) return;
             var tt = e.touches[0];
-            if (!drag.dragging && (Math.abs(tt.clientX - drag.x) > DRAG_THRESH || Math.abs(tt.clientY - drag.y) > DRAG_THRESH)) {
-                drag.dragging = true; drag.el.classList.add('dragging');
+            if (!drag.dragging) {
+                // まだつかんでいない：閾値を超えて動いたら操作を取り消す（＝離しても何も起きない）
+                if (Math.abs(tt.clientX - drag.x) > DRAG_THRESH || Math.abs(tt.clientY - drag.y) > DRAG_THRESH) cancelPress();
+                return;
             }
-            if (drag.dragging) { e.preventDefault(); e.stopPropagation(); highlight(tt.clientX, tt.clientY, drag.from); }
+            e.preventDefault(); e.stopPropagation();
+            highlight(tt.clientX, tt.clientY, drag.from);
         }, { passive: false });
         sc.addEventListener('touchend', function(e) {
             if (!drag) return;
             e.preventDefault(); e.stopPropagation();
             fired = true;
+            clearHold();
             var tt = (e.changedTouches && e.changedTouches[0]) || { clientX: drag.x, clientY: drag.y };
-            if (drag.dragging) finishDrag(tt.clientX, tt.clientY);
-            else useStockItem(drag.from);
+            if (drag.dragging) finishDrag(tt.clientX, tt.clientY);        // 長押しでつかんでいた＝入替
+            else if (!drag.cancelled) useStockItem(drag.from);            // 長押し前に離した＝タップ＝使用
+            // 取り消し済み（つかむ前に動かした）は何もしない
             drag = null;
         });
+        // 通知やシステムジェスチャで指が奪われた時に長押しが残らないようにする
+        sc.addEventListener('touchcancel', function() {
+            if (!drag) return;
+            clearHold(); clearVisuals(); drag = null;
+        });
 
-        // ── マウス（デスクトップ／Preview検証用） ──
+        // ── マウス（デスクトップ／Preview検証用）※タッチと同じ「長押しでつかむ」に揃える ──
         sc.addEventListener('mousedown', function(e) {
             var el = srcSlot(e); if (!el) return;
             e.stopPropagation();
-            drag = { from: parseInt(el.getAttribute('data-idx'), 10), x: e.clientX, y: e.clientY, dragging: false, el: el };
+            beginPress(el, e.clientX, e.clientY);
         });
         document.addEventListener('mousemove', function(e) {
             if (!drag) return;
-            if (!drag.dragging && (Math.abs(e.clientX - drag.x) > DRAG_THRESH || Math.abs(e.clientY - drag.y) > DRAG_THRESH)) {
-                drag.dragging = true; drag.el.classList.add('dragging');
+            if (!drag.dragging) {
+                if (Math.abs(e.clientX - drag.x) > DRAG_THRESH || Math.abs(e.clientY - drag.y) > DRAG_THRESH) cancelPress();
+                return;
             }
-            if (drag.dragging) highlight(e.clientX, e.clientY, drag.from);
+            highlight(e.clientX, e.clientY, drag.from);
         });
         document.addEventListener('mouseup', function(e) {
             if (!drag) return;
+            clearHold();
+            // ドラッグでも取り消しでも、直後の click（=使用）は抑止する。素早いクリックだけが使用になる
             if (drag.dragging) { finishDrag(e.clientX, e.clientY); suppressClick = true; }
+            else if (drag.cancelled) { clearVisuals(); suppressClick = true; }
             drag = null;
         });
 
@@ -622,7 +662,15 @@ document.addEventListener('visibilitychange', function() {
         pauseForInterrupt();
     } else if (!document.hidden) {
         // 復帰時にWebAudio＋BGMを再開（iOSはバックグラウンド/ATTでHTML5 BGMを一時停止＋AudioContextをsuspendする）
-        if (soundManager && typeof soundManager.resume === 'function') soundManager.resume();
+        // ⚠1.597: resumeHard を優先。広告を挟んだ後は要素が paused=false のまま無音になることがあり、
+        //   その状態だと resume() は paused ガードで永久に空振りする（実機報告の「広告後ずっと無音」）。
+        if (soundManager && typeof soundManager.resumeHard === 'function') soundManager.resumeHard();
+        else if (soundManager && typeof soundManager.resume === 'function') soundManager.resume();
+        // ⚠1.591: リワード広告が閉じるボタンごと反応しなくなり復帰できない不具合（ユーザー報告・
+        //   @capacitor-community/admob の既知バグ=Dynamic Islandが閉じるボタンに被る等）への保険。
+        //   ホームへスワイプ→戻る、で本当に背景化→復帰した瞬間なら、詰まっていたリワードを片付ける。
+        //   これで強制終了しなくても脱出でき、ポーズ画面から普通に再開できる（ランは失われない）。
+        if (typeof recoverStuckRewardAd === 'function') recoverStuckRewardAd();
     }
 });
 window.addEventListener('blur', function() {
