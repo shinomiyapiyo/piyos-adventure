@@ -96,6 +96,9 @@ function enterUnderground() {
     // ⚠x は UG_PLAYER_MARGIN(24) より右にすること。左壁クランプに食い込むと着地前に横へ弾かれる。
     player.x = undergroundState.originX + UG_SPAWN_X;
     player.y = -player.height - UG_SPAWN_Y_ABOVE;
+    // ⚠出現位置を覚えておく（1.635）。地底モードのステージ間は白で覆っている最中にここへ置かれるので、
+    //   白が明けるまで updateUnderground がこのyへ毎tick引き戻して落下を**始めさせない**（下の落下導入を参照）。
+    undergroundState.spawnY = player.y;
     player.velX = 0; player.velY = 0; player.onGround = false; player.facing = 'right';
     gameState.recentlyDropped = false; gameState.dropFromY = 0;
     gameState.input.left = false; gameState.input.right = false;
@@ -130,6 +133,15 @@ function ugModeStartStage(n) {
     ugEndTapOff();
     bossState.eggs = [];                            // ⚠呪弾は bossState.eggs を借りている＝残すと次ステージで飛んでくる
     bossState.active = false; bossState.phase = 0; bossState.boss = null;
+    // ⚠**おみせの「1ラウンド1回」フラグを戻す**（1.635・ユーザー報告「ステージ2の老婆の店に入れない」）。
+    //   老婆の店も地上と同じ openStageShop() を通って shopState.visited=true を立てるが、通常プレイで
+    //   これを戻しているのは exitUnderground と updateBoss の case 5 の2箇所だけ＝地上を一度も通らない
+    //   このモードではどちらも走らず、ステージ1で入店すると以後ずっと閉店したままだった。
+    //   ⚠この4行は上記2箇所と対で維持すること（片方だけ足すと同じバグが再発する）。
+    shopState.visited = false;
+    shopState.deposited = false;
+    shopState.buildingPlaced = false;
+    shopState.buildingX = 0;
     enterUnderground();                             // 落下導入つきで入場（土管は通らない）
     ugHudVisible(true);                             // 一枚絵で隠していた場合の保険
     if (typeof updateUgModeHud === 'function') updateUgModeHud();   // HUDの「地底 N/4」を更新
@@ -1629,11 +1641,21 @@ function updateUnderground() {
     updateIdolGaze();          // 邪神の巨像の目（1.597・演出のみ）
     // 落下導入中は入力ロック＋無敵（着地したら解除）
     if (undergroundState.introTimer > 0) {
-        undergroundState.introTimer--;
+        // ⚠**白で覆っている間は落下を始めない**（1.635・ユーザー報告「落ちてくる時も真っ白で見えない。
+        //   コインを取った音だけがする」）。地底モードのステージ間は、白で覆いきった裏で次のステージを組む
+        //   （updateGroundReturnFade の 'out' → ugModeStartStage）ので、そのまま落とすと
+        //   白一色の 'hold'(90F)+'in'(45F)=135F の下で落下(70F)が終わってしまい、落下も落下中に拾ったコインも
+        //   一切見えなかった。白が明けるまで出現位置へ引き戻し、明けた瞬間から落とす＝ステージ1と同じ絵になる。
+        if (groundReturnFade.phase) {
+            player.y = undergroundState.spawnY;
+            player.velY = 0; player.velX = 0; player.onGround = false;
+        } else {
+            undergroundState.introTimer--;
+            if (player.onGround) undergroundState.introTimer = 0;
+        }
         gameState.isInvincible = true;
         gameState.input.left = false; gameState.input.right = false;
         gameState.input.jump = false; gameState.input.jumpPressed = false;
-        if (player.onGround) undergroundState.introTimer = 0;
     }
     // ボス闘技場（1.564）。⚠移行演出が始まったら**通常の追従カメラは止める**（演出側がカメラを寄せる）。
     updateUgBoss();

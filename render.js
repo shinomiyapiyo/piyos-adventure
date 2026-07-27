@@ -2918,7 +2918,14 @@ function drawGroundReturnFade() {
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillStyle = '#3a2266';                              // 白背景の上で読める濃い紫（通常版の白文字は白背景に沈むため専用色）
             ctx.shadowColor = 'rgba(176,124,255,0.7)'; ctx.shadowBlur = 15;
-            ctx.fillText(t('boss_round') + gameRound, GAME_WIDTH / 2, GAME_HEIGHT / 2);
+            // ⚠地底モード（1.635・ユーザー報告「R2なのにラウンド14と表示される」）: このモードは
+            //   gameRound を R7/R14/R21/R28 に**置き換えて**同一条件を作っているので、ラウンド番号を
+            //   そのまま出すと2ステージ目が「ROUND 14」になる。HUDと同じ「地底 N/4」に揃える＝
+            //   プレイヤーが見ている進行（地底 2/4）と一致する。
+            var _fadeLabel = undergroundMode.active
+                ? (t('hud_ug_stage_prefix') + ' ' + undergroundMode.stage + '/' + UG_MODE_STAGES)
+                : (t('boss_round') + gameRound);
+            ctx.fillText(_fadeLabel, GAME_WIDTH / 2, GAME_HEIGHT / 2);
             ctx.shadowBlur = 0;
             ctx.restore();
         }

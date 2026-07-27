@@ -731,6 +731,7 @@ var undergroundState = {
     endX: 0,              // レベル地形の終端X（camMaxX + 1画面ぶん＝最後まで床が続く）
     savedGameSpeed: 0,    // 復帰用スクロール速度
     introTimer: 0,        // 落下導入の残フレーム（>0 の間は入力ロック＋無敵）
+    spawnY: 0,            // 落下導入の出現y（1.635・白で覆っている間はここへ引き戻して落下を始めさせない）
     checkpointX: 0,       // 復帰位置（直近の安全な足場・溶岩の上に戻さないため）
     checkpointY: 0,
     cleared: false,       // ボス撃破済み（退場処理へ）
