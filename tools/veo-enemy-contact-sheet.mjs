@@ -21,7 +21,7 @@ const ID    = getArg('id');
 const STEP  = parseInt(getArg('step') || '2', 10);
 const FLOP  = hasFlag('flop');
 const COLS  = parseInt(getArg('cols') || '8', 10);
-const OUT = 64, CELL = 104, LABEL_H = 18;
+const OUT = 64, CELL = parseInt(getArg('cell') || '104', 10), LABEL_H = 18;
 
 async function rawRGBA(buf) { const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true }); return { data, ...info }; }
 function bboxA(d) { const { data, width, height, channels } = d; let a = width, b = height, c = -1, e = -1; for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) { if (data[(y * width + x) * channels + 3] > 50) { if (x < a) a = x; if (x > c) c = x; if (y < b) b = y; if (y > e) e = y; } } return { minX: a, minY: b, maxX: c, maxY: e, w: c - a + 1, h: e - b + 1, width, height }; }

@@ -1,0 +1,156 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>歩行モーション確認</title>
+<style>
+  body { margin:0; background:#14101f; color:#eee; font-family:'M PLUS Rounded 1c','Hiragino Sans',sans-serif; }
+  .wrap { padding:10px 14px 18px; }
+  h1 { font-size:15px; margin:0 0 8px; color:#ffd84d; }
+  h2 { font-size:12px; margin:12px 0 5px; color:#9fd8ff; font-weight:700; }
+  .row { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+  .cell { text-align:center; }
+  .cell canvas { image-rendering:pixelated; background:
+      linear-gradient(45deg,#222 25%,transparent 25%,transparent 75%,#222 75%),
+      linear-gradient(45deg,#222 25%,#1a1a1a 25%,#1a1a1a 75%,#222 75%);
+      background-size:12px 12px; background-position:0 0,6px 6px; border:1px solid #444; border-radius:4px; }
+  .cap { font-size:10px; color:#bbb; margin-top:2px; }
+  .stage { display:flex; gap:24px; align-items:flex-end; background:#1c1730; border:1px solid #3a3358;
+           border-radius:8px; padding:10px 16px 6px; }
+  .stage canvas { image-rendering:pixelated; }
+  .ctrl { margin:8px 0 0; font-size:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  button { font:inherit; font-size:12px; padding:4px 12px; border-radius:6px; border:1px solid #6a5fa0;
+           background:#2b2450; color:#eee; cursor:pointer; }
+  button.on { background:#5a3fd0; }
+  .note { font-size:11px; color:#9a92b8; margin-top:4px; line-height:1.6; }
+</style>
+<div class="wrap">
+<h1>きぐるみ 歩行モーション確認（ゲーム内と同じ速さ＝8フレームごとに1コマ / 4コマループ）</h1>
+
+<div class="stage">
+  <div><div class="cap" style="margin-bottom:4px;">きぐるみ（現行）</div><canvas id="animK" width="140" height="150"></canvas></div>
+  <div><div class="cap" style="margin-bottom:4px; color:#ffd84d;">きぐるみ（新・横向き案）</div><canvas id="animN" width="140" height="150"></canvas></div>
+  <div><div class="cap" style="margin-bottom:4px;">ぴよ氏（比較）</div><canvas id="animP" width="140" height="150"></canvas></div>
+  <div style="align-self:flex-start;">
+    <div class="ctrl">
+      <button id="btnPlay" class="on">■ 停止</button>
+      <button id="btnStep">▶ 1コマ送り</button>
+      <span>速さ: <b id="spd">×1.0（ゲーム内）</b></span>
+      <button data-spd="1">×1</button><button data-spd="0.35">×0.35</button><button data-spd="0.15">×0.15</button>
+    </div>
+    <div class="ctrl">
+      <button id="btnOnion">残像（前後コマ）</button>
+      <button id="btnGrid">基準線</button>
+      <span>コマ: <b id="fno">1</b>/4</span>
+    </div>
+    <div class="note">
+      ・接地の基準線（赤）＝足元。ここが上下すると「地面に沈む/浮く」に見える<br>
+      ・中心線（青）＝体幹。左右にぶれると「よろけて」見える
+    </div>
+  </div>
+</div>
+
+<h2>きぐるみ 4コマ（4倍・チェック柄＝透明）</h2>
+<div class="row" id="sheetK"></div>
+<h2>ぴよ氏 4コマ（比較用）</h2>
+<div class="row" id="sheetP"></div>
+
+<h2>重ね合わせ（4コマを半透明で重ねる＝ブレの量が一目で分かる）</h2>
+<div class="row">
+  <div class="cell"><canvas id="stackK" width="256" height="256"></canvas><div class="cap">きぐるみ</div></div>
+  <div class="cell"><canvas id="stackP" width="256" height="256"></canvas><div class="cap">ぴよ氏</div></div>
+</div>
+</div>
+
+<script>
+const K = [1,2,3,4].map(i => '../images/skin_kigurumi_walk_' + i + '.png');
+const P = [1,2,3,4].map(i => '../images/player_walk_' + i + '.png');
+// 新案（Veo横向きクリップの44/50/55/61コマ目・images/ にはまだ入れていない候補）
+const N = [1,2,3,4].map(i => '_raw/veo_kigurumi_walk_' + i + '_norm_64.png');
+const SCALE = 4, S = 64;
+let imgsK = [], imgsP = [], imgsN = [], onion = false, grid = true, playing = true, speed = 1, tick = 0, frame = 0;
+
+function load(list) { return Promise.all(list.map(src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; }))); }
+
+function sheet(el, imgs) {
+  imgs.forEach((im, n) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const c = document.createElement('canvas'); c.width = S * SCALE; c.height = S * SCALE;
+    const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+    x.drawImage(im, 0, 0, c.width, c.height);
+    if (grid) drawGuides(x, c.width, c.height);
+    const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = (n + 1) + 'コマ目';
+    d.appendChild(c); d.appendChild(cap); el.appendChild(d);
+  });
+}
+function drawGuides(x, w, h) {
+  x.save();
+  x.strokeStyle = 'rgba(255,80,80,0.55)'; x.lineWidth = 1;
+  x.beginPath(); x.moveTo(0, h - SCALE * 4 + 0.5); x.lineTo(w, h - SCALE * 4 + 0.5); x.stroke(); // 足元の基準
+  x.strokeStyle = 'rgba(90,170,255,0.5)';
+  x.beginPath(); x.moveTo(w / 2 + 0.5, 0); x.lineTo(w / 2 + 0.5, h); x.stroke();                // 体幹の基準
+  x.restore();
+}
+function stack(el, imgs) {
+  const x = el.getContext('2d'); x.imageSmoothingEnabled = false;
+  x.clearRect(0, 0, el.width, el.height);
+  imgs.forEach(im => { x.globalAlpha = 0.3; x.drawImage(im, 0, 0, el.width, el.height); });
+  x.globalAlpha = 1; drawGuides(x, el.width, el.height);
+}
+function drawAnim(cv, imgs) {
+  const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
+  x.clearRect(0, 0, cv.width, cv.height);
+  // 地面
+  x.fillStyle = '#3a2f1c'; x.fillRect(0, cv.height - 18, cv.width, 18);
+  x.fillStyle = '#5aa04a'; x.fillRect(0, cv.height - 18, cv.width, 4);
+  const w = 128, h = 128, px = (cv.width - w) / 2, py = cv.height - 18 - h + 14; // 足元が地面に来る位置
+  if (onion) {
+    x.globalAlpha = 0.25;
+    x.drawImage(imgs[(frame + 3) % 4], px, py, w, h);
+    x.drawImage(imgs[(frame + 1) % 4], px, py, w, h);
+    x.globalAlpha = 1;
+  }
+  x.drawImage(imgs[frame], px, py, w, h);
+  if (grid) {
+    x.save();
+    x.strokeStyle = 'rgba(255,80,80,0.5)';
+    x.beginPath(); x.moveTo(0, cv.height - 18 + 0.5); x.lineTo(cv.width, cv.height - 18 + 0.5); x.stroke();
+    x.strokeStyle = 'rgba(90,170,255,0.45)';
+    x.beginPath(); x.moveTo(cv.width / 2 + 0.5, 0); x.lineTo(cv.width / 2 + 0.5, cv.height); x.stroke();
+    x.restore();
+  }
+}
+function loop() {
+  if (playing) {
+    tick += speed;
+    if (tick >= 8) { tick = 0; frame = (frame + 1) % 4; document.getElementById('fno').textContent = frame + 1; }
+  }
+  drawAnim(document.getElementById('animK'), imgsK);
+  if (imgsN.length) drawAnim(document.getElementById('animN'), imgsN);
+  drawAnim(document.getElementById('animP'), imgsP);
+  requestAnimationFrame(loop);
+}
+Promise.all([load(K), load(P), load(N)]).then(([a, b, c]) => {
+  imgsK = a; imgsP = b; imgsN = c.filter(Boolean);
+  sheet(document.getElementById('sheetK'), imgsK);
+  sheet(document.getElementById('sheetP'), imgsP);
+  stack(document.getElementById('stackK'), imgsK);
+  stack(document.getElementById('stackP'), imgsP);
+  if (imgsN.length === 4) {                      // 新案の4コマも並べる
+    var host = document.querySelector('.wrap');
+    var h = document.createElement('h2'); h.textContent = 'きぐるみ 新案 4コマ（Veoの横向きクリップ 44/50/55/61コマ目）';
+    h.style.color = '#ffd84d';
+    var row = document.createElement('div'); row.className = 'row';
+    host.insertBefore(h, document.getElementById('sheetP').previousSibling);
+    host.insertBefore(row, document.getElementById('sheetP').previousSibling);
+    sheet(row, imgsN);
+  }
+  loop();
+});
+document.getElementById('btnPlay').onclick = e => { playing = !playing; e.target.classList.toggle('on', playing); e.target.textContent = playing ? '■ 停止' : '▶ 再生'; };
+document.getElementById('btnStep').onclick = () => { playing = false; frame = (frame + 1) % 4; document.getElementById('fno').textContent = frame + 1; };
+document.getElementById('btnOnion').onclick = e => { onion = !onion; e.target.classList.toggle('on', onion); };
+document.getElementById('btnGrid').onclick = e => { grid = !grid; e.target.classList.toggle('on', grid); };
+document.querySelectorAll('button[data-spd]').forEach(b => b.onclick = () => {
+  speed = parseFloat(b.dataset.spd);
+  document.getElementById('spd').textContent = '×' + speed.toFixed(2) + (speed === 1 ? '（ゲーム内）' : '');
+});
+</script>
