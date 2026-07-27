@@ -80,16 +80,18 @@ var TEST_START_OFFSET_M = 0;
 //   出荷ビルドでは無効＝消し忘れても製品の速度は変わらない。
 // ⚠A/B比較の手順: 'speedcap' で走る → この値を 0 にして同じ地点を走る（素の倍率）→ どちらが良いか判断。
 var TEST_ENEMY_SPEED_CAP = 7.0;
-// 'speedcap' の開始ラウンドを上限値から自動で決める（1.625）。
+// 'speedcap' の開始ラウンドを上限値から自動で決める（1.625／1.627で地上通算ベースに修正）。
 // ⚠**素の倍率が上限を上回るラウンドから始めないと、キャップが効かず「素の倍率」を体感してしまう**。
 //   1.624はR17固定（素5.8倍）だったので、上限を7.0に上げても 5.8 のままになってしまう＝この関数で防ぐ。
-//   例: 上限7.0 → 素が7.0以上になる最小はR21だが地底なのでR22（素7.3→7.0に頭打ち・48,000m）。
+// ⚠1.627: 倍率が groundRoundIndex ベースになったので、素の式から逆算せず**実際に順に評価して探す**。
+//   例: 上限7.0 → 地上通算21＝R24（52,800m）。
 function testSpeedCapRound() {
-    var cap = (TEST_ENEMY_SPEED_CAP > 0) ? TEST_ENEMY_SPEED_CAP : 5.8;
-    var r = Math.ceil((cap - 1) / 0.3) + 1;                       // 素の倍率が cap 以上になる最小ラウンド
-    if (r < DIVE_BIRD_ROUND) r = DIVE_BIRD_ROUND;                 // アカバネ（R11〜）は必ず出す
-    while (isUndergroundRound(r) || isScarecrowRound(r)) r++;     // 地底(R7/14/21/28)とカカシ(R6/13/20/27)は避ける
-    return r;
+    var cap = (TEST_ENEMY_SPEED_CAP > 0) ? TEST_ENEMY_SPEED_CAP : 99;
+    for (var r = DIVE_BIRD_ROUND; r < 300; r++) {                 // アカバネ（R11〜）は必ず出す
+        if (isUndergroundRound(r) || isScarecrowRound(r)) continue; // 地底(R7/14/21/28)とカカシ(R6/13/20/27)は避ける
+        if (roundSpeedMultRaw(r) >= cap) return r;
+    }
+    return DIVE_BIRD_ROUND;
 }
 // ⚠1.551にあった TEST_SKIP_TO_PIPE（土管手前へのワープ）は 1.552 で廃止。
 //   カカシ撃破の直後にその場で土管が出る仕様に直したので、助走のスキップ自体が不要になった。
@@ -101,8 +103,22 @@ function testSpeedCapRound() {
 // ⚠地底は対象外＝ugMakeEnemy が UG_ENEMY_SPEED_MULT(2.8固定) を掛ける（1.612のユーザー決定
 //   「地底は速さの概念を取っ払う。ボスのみ例外」）。ボス闘技場の画面外湧き（spawnEdgeEnemy /
 //   spawnEdgeFlyingEnemy）も元から倍率を掛けていないので、ここの影響を受けない。
+// 「実際に走った地上ラウンドの通算数」（1.627）。
+// ⚠**地底ラウンド(R7/R14/R21/R28)には地上区間が存在しない**＝開始と同時に土管が出て、退出時に
+//   exitUnderground が gameRound++ する。素の gameRound で倍率を出すと**地底を1つ挟むたびに速度の段が
+//   1つ飛ぶ**: R6(2.50)の次に走る地上がR8(3.10)になり、本来のR7ぶん(2.80)が抜け落ちる
+//   （ユーザー実機指摘・1.627）。しかもズレは周回ごとに累積する（3周目では0.9ぶんの飛び）。
+//   通過済みの地底ラウンド数を引いて、地上の速度が**必ず0.3ずつ**上がるようにする。
+// ⚠ボスは地底ラウンドにも居る（闇の巫女）ので**ボス側の周回強化はこれを使わない**（素の gameRound のまま）。
+//   ここで補正するのは「地上ステージの雑魚の速度」だけ。
+function groundRoundIndex(r) {
+    if (r === undefined) r = gameRound;
+    return r - Math.floor(r / BOSS_CYCLE_ROUNDS);
+}
+function roundSpeedMultRaw(r) { return 1 + (groundRoundIndex(r) - 1) * 0.3; }
+
 function enemySpeedMult() {
-    var m = 1 + (gameRound - 1) * 0.3;
+    var m = roundSpeedMultRaw(gameRound);
     // テスト専用の頭打ち。⚠製品の挙動を絶対に変えないため TEST_START_AFTER_R6 とセットでしか効かせない。
     if (TEST_START_AFTER_R6 && TEST_ENEMY_SPEED_CAP > 0 && m > TEST_ENEMY_SPEED_CAP) m = TEST_ENEMY_SPEED_CAP;
     return m;
