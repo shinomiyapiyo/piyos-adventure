@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.631";
+                content: "Ver.1.632";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -866,7 +866,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.631</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.632</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2594,6 +2594,167 @@ var gameSettings = {
 })();
 function saveSettings() {
     try { localStorage.setItem('piyo_settings', JSON.stringify(gameSettings)); } catch (_) {}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ─── 中断セーブ（ぼうけんのしおり・1.632 セクション1＝土台） ───
+// ═══════════════════════════════════════════════════════════════════
+// 「ぼうけんのしおり」を使うとラン途中で中断でき、次回起動時に続きから再開できる。
+// ここはデータ層だけ（保存/読込/削除/検証）。アイテム本体とUIは別セクション。
+//
+// 【設計の要点】
+// ⚠**再開したら必ずセーブを消す**（アンドゥ防止・ユーザー決定）。「最初から」を選んだ時も消す。
+// ⚠**保存できるのは地上の通常区間だけ**。地底・ボス戦・お店・土管の中は状態が大きすぎるので対象外。
+//   （この判定は canSaveRun() が持つ＝アイテム側はこれを見るだけでよい）
+// ⚠**位置は保存しない**。距離から世界を組み直す（testWarpToM と同じ方式）＝地形/敵は作り直しでよい。
+//   これのおかげで保存するのは「数値と持ち物」だけで済み、壊れにくい。
+// ⚠**ストックは used まで保存する**（1.632の肝）。buildPermaSlots() はラン開始のたびに永続枠を
+//   `used:false` で作り直すので、素直に再開すると**ポーチのしおりが毎回復活して無限に中断できる**。
+//   再開時は buildPermaSlots を呼ばず、ここに保存した中身をそのまま戻すこと。
+// ⚠**版数(v)を刻む**。将来ボス距離やステージ構成を変えると古いセーブは変な場所で再開されるので、
+//   合わない時は黙って捨てる（「つづきから」を出さない）。
+// ⚠パワーアップの残り時間（レモン/シールド等）は**保存しない**＝再開時は素の状態から。
+//   中断中に時間が止まるのは不自然だし、保存対象を増やすほど壊れる箇所が増える。
+var RUN_SAVE_KEY = 'piyo_run';
+var RUN_SAVE_VERSION = 1;   // ⚠セーブの意味が変わる変更をしたら必ず上げる（古いセーブは自動で捨てられる）
+
+// 今このランを保存してよい場所にいるか。⚠アイテム側の使用可否はこの1関数だけを見ること。
+function canSaveRun() {
+    if (!gameState.gameStarted) return false;
+    if (tutorialState.active) return false;                     // チュートリアルは対象外（サンドボックス）
+    if (typeof undergroundMode !== 'undefined' && undergroundMode.active) return false; // 地底モードも対象外
+    if (undergroundState.active || undergroundState.pipePlaced) return false;           // 地底とその入場土管
+    if (bossState.active || bossState.bossTriggered) return false;                      // ボス戦（予告中も）
+    if (shopState.active || pipeRoomState.active) return false;                         // お店/土管の部屋の中
+    if (groundReturnFade.phase) return false;                                           // 地上復帰の白フェード中
+    return true;
+}
+
+// 保存する中身を組む。⚠**ホワイトリスト方式**（gameState を丸ごと入れない）＝
+//   復元してはいけない一時状態（入力/カメラ/タイマー/演出フラグ）を持ち込まないため。
+function buildRunSave() {
+    var perma = [];
+    for (var i = 0; i < stockState.perma.length; i++) {
+        var p = stockState.perma[i];
+        perma.push(p ? { id: p.id || '', used: !!p.used, temp: !!p.temp, base: p.base || '' } : null);
+    }
+    var items = [];
+    for (var j = 0; j < stockState.items.length; j++) {
+        var it = stockState.items[j];
+        if (it && it.id) items.push({ id: it.id });
+    }
+    return {
+        v: RUN_SAVE_VERSION,
+        t: Date.now(),
+        round: gameRound,
+        // ── 進行 ──
+        distance: gameState.distance,
+        stageShiftM: gameState.stageShiftM || 0,
+        ugDistOffset: gameState.ugDistOffset || 0,
+        isFirstRun: !!gameState.isFirstRun,
+        // ── 成績（そのまま持ち越す）──
+        score: gameState.score, rankScore: gameState.rankScore,
+        lives: gameState.lives, crystalLives: gameState.crystalLives || 0,
+        enemyKills: gameState.enemyKills, coinsCollected: gameState.coinsCollected,
+        bossKills: gameState.bossKills, specialUses: gameState.specialUses,
+        specialGauge: gameState.specialGauge || 0,
+        revivesLeft: gameState.revivesLeft || 0,
+        noDmgMark: gameState.noDmgMark || 0, noDmgNext: gameState.noDmgNext || 500,
+        // ── 二重計上を防ぐカウンタ（これを戻さないと再開後に距離/撃破がもう一度加算される）──
+        mDist: gameState.missionCountedDistance || 0, mKills: gameState.missionCountedKills || 0,
+        mCoins: gameState.missionCountedCoins || 0, mBoss: gameState.missionCountedBoss || 0,
+        mSpecial: gameState.missionCountedSpecial || 0, mPlay: !!gameState.missionPlayCounted,
+        // ── per-run の抽選フラグ（戻さないと日次エッグをもう一度引ける）──
+        eggField: !!gameState.goldenEggFieldSpawned,
+        eggArmed: !!gameState.goldenEggRescueArmed, eggDone: !!gameState.goldenEggRescueDone,
+        // ── 広告復活を使ったか（ランキングの ↺ 判定に使う）──
+        revived: !!(typeof rewardAdState !== 'undefined' && rewardAdState.reviveUsedThisRun),
+        // ── 持ち物 ──
+        items: items, perma: perma,
+        // ── そのラウンドで消費済みの「1ラウンド1回」たち ──
+        shopVisited: !!shopState.visited, shopDeposited: !!shopState.deposited,
+        shopBuilt: !!shopState.buildingPlaced,
+        pipeVisited: !!pipeRoomState.visited, pipeTargetDist: pipeRoomState.targetDist || 0,
+        pipeTargetRound: pipeRoomState.targetRound || 0, pipeExtra: pipeRoomState.extraDist || 0,
+        ugVisited: !!undergroundState.visited
+    };
+}
+
+// 保存する。⚠チェックサムは**改ざん検出ではなく破損検出**（式はクライアントにあるので本気の改造は防げない）。
+//   壊れたセーブを読み込んで妙な状態で再開するくらいなら、無かったことにするための保険。
+function saveRunState() {
+    if (!canSaveRun()) return false;
+    try {
+        var body = JSON.stringify(buildRunSave());
+        localStorage.setItem(RUN_SAVE_KEY, JSON.stringify({ d: body, c: transferChecksum(body) }));
+        return true;
+    } catch (_) { return false; }
+}
+
+// 読み込む。壊れている/版数違い/中身がおかしい ときは **null を返して自動的に捨てる**。
+function loadRunState() {
+    try {
+        var raw = localStorage.getItem(RUN_SAVE_KEY);
+        if (!raw) return null;
+        var wrap = JSON.parse(raw);
+        if (!wrap || typeof wrap.d !== 'string' || wrap.c !== transferChecksum(wrap.d)) { clearRunState(); return null; }
+        var d = JSON.parse(wrap.d);
+        if (!d || d.v !== RUN_SAVE_VERSION) { clearRunState(); return null; }
+        // 数値の無害化（他のセーブと同じ規律。NaN/負/巨大値でループや表示が壊れないように）
+        var n = function(x, lo, hi) { x = Math.floor(Number(x)); return (isFinite(x) && x >= lo && x <= hi) ? x : lo; };
+        d.round    = n(d.round, 1, 999);
+        d.distance = n(d.distance, 0, 9999999);
+        d.lives    = n(d.lives, 1, 10);
+        d.crystalLives = n(d.crystalLives, 0, 10);
+        d.score = n(d.score, 0, Number.MAX_SAFE_INTEGER); d.rankScore = n(d.rankScore, 0, Number.MAX_SAFE_INTEGER);
+        if (!Array.isArray(d.items)) d.items = [];
+        if (!Array.isArray(d.perma)) d.perma = [];
+        return d;
+    } catch (_) { clearRunState(); return null; }
+}
+
+function hasRunSave() { return !!loadRunState(); }
+function clearRunState() { try { localStorage.removeItem(RUN_SAVE_KEY); } catch (_) {} }
+
+// セーブから走行状態を復元する。⚠**呼ぶ側が先に resetGame()/applyUpgrades() を済ませておくこと**。
+//   ここでは buildPermaSlots() を**呼ばない**（呼ぶと used が false に戻り、しおりが復活してしまう）。
+function applyRunSave(d) {
+    if (!d) return false;
+    gameRound = d.round;
+    gameState.isFirstRun = !!d.isFirstRun;
+    gameState.stageShiftM = d.stageShiftM || 0;
+    gameState.ugDistOffset = 0;                 // ⚠先に0にしてから warp する（testWarpToM が加算するため）
+    testWarpToM(d.distance);                    // 距離から世界を組み直す＝地形/敵は作り直し
+    gameState.ugDistOffset = d.ugDistOffset || 0;
+    gameState.score = d.score; gameState.rankScore = d.rankScore;
+    gameState.lives = d.lives; gameState.crystalLives = d.crystalLives;
+    gameState.enemyKills = d.enemyKills || 0; gameState.coinsCollected = d.coinsCollected || 0;
+    gameState.bossKills = d.bossKills || 0; gameState.specialUses = d.specialUses || 0;
+    gameState.specialGauge = d.specialGauge || 0; gameState.revivesLeft = d.revivesLeft || 0;
+    gameState.noDmgMark = d.noDmgMark || 0; gameState.noDmgNext = d.noDmgNext || 500;
+    gameState.missionCountedDistance = d.mDist || 0; gameState.missionCountedKills = d.mKills || 0;
+    gameState.missionCountedCoins = d.mCoins || 0; gameState.missionCountedBoss = d.mBoss || 0;
+    gameState.missionCountedSpecial = d.mSpecial || 0; gameState.missionPlayCounted = !!d.mPlay;
+    gameState.goldenEggFieldSpawned = !!d.eggField;
+    gameState.goldenEggRescueArmed = !!d.eggArmed; gameState.goldenEggRescueDone = !!d.eggDone;
+    if (typeof rewardAdState !== 'undefined') rewardAdState.reviveUsedThisRun = !!d.revived;
+    // 持ち物（⚠used/temp/base をそのまま戻す＝これが「1ランに1回」を守る本体）
+    stockState.perma = [];
+    for (var i = 0; i < d.perma.length; i++) {
+        var p = d.perma[i];
+        stockState.perma.push(p ? { id: p.id || '', used: !!p.used, temp: !!p.temp, base: p.base || '' }
+                                : { id: '', used: false, temp: false, base: '' });
+    }
+    stockState.items = [];
+    for (var j = 0; j < d.items.length; j++) if (d.items[j] && d.items[j].id) stockState.items.push({ id: d.items[j].id });
+    // 「1ラウンド1回」たち
+    shopState.visited = !!d.shopVisited; shopState.deposited = !!d.shopDeposited;
+    shopState.buildingPlaced = !!d.shopBuilt;
+    pipeRoomState.visited = !!d.pipeVisited; pipeRoomState.targetDist = d.pipeTargetDist || 0;
+    pipeRoomState.targetRound = d.pipeTargetRound || 0; pipeRoomState.extraDist = d.pipeExtra || 0;
+    undergroundState.visited = !!d.ugVisited;
+    if (typeof updateStockUI === 'function') updateStockUI();
+    return true;
 }
 
 // ─── データ引き継ぎ（機種変更対策: セーブをコード化してコピー/貼り付けで移行） ───
