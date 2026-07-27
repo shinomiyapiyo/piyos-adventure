@@ -2347,7 +2347,7 @@ var EGG_SHOP_ITEMS = [
     // ⚠消費型ではない（1回30個の消費だと、入手ペース約0.86個/日＝1回潜るのに35日かかりモードが成立しない）。
     // ⚠type:'upgrade' をそのまま使う＝confirmEggBuy/isEggItemOwned に手を入れずに済む（未対応typeは安全側で弾かれる）。
     { id: 'ug_pass', type: 'upgrade', upgradeId: UG_MODE_PASS_ID, nameKey: 'egg_ug_pass', descKey: 'egg_ug_pass_desc',
-      iconImg: 'images/icon_ug_blessing.png', eggPrice: 30 },
+      iconImg: 'images/icon_ug_pass.png', eggPrice: 30 },
     // 魔女ぴよ: ジャンプ長押しでグライド滞空。（1.456・アート1.457・価格1.493で200→80・1.507で価格昇順の位置へ）
     { id: 'skin_witch', type: 'skin', skinId: 'witch', nameKey: 'skin_witch', descKey: 'egg_item_witch_desc',
       iconImg: 'images/skin_witch_idle.png', eggPrice: 80 },
@@ -2440,6 +2440,9 @@ var ZUKAN_ENTRIES = [
     //   （1.579より前に購入済みのプレイヤーも、遡って発見済みとして扱う）。
     { id: 'item:ug_blessing', cat: 'item', nameKey: 'shop_item_ug_blessing', descKey: 'shop_item_ug_blessing_desc', img: 'images/icon_ug_blessing.png', seenIf: function(gs){ return ((gs.upgrades || {}).ug_blessing || 0) > 0; } },
     // ── アイテム：永続アップグレード（所持レベルから発見を派生・既存の説明文を流用）──
+    // 地底入場パス（1.630）: エッグこうかんで手に入る永久アンロック。⚠加護と同じく seenIf で所持から派生させる
+    //   ＝購入した瞬間に図鑑へ載る（別途 markZukanSeen を呼ばなくてよい）。
+    { id: 'item:ug_pass',         cat: 'item', nameKey: 'egg_ug_pass',           descKey: 'egg_ug_pass_desc',           img: 'images/icon_ug_pass.png',         seenIf: function(gs){ return ((gs.upgrades || {})[UG_MODE_PASS_ID] || 0) > 0; } },
     { id: 'item:coin_master',     cat: 'item', nameKey: 'tshop_coin_master',     descKey: 'tshop_coin_master_desc',     img: 'images/icon_coin_master.png',     seenIf: function(gs){ return ((gs.upgrades || {}).coin_master || 0) > 0; } },
     { id: 'item:special_move',    cat: 'item', nameKey: 'tshop_special_move',    descKey: 'tshop_special_move_desc',    img: 'images/icon_special_move.png',    seenIf: function(gs){ return ((gs.upgrades || {}).special_move || 0) > 0; } },
     { id: 'item:toughness',       cat: 'item', nameKey: 'tshop_toughness',       descKey: 'tshop_toughness_desc',       img: 'images/icon_toughness.png',       seenIf: function(gs){ return ((gs.upgrades || {}).toughness || 0) > 0; } },

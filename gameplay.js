@@ -2386,6 +2386,9 @@ function buildHealRoom() {
 
 // ラッキーの間（1.452〜）: 床に宝箱3つを等間隔で並べる。プレイヤーは1つを「上から踏んで」開ける（横歩きでは開かない＝3つから選べる）。
 // 開封→中身ランダム[大コイン/ハート/在庫]・残り2つは消滅。ゴールデンエッグは他タイプ同様 initPipeRoom が独立1%(1/100)で別途抽選。
+// ⚠1.630で「1枚の絵からフタだけ倒す」方式を試したが**ユーザー却下**（生成画像が期待と違った）。
+//   宝箱の画像生成は後回し＝当面は drawChestBody の手続き描画のまま。再挑戦する時は
+//   tools/gemini-ug-pass-chest.mjs の chest プロンプトから作り直す。
 var LUCKY_CHEST_W = 52, LUCKY_CHEST_H = 40;
 function buildLuckyRoom() {
     var b = pipeRoomBounds();

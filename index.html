@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.629";
+                content: "Ver.1.631";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -758,7 +758,7 @@
         <div id="ui" style="display: none;">
             <div id="hudDistRow"><img src="images/icon_distance.png" class="ui-icon"> <span id="distance">0</span>m</div>
             <!-- 地底モード専用（1.629）: 距離の代わりに残りステージを出す。距離はランキングにも実績にも乗せないため -->
-            <div id="hudUgStageRow" style="display:none;"><img src="images/icon_ug_blessing.png" class="ui-icon"> <span data-i18n="hud_ug_stage_prefix">地底</span> <span id="hudUgStage">1/4</span></div>
+            <div id="hudUgStageRow" style="display:none;"><img src="images/icon_ug_pass.png" class="ui-icon"> <span data-i18n="hud_ug_stage_prefix">地底</span> <span id="hudUgStage">1/4</span></div>
             <div><img src="images/icon_money.png" class="ui-icon"> <span id="score">0</span></div>
             <div><img src="images/item_golden_egg.png" class="ui-icon"> <span id="goldenEggCount">0</span></div>
             <div><img src="images/icon_lives.png" class="ui-icon"> <span id="lives">5</span><span id="crystalLives" style="display:none; color:#5fc0ff; font-weight:700;"></span> <span id="reviveIndicator" style="display:none; color:#ffd700;"></span></div>
@@ -866,7 +866,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.629</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.631</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -909,7 +909,7 @@
                        `pointer-events:auto !important` に負けないよう setProperty で指定する。きせかえボタンと同じ作法） -->
                 <button class="game-button" id="ugModeButton" style="
                     background: linear-gradient(180deg, #8e6bd0 0%, #5b3a9e 50%, #3a1f6e 100%);
-                    border-bottom-color: rgba(0,0,0,0.45);"><img src="images/icon_ug_blessing.png" class="ui-icon"> <span data-i18n="menu_ug_mode">地底モード</span></button>
+                    border-bottom-color: rgba(0,0,0,0.45);"><img src="images/icon_ug_pass.png" class="ui-icon"> <span data-i18n="menu_ug_mode">地底モード</span></button>
                 <div id="titleButtons">
                     <button class="game-button" id="settingsButton"><img src="images/icon_settings.png" class="ui-icon"> <span data-i18n="title_settings">設定</span></button>
                     <button class="game-button" id="zukanButton" style="position:relative;">📖 <span data-i18n="title_zukan">ずかん</span><span id="zukanBadgeMenu" style="display:none; position:absolute; top:-5px; right:-5px; width:13px; height:13px; background:#ff3344; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(255,51,68,0.9);"></span></button>
@@ -3078,7 +3078,7 @@ var BADGES = [
     { id: 'devoted',         nameKey: 'badge_devoted',         descKey: 'badge_devoted_d',         iconImg: 'images/icon_celebrate.png', achId: 'plays_50' },
     // 地底の帝王（1.629）: **地底モードのR4クリア** または **通常プレイでR28（4周目の地底）踏破**。
     // どちらも「4つの地底レイアウトを全部越えた」証なので同格に扱う（ユーザー決定）。
-    { id: 'ug_emperor',      nameKey: 'badge_ug_emperor',      descKey: 'badge_ug_emperor_d',      iconImg: 'images/icon_ug_blessing.png', special: 'ug_emperor' }
+    { id: 'ug_emperor',      nameKey: 'badge_ug_emperor',      descKey: 'badge_ug_emperor_d',      iconImg: 'images/icon_ug_pass.png', special: 'ug_emperor' }
 ];
 function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
 function isBadgeEarned(b) { return !!(gameSettings.badges && gameSettings.badges[b.id]); }
