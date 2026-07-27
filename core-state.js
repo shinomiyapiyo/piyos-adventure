@@ -168,6 +168,24 @@ const BOSS_FLYING_EDGE_ROUND = BOSS_CYCLE_ROUNDS + 1;
 //   差し引くことで R1-R5=ニワトリ/カラス/タマゴ/大蛇/フクロウ → R6=カカシ → R7=地底 → R8から再び同じ順で回る。
 function isUndergroundRound(round) { return round > 0 && round % BOSS_CYCLE_ROUNDS === 0; }   // R7, R14, R21…
 function isScarecrowRound(round)  { return round > 0 && round % BOSS_CYCLE_ROUNDS === BOSS_CYCLE_ROUNDS - 1; } // R6, R13, R20…
+
+// ═══ 地底モード（1.629・ユーザー発案「地底ステージだけを遊べるモード」）═══
+// 地上を一切挟まず、地底の4レイアウトを R1→R4 として連続で遊ぶ。**中身は通常プレイと完全に同一条件**。
+// ⚠その同一性は「ステージ番号ではなく gameRound を 7/14/21/28 に置く」ことだけで担保している。
+//   地底の中身は全部 gameRound から引かれるため（レイアウト=ugRoomsForRound / 巫女HP・技の解禁=bossEncounter /
+//   敵の数=レイアウト付随）、この1行の置き換えだけで分岐を書かずに通常と同じ難度になる。
+//   ⚠**ここを「1,2,3,4」にしてはいけない**（レイアウトも巫女も1周目のものになってしまう）。
+const UG_MODE_ROUNDS      = [BOSS_CYCLE_ROUNDS, BOSS_CYCLE_ROUNDS * 2, BOSS_CYCLE_ROUNDS * 3, BOSS_CYCLE_ROUNDS * 4];
+const UG_MODE_STAGES      = UG_MODE_ROUNDS.length;   // 4
+// 路銀（1.629・ユーザー決定30,000円）。老婆の店は まんじゅう12,000／劇薬10,000 と高額で、
+// 1軒目に着くまでの収入（実測14,350円・全取り前提）では実質何も買えず「見るだけの店」になるため。
+// ⚠貯金は地底モード中は隠す（下記）＝この路銀は**モード内でしか使えず、終われば消える**。
+// ⚠rankScore には足さないこと（所持金とランキング用スコアは別勘定・gainScore を使わず score だけに入れる）。
+const UG_MODE_START_MONEY = 30000;
+const UG_MODE_PASS_ID     = 'ug_pass';   // 地底入場パス（エッグ交換の永続アップグレードとして持つ）
+var undergroundMode = { active: false, stage: 0 };   // stage: 1〜4（active=false の時は0）
+function hasUndergroundPass() { return ((gameSettings.upgrades || {})[UG_MODE_PASS_ID] || 0) > 0; }
+function ugModeIsFinalStage() { return undergroundMode.active && undergroundMode.stage >= UG_MODE_STAGES; }
 function bossKindForRound(round) {
     if (isUndergroundRound(round)) return 'priestess'; // 地底ボス「闇の巫女」
     if (isScarecrowRound(round))   return 'scarecrow'; // 門番「闇のカカシ」
@@ -614,6 +632,10 @@ const UG_END_GRACE      = 180;  // 静まりきってから一枚絵に入るま
 const UG_RETURN_HOLD    = 90;   // 地上復帰直後、白一色のまま止まる余韻（「ROUND N」テロップもこの間に出す）
 const UG_RETURN_FADE_IN = 45;   // 白から元の色合いへ戻すフェードイン（明けきったらスクロール再開）
 const UG_RETURN_ROUND_FADE = 20; // 「ROUND N」テロップの前後フェード（hold内・台形状にin/out）
+// 地底モードのステージ間（1.629）: 巫女を倒す → 静まる → **白へ覆う** → 裏で次のステージを組む → 白から明ける。
+// ⚠一枚絵（エンディング）はステージ4だけなので、1〜3は「白へ覆う」ぶんの尺をここで持つ必要がある
+//   （通常は ug.endOut ＝一枚絵が白に覆われる尺が担っている）。
+const UG_MODE_FADE_OUT  = 45;   // 白へ覆いきるまで
 const UG_BOSS_HEARTS    = 3;    // 撃破報酬のハート数（✅ユーザー決定・1.584）
 const UG_BOSS_SCORE        = 10000; // SPEC §8: 通常ボス5,000の倍額
 const UG_BOSS_COINS        = 12;    // SPEC §8: 「多め」
@@ -2241,6 +2263,13 @@ var STAGE_SHOP_ITEMS = [
         id: 'ug_elixir', nameKey: 'shop_item_ug_elixir', descKey: 'shop_item_ug_elixir_desc',
         // ⚠stockItem にするなら iconImg が必須。updateStockUI の iconFor は iconImg が無いと **'?' を出す**
         icon: '⚗️', iconImg: 'images/icon_ug_elixir.png', price: 10000, maxPerVisit: 2, ugOnly: true,   // 8,000→10,000（1.583・ユーザー決定）
+        // ⚠売値だけ例外（1.629・ユーザー決定）。通常は price/2 なので5,000円になるが、それだと
+        //   「地底で買ってポーチで持ち出し、地上で売る」＝**消えるはずの地底のお金を現金化する**経路になる
+        //   （ポーチ6枠×5,000＝1周30,000円）。老婆の店でしか売っていない怪しい品なので、
+        //   地上の店員は値を付けない、という世界の理屈で500円に固定する（i18n: shop_keeper_sell_elixir）。
+        // ⚠老婆自身は「自分が作った物を売りつけるな」と**買取そのものを拒否**する（sellPriceOverride の有無ではなく
+        //   地底の店かどうかで分岐＝stockSlotSellTarget を通さず弾く）。
+        sellPriceOverride: 500,
         stockItem: true,
         stockEffect: function() { gameState.ugElixir = (gameState.ugElixir || 0) + UG_ELIXIR_FRAMES; }
     },
@@ -2314,6 +2343,11 @@ var EGG_SHOP_ITEMS = [
       iconImg: 'images/item_pouch.png', eggPrice: 10 },
     { id: 'skin_kigurumi', type: 'skin', skinId: 'kigurumi', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc',
       iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 10 }, // 1.424で🥚5→10（入手が簡単すぎたため）
+    // 地底入場パス（1.629）: タイトルの「地底モード」が解禁される**永久**アンロック。
+    // ⚠消費型ではない（1回30個の消費だと、入手ペース約0.86個/日＝1回潜るのに35日かかりモードが成立しない）。
+    // ⚠type:'upgrade' をそのまま使う＝confirmEggBuy/isEggItemOwned に手を入れずに済む（未対応typeは安全側で弾かれる）。
+    { id: 'ug_pass', type: 'upgrade', upgradeId: UG_MODE_PASS_ID, nameKey: 'egg_ug_pass', descKey: 'egg_ug_pass_desc',
+      iconImg: 'images/icon_ug_blessing.png', eggPrice: 30 },
     // 魔女ぴよ: ジャンプ長押しでグライド滞空。（1.456・アート1.457・価格1.493で200→80・1.507で価格昇順の位置へ）
     { id: 'skin_witch', type: 'skin', skinId: 'witch', nameKey: 'skin_witch', descKey: 'egg_item_witch_desc',
       iconImg: 'images/skin_witch_idle.png', eggPrice: 80 },
@@ -2327,6 +2361,16 @@ var EGG_SHOP_ITEMS = [
 ];
 // 永続化できないストック品（一度きりの奇跡＝復活薬）。理由はi18n egg_perma_no_revive で表示。
 var PERMA_STOCK_EXCLUDE = ['revive_potion'];
+
+// 売値の一元化（1.629）。通常は定価の半分。⚠`sellPriceOverride` を持つ品はその額に固定する。
+// ⚠**売値を出す場所は7箇所ある**（ステージ店の 一覧/選択/確定・タイトル店の 一覧/選択/確定・
+//   ストック満杯時の貯金換算 convertItemToSavings）。1箇所でも生の price/2 が残ると、
+//   表示と実額がズレるか、そこだけが抜け道になる。**必ずこの関数を通すこと**。
+function shopSellPrice(shopItem) {
+    if (!shopItem) return 0;
+    if (typeof shopItem.sellPriceOverride === 'number') return shopItem.sellPriceOverride;
+    return Math.floor(shopItem.price / 2);
+}
 
 // ─── ずかん（図鑑）───────────────────────────────────────────────
 // 遭遇で自動登録するコレクション図鑑。gameSettings.zukan に保存（saveSettings/データ引き継ぎに自動同梱）。

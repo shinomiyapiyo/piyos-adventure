@@ -110,6 +110,53 @@ function enterUnderground() {
     if (soundManager) { try { soundManager.playBGM('underground'); } catch (_) {} }
 }
 
+// ═══ 地底モード（1.629）═══
+// 「地底ステージだけを4連続で遊ぶ」モードの進行。⚠**地上が一度も存在しない**のが通常プレイとの唯一の違いで、
+//   中身（レイアウト/巫女/敵）は gameRound を 7/14/21/28 に置くだけで通常と完全に同一になる。
+// ⚠土管の演出は使わない（ユーザー決定）＝enterUnderground が元から持っている「天井の穴から落下」で始まる。
+
+// ステージ n（1〜4）を開始する。⚠gameRound の置き換えが**同一条件の担保そのもの**なので、ここを崩さないこと。
+function ugModeStartStage(n) {
+    undergroundMode.active = true;
+    undergroundMode.stage = n;
+    gameRound = UG_MODE_ROUNDS[n - 1];              // R7/R14/R21/R28 相当
+    undergroundState.active = false;                // ⚠enterUnderground は active だと即returnするので必ず落とす
+    undergroundState.visited = false;
+    // 巫女戦とエンディングの残骸を必ず消す（2ステージ目以降はここを通る）
+    undergroundState.bossPhase = 0; undergroundState.bossTimer = 0; undergroundState.boss = null;
+    undergroundState.endCalm = 0; undergroundState.ending = 0;
+    undergroundState.endLine = 0; undergroundState.endLineTimer = 0;
+    undergroundState.endTapped = 0; undergroundState.endOut = 0;
+    ugEndTapOff();
+    bossState.eggs = [];                            // ⚠呪弾は bossState.eggs を借りている＝残すと次ステージで飛んでくる
+    bossState.active = false; bossState.phase = 0; bossState.boss = null;
+    enterUnderground();                             // 落下導入つきで入場（土管は通らない）
+    ugHudVisible(true);                             // 一枚絵で隠していた場合の保険
+    if (typeof updateUgModeHud === 'function') updateUgModeHud();   // HUDの「地底 N/4」を更新
+}
+
+// 巫女を倒した後、次のステージへ繋ぐ（ステージ1〜3）。白で覆ってから裏で組み替える＝繋ぎ目を見せない。
+// ⚠exitUnderground は呼ばない（地上へ戻す関数なので、地上が無いこのモードでは地形を作ってしまう）。
+function ugModeToNextStage() {
+    ugHudVisible(false);                            // 白の間はHUD/操作バーを隠す（groundReturnFade が明けたら戻る）
+    if (typeof clearHeldInput === 'function') clearHeldInput();
+    groundReturnFade.phase = 'out';                 // 白へ覆う → 覆いきったら updateGroundReturnFade が次ステージを組む
+    groundReturnFade.timer = UG_MODE_FADE_OUT;
+}
+
+// モード全体のクリア（ステージ4の巫女を倒し、エンディングを読み終えた）。
+// ⚠**ここで undergroundMode.active を落としてはいけない**。gameOver() の中の記録処理
+//   （recordMissionProgress の距離除外・ランキング送信の抑止）が「このランは地底モードだったか」を
+//   このフラグで見ているため。落とすのは resetGame（＝次のランの開始）。
+function ugModeClear() {
+    gameSettings.ugEmperor = true;                  // バッジ「地底の帝王」の解放条件（通常プレイのR28撃破と同じ扱い）
+    saveSettings();
+    if (typeof checkBadges === 'function') checkBadges();
+    ugHudVisible(true);
+    groundReturnFade.phase = ''; groundReturnFade.timer = 0;
+    gameOver();                                     // リザルト（ゲームオーバー画面）へ。⚠記録はここで通常どおり確定する
+}
+
 // 入場用の強制土管を置く（1.545・SPEC_UNDERGROUND.md §3）。地底ラウンドのボス距離に達した瞬間に呼ばれる。
 // ⚠ボーナス土管（checkPipeTrigger）との違い: あちらは「画面右外の平地に置いてスクロールで運んでくる」が、
 //   こちらは**スクロールを止めてから画面内に置く**。止めた時点で camera.x が動かない＝
@@ -805,6 +852,13 @@ function updateUgBoss() {
         //   静まる演出自体のテンポ(UG_END_CALM)は変えず、静まりきった状態をUG_END_GRACEぶん延ばして
         //   「コイン/ハートを拾いきれない」を解消する。
         if (tt === UG_END_CALM + UG_END_GRACE) {
+            // ── 地底モードのステージ1〜3（1.629）: 一枚絵は出さず、白へ覆って次のステージへ繋ぐ ──
+            //   ⚠エンディングは**最終ステージ(4)だけ**（ユーザー決定）。撃破演出と拾い時間(UG_END_GRACE)は
+            //     通常と同じものをそのまま使うので、ここより手前は一切分岐しない。
+            if (undergroundMode.active && !ugModeIsFinalStage()) {
+                ugModeToNextStage();
+                return;
+            }
             ug.ending = 1;                       // 0..1 の進行度は描画側が bossTimer から出す
             // ⚠HUDと操作バーはDOM＝canvasの上に乗るので、一枚絵の間だけ隠す（1.584）。
             //   canvas側（ボスHPバー・SPEED UP表示）は drawUgEnding を render の最後に置くことで覆っている。
@@ -836,6 +890,8 @@ function updateUgBoss() {
             if (ug.endOut > 0) {                       // 最後の文を送った後、画面が白く覆われていく（1.588）
                 if (--ug.endOut <= 0) {
                     ug.endCalm = 0; ug.ending = 0; ugEndTapOff();
+                    // ── 地底モードの最終ステージ（1.629）: 地上が無いので戻る先が無い＝ここでモードクリア ──
+                    if (undergroundMode.active) { undergroundState.active = false; ugModeClear(); return; }
                     exitUnderground();                 // ⚠白一色の最中に呼ぶ＝地形の組み直しが画面に映らない
                     // ⚠HUDはDOM（z-index:100）でキャンバスの上に乗るので、白いオーバーレイ(canvas)では覆えない。
                     //   exitUnderground が復帰させた直後にもう一度隠す＝白の間はHUDが浮いて見えるのを防ぐ。
@@ -867,6 +923,16 @@ function updateUgBoss() {
 function updateGroundReturnFade() {
     var f = groundReturnFade;
     if (!f.phase) return;
+    // 地底モードのステージ間だけ通る（1.629）: 白で覆いきった**その裏で**次のステージを組む＝繋ぎ目が映らない。
+    if (f.phase === 'out') {
+        if (--f.timer <= 0) {
+            ugModeStartStage(undergroundMode.stage + 1);
+            ugHudVisible(false);            // ⚠enterUnderground 側で戻されるので、白の間はもう一度隠す
+            f.phase = 'hold';               // 白一色で一呼吸（この間に「地底 N/4」テロップを出す）
+            f.timer = UG_RETURN_HOLD;
+        }
+        return;
+    }
     if (f.phase === 'hold') {
         if (--f.timer <= 0) { f.phase = 'in'; f.timer = UG_RETURN_FADE_IN; }
         return;
@@ -1479,6 +1545,13 @@ function exitUnderground() {
     //   累積せず表に出ないが、実測値でズレ補正を作ると**この18mが以降のボス距離とバイオーム境界に永久に残る**。
     //   そこで「カカシのボス距離 ＋ 地底の設計加算量」を退場位置とみなして補正を作る＝補正値が必ずキリの良い数になる。
     //   プレイヤーが実際に稼いだ18mは距離としてそのまま残る（損得なし）。境界だけが整数に揃う。
+    // バッジ「地底の帝王」（1.629）: **通常プレイでR28（4周目の地底）を踏破した**＝地底モードR4クリアと同格。
+    // ⚠gameRound はまだ地底ラウンドの番号（この下の gameRound++ より前）なので、ここで見るのが正しい。
+    if (gameRound >= BOSS_CYCLE_ROUNDS * 4 && !gameSettings.ugEmperor) {
+        gameSettings.ugEmperor = true;
+        saveSettings();
+        if (typeof checkBadges === 'function') checkBadges();
+    }
     var ugAddM = UG_TRAVEL_PX * UG_DIST_SCALE / 10;                  // 地底の設計加算量(m)＝800
     var cleanExitM = bossDistanceFor(gameRound - 1) + ugAddM;        // カカシのボス距離（補正込み）＋800
     gameState.stageShiftM = cleanExitM - bossDistanceBaseFor(gameRound);
@@ -2959,7 +3032,7 @@ function renderSellItem(displayIndex) {
     if (!target) return '';
     var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === target.id; });
     if (!shopItem) return '';
-    var sellPrice = Math.floor(shopItem.price / 2);
+    var sellPrice = shopSellPrice(shopItem);
     var isHighlighted = (shopSellHighlightIndex === displayIndex);
     var isConfirming = (shopSellingIndex === displayIndex);
     var highlighted = isHighlighted || isConfirming;
@@ -2995,7 +3068,11 @@ function updateStageShopUI() {
         } else if (gameState.score > 0) {
             depLabel = depLabel + ' (' + depAmt + t('currency_unit') + ')';
         }
-        if (!tutorialState.active) html += renderShopMenuItem('_menu_deposit', _ic('icon_bank.png'), depLabel); // チュートリアルでは貯金を隠す（永続資産の稼ぎ場防止）
+        // ⚠貯金は「永続資産への変換」なので、稼ぎ場になり得る場所では必ず隠す。
+        //   チュートリアル（サンドボックス）に加え、**地底モード**も対象（1.629・ユーザー決定）。
+        //   地底モードは巫女4体＝40,000点＋コインが十数分で手に入るうえ、店が4軒ある＝そのまま貯金できると
+        //   通常プレイでR28まで走るより遥かに効率の良い稼ぎ場になってしまう。
+        if (!tutorialState.active && !undergroundMode.active) html += renderShopMenuItem('_menu_deposit', _ic('icon_bank.png'), depLabel);
         // リワード広告ボーナス（チュートリアルでは出さない）。未ロード時は「準備中…」表示（A案・押下は可）
         if (!rewardAdState.shopAdUsedThisVisit && !gameSettings.adFree && !tutorialState.active) {
             var _adRdy = (typeof window.isRewardReady !== 'function') || window.isRewardReady();
@@ -3123,13 +3200,27 @@ function selectShopItem(itemId) {
         if (!sellTarget) return;
         var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === sellTarget.id; });
         if (!shopItem) return;
+        // ⚠老婆は**自分が作った物の買い戻しを拒否する**（1.629・ユーザー決定）。怒って追い返すだけで、
+        //   「うる/うらない」のダイアログ自体を出さない＝誤って売れない。地上の店では普通に売れる（500円）。
+        if (undergroundState.active && shopItem.ugOnly && shopItem.stockItem) {
+            if (soundManager) soundManager.playDamage();
+            shopSellHighlightIndex = sellIdx;
+            shopSellingIndex = null;
+            setKeeperText('shop_keeper_sell_refuse_ug');
+            showShopConfirm(false);
+            updateStageShopUI();
+            return;
+        }
         // 1タップで選択＝説明+売値＋すぐ右に「うる/うらない」（1.418: タイトルショップと同方式・2度タップ廃止）。
         // 別の行をタップすれば選択がそのまま切り替わる
-        var sellPrice = Math.floor(shopItem.price / 2);
+        var sellPrice = shopSellPrice(shopItem);
         shopSellHighlightIndex = sellIdx;
         shopSellingIndex = sellIdx;
         var el = document.getElementById('shopKeeperText');
-        if (el) el.textContent = t(shopItem.descKey) + '\n' + t(keeperKey('shop_keeper_sell_confirm'), { item: t(shopItem.nameKey), price: sellPrice });
+        // ⚠売値が例外の品（＝老婆の劇薬）は、地上の店員が訝しがる専用のセリフにする（1.629）。
+        //   「安い理由」を値付けの都合ではなく世界の理屈として見せる＝仕様ではなく演出として受け取ってもらう。
+        var _sellKey = (typeof shopItem.sellPriceOverride === 'number') ? 'shop_keeper_sell_odd' : 'shop_keeper_sell_confirm';
+        if (el) el.textContent = t(shopItem.descKey) + '\n' + t(keeperKey(_sellKey), { item: t(shopItem.nameKey), price: sellPrice });
         showShopConfirm(true, tshopSellLabels());
         updateStageShopUI();
         return;
@@ -3191,7 +3282,7 @@ function executeSellItem() {
     if (!target) return;
     var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === target.id; });
     if (!shopItem) return;
-    var sellPrice = Math.floor(shopItem.price / 2);
+    var sellPrice = shopSellPrice(shopItem);
     if (target.perma) {
         var _slot = stockState.perma[target.index];
         if (_slot && _slot.temp) {
@@ -3550,7 +3641,7 @@ function renderTshopSellRow(key, itemId) {
     var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; });
     if (!shopItem) return '';
     var isHighlighted = (tshopHighlightedItem === key) || (tshopConfirmingItem === key);
-    var sellPrice = Math.floor(shopItem.price / 2);
+    var sellPrice = shopSellPrice(shopItem);
     return '<div data-tshop-id="' + key + '" class="shop-row shop-row-tshop' + (isHighlighted ? ' hl' : '') + '">' +
         '<span class="shop-cursor">' + (isHighlighted ? '>' : '　') + '</span>' +
         (shopItem.iconImg ? '<img src="' + shopItem.iconImg + '" width="18" height="18" class="shop-icon-img">' : '<span class="shop-icon-txt">?</span>') +
@@ -3609,7 +3700,7 @@ function selectTshopSell(key) {
     var itemId = tshopSellItemId(key);
     var shopItem = itemId ? STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; }) : null;
     if (!shopItem) return;
-    var sellPrice = Math.floor(shopItem.price / 2);
+    var sellPrice = shopSellPrice(shopItem);
     // 1タップで選択＝内容確認＋すぐ右に「うる/うらない」ダイアログ（1.416）
     tshopHighlightedItem = key;
     tshopConfirmingItem = key;
@@ -3624,7 +3715,7 @@ function confirmTshopSell(key) {
     tshopConfirmingItem = null;
     tshopHighlightedItem = null;
     if (!shopItem) { updateTitleShopUI(); return; }
-    var sellPrice = Math.floor(shopItem.price / 2);
+    var sellPrice = shopSellPrice(shopItem);
     gameSettings.savings += sellPrice;
     if (key.indexOf('_psell_') === 0) {                       // ポーチ: 永続枠を空ける
         gameSettings.permaStock[parseInt(key.slice(7), 10)] = '';
@@ -4040,7 +4131,7 @@ function isTempReviveCase(itemId) { return itemId === 'revive_potion' && normalM
 // ストック満杯時の入手品を貯金へ換算（損なし・売値=定価の半分）。永続化してsaveSettings。
 function convertItemToSavings(itemId) {
     var si = STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; });
-    var amount = si ? Math.max(1, Math.floor(si.price / 2)) : 0;
+    var amount = si ? Math.max(1, shopSellPrice(si)) : 0;
     if (amount > 0) {
         gameSettings.savings = (gameSettings.savings || 0) + amount;
         saveSettings();
@@ -6200,13 +6291,18 @@ function shareResult() {
 // ⚠resetGame は記録の後に走る＝保存前にフラグが戻る事故を構造的に防ぐ。
 function retryGame() {
     if (isInTransitionCooldown()) return;
+    // ⚠地底モードのランは「リトライ＝地底モードをステージ1からやり直す」（1.629）。
+    //   ここで見ないと通常の地上ランが始まってしまう（モードで力尽きた直後にいきなり0mの草原が出る）。
+    //   ⚠undergroundMode.active は resetGame でしか落ちないので、この時点ではまだ立っている。
+    var wasUgMode = undergroundMode.active;
     finalizeRunAndThen(function () {
         // インタースティシャルはセッションの区切り（リトライ）で表示。広告が閉じてから再開する
         // （死亡毎の黒画面＆復活リワードとの競合を回避）。広告が無ければ即再開。
         showAd('interstitial', function () {
             hideGameOverScreen();
             resetGame();
-            startGame();
+            if (wasUgMode) startUndergroundMode();   // 失敗時はステージ1から（ユーザー決定・途中再開はしない）
+            else startGame();
         });
     });
 }

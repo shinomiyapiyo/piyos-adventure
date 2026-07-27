@@ -712,6 +712,9 @@ function initialize() {
 
     // タイトルメニュー（Phase3.6 P4）: ぼうけんスタート/図鑑/もどる
     bindTapButton(document.getElementById('menuStartButton'), function() { startGame(); }, { stopClickPropagation: true });
+    // 地底モード（1.629）: パス未所持ならボタン側で pointer-events:none にしてあるが、
+    // startUndergroundMode 内でも所持を再確認する（入口が増えても穴が開かないように）
+    bindTapButton(document.getElementById('ugModeButton'), function() { startUndergroundMode(); }, { stopClickPropagation: true });
     bindTapButton(document.getElementById('zukanButton'), showZukanScreen, { stopClickPropagation: true });
     bindTapButton(document.getElementById('menuBackButton'), closeTitleMenu, { stopClickPropagation: true });
 

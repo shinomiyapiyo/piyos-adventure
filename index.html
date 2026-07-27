@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.628";
+                content: "Ver.1.629";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -756,13 +756,15 @@
         <canvas id="gameCanvas" width="820" height="450" role="application" aria-label="ぴよ氏の冒険 ゲーム画面" tabindex="0"></canvas>
 
         <div id="ui" style="display: none;">
-            <div><img src="images/icon_distance.png" class="ui-icon"> <span id="distance">0</span>m</div>
+            <div id="hudDistRow"><img src="images/icon_distance.png" class="ui-icon"> <span id="distance">0</span>m</div>
+            <!-- 地底モード専用（1.629）: 距離の代わりに残りステージを出す。距離はランキングにも実績にも乗せないため -->
+            <div id="hudUgStageRow" style="display:none;"><img src="images/icon_ug_blessing.png" class="ui-icon"> <span data-i18n="hud_ug_stage_prefix">地底</span> <span id="hudUgStage">1/4</span></div>
             <div><img src="images/icon_money.png" class="ui-icon"> <span id="score">0</span></div>
             <div><img src="images/item_golden_egg.png" class="ui-icon"> <span id="goldenEggCount">0</span></div>
             <div><img src="images/icon_lives.png" class="ui-icon"> <span id="lives">5</span><span id="crystalLives" style="display:none; color:#5fc0ff; font-weight:700;"></span> <span id="reviveIndicator" style="display:none; color:#ffd700;"></span></div>
             <div><img src="images/icon_kills.png" class="ui-icon"> <span id="enemyKills">0</span><span data-i18n="hud_kills_suffix">体撃破</span></div>
-            <div><img src="images/icon_level.png" class="ui-icon"> <span data-i18n="hud_level_prefix">レベル</span><span id="speedLevel">1</span> (<span id="speedPercent">100</span>%)</div>
-            <div><img src="images/icon_progress.png" class="ui-icon"> <span data-i18n="hud_next_prefix">次まで</span><span id="nextSpeedUp">300</span>m</div>
+            <div id="hudLevelRow"><img src="images/icon_level.png" class="ui-icon"> <span data-i18n="hud_level_prefix">レベル</span><span id="speedLevel">1</span> (<span id="speedPercent">100</span>%)</div>
+            <div id="hudNextRow"><img src="images/icon_progress.png" class="ui-icon"> <span data-i18n="hud_next_prefix">次まで</span><span id="nextSpeedUp">300</span>m</div>
             <!-- 所持している永久型アップグレードのアイコン（1.522で右のストック枠下から左パネルへ移設＝
                  最大所持時に右の縦積みが画面下へはみ出すのを解消。空なら非表示） -->
             <div id="ownedUpgradeIcons" class="owned-upg-hud" style="display:none;"></div>
@@ -864,7 +866,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.628</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.629</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -902,6 +904,12 @@
                     background: linear-gradient(90deg, transparent, rgba(255,215,0,0.5), transparent);"></div>
                 <div class="game-title" data-i18n="menu_title"><img src="images/icon_home.png" class="ui-icon"> メニュー</div>
                 <button class="game-button" id="menuStartButton"><img src="images/icon_play.png" class="ui-icon"> <span data-i18n="menu_start">ぼうけんスタート</span></button>
+                <!-- 地底モード（1.629）: 地底入場パス（エッグ30）を持っていない間はグレーアウト。
+                     ⚠無効化は updateUgModeButton が pointer-events も含めて行う（#titleButtons の
+                       `pointer-events:auto !important` に負けないよう setProperty で指定する。きせかえボタンと同じ作法） -->
+                <button class="game-button" id="ugModeButton" style="
+                    background: linear-gradient(180deg, #8e6bd0 0%, #5b3a9e 50%, #3a1f6e 100%);
+                    border-bottom-color: rgba(0,0,0,0.45);"><img src="images/icon_ug_blessing.png" class="ui-icon"> <span data-i18n="menu_ug_mode">地底モード</span></button>
                 <div id="titleButtons">
                     <button class="game-button" id="settingsButton"><img src="images/icon_settings.png" class="ui-icon"> <span data-i18n="title_settings">設定</span></button>
                     <button class="game-button" id="zukanButton" style="position:relative;">📖 <span data-i18n="title_zukan">ずかん</span><span id="zukanBadgeMenu" style="display:none; position:absolute; top:-5px; right:-5px; width:13px; height:13px; background:#ff3344; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(255,51,68,0.9);"></span></button>
@@ -2425,6 +2433,7 @@ var gameSettings = {
     achievementStats: { totalKills: 0, totalDistance: 0, totalPlays: 0, bestDistance: 0, ts: 0 }, // 実績用の生涯累計（リセットなし）
     achievements: { claimed: {} },  // 実績の受取済み（id別マップ）
     badges: {},                     // 獲得済みバッジ（称号）id別マップ（値=獲得時刻ms）。実績達成/チュートリアルクリアで自動解放
+    ugEmperor: false,               // バッジ「地底の帝王」の解放条件（地底モードR4クリア or 通常プレイでR28踏破・1.629）
     tshopAdCooldown: 0,    // タイトルショップ広告のクールダウン（timestamp, 永続化）
     // ── 課金関連 ──
     purchased: {},         // { productId: true } 買い切り商品
@@ -2492,6 +2501,7 @@ var gameSettings = {
             if (parsed.badges && typeof parsed.badges === 'object') {
                 gameSettings.badges = parsed.badges;
             }
+            if (typeof parsed.ugEmperor === 'boolean') gameSettings.ugEmperor = parsed.ugEmperor;
             // ── 広告クールダウン ──
             if (typeof parsed.tshopAdCooldown === 'number') gameSettings.tshopAdCooldown = parsed.tshopAdCooldown;
             // ── 課金関連 ──
@@ -2832,7 +2842,10 @@ function recordMissionProgress() {
     checkDailyMissions(); // 日付が変わっていたら先にリセット
     var dm = gameSettings.dailyMissions;
     var as = gameSettings.achievementStats; // 実績の生涯累計（同じ差分・同じガードで加算＝二重計上しない）
-    var addDist = gameState.distance - (gameState.missionCountedDistance || 0);
+    // ⚠地底モードは**距離系だけ**計上しない（1.629・ユーザー決定）。地底の距離は圧縮係数がかかった別物で、
+    //   自己ベスト距離や「〇〇m走る」ミッションに混ぜると通常プレイの記録が壊れる。
+    //   撃破数/プレイ回数/コイン/ボス撃破は通常どおり計上する（図鑑も同様に登録される）。
+    var addDist = undergroundMode.active ? 0 : (gameState.distance - (gameState.missionCountedDistance || 0));
     if (addDist > 0) { dm.distance += addDist; as.totalDistance += addDist; gameState.missionCountedDistance = gameState.distance; }
     var addKills = gameState.enemyKills - (gameState.missionCountedKills || 0);
     if (addKills > 0) { dm.kills += addKills; as.totalKills += addKills; gameState.missionCountedKills = gameState.enemyKills; }
@@ -2843,7 +2856,7 @@ function recordMissionProgress() {
     if (addBoss > 0) { dm.boss = (dm.boss || 0) + addBoss; gameState.missionCountedBoss = gameState.bossKills; }
     var addSpecial = gameState.specialUses - (gameState.missionCountedSpecial || 0);
     if (addSpecial > 0) { dm.special = (dm.special || 0) + addSpecial; gameState.missionCountedSpecial = gameState.specialUses; }
-    if (gameState.distance > as.bestDistance) as.bestDistance = gameState.distance; // 自己ベスト距離
+    if (!undergroundMode.active && gameState.distance > as.bestDistance) as.bestDistance = gameState.distance; // 自己ベスト距離（⚠地底モードは除外・1.629）
     as.ts = Date.now();
     dm.ts = Date.now();
     saveSettings();
@@ -3062,13 +3075,17 @@ var BADGES = [
     { id: 'traveler',        nameKey: 'badge_traveler',        descKey: 'badge_traveler_d',        iconImg: 'images/icon_distance.png', achId: 'dist_5000' },
     { id: 'wanderer',        nameKey: 'badge_wanderer',        descKey: 'badge_wanderer_d',        iconImg: 'images/icon_distance.png', achId: 'dist_50000' },
     { id: 'regular',         nameKey: 'badge_regular',         descKey: 'badge_regular_d',         iconImg: 'images/icon_play.png',     achId: 'plays_10' },
-    { id: 'devoted',         nameKey: 'badge_devoted',         descKey: 'badge_devoted_d',         iconImg: 'images/icon_celebrate.png', achId: 'plays_50' }
+    { id: 'devoted',         nameKey: 'badge_devoted',         descKey: 'badge_devoted_d',         iconImg: 'images/icon_celebrate.png', achId: 'plays_50' },
+    // 地底の帝王（1.629）: **地底モードのR4クリア** または **通常プレイでR28（4周目の地底）踏破**。
+    // どちらも「4つの地底レイアウトを全部越えた」証なので同格に扱う（ユーザー決定）。
+    { id: 'ug_emperor',      nameKey: 'badge_ug_emperor',      descKey: 'badge_ug_emperor_d',      iconImg: 'images/icon_ug_blessing.png', special: 'ug_emperor' }
 ];
 function achById(id) { for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i]; return null; }
 function isBadgeEarned(b) { return !!(gameSettings.badges && gameSettings.badges[b.id]); }
 // 現在その称号の解放条件を満たしているか（未獲得でも true になり得る＝checkBadgesで付与される）
 function isBadgeUnlockable(b) {
     if (b.special === 'tutorial') return !!gameSettings.tutorialCleared;
+    if (b.special === 'ug_emperor') return !!gameSettings.ugEmperor;   // 地底モードR4クリア or 通常R28踏破（1.629）
     if (b.achId) { var a = achById(b.achId); return a ? isAchievementComplete(a) : false; }
     return false;
 }
@@ -3956,6 +3973,7 @@ function showTitleMenu() {
     markScreenTransition();
     showScreenEl('titleMenuScreen');
     history.pushState({ screen: 'titleMenu' }, '');
+    updateUgModeButton();   // 地底パスの所持でグレーアウトを切り替える（1.629）
     updateMissionBadge();
     updateAchievementBadge();
     updateZukanBadge();
@@ -4131,6 +4149,74 @@ function startGame() {
     window.scrollTo(0, 1);
 }
 
+// ─── 地底モード（1.629）───
+// 地上を一切通らず、地底の4レイアウトを R1〜R4 として連続で遊ぶ。startGame と同じ準備をしてから
+// **地上ステージの生成を挟まずに**ステージ1へ落下スポーンする。
+// ⚠パス（エッグ30の永続アンロック）を持っていなければ入れない。ボタン側でもグレーアウトしているが、
+//   ここでも弾く＝将来ほかの入口が増えても穴が開かない。
+function startUndergroundMode() {
+    if (!hasUndergroundPass()) { if (soundManager) soundManager.playDamage(); return; }
+    if (isInTransitionCooldown()) return;
+    markScreenTransition();
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) requestFullscreen();
+
+    tutorialState.active = false; tutorialState.forced = false;   // チュートリアルとは排他
+    resetGame();
+    applyUpgrades();
+    buildPermaSlots();
+    flushPendingStockItems();     // ログボで受け取った品もこのモードで使える（通常ランと同じ扱い）
+    // 路銀（ユーザー決定30,000円）。⚠rankScore には足さない＝ランキング用スコアに路銀が混ざらない。
+    //   このモードは貯金を封じてあるので、使い切らなかったぶんは終了時に消える。
+    gameState.score = UG_MODE_START_MONEY;
+
+    ugModeStartStage(1);          // ステージ1（=R7相当）へ落下スポーン
+    gameState.gameStarted = true;
+    gameState.gamePaused  = false;
+    if (!history.state || history.state.screen !== 'game') history.pushState({ screen: 'game' }, '');
+
+    var ss2 = document.getElementById('startScreen');
+    ss2.classList.add('hidden');
+    ss2.style.display = 'none';
+    hidePauseScreenUI();
+    hideScreenEl('titleMenuScreen');
+    document.getElementById('startMessage').style.display = 'none';
+    document.getElementById('ui').style.display = 'block';
+    document.getElementById('controlBar').style.display = 'flex';
+    updateStockUI();
+    updateUgModeHud();
+    window.scrollTo(0, 1);
+}
+
+// 地底モードのHUD切り替え（1.629）: 距離とレベルを消して「地底 N/4」を出す。
+// ⚠レベルは**モードでは概念ごと廃止**（ユーザー決定）＝表示だけでなく updateGameSpeed 側でも上げない。
+function updateUgModeHud() {
+    var on = !!undergroundMode.active;
+    var dist = document.getElementById('hudDistRow');
+    var lv   = document.getElementById('hudLevelRow');
+    var next = document.getElementById('hudNextRow');
+    var st   = document.getElementById('hudUgStageRow');
+    if (dist) dist.style.display = on ? 'none' : '';
+    if (lv)   lv.style.display   = on ? 'none' : '';
+    if (next) next.style.display = on ? 'none' : '';
+    if (st) {
+        st.style.display = on ? '' : 'none';
+        var n = document.getElementById('hudUgStage');
+        if (n) n.textContent = undergroundMode.stage + '/' + UG_MODE_STAGES;
+    }
+}
+
+// 地底モードのボタン（グレーアウト）。パス未所持なら押せない。
+function updateUgModeButton() {
+    var b = document.getElementById('ugModeButton');
+    if (!b) return;
+    var ok = hasUndergroundPass();
+    b.disabled = !ok;
+    b.style.opacity = ok ? '1' : '0.5';
+    b.style.filter = ok ? 'none' : 'grayscale(0.6)';
+    // ⚠#titleButtons の外にあるボタンだが、きせかえボタンと同じく !important で確実に無効化する
+    b.style.setProperty('pointer-events', ok ? 'auto' : 'none', 'important');
+}
+
 function showStartScreen() {
     markScreenTransition();
     resetGame();
@@ -4194,6 +4280,11 @@ function resetGame() {
     tutorialState.forced = false;
     tutorialState.hintKey = '';
     tutorialState.gate = '';
+    // 地底モードの解除もここ1箇所（1.629）。⚠モード中のランは gameOver を過ぎるまでフラグを保つ必要があるので
+    //   （記録の除外判定に使う）、落とすのは**次のランの開始＝ここ**だけにする。
+    undergroundMode.active = false;
+    undergroundMode.stage = 0;
+    if (typeof updateUgModeHud === 'function') updateUgModeHud();   // 隠していた距離/レベル行を戻す
     var _tsbReset = document.getElementById('tutorialSkipBtn');
     if (_tsbReset) { _tsbReset.style.display = 'none'; } // ラン途中でタイトルへ戻った時にスキップボタンが残留しないように
     gameState.score = 0;
@@ -5243,6 +5334,9 @@ function skipSubmit() {
 var pendingRunEndAction = null; // 記録完了後に実行する遷移（リトライ/タイトル）
 function finalizeRunAndThen(next) {
     if (!finalGameStats || gameState.hasRecordedHighScore) { next(); return; } // 記録不要/記録済みは素通り
+    // 地底モードはランキングに乗せない（1.629・ユーザー決定）。地底の距離は圧縮係数がかかった別物で、
+    // 通常プレイの記録と同じ土俵に置けない。⚠名前入力の窓ごと出さない＝「送れると思ったのに弾かれた」を作らない。
+    if (undergroundMode.active) { next(); return; }
     checkHighScore(finalGameStats).then(function(isHigh) {
         if (isHigh) { pendingRunEndAction = next; showNameInput(); } // 送信/スキップ完了後に next が走る
         else next();                                                 // ランク外＝記録せずそのまま遷移
@@ -5708,6 +5802,10 @@ function updateGameSpeed() {
     //   1.541で地底ガードをこの計算より上に置いたため、**地底の800mぶんだけレベルが上がらなくなっていた**
     //   （ユーザー報告）。地底を出た瞬間にまとめて上がるので気付きにくいが、地底の間じゅうHUDが止まって見える。
     //   ⚠ボス戦(冒頭のreturn)は距離自体が進まないので上げる必要がない＝従来どおり。
+    // 地底モードはレベルの概念そのものを持たない（1.629・ユーザー決定）。
+    // ⚠HUDを消すだけでなく**ここで上げない**のが本体。上げてしまうと SPEED UP のテロップと効果音が出るうえ、
+    //   ゲームオーバー時の finalGameStats.speedLevel にも乗ってしまう。
+    if (undergroundMode.active) { gameState.gameSpeed = 0; return; }
     var lvl = Math.floor(gameState.distance / SPEED_UP_INTERVAL) + 1;
     if (lvl > gameState.speedLevel) {
         gameState.speedLevel = lvl;
