@@ -130,6 +130,7 @@ function checkOrientation() {
         if (ps) ps.classList.remove('hidden');
         var pb = document.getElementById('pauseButton');
         if (pb) pb.innerHTML = _ic('icon_play.png');
+        document.body.classList.add('is-paused');   // ⚠復帰は「再開」ボタンだけ（1.613）
         if (typeof updateStockUI === 'function') updateStockUI(); // ストック枠も読み取り専用へ
     }
 }
@@ -571,15 +572,15 @@ function bindTapDelegate(container, attrName, handler) {
         });
     })();
 
-    document.getElementById('pauseScreen').addEventListener('click', function(e) {
-        if (e.target === document.getElementById('pauseScreen')) pauseGame();
-    });
+    // ⚠1.613: ここには「ポーズ画面の背景タップで復帰」があったが撤去した（ユーザー指示
+    //   「再開ボタン以外で復帰は禁止」）。背景を触っただけで戦闘に戻され、そのまま被弾する事故が起きていた。
 
     // （デバッグモードの配線=ポーズタイトル連打/BOSS FIGHT/SHOP WARP はネイティブ提出前に撤去済み — Ver.1.461）
 
     window.addEventListener('keydown', function(e) {
+        // ⚠1.613: Esc/P は**ポーズ専用**にした（pauseGame はトグルをやめた）。Space での復帰も撤去。
+        //   復帰は「再開」ボタンだけ（ユーザー指示「再開ボタン以外で復帰は禁止」）。
         if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { e.preventDefault(); pauseGame(); return; }
-        if (gameState.gamePaused && e.key === ' ') { e.preventDefault(); pauseGame(); return; }
         if (!gameState.gameStarted || gameState.gamePaused) return;
         switch (e.key) {
             case 'ArrowLeft': case 'a': case 'A': gameState.input.left = true; break;
@@ -650,6 +651,7 @@ function pauseForInterrupt() {
     gameState.gamePaused = true;
     var ps = document.getElementById('pauseScreen'); if (ps) ps.classList.remove('hidden');
     var pb = document.getElementById('pauseButton'); if (pb) pb.innerHTML = _ic('icon_play.png');
+    document.body.classList.add('is-paused');   // ⚠復帰は「再開」ボタンだけ（1.613）
     if (typeof updateStockUI === 'function') updateStockUI();
 }
 
