@@ -4185,6 +4185,18 @@ function addToStock(itemId) {
     return true;
 }
 
+// 使用条件を持つストック品（ぼうけんのしおり・1.633）を弾く。⚠**消費せずに**理由だけ出すのが肝。
+//   復活薬の特別扱い（下）と同じ考え方だが、永続枠と通常枠の**両方**で効くよう共通化してある。
+//   新しく条件付きの品を足す時は、STAGE_SHOP_ITEMS に canUse と blockedKey を書けばここが面倒を見る。
+function stockUseBlocked(shopItem) {
+    if (!shopItem || typeof shopItem.canUse !== 'function' || shopItem.canUse()) return false;
+    if (typeof showRewardToast === 'function' && shopItem.blockedKey) {
+        showRewardToast(escapeHtml(t(shopItem.blockedKey)), 'linear-gradient(180deg,#ffb35c,#d06a1a)', '#3a1c00');
+    }
+    if (soundManager) soundManager.playDamage();
+    return true;
+}
+
 function useStockItem(displayIndex) {
     if (gameState.gamePaused) return false; // ポーズ中の誤タップで消費しない（表示は読み取り専用だが二重ガード）
     if (pipeRoomState.anim !== 'none') return false; // 土管出入り演出中も消費しない
@@ -4195,6 +4207,7 @@ function useStockItem(displayIndex) {
         if (!pslot || !pslot.id || pslot.used) return false;
         var pItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === pslot.id; });
         if (!pItem || !pItem.stockEffect) return false;
+        if (stockUseBlocked(pItem)) return false;
         pItem.stockEffect();
         pslot.used = true;
         if (soundManager) soundManager.playItem();
@@ -4215,11 +4228,28 @@ function useStockItem(displayIndex) {
     }
     var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === item.id; });
     if (!shopItem || !shopItem.stockEffect) return false;
+    if (stockUseBlocked(shopItem)) return false;
     shopItem.stockEffect();
     stockState.items.splice(ni, 1);
     if (soundManager) soundManager.playItem();
     updateStockUI();
     return true;
+}
+
+// ぼうけんのしおりで中断する（1.633）。
+// ⚠**セーブを取るのは「しおりを消費し終えた後」でなければならない**。useStockItem は stockEffect を
+//   呼んだ**後**に枠を used にする／配列から抜くので、ここで即セーブすると**未消費のしおりごと保存**され、
+//   再開するたびにしおりが戻る＝無限に中断できてしまう。次のtickへ送って消費後の状態を確実に保存する。
+// ⚠ゲームオーバーの経路は通らない（ランはまだ終わっていない）＝ランキング送信も実績計上も走らない。
+function interruptRunWithShiori() {
+    setTimeout(function() {
+        if (!saveRunState()) return;              // 保険（canSaveRun が false なら何もしない）
+        if (soundManager) { try { soundManager.stopAllBGM(); } catch (_) {} }
+        gameState.gameStarted = false;
+        gameState.gamePaused = true;
+        showStartScreen();                        // ⚠中で resetGame が走るが、セーブは上で書き終えている
+        showGameModal(t('shiori_saved'));
+    }, 0);
 }
 
 // 永続枠へ移せない品（復活薬）をドロップした時のフィードバック

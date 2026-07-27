@@ -2209,6 +2209,19 @@ var STAGE_SHOP_ITEMS = [
         stockEffect: function() { gameState.lives = Math.min(gameState.lives + 2, 10); }
     },
     {
+        // ぼうけんのしおり（1.633）: 使うとその場でランを中断し、次回起動時に続きから再開できる。
+        // ⚠**消費型**（ユーザー決定）。永続で持ちたい人は まほうのポーチ に入れる＝永続枠は毎ラン補充されるので
+        //   「1ランに1回だけ中断できる」になる。完全な永続にすると1つのランを何日もかけて伸ばせてしまい、
+        //   距離ランキングが「どれだけセッションを積めるか」の勝負になるため採らなかった。
+        // ⚠使える場所は canSaveRun() が一元管理（地上の通常区間のみ）。ここでは canUse でそれを見るだけ。
+        id: 'shiori', nameKey: 'shop_item_shiori', descKey: 'shop_item_shiori_desc',
+        icon: '', iconImg: 'images/icon_shiori.png', price: 5000, maxPerVisit: 1,
+        stockItem: true,
+        canUse: function() { return typeof canSaveRun === 'function' && canSaveRun(); },
+        blockedKey: 'shiori_blocked',
+        stockEffect: function() { interruptRunWithShiori(); }
+    },
+    {
         id: 'barrier', nameKey: 'shop_item_barrier', descKey: 'shop_item_barrier_desc',
         icon: '', iconImg: 'images/icon_barrier.png', price: 3000, maxPerVisit: 2,
         stockItem: true,
@@ -2440,6 +2453,9 @@ var ZUKAN_ENTRIES = [
     //   （1.579より前に購入済みのプレイヤーも、遡って発見済みとして扱う）。
     { id: 'item:ug_blessing', cat: 'item', nameKey: 'shop_item_ug_blessing', descKey: 'shop_item_ug_blessing_desc', img: 'images/icon_ug_blessing.png', seenIf: function(gs){ return ((gs.upgrades || {}).ug_blessing || 0) > 0; } },
     // ── アイテム：永続アップグレード（所持レベルから発見を派生・既存の説明文を流用）──
+    // ぼうけんのしおり（1.633）: お店で買う消費型。⚠購入時に confirmBuy が markZukanSeen('item:shiori') を
+    //   呼ぶので seenIf は不要（他のショップ品と同じ扱い）。
+    { id: 'item:shiori',          cat: 'item', nameKey: 'shop_item_shiori',        descKey: 'shop_item_shiori_desc',      img: 'images/icon_shiori.png' },
     // 地底入場パス（1.630）: エッグこうかんで手に入る永久アンロック。⚠加護と同じく seenIf で所持から派生させる
     //   ＝購入した瞬間に図鑑へ載る（別途 markZukanSeen を呼ばなくてよい）。
     { id: 'item:ug_pass',         cat: 'item', nameKey: 'egg_ug_pass',           descKey: 'egg_ug_pass_desc',           img: 'images/icon_ug_pass.png',         seenIf: function(gs){ return ((gs.upgrades || {})[UG_MODE_PASS_ID] || 0) > 0; } },
