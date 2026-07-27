@@ -4238,6 +4238,17 @@ function useStockItem(displayIndex) {
         if (stockUseBlocked(pItem)) return false;
         pItem.stockEffect();
         pslot.used = true;
+        // ⚠**地底専用の品（老婆の劇薬）は使ったら枠の所有ごと外す**（1.642・ユーザー実機報告
+        //   「闇の巫女との戦いで使ってなくなったはずの劇薬が、再スタート時に残っていた」）。
+        //   ポーチの枠は本来「所有品を毎ラン補充する」ものだが、地底の品は**使い切りの路銀**で買うので、
+        //   1回買えば以後ずっと無料で湧くのは設計と噛み合わない（売値500円で現金化を塞いだのと同じ理屈）。
+        //   ⚠**持ち帰り自体は認める**＝未使用なら次ランでも持っているし売ることもできる。外すのは使った時だけ。
+        //   ⚠その場で permaStock まで書き換えて保存する。commitPermaStock はゲームオーバーでしか走らないので、
+        //     ここで永続化しないと「使う→リタイア→次ランで復活」の抜け道が残る。
+        if (pItem.ugOnly) {
+            pslot.base = ''; pslot.id = ''; pslot.temp = false;
+            if (gameSettings.permaStock) { gameSettings.permaStock[displayIndex] = ''; saveSettings(); }
+        }
         if (soundManager) soundManager.playItem();
         updateStockUI();
         return true;
