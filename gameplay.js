@@ -6111,7 +6111,10 @@ function gameOver() {
         // 復活ランキング記録方式(1.523・魂の共鳴v3.799から移植): 広告復活を使ったランは ↺ 付きで記録する。
         // 対象は広告復活のみ（アイテム=復活ポーション/ふっかつマシーンは対象外＝ユーザー決定）。
         // ここで値を確定させる＝保存より先に resetGame がフラグを戻しても記録内容が狂わない（仕様書の落とし穴対策）。
-        revived: !!(typeof rewardAdState !== 'undefined' && rewardAdState.reviveUsedThisRun)
+        revived: !!(typeof rewardAdState !== 'undefined' && rewardAdState.reviveUsedThisRun),
+        // ぼうけんのしおり（1.636）: 中断して再開したランは 🔖 付きで記録する。↺ と同じ作法で、
+        // ここで値を確定させる＝この後 resetGame がフラグを戻しても記録内容は狂わない。
+        resumed: !!gameState.resumedThisRun
     };
 
     // 記録は「ランが本当に終わったとき」に1回だけ行う＝ここでは記録せず、まず復活の選択肢があるゲームオーバー画面を出す。

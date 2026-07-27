@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.635";
+                content: "Ver.1.636";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -868,7 +868,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.635</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.636</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4386,6 +4386,10 @@ function continueRunFromSave() {
     applyUpgrades();          // ポーチ枠数など、ラン開始時にしか効かない永続強化を先に反映
     applyRunSave(d);          // 距離/所持金/ライフ/持ち物/ラウンドを復元（世界は距離から組み直す）
     clearRunState();          // ⚠**読み込んだら即消す**＝落ちても同じ地点を何度も再開できない
+    // ⚠**resetGame の後に立てる**（1.636）。ランキングに🔖を付けるための印で、gameOver の
+    //   finalGameStats に写して送る。セーブには積まない＝再開すれば必ずここを通るので不要
+    //   （積むと RUN_SAVE_VERSION を上げる必要が出て、既存のしおりが全部無効になる）。
+    gameState.resumedThisRun = true;
 
     // 退避したログボ品を「セーブから戻した持ち物の上に」配り直す（空きが無ければ貯金へ換算＝通常と同じ扱い）
     if (pend.length) { gameSettings.pendingStockItems = pend; flushPendingStockItems(); }
@@ -4584,6 +4588,7 @@ function resetGame() {
     gameState.revivesLeft = 0;
     gameState.revivalFlashTimer = 0;
     gameState.hasRecordedHighScore = false;
+    gameState.resumedThisRun = false;    // 🔖（しおり再開）はランごと。⚠つづきからは resetGame の**後**に立てる（1.636）
     // 前ランの送信を打ち切ったまま再送しなかった場合の枠を捨てる（1.572）。
     // 残したままだと次ランの送信が前ランと同じキーへ書き、2ラン分が1エントリに潰れる。
     pendingScoreRef = null;
@@ -4841,6 +4846,7 @@ function showRankingByType(type) {
         var unitKeys  = { score: 'ranking_unit_score', distance: 'ranking_unit_distance', enemyKills: 'ranking_unit_kills', speedLevel: 'ranking_unit_level' };
         var html = '<div style="text-align:center;color:#ffd700;font-weight:bold;margin-bottom:4px;font-size:1.8vw;">' + t(titleKeys[type]) + '</div>';
         var anyRevived = false; // 表示中に復活ランが1件でもあれば凡例を出す（1.523）
+        var anyResumed = false; // 同上・しおり再開ラン（1.636）
         for (var i = 0; i < rankings.length; i++) {
             var rank = i + 1;
             var color = rank <= 3 ? '#ffd700' : '#fff';
@@ -4852,12 +4858,19 @@ function showRankingByType(type) {
             // 名前spanの外に置く＝NGマスク/通報モード(data-name)の処理に干渉しない
             var revMark = '';
             if (rankings[i].revived) { anyRevived = true; revMark = '<span style="color:#ffb066;font-size:0.85em;margin-left:4px;">↺</span>'; }
+            // しおり再開マーク（1.636）: 中断→つづきから で伸ばしたランに 🔖。↺ と併記されることもある
+            // （フィールドが無い旧エントリは undefined＝falsy＝無印。ルールは2026-07-28に resumed を任意boolで公開済）
+            if (rankings[i].resumed) { anyResumed = true; revMark += '<span style="font-size:0.85em;margin-left:3px;">🔖</span>'; }
             html += '<div class="rank-row" data-name="' + escapeHtml(rawName) + '" data-value="' + (Number(rankings[i][type]) || 0) + '" style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.3);color:#fff;font-size:1.5vw;">' +
                 '<span style="color:' + color + ';">' + rank + '. ' + escapeHtml(dispName) + revMark + '</span>' +
                 '<span style="color:#ffd700;font-weight:bold;">' + escapeHtml(rankings[i][type] || 0) + t(unitKeys[type]) + '</span></div>';
         }
-        if (anyRevived) {
-            html += '<div style="text-align:left;color:rgba(255,255,255,0.55);font-size:1.2vw;margin-top:3px;">' + escapeHtml(t('ranking_revived_legend')) + '</div>';
+        // 凡例は「その表示に実際に出ているマーク」だけを出す（1件も無ければ何も足さない）
+        if (anyRevived || anyResumed) {
+            var legend = [];
+            if (anyRevived) legend.push(t('ranking_revived_legend'));
+            if (anyResumed) legend.push(t('ranking_resumed_legend'));
+            html += '<div style="text-align:left;color:rgba(255,255,255,0.55);font-size:1.2vw;margin-top:3px;">' + escapeHtml(legend.join('  /  ')) + '</div>';
         }
         list.innerHTML = html;
     }).catch(function(err) {
@@ -5505,7 +5518,8 @@ function submitScore() {
         speedLevel: Math.min(9999, Number(finalGameStats.speedLevel) || 1), // 真の値を送信（旧ルール≤100で弾かれたら setScoreWithFallback が100で再送）
         timestamp: Date.now(),
         date: new Date().toLocaleDateString('ja-JP'),
-        revived: !!finalGameStats.revived // 広告復活を使ったラン＝ランキングで↺表示（DBルールで任意bool・2026-07-24公開済）
+        revived: !!finalGameStats.revived, // 広告復活を使ったラン＝ランキングで↺表示（DBルールで任意bool・2026-07-24公開済）
+        resumed: !!finalGameStats.resumed  // しおりで中断→再開したラン＝ランキングで🔖表示（DBルールで任意bool・2026-07-28公開済）
     };
 
     st.textContent = t('submit_sending');
@@ -5553,7 +5567,8 @@ function skipSubmit() {
         speedLevel: Math.min(9999, Number(finalGameStats.speedLevel) || 1), // 真の値を送信（旧ルール≤100で弾かれたら setScoreWithFallback が100で再送）
         timestamp: Date.now(),
         date: new Date().toLocaleDateString('ja-JP'),
-        revived: !!finalGameStats.revived // 広告復活を使ったラン＝ランキングで↺表示（スキップ登録でも同じ扱い）
+        revived: !!finalGameStats.revived, // 広告復活を使ったラン＝ランキングで↺表示（スキップ登録でも同じ扱い）
+        resumed: !!finalGameStats.resumed  // しおり再開ラン＝🔖（スキップ登録でも同じ扱い）
     };
 
     if (database) {

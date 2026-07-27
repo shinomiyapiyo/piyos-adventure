@@ -365,6 +365,7 @@ var gameState = {
     comboCount: 0, comboTimer: 0,
     revivesLeft: 0, revivalFlashTimer: 0,
     hasRecordedHighScore: false,
+    resumedThisRun: false,   // ぼうけんのしおりで中断→再開したランか（1.636・ランキングの🔖。resetGameで戻す）
     missionCountedDistance: 0, missionCountedKills: 0, missionPlayCounted: false,
     coinsCollected: 0, bossKills: 0, specialUses: 0,
     goldenEggFieldSpawned: false,  // 2500m日次エッグの一次抽選をこのランで行ったか（per-run）
