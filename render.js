@@ -3670,48 +3670,160 @@ function drawChest(it) {
 }
 
 // 宝箱本体の描画（lidOpen 0..1 でフタが後ろへ持ち上がる）。
+// ═══════════════════════════════════════════════════════════════════
+// ─── 宝箱のドット絵（1.645・ユーザー指定「ベクターでなくドット絵・SFC〜PS1程度」）───
+// ═══════════════════════════════════════════════════════════════════
+// ⚠1.452の実装は canvas の矩形・曲線・グラデーションで描いていた＝拡大すると滑らかな
+//   「ベクターの絵」に見えていた。ここでは**滝(ugFallTile)と同じ作法**に揃える:
+//   限定パレットの正方画素で1度だけオフスクリーンに焼き、以後は等倍で貼るだけ。
+// ⚠絵は 26×20 の"アートピクセル"で組み、1アートピクセル = 2px（＝ゲーム内 52×40 = LUCKY_CHEST_W/H）。
+//   画素が2px角で揃うので、端末側で拡大されてもドットの角が残る。
+// ⚠**乱数は使わない**（焼き直しても同じ絵になること）。
+// ⚠閉と開は**同じ本体・同じ接地線**で組む＝差し替えた瞬間に箱が動いて見えない。
+var CHEST_AW = 26, CHEST_AH = 20, CHEST_PX = 2;
+var CHEST_PAL = {
+    K: '#241206',   // 輪郭
+    w: '#5a3316',   // 木・最暗（板の目地／底の影）
+    W: '#7a4520',   // 木・暗
+    L: '#9a5c2b',   // 木・中
+    H: '#b87a3e',   // 木・明
+    S: '#d29a5c',   // 木・ハイライト（フタの天面）
+    g: '#7a5c10',   // 金・暗
+    G: '#c79a22',   // 金・中
+    Y: '#f0d264',   // 金・明
+    i: '#2b1a0c',   // 中の闇
+    o: '#ffe3a0',   // 中の光
+    O: '#fff8dc'    // 中の光・強
+};
+// 各行の左右端（丸みのあるフタ）。ay=0が一番上。⚠閉/開で共通＝本体の輪郭は絶対に変えない
+function chestRowSpan(ay) {
+    if (ay === 0) return [5, 20];
+    if (ay === 1) return [3, 22];
+    if (ay === 2) return [2, 23];
+    return [1, 24];
+}
+// 金具（縦帯）の列。左右2本
+function chestIsBand(ax) { return (ax === 5 || ax === 6 || ax === 19 || ax === 20); }
+
+// 閉じた宝箱のアートピクセルを返す（' '=透明）
+function chestGridClosed() {
+    var g = [], ax, ay;
+    for (ay = 0; ay < CHEST_AH; ay++) { g.push([]); for (ax = 0; ax < CHEST_AW; ax++) g[ay].push(' '); }
+    for (ay = 0; ay < CHEST_AH; ay++) {
+        var sp = chestRowSpan(ay), x0 = sp[0], x1 = sp[1];
+        for (ax = x0; ax <= x1; ax++) {
+            var c;
+            if (ay <= 1)       c = 'S';          // フタ天面（光は上から）
+            else if (ay <= 3)  c = 'H';
+            else if (ay <= 5)  c = 'L';
+            else if (ay === 6) c = 'W';          // フタの下側
+            else if (ay === 7) c = 'G';          // フタ下端の金の縁
+            else if (ay === 8) c = 'W';          // 本体の上端（縁の影）
+            else if (ay <= 12) c = 'L';
+            else if (ay === 13) c = 'w';         // 板の目地
+            else if (ay <= 16) c = 'L';
+            else if (ay <= 18) c = 'W';
+            else               c = 'w';          // 底の暗がり
+            if (chestIsBand(ax) && ay !== 7) c = (ax === 5 || ax === 19) ? 'Y' : 'G';   // 縦の金具（左が明るい）
+            g[ay][ax] = c;
+        }
+        // 輪郭（行の両端）
+        g[ay][x0] = 'K'; g[ay][x1] = 'K';
+    }
+    // 上下の輪郭
+    var top = chestRowSpan(0); for (ax = top[0]; ax <= top[1]; ax++) g[0][ax] = 'K';
+    for (ax = 1; ax <= 24; ax++) g[CHEST_AH - 1][ax] = 'K';
+    // 丸みの外側の段差にも輪郭を置く（斜めの階段が黒で繋がる）
+    for (ay = 1; ay <= 2; ay++) {
+        var pv = chestRowSpan(ay - 1), cu = chestRowSpan(ay);
+        for (ax = cu[0]; ax < pv[0]; ax++) g[ay][ax] = 'K';
+        for (ax = pv[1] + 1; ax <= cu[1]; ax++) g[ay][ax] = 'K';
+    }
+    // 錠前（中央・フタと本体をまたぐ）
+    for (ay = 6; ay <= 10; ay++) for (ax = 11; ax <= 14; ax++)
+        g[ay][ax] = (ay === 6 || ay === 10 || ax === 11 || ax === 14) ? 'g' : 'Y';
+    g[8][12] = 'K'; g[8][13] = 'K'; g[9][12] = 'K';        // 鍵穴
+    return g;
+}
+
+// 開いた宝箱。
+// ⚠**本体と金の縁（ay 7〜19）は閉と1ドットも変えない**。ここを触ると差し替えた瞬間に箱が動いて見える。
+//   書き換えるのは ay 0〜6 だけ＝「フタがあった場所」に《中の光》と《奥へ倒れたフタ》を描く。
+// ⚠やや上から見た絵なので、**中身は金の縁より上に見える**（縁が手前、内壁が奥）。
+//   1.645の初版は中を白い帯で塗ってしまい「板が乗っているだけ」に見えた（作り直し）。
+function chestGridOpen() {
+    var g = chestGridClosed(), ax, ay;
+    for (ay = 0; ay <= 6; ay++) for (ax = 0; ax < CHEST_AW; ax++) g[ay][ax] = ' ';
+    // ⚠**明→暗→明の順に積む**のが肝。1.645の初版は「金の縁」と「中の光」を隣り合わせにしたため
+    //   明るい帯が1本に融合し、フタが板にしか見えなかった。あいだに必ず暗い行を挟む。
+    // ── 中身（ay 5..6）──
+    for (ax = 2; ax <= 23; ax++) { g[5][ax] = 'i'; g[6][ax] = 'o'; }   // 5=フタの落とす影 / 6=光る口
+    for (ax = 9; ax <= 16; ax++) g[6][ax] = 'O';                        // 中央がいちばん明るい＝宝の光
+    g[5][2] = 'K'; g[5][23] = 'K'; g[6][2] = 'K'; g[6][23] = 'K';
+    // ── 奥へ倒れたフタ（ay 1..4）: 裏面なので暗い木。手前の縁だけ金が控えめに光る ──
+    //   ⚠本体より少し細い＝奥にある遠近。上端は丸みを残す。
+    for (ay = 1; ay <= 4; ay++) {
+        var x0 = (ay === 1) ? 6 : (ay === 2 ? 4 : 3), x1 = (ay === 1) ? 19 : (ay === 2 ? 21 : 22);
+        for (ax = x0; ax <= x1; ax++) {
+            var c = (ay <= 2) ? 'w' : 'W';
+            if (chestIsBand(ax)) c = 'g';                               // 裏面の金具は光らない
+            g[ay][ax] = c;
+        }
+        g[ay][x0] = 'K'; g[ay][x1] = 'K';
+    }
+    for (ax = 6; ax <= 19; ax++) g[1][ax] = 'K';        // フタの奥側（上）の輪郭
+    for (ax = 3; ax <= 22; ax++) g[4][ax] = 'g';        // フタ手前の縁（暗い金＝光と喧嘩させない）
+    g[4][3] = 'K'; g[4][22] = 'K';
+    // 錠前の上端は口の光と隣り合うので暗く落とす（プレートが光に溶けないように）
+    for (ax = 11; ax <= 14; ax++) g[7][ax] = 'g';
+    return g;
+}
+
+// アートピクセルをオフスクリーンへ焼く（1回だけ）
+var _chestCv = {};
+function chestSprite(open) {
+    var key = open ? 'open' : 'closed';
+    if (_chestCv[key]) return _chestCv[key];
+    var g = open ? chestGridOpen() : chestGridClosed();
+    var cv = document.createElement('canvas');
+    cv.width = CHEST_AW * CHEST_PX; cv.height = CHEST_AH * CHEST_PX;
+    var c2 = cv.getContext('2d');
+    for (var ay = 0; ay < CHEST_AH; ay++) for (var ax = 0; ax < CHEST_AW; ax++) {
+        var ch = g[ay][ax];
+        if (ch === ' ' || !CHEST_PAL[ch]) continue;
+        c2.fillStyle = CHEST_PAL[ch];
+        c2.fillRect(ax * CHEST_PX, ay * CHEST_PX, CHEST_PX, CHEST_PX);
+    }
+    _chestCv[key] = cv;
+    return cv;
+}
+
 function drawChestBody(x, y, w, h, lidOpen) {
-    var lidH = h * 0.42;
-    var bodyY = y + lidH * 0.5, bodyH = h - lidH * 0.5;
-    // 接地影
+    // 接地影（ドットの外側なので滑らかでよい＝滝の背面のにじみと同じ考え方）
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath(); ctx.ellipse(x + w / 2, y + h + 2, w * 0.5, 5, 0, 0, Math.PI * 2); ctx.fill();
-    // 本体（木箱）
-    ctx.fillStyle = '#7a4a24'; ctx.fillRect(x, bodyY, w, bodyH);
-    ctx.fillStyle = '#5e3717'; ctx.fillRect(x, bodyY + bodyH - 6, w, 6);      // 底の暗がり
-    ctx.fillStyle = '#8a5a2e'; ctx.fillRect(x, bodyY, w, 4);                   // 上辺ハイライト
-    // 縦の金具
-    ctx.fillStyle = '#e9b23a'; ctx.fillRect(x + 7, bodyY, 6, bodyH); ctx.fillRect(x + w - 13, bodyY, 6, bodyH);
-    // 開いた中身（光）＋光の柱
+    // 開いた瞬間に立ちのぼる光の柱。⚠**段（チャンク）で描く**＝グラデーションにすると
+    //   ここだけ滑らかになってドット絵から浮く。
     if (lidOpen > 0) {
-        var glowY = bodyY + 2;
         ctx.save();
-        ctx.fillStyle = 'rgba(255,242,175,' + (0.5 + 0.5 * lidOpen).toFixed(2) + ')';
-        ctx.fillRect(x + 9, glowY, w - 18, 8 + lidOpen * 6);
-        ctx.globalAlpha = 0.5 * lidOpen;
-        var lg = ctx.createLinearGradient(0, glowY - 46, 0, glowY);
-        lg.addColorStop(0, 'rgba(255,242,175,0)'); lg.addColorStop(1, 'rgba(255,242,175,0.85)');
-        ctx.fillStyle = lg;
-        ctx.beginPath(); ctx.moveTo(x + 10, glowY); ctx.lineTo(x + w - 10, glowY); ctx.lineTo(x + w - 2, glowY - 46); ctx.lineTo(x + 2, glowY - 46); ctx.closePath(); ctx.fill();
+        var steps = 6, beamH = 46 * lidOpen;
+        for (var s = 0; s < steps; s++) {
+            var t0 = s / steps;
+            ctx.globalAlpha = 0.42 * lidOpen * (1 - t0);
+            ctx.fillStyle = '#ffe9a8';
+            var bw = w * (0.42 + 0.42 * t0);
+            ctx.fillRect(Math.round(x + (w - bw) / 2), Math.round(y + h * 0.3 - beamH * t0 - beamH / steps),
+                         Math.round(bw), Math.ceil(beamH / steps) + 1);
+        }
         ctx.restore();
     }
-    // フタ（開くと後ろへ持ち上がる＝上へ移動＆薄くなる）
-    var lidTopY = y - lidOpen * (lidH + 6);
-    var lidCurH = lidH * (1 - lidOpen * 0.55);
-    ctx.fillStyle = '#8a5a2e'; ctx.fillRect(x - 2, lidTopY, w + 4, lidCurH);
-    ctx.beginPath();                                                          // フタの丸み（上辺）
-    ctx.fillStyle = '#8a5a2e';
-    ctx.moveTo(x - 2, lidTopY);
-    ctx.quadraticCurveTo(x + w / 2, lidTopY - 8 * (1 - lidOpen * 0.5), x + w + 2, lidTopY);
-    ctx.fill();
-    ctx.fillStyle = '#e9b23a';                                               // フタの金具
-    ctx.fillRect(x + 7, lidTopY, 6, lidCurH); ctx.fillRect(x + w - 13, lidTopY, 6, lidCurH);
-    ctx.fillRect(x - 2, lidTopY + lidCurH - 4, w + 4, 4);                    // フタ下辺の帯
-    // 錠前（ほぼ閉じている時だけ）
-    if (lidOpen < 0.25) {
-        ctx.fillStyle = '#ffd766'; ctx.fillRect(x + w / 2 - 6, bodyY - 3, 12, 12);
-        ctx.fillStyle = '#7a5310'; ctx.fillRect(x + w / 2 - 2, bodyY + 2, 4, 5); // 鍵穴
-    }
+    // 本体（焼き込んだドット絵を等倍で貼る）
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;          // ⚠ドットを滲ませない
+    // ⚠切り替えは 0.35 で1回だけ（12フレームの開き演出は光の柱の濃さで見せる）。
+    //   2枚しか無いので中間コマは作らない＝SFCの宝箱と同じ「パッと開く」手触り。
+    ctx.drawImage(chestSprite(lidOpen >= 0.35), Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+    ctx.restore();
 }
 
 // 宝箱開封の演出（リング＋金スパーク）。lifeup_ring / combo_spark / goldenegg_ring を再利用（新レンダラー不要）。
