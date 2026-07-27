@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.616";
+                content: "Ver.1.617";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -833,7 +833,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.616</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.617</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6923,8 +6923,16 @@ function updateBullets() {
                 } catch (_) {}
             }
         }
-    } else if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
-               runActiveSkin() === 'cyber' && gameState.gameStarted && !pipeRoomState.active) {
+    }
+
+    // ⚠1.617: サイバーぴよのドローンは**上の else-if 連鎖から出して独立させた**（ユーザー実機報告
+    //   「老婆の劇薬を使っている間、サイバーぴよのドローンの攻撃が止まる」）。
+    //   元は連鎖の最後尾にいたため、エナジー缶(dmg2)や劇薬(dmg1)が成立している間はここへ到達せず、
+    //   **ドローンが完全に沈黙していた**（3,000,000コインのスキンが10,000コインの消耗品で無効化される状態）。
+    //   ⚠きぐるみ/忍者の自動攻撃を連鎖に残すのは正しい＝あちらは「プレイヤーが前方へ撃つ弾」なので、
+    //   劇薬と二重に出すと同じ弾が重なる。**ドローンは前後を狙う随伴機＝別系統の武器**なので抑止しない。
+    if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
+        runActiveSkin() === 'cyber' && gameState.gameStarted && !pipeRoomState.active) {
         // サイバーぴよの特殊効果（1.520）: ドローンビットが約2.5秒ごとに前後同時ロックオンレーザー。
         // 前後それぞれ「画面内の最寄りの敵」へ狙い撃ち（いなければその側は撃たない）。ボス(phase3)も対象。
         // ダメージ1=電気弾と同じ（ボスの装甲弾き/空中半減/クリティカルは既存の弾衝突処理がそのまま適用）。
