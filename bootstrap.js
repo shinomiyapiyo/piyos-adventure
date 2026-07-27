@@ -878,6 +878,15 @@ function initialize() {
     bindTapButton(document.getElementById('shopConfirmYes'), handleConfirmYes, { stopClickPropagation: true });
     bindTapButton(document.getElementById('shopConfirmNo'), handleConfirmNo, { stopClickPropagation: true });
 
+    // タイトル右上の言語切替 JA|EN（1.623・英語圏向け）
+    // ⚠タイトルは「どこをタップでもメニューが開く」ので、伝播を止めないとメニューが同時に開く。
+    //   bindTapButton の touchend は常に stopPropagation する＋guardTouchStart で touchstart も止め、
+    //   click は stopClickPropagation で startScreen の click ハンドラへ届かないようにする。
+    bindTapButton(document.getElementById('titleLangJa'), function() { setTitleLanguage('ja'); },
+                  { stopClickPropagation: true, guardTouchStart: true });
+    bindTapButton(document.getElementById('titleLangEn'), function() { setTitleLanguage('en'); },
+                  { stopClickPropagation: true, guardTouchStart: true });
+
     // タイトル画面のタップでメニューを開く（Phase3.6 P4: 直接ゲーム開始しない）
     startScreen.addEventListener('click', function(e) {
         handleTitleScreenClick(e);

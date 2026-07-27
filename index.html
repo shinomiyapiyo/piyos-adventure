@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.622";
+                content: "Ver.1.623";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -185,6 +185,26 @@
             z-index: 0;
             display: block;
         }
+
+        /* --- タイトル右上の言語切替 JA|EN（1.623） --- */
+        /* ⚠設定画面の中にしか切替が無く、英語話者は日本語メニューを辿らないと言語を変えられなかった。
+           見た目（選択=青/緑・非選択=暗く）は設定画面の言語ボタンと揃えてある（updateTitleLangUI）。 */
+        .title-lang-btn {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            font-weight: 700;
+            font-size: clamp(11px, 2.4vh, 17px);
+            letter-spacing: 0.08em;
+            color: #fff;
+            border: 2px solid rgba(255,255,255,0.6);
+            border-radius: 999px;
+            padding: clamp(4px, 1vh, 9px) clamp(10px, 1.8vw, 18px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.35);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: opacity 0.15s ease;
+        }
+        .title-lang-btn:active { transform: translateY(1px); }
 
         /* --- ボタン共通 --- */
         .game-button {
@@ -825,6 +845,17 @@
                     </div>
                 </div>
 
+                <!-- 言語切替 JA|EN：右上（1.623・英語圏向け）
+                     ⚠タイトルは「どこをタップでもメニューが開く」ので、このボタンは伝播を必ず止めること
+                       （bootstrap.js の bindTapButton に stopClickPropagation/guardTouchStart を指定済み）。
+                     ⚠位置は #titleContent の内側＝safe-area の内側なので、横向きのノッチには被らない。 -->
+                <div id="titleLangSwitch" style="
+                    position: absolute; top: 2%; right: 2.5%;
+                    z-index: 12; display: flex; gap: 6px;">
+                    <button id="titleLangJa" class="title-lang-btn">JA</button>
+                    <button id="titleLangEn" class="title-lang-btn">EN</button>
+                </div>
+
                 <!-- バージョン情報：左下 -->
                 <div style="
                     position: absolute; bottom: 10px; left: 10px;
@@ -833,7 +864,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.622</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.623</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2358,6 +2389,30 @@ function showSobaScene(healedLives, imgPath) {
 // ─── URL移行案内（全画面ブロック） ───
 // （旧URL移行通知 showUrlChangeNotice は PWA廃止に伴い削除 — 1.510。Web配信はウォール[wall/]のみ）
 
+// ─── 端末の言語から初期言語を決める（1.623・**真の初回起動のみ**） ───
+// これまで language:'ja' がハードコードで、英語話者は日本語のタイトル→設定を辿らないと英語にできなかった。
+// ⚠**保存済みセーブがある時は絶対に呼ばないこと**（loadSettings の else でだけ呼ぶ）。
+//   アップデートで既存プレイヤーの言語が勝手に変わるのが最悪の事故なので、判定は初回1回きりに閉じる。
+// ⚠iOSの罠: WKWebView の navigator.language は「アプリが宣言したローカライズ」に丸められる。
+//   Info.plist に CFBundleLocalizations が無いと CFBundleDevelopmentRegion(=en) に丸められ、
+//   **日本語端末でも en が返る**＝日本人を英語にしてしまう。そのため ios/App/App/Info.plist に
+//   CFBundleLocalizations [ja, en] を宣言してある（1.623・ここと必ずセット。片方だけ直さないこと）。
+// ⚠navigator.languages（複数）も見るのは保険。'ja' / 'ja-JP' / 'ja-jp' のどれでも日本語と判定する。
+function detectDeviceLanguage() {
+    try {
+        var list = [];
+        if (navigator.languages && navigator.languages.length) {
+            list = list.concat(Array.prototype.slice.call(navigator.languages));
+        }
+        if (navigator.language) list.push(navigator.language);
+        if (!list.length) return 'ja';   // 何も取れない環境＝従来どおり日本語（安全側）
+        for (var i = 0; i < list.length; i++) {
+            if (typeof list[i] === 'string' && list[i].toLowerCase().indexOf('ja') === 0) return 'ja';
+        }
+    } catch (_) { return 'ja'; }
+    return 'en';
+}
+
 // ─── ゲーム設定 (localStorage永続化) ───
 var gameSettings = {
     dataVersion: 4,    // セーブデータ構造バージョン（移行処理用。v3=1.474: ボス遭遇のみseenを撃破済み扱いへ／v4=1.524: チュートリアル由来の「砂漠:発見」誤登録を取消）
@@ -2520,6 +2575,10 @@ var gameSettings = {
             if (typeof parsed.tutorialCleared === 'boolean') gameSettings.tutorialCleared = parsed.tutorialCleared;
             // adFree復元: 購入済みなら常にtrue
             if (gameSettings.purchased['ad_free'] || gameSettings.purchased['starter_pack']) gameSettings.adFree = true;
+        } else {
+            // ── 真の初回起動（セーブが1つも無い）だけ、端末の言語で初期言語を決める（1.623） ──
+            // ⚠saved がある＝既存プレイヤーなので、その言語（上の parsed.language 復元）を絶対に上書きしない。
+            gameSettings.language = detectDeviceLanguage();
         }
     } catch (_) {}
 })();
@@ -3367,6 +3426,27 @@ function applyLanguage() {
     if (termsLink) termsLink.href = t('terms_url');
     // 縦画面警告のCSS変数を更新
     document.documentElement.style.setProperty('--orient-msg', '"' + t('orient_msg').replace(/\n/g, '\\A') + '"');
+    updateTitleLangUI();   // タイトル右上の JA|EN（1.623）
+}
+
+// タイトル右上の JA|EN の見た目を現在の言語に合わせる（1.623）。配色は設定画面の言語ボタンと同一。
+function updateTitleLangUI() {
+    var ja = document.getElementById('titleLangJa');
+    var en = document.getElementById('titleLangEn');
+    if (!ja || !en) return;
+    var off = 'linear-gradient(180deg, rgba(70,70,70,0.8), rgba(30,30,30,0.8))';
+    var isJa = gameSettings.language === 'ja';
+    ja.style.background = isJa ? 'linear-gradient(180deg, #4488ff, #2266cc)' : off;
+    ja.style.opacity    = isJa ? '1' : '0.55';
+    en.style.background = isJa ? off : 'linear-gradient(180deg, #44bb77, #228855)';
+    en.style.opacity    = isJa ? '0.55' : '1';
+}
+
+// タイトル右上のボタンから言語を切り替える（1.623）。同じ言語なら何もしない＝無駄な効果音も鳴らさない。
+function setTitleLanguage(lang) {
+    if (gameSettings.language === lang) return;
+    setLanguage(lang);
+    if (soundManager) { try { soundManager.playConfirmSelect(); } catch (_) {} }
 }
 
 // ─── HTMLエスケープ ───
