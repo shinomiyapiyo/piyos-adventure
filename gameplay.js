@@ -552,6 +552,13 @@ function updateUndergroundHazards() {
     if (ug.introTimer > 0) return;                          // 落下導入中は無敵＝判定しない
     var px = player.x, py = player.y, pw = player.width, ph = player.height;
 
+    // ⚠1.620: **シールド（ドロップ）はギミックのダメージも無効化する**（ユーザー指定）。
+    //   `takeDamage()` は無敵しか見ておらず、シールドは**呼び出し側の isPlayerProtected() で弾く**作りなのに、
+    //   地底のトゲ／ファイアバー／火の玉はその判定を通していなかった＝シールド中でも被弾していた。
+    //   ⚠溶岩(下の fallDeath)はここに含めない。溶岩は「穴と同じ即死」であってダメージではなく、
+    //   シールドで穴に落ちても平気になると、この面の地形の意味（落ちたら復帰）が壊れる。
+    var _guarded = (typeof isPlayerProtected === 'function') && isPlayerProtected();
+
     // 溶岩＝穴と同じ扱い（fallDeath）。⚠触れた瞬間ではなく「足が面より下」で判定＝縁を掠めて即死しない
     for (i = 0; i < ug.lava.length; i++) {
         var L = ug.lava[i];
@@ -572,7 +579,10 @@ function updateUndergroundHazards() {
         var sp = ug.spikes[i];
         if (px + pw - UG_HAZARD_SHRINK_X > sp.x + UG_SPIKE_INSET &&
             px + UG_HAZARD_SHRINK_X < sp.x + sp.w - UG_SPIKE_INSET &&
-            py + ph - UG_HAZARD_SHRINK_Y > sp.y && py + UG_HAZARD_SHRINK_Y < sp.y + UG_SPIKE_H) { takeDamage(); return; }
+            py + ph - UG_HAZARD_SHRINK_Y > sp.y && py + UG_HAZARD_SHRINK_Y < sp.y + UG_SPIKE_H) {
+            if (_guarded) break;                      // シールド中は無傷で通す
+            takeDamage(); return;
+        }
     }
     // ファイアバー: 円弧上の各セグメントを円として当てる（矩形×円の最短距離）
     var pcx = px + pw / 2, pcy = py + ph / 2;
@@ -584,14 +594,20 @@ function updateUndergroundHazards() {
             fbx = fb.x + Math.cos(fb.ang) * seg;
             fby = fb.y + Math.sin(fb.ang) * seg;
             var dx = Math.max(0, Math.abs(fbx - pcx) - hx), dy = Math.max(0, Math.abs(fby - pcy) - hy);
-            if (dx * dx + dy * dy < UG_FIREBAR_R * UG_FIREBAR_R) { takeDamage(); return; }
+            if (dx * dx + dy * dy < UG_FIREBAR_R * UG_FIREBAR_R) {
+                if (_guarded) break;                  // シールド中は無傷で通す
+                takeDamage(); return;
+            }
         }
     }
     for (i = 0; i < ug.fireballs.length; i++) {
         var fl = ug.fireballs[i];
         if (!fl.live) continue;
         var ex = Math.max(0, Math.abs(fl.x - pcx) - hx), ey = Math.max(0, Math.abs(fl.cy - pcy) - hy);
-        if (ex * ex + ey * ey < UG_FIREBALL_R * UG_FIREBALL_R) { takeDamage(); return; }
+        if (ex * ex + ey * ey < UG_FIREBALL_R * UG_FIREBALL_R) {
+            if (_guarded) continue;                   // シールド中は無傷で通す
+            takeDamage(); return;
+        }
     }
 }
 

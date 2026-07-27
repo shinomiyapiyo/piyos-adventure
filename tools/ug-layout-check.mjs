@@ -284,6 +284,31 @@ function checkRound(round, rooms, overlaps, out) {
             }
         }
 
+        // ── 降りる部屋: 立っている面から**次の下の面が画面に入るか** ────────────
+        // ⚠カメラは足元を画面の下から `gap` の位置に置くので、**足元より下に見えるのは
+        //   (gap - 96)px だけ**（通常の部屋 gap=96 → 0px相当／descend gap=250 → 250px）。
+        //   次の足場がそれより下だと「見えない床へ跳ぶ」ことになる（1.619・ユーザー実機報告
+        //   「この位置に来たら下方向が見えなければならない」＝R28の合流の大広間で実際に起きた）。
+        // ⚠導入の落下部屋（dropCols 指定＝天井の穴から落ちてくる部屋）は、長く落ちること自体が
+        //   演出なので対象外にする。
+        if (room.descend && !room.dropCols) {
+            const VIS_BELOW = 250;   // UG_CAM_DESCEND_GAP
+            const tops = [];         // 立てる面（片道足場＋ソリッドの上面）を y でまとめる
+            for (let r = 0; r < rowsN; r++) for (let c = 0; c < room.wT; c++) {
+                const ch = g[r][c];
+                const isTop = PLAT.has(ch) || (SOLID.has(ch) && r >= 1 && !SOLID.has(g[r - 1][c]));
+                if (isTop) tops.push({ y: room.topY + r * TILE, c });
+            }
+            tops.sort((a, b) => a.y - b.y);
+            const ys = [...new Set(tops.map((t) => t.y))];
+            for (let i = 0; i < ys.length - 1; i++) {
+                const gapPx = ys[i + 1] - ys[i];
+                if (gapPx > VIS_BELOW)
+                    warn(`${tag} y=${ys[i]} の足場から次の足場(y=${ys[i + 1]})まで ${gapPx}px`
+                       + `＝カメラが見せる ${VIS_BELOW}px を超える（降りる先が画面に入らない）`);
+            }
+        }
+
         // ── 'c'(ひよこ)は穴/溶岩に落ちる種。床に穴のある部屋に置いたら警告 ──
         const hasHole = !vertical && [...Array(room.wT).keys()].some((c) => !SOLID.has(g[floorRow][c]));
         if (hasHole) for (let c = 0; c < room.wT; c++) for (let r = 0; r < rowsN; r++)
@@ -313,7 +338,7 @@ const EXTRA = {
     rift:    { dropCols: [44, 49], extraFloor: { row: 12, from: 0, to: 43 } }, // R21 の落下口＋中段の桟道
     // R28 の分水嶺: 中段の通路(行32・入口側)と上ルートのトンネル床(行11)も穴が無いことを確かめる。
     // ⚠上ルートの床に穴があると「上から下へ落ちられる」＝この面の前提が崩れるので、ここは必ず見る。
-    divide:  { extraFloor: { row: 32, from: 0, to: 39 }, sealedFloor: { row: 11, from: 60, to: 149 } }
+    divide:  { extraFloor: { row: 32, from: 0, to: 39 }, sealedFloor: { row: 11, from: 60, to: 145 } }
 };
 
 for (const r of want) {
