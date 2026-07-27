@@ -161,6 +161,13 @@ function ugModeToNextStage() {
 //   （recordMissionProgress の距離除外・ランキング送信の抑止）が「このランは地底モードだったか」を
 //   このフラグで見ているため。落とすのは resetGame（＝次のランの開始）。
 function ugModeClear() {
+    // ⚠**クリアで終わった印**を残す（1.637・ユーザー報告「クリアなのに通常のゲームオーバー画面」）。
+    //   undergroundMode は resetGame まで生きているので、リザルト画面がこれを見て出し分ける。
+    undergroundMode.cleared = true;
+    // ⚠バッジが「今回はじめて付いたか」も先に控える（ユーザー報告「いつ付与されたのか分からなかった」）。
+    //   checkBadges のトーストは2.2秒で消えるうえ、直後に出るゲームオーバー画面と重なって見逃される＝
+    //   リザルトに1行として据える。ここで控えないと gameSettings.ugEmperor が true になった後では判別できない。
+    undergroundMode.emperorNew = !gameSettings.ugEmperor;
     gameSettings.ugEmperor = true;                  // バッジ「地底の帝王」の解放条件（通常プレイのR28撃破と同じ扱い）
     saveSettings();
     if (typeof checkBadges === 'function') checkBadges();
@@ -6255,22 +6262,67 @@ function openExternalUrl(url) {
 
 function showGameOverScreen() {
     markScreenTransition();
+    // ─── 地底モード（1.637・ユーザー実機報告「クリアしたのに通常のゲームオーバー画面」）───
+    //   このモードは「4つの地底を全部越える」ことが目的で、越えた先に地上が無いので gameOver() を通る。
+    //   ⚠ undergroundMode.active / .cleared は resetGame まで生きているので、ここで見分けられる。
+    var ugMode    = (typeof undergroundMode !== 'undefined') && undergroundMode.active;
+    var ugCleared = ugMode && undergroundMode.cleared;
+    // タイトル: クリアなら「制覇！」＋金色（死亡時と広告復活の有無まで含めて別物として見せる）
+    var titleEl = document.getElementById('gameOverTitle');
+    if (titleEl) {
+        // ⚠data-i18n **属性ごと**差し替える。innerHTML だけ書き換えると applyLanguage（言語切替）で
+        //   「ゲームオーバー」に戻ってしまう（タイトルメニューの「つづきから」と同じ作法・1.634）。
+        var _tk = ugCleared ? 'ugmode_clear_title' : 'gameover_title';
+        titleEl.setAttribute('data-i18n', _tk);
+        titleEl.innerHTML = t(_tk);
+        titleEl.style.color = ugCleared ? '#ffd84d' : '#ff4466';
+        titleEl.style.textShadow = ugCleared ? '0 0 20px rgba(255,216,77,0.55), 0 2px 6px rgba(0,0,0,0.6)'
+                                             : '0 0 20px rgba(255,68,102,0.5), 0 2px 6px rgba(0,0,0,0.6)';
+    }
     // スタッツ表示
     var statsEl = document.getElementById('gameOverStats');
-    statsEl.innerHTML =
-        t('gameover_distance') + finalGameStats.distance + 'm<br>' +
-        t('gameover_score') + finalGameStats.score + t('ranking_unit_score') + '<br>' +
-        t('gameover_kills') + finalGameStats.enemyKills + t('ranking_unit_kills') + '<br>' +
-        t('gameover_level') + finalGameStats.speedLevel;
+    if (ugMode) {
+        // ⚠地底モードでは**距離とレベルを出さない**。どちらもこのモードでは計上しない値で
+        //   （距離＝圧縮係数がかかる別物なので自己ベストにもランキングにも入れない／レベル＝概念ごと廃止で常に1）、
+        //   並べると「4800m・レベル1」のように意味のない数字を成績として見せてしまう。
+        //   代わりに「何面まで行ったか」を出す＝このモードで唯一の進行度。
+        var _sv = { stage: undergroundMode.stage, total: UG_MODE_STAGES };
+        statsEl.innerHTML =
+            t(ugCleared ? 'ugmode_result_clear' : 'ugmode_result_reached', _sv) + '<br>' +
+            t('gameover_score') + finalGameStats.score + t('ranking_unit_score') + '<br>' +
+            t('gameover_kills') + finalGameStats.enemyKills + t('ranking_unit_kills');
+    } else {
+        statsEl.innerHTML =
+            t('gameover_distance') + finalGameStats.distance + 'm<br>' +
+            t('gameover_score') + finalGameStats.score + t('ranking_unit_score') + '<br>' +
+            t('gameover_kills') + finalGameStats.enemyKills + t('ranking_unit_kills') + '<br>' +
+            t('gameover_level') + finalGameStats.speedLevel;
+    }
+    // 獲得バッジの明示（1.637・ユーザー報告「バッジもいつ付与されたのか分からなかった」）。
+    // トースト（2.2秒で消える）はこの画面の登場と重なって見逃されるので、リザルトに1行として据える。
+    var badgeEl = document.getElementById('gameOverBadge');
+    if (badgeEl) {
+        var showBadge = ugCleared && undergroundMode.emperorNew;   // 2回目以降のクリアでは出さない（もう持っている）
+        badgeEl.style.display = showBadge ? 'block' : 'none';
+        if (showBadge) {
+            badgeEl.innerHTML = '<img src="images/icon_ug_pass.png" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' +
+                escapeHtml(t('badge_earned_toast')) + '「' + escapeHtml(t('badge_ug_emperor')) + '」';
+        }
+    }
     // リワード広告復活ボタンの表示制御（1プレイ1回、広告非表示設定時は非表示）
+    // ⚠クリアで終わった時は出さない（1.637）＝続きが無いので「復活」しても戻る先が無い。
     var adReviveContainer = document.getElementById('adReviveContainer');
     if (adReviveContainer) {
-        adReviveContainer.style.display = (!rewardAdState.reviveUsedThisRun && !gameSettings.adFree) ? 'block' : 'none';
+        adReviveContainer.style.display = (!ugCleared && !rewardAdState.reviveUsedThisRun && !gameSettings.adFree) ? 'block' : 'none';
     }
     updateAdReviveBtnState(); // 広告のロード状態に応じて「準備中」/「広告を見て復活」を切り替え（A案）
     // 初回ランのゲームオーバーだけ「まほうのポーチ」予告カードを見せる（Phase3 案B-2・継続動機の注入）
+    // ⚠既にポーチを持っている人には出さない（1.637）＝「手に入れると…」が成立しない。
+    //   地底モードでも出さない（このモードの結果画面に地上の誘導を混ぜない）。
     var pouchTeaser = document.getElementById('firstRunPouchTeaser');
-    if (pouchTeaser) pouchTeaser.style.display = gameState.isFirstRun ? 'block' : 'none';
+    if (pouchTeaser) {
+        pouchTeaser.style.display = (gameState.isFirstRun && !ugMode && !(gameSettings.pouchLevel > 0)) ? 'block' : 'none';
+    }
     showScreenEl('gameOverScreen');
     history.pushState({ screen: 'gameOver' }, '');
 }

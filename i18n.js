@@ -82,6 +82,10 @@ ja: {
     submit_rank_suffix: '位！',
     // ゲームオーバー
     gameover_title: 'ゲームオーバー',
+    // 地底モード（1.637）: クリアで終わった時は専用の見出しと成績にする（距離/レベルは出さない）
+    ugmode_clear_title: _ic('icon_ug_pass.png') + ' 地底 制覇！',
+    ugmode_result_clear: '地底 {stage}/{total} を すべて制覇！',
+    ugmode_result_reached: '地底 {stage}/{total} で ちからつきた',
     gameover_distance: '到達距離: ',
     gameover_score: '獲得金額: ',
     gameover_kills: '敵撃破数: ',
@@ -716,6 +720,9 @@ en: {
     submit_rank_prefix: 'Rank ',
     submit_rank_suffix: '!',
     gameover_title: 'Game Over',
+    ugmode_clear_title: _ic('icon_ug_pass.png') + ' UNDERGROUND CLEARED!',
+    ugmode_result_clear: 'All {total} depths conquered!',
+    ugmode_result_reached: 'Fell at depth {stage}/{total}',
     gameover_distance: 'Distance: ',
     gameover_score: 'Score: ',
     gameover_kills: 'Enemies: ',
