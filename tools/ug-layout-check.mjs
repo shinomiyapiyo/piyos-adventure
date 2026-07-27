@@ -284,6 +284,29 @@ function checkRound(round, rooms, overlaps, out) {
             }
         }
 
+        // ── 滝('w')が途中で抜けていないか／左右で高さが揃っているか ──────────
+        // ⚠滝は「空きマスにだけ入る」置き方なので、敵やギミックが1マス被ると**その行だけ抜けて
+        //   左右で高さの違う2本に割れる**＝着水が2段になって見える（1.621・ユーザー実機報告）。
+        {
+            const runs = {};
+            for (let c = 0; c < room.wT; c++) {
+                let first = -1, last = -1, holes = 0;
+                for (let r = 0; r < rowsN; r++) if (g[r][c] === 'w') { if (first < 0) first = r; last = r; }
+                if (first < 0) continue;
+                for (let r = first; r <= last; r++) if (g[r][c] !== 'w') holes++;
+                if (holes) err(`${tag} 列${c} の滝が途中で ${holes} マス抜けている（別のものが被っている）`);
+                runs[c] = [first, last];
+            }
+            const cs = Object.keys(runs).map(Number).sort((a, b) => a - b);
+            for (let i = 0; i + 1 < cs.length; i++) {
+                if (cs[i + 1] !== cs[i] + 1) continue;            // 隣接していない＝別の滝
+                const a = runs[cs[i]], b = runs[cs[i + 1]];
+                if (a[0] !== b[0] || a[1] !== b[1])
+                    err(`${tag} 隣り合う滝の列${cs[i]}(行${a[0]}〜${a[1]})と列${cs[i + 1]}(行${b[0]}〜${b[1]})で`
+                      + `高さが違う（着水が2段に割れて見える）`);
+            }
+        }
+
         // ── 降りる部屋: 立っている面から**次の下の面が画面に入るか** ────────────
         // ⚠カメラは足元を画面の下から `gap` の位置に置くので、**足元より下に見えるのは
         //   (gap - 96)px だけ**（通常の部屋 gap=96 → 0px相当／descend gap=250 → 250px）。
