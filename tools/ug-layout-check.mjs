@@ -154,6 +154,16 @@ function checkRound(round, rooms, overlaps, out) {
                     if (!isFooting(below)) err(`${tag} 行${r} 列${c} のトゲが宙に浮いている（真下=' ${below} '）`);
                     if (below === 'M') err(`${tag} 行${r} 列${c} のトゲが動く床の上にある（トゲは静止するので分離する）`);
                 }
+                // 地上敵が溶岩の**真隣**に居ないか（湧いた直後に踏み外して溶岩の中に立つ絵になりやすい）。
+                // ⚠'m'/'S' は穴の手前で引き返すので致命ではない＝警告に留める。
+                if (GROUND_ENEMY.has(ch)) {
+                    for (let dc = -1; dc <= 1; dc += 2) {
+                        const cc = c + dc;
+                        if (cc < 0 || cc >= room.wT) continue;
+                        if (g[r + 1] && g[r + 1][cc] === 'L')
+                            warn(`${tag} 行${r} 列${c} の地上敵 '${ch}' が溶岩(列${cc})の真隣＝溶岩の中に立って見えることがある`);
+                    }
+                }
                 // 火の玉の噴出口は**必ずマグマ(溶岩)の上**に置く（ユーザー指定「火の玉はマグマから
                 // 出てくるのが絶対」）。真下1〜2行以内に 'L' が無ければ、岩から火が噴いていることになる。
                 if (SPOUT.has(ch)) {
@@ -264,7 +274,7 @@ function checkRound(round, rooms, overlaps, out) {
 
         // ── 「上から下へ絶対に落ちられない」床（R28の分水嶺の上ルート）に穴が1マスも無いか ──
         if (room.sealedFloor) {
-            const { row, from, to, thick = 10 } = room.sealedFloor;
+            const { row, from, to, thick = 32 } = room.sealedFloor;   // ⚠深いマグマを掘っても下の岩で塞がっていればよい
             // ⚠**帯のどこか1行でも岩なら塞がっている**。最上行を溶岩にして「マグマの池」を作っても
             //   下の行が岩なら落下は起きない（1.613で上ルートに溶岩を入れたため、単一行判定から変更）。
             for (let c = from; c <= to; c++) {
