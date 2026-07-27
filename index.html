@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.623";
+                content: "Ver.1.624";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -864,7 +864,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.623</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.624</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4034,7 +4034,8 @@ function applyTestStart() {
     //   その場で土管を出すので、「そのラウンドの開始距離＝1つ前のボス距離」へワープするだけでよい。
     var mode = TEST_START_MODE;
     var r6 = (mode === 'r6shop');
-    var targetRound = (mode === 'r28') ? BOSS_CYCLE_ROUNDS * 4       // R28（4周目の地底「分水嶺」・1.611）
+    var targetRound = (mode === 'cap49') ? TEST_SPEED_CAP_ROUND      // R17（敵速度の上限4.9を体感する・1.624）
+                    : (mode === 'r28') ? BOSS_CYCLE_ROUNDS * 4       // R28（4周目の地底「分水嶺」・1.611）
                     : (mode === 'r21') ? BOSS_CYCLE_ROUNDS * 3       // R21（3周目の地底「亀裂」・1.610）
                     : (mode === 'r14') ? BOSS_CYCLE_ROUNDS * 2       // R14（2周目の地底）
                     : r6 ? (BOSS_CYCLE_ROUNDS - 1)                   // R6（カカシ）
@@ -4057,9 +4058,12 @@ function applyTestStart() {
     if (!document.getElementById('testModeBadge')) {
         var b = document.createElement('div');
         b.id = 'testModeBadge';
-        b.textContent = 'TEST R' + gameRound + ' ' + TEST_START_MODE;
-        b.style.cssText = 'position:fixed;left:6px;top:6px;z-index:99999;background:#e0243c;color:#fff;' +
-            'font:bold 12px monospace;padding:3px 7px;border-radius:4px;pointer-events:none;opacity:0.9;';
+        // ⚠倍率も出す（1.624）＝キャップが効いているかを実機の画面だけで判別できる（素のR17なら5.80）
+        b.textContent = 'TEST R' + gameRound + ' ' + TEST_START_MODE + ' 敵速x' + enemySpeedMult().toFixed(2);
+        // ⚠1.624で左上→上端中央へ移動。左上はHUDの「距離」と重なって、テスト中に何m進んだか読めなかった。
+        b.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:99999;' +
+            'background:#e0243c;color:#fff;font:bold 12px monospace;padding:3px 7px;border-radius:4px;' +
+            'pointer-events:none;opacity:0.9;white-space:nowrap;';
         document.body.appendChild(b);
     }
 }
@@ -5498,7 +5502,7 @@ function spawnEnemy() {
         case 'mama_chick':   w = 50; h = 46; s = 0.5 + Math.random();     break;
         default:             w = 42; h = 38; s = 1 + Math.random();       break;
     }
-    s *= (1 + (gameRound - 1) * 0.3); // ラウンド倍率
+    s *= enemySpeedMult(); // ラウンド倍率（式は core-state.js に集約・1.624）
     var sx = gameState.camera.x + GAME_WIDTH + Math.random() * 200;
     var surf = terrainTopAt(sx + w / 2);            // スポーン地点の地形表面（高台なら上面・穴ならnull）
     return {
@@ -5515,7 +5519,7 @@ function spawnFlyingEnemy() {
         x: gameState.camera.x + GAME_WIDTH + Math.random() * 300,
         y: 82 + Math.random() * 164,
         width: 60, height: 54,
-        velX: -(2 + Math.random() * 2) * (1 + (gameRound - 1) * 0.3),
+        velX: -(2 + Math.random() * 2) * enemySpeedMult(),   // ラウンド倍率（core-state.js に集約・1.624）
         velY: Math.sin(Math.random() * Math.PI * 2) * 0.5,
         type: 'flying_chick',
         flySprite: biomeFlyingSprite(), // バイオーム見た目（行動/判定は不変）
