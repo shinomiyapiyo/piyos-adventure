@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.640";
+                content: "Ver.1.641";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -868,7 +868,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.640</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.641</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -7116,7 +7116,19 @@ function isPlayerProtected() {
     return gameState.isInvincible || gameState.puShield > 0;
 }
 
+// 決着後の演出中は**絶対に被弾させない**（1.641・ユーザー報告「エンディングを見た後に被弾の音がした」）。
+// 対象は2つ:
+//   ① 闇の巫女を倒したあとのエンディング（一枚絵＋テロップ）＝プレイヤーは操作できないのに
+//      溶岩/トゲ/火の玉(updateUndergroundHazards)と敵は動き続けるので、立ち位置次第で喰らっていた
+//   ② 白で覆っている間（地上復帰・地底モードのステージ間）＝画面が真っ白で何が起きたか見えない
+// ⚠ここで弾くのが確実。個々のハザード側に条件を足すと、追加のたびに漏れる。
+function isOutroInvulnerable() {
+    if (typeof undergroundState !== 'undefined' && undergroundState.ending) return true;
+    if (typeof groundReturnFade !== 'undefined' && groundReturnFade.phase) return true;
+    return false;
+}
 function takeDamage() {
+    if (isOutroInvulnerable()) return;
     if (gameState.isInvincible) return;
     // クリスタルハート（青）が残っていれば赤より先に消費（回復不可・ラン開始時のみ補充）
     if (gameState.crystalLives > 0) gameState.crystalLives--; else gameState.lives--;
@@ -7149,6 +7161,8 @@ function fallDeath() {
     // 落ちるとキャラが画面外へ落ち続けて見えなくなっていた（＝「広告を見て復活でキャラが
     // 消える」不具合の原因）。無敵は落下ペナルティも免除する従来仕様を保ちつつ、必ず画面内へ
     // 戻す（上空から落ち直す）ことで“消える”を解消する。
+    // 決着後の演出中は落下死もさせない（1.641・takeDamage と対で維持すること）
+    if (isOutroInvulnerable()) { resetPlayerPosition(); return; }
     if (gameState.isInvincible || gameState.isRespawning) { resetPlayerPosition(); return; }
     // 落下死もダメージと同順: クリスタルハート（青）から先に消費
     if (gameState.crystalLives > 0) gameState.crystalLives--; else gameState.lives--;

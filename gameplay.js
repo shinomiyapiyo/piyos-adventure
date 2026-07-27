@@ -6104,7 +6104,11 @@ function gameOver() {
     recordMissionProgress(); // デイリーミッション進捗を記録（広告復活でも二重計上しない）
     commitPermaStock(); // まほうのポーチの中身をここで確定＝ゲームオーバーなら持ち越せる／リタイアでは消える(1.526)
     if (typeof saveSettings === 'function') saveSettings(); // ずかん撃破数など今回ランの記録を確定保存
-    if (soundManager) soundManager.playBGM('gameover');
+    // ⚠**地底モードをクリアして終わった時は死亡の曲に切り替えない**（1.641・ユーザー報告
+    //   「クリアにも関わらず死亡時の曲が流れる」）。エンディング曲(ugEnding)をそのまま鳴らし続ける＝
+    //   ここで何も呼ばないのが正解（playBGM は stopAllBGM から入るので、呼ぶと必ず曲が切れる）。
+    var _ugCleared = (typeof undergroundMode !== 'undefined') && undergroundMode.active && undergroundMode.cleared;
+    if (soundManager && !_ugCleared) soundManager.playBGM('gameover');
 
     // インタースティシャルは「死亡毎」ではなくリトライ時(retryGame)に表示する。
     // 死亡毎だと黒画面が頻発し、直後の復活リワードとも競合するため（ユーザー指摘）。
