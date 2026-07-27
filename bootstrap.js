@@ -711,7 +711,12 @@ function initialize() {
     bindTapButton(document.getElementById('settingsButton'), showSettings, { stopClickPropagation: true });
 
     // タイトルメニュー（Phase3.6 P4）: ぼうけんスタート/図鑑/もどる
-    bindTapButton(document.getElementById('menuStartButton'), function() { startGame(); }, { stopClickPropagation: true });
+    // ⚠1.634: しおり（中断セーブ）がある時は「さいしょから」＝確認ダイアログを挟む経路に変わる。
+    //   セーブが無ければ startNewRunFromMenu はそのまま startGame() を呼ぶ＝従来と同じ挙動。
+    bindTapButton(document.getElementById('menuStartButton'), function() { startNewRunFromMenu(); }, { stopClickPropagation: true });
+    // つづきから（1.634）: セーブが無い時はボタン自体が非表示なので、押される経路は存在しない。
+    //   それでも continueRunFromSave 側で loadRunState() を見て弾く（入口が増えても穴が開かないように）
+    bindTapButton(document.getElementById('menuContinueButton'), function() { continueRunFromSave(); }, { stopClickPropagation: true });
     // 地底モード（1.629）: パス未所持ならボタン側で pointer-events:none にしてあるが、
     // startUndergroundMode 内でも所持を再確認する（入口が増えても穴が開かないように）
     bindTapButton(document.getElementById('ugModeButton'), function() { startUndergroundMode(); }, { stopClickPropagation: true });

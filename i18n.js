@@ -20,6 +20,11 @@ ja: {
     start_tap: '&gt; 画面をタップでメニュー',
     menu_title: _ic('icon_home.png') + ' メニュー',
     menu_start: 'ぼうけんスタート',
+    // 中断セーブ（1.634）: しおりが挟まっている時だけ menu_start が menu_start_over に切り替わり、
+    // その上に menu_continue が出る（＝セーブが無い時は今までどおり1ボタンのまま）
+    menu_continue: 'つづきから',
+    menu_start_over: 'さいしょから',
+    menu_new_run_confirm: 'しおりを はさんだ ぼうけんが\nのこっています。\nさいしょから はじめると\nその つづきは きえます。\nよろしいですか？',
     menu_ug_mode: '地底モード',
     menu_back: 'もどる',
     title_zukan: 'ずかん',
@@ -655,6 +660,9 @@ en: {
     start_tap: '&gt; Tap for Menu',
     menu_title: _ic('icon_home.png') + ' MENU',
     menu_start: 'START ADVENTURE',
+    menu_continue: 'CONTINUE',
+    menu_start_over: 'NEW ADVENTURE',
+    menu_new_run_confirm: 'You have a bookmarked adventure.\nStarting a new one will\nerase that saved progress.\nAre you sure?',
     menu_ug_mode: 'UNDERGROUND',
     menu_back: 'Back',
     title_zukan: 'LIBRARY',

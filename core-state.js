@@ -2214,8 +2214,10 @@ var STAGE_SHOP_ITEMS = [
         //   「1ランに1回だけ中断できる」になる。完全な永続にすると1つのランを何日もかけて伸ばせてしまい、
         //   距離ランキングが「どれだけセッションを積めるか」の勝負になるため採らなかった。
         // ⚠使える場所は canSaveRun() が一元管理（地上の通常区間のみ）。ここでは canUse でそれを見るだけ。
+        // ⚠価格は 5,000 → **10,000**（1.634・ユーザー決定）。中断は「その回の成果をまるごと持ち越せる」＝
+        //   回復や盾より効きが大きいので、気軽に毎ラン挟める額にはしない。
         id: 'shiori', nameKey: 'shop_item_shiori', descKey: 'shop_item_shiori_desc',
-        icon: '', iconImg: 'images/icon_shiori.png', price: 5000, maxPerVisit: 1,
+        icon: '', iconImg: 'images/icon_shiori.png', price: 10000, maxPerVisit: 1,
         stockItem: true,
         canUse: function() { return typeof canSaveRun === 'function' && canSaveRun(); },
         blockedKey: 'shiori_blocked',

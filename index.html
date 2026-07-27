@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.633";
+                content: "Ver.1.634";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -493,7 +493,9 @@
             text-overflow: ellipsis;
             border-radius: 12px !important;
         }
-        #menuStartButton {
+        /* ⚠#menuContinueButton（1.634・中断セーブ）も同じ見た目に乗せる。表示/非表示はインラインの
+           style.display で切り替える＝ここの display:block はセーブが有る時だけ上書きされて効く */
+        #menuStartButton, #menuContinueButton {
             display: block;
             width: 100%;
             min-width: 0 !important;
@@ -540,7 +542,7 @@
                 font-size: clamp(11px, 3.4vh, 16px) !important;
                 padding: clamp(5px, 1.5vh, 10px) 6px !important;
             }
-            #menuStartButton {
+            #menuStartButton, #menuContinueButton {
                 font-size: clamp(13px, 4.6vh, 20px) !important;
                 padding: clamp(7px, 1.8vh, 12px) 10px !important;
                 margin-bottom: clamp(5px, 1.2vh, 10px) !important;
@@ -866,7 +868,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.633</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.634</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -903,6 +905,13 @@
                 <div style="position: absolute; top: -1px; left: 15%; right: 15%; height: 2px;
                     background: linear-gradient(90deg, transparent, rgba(255,215,0,0.5), transparent);"></div>
                 <div class="game-title" data-i18n="menu_title"><img src="images/icon_home.png" class="ui-icon"> メニュー</div>
+                <!-- つづきから（1.634・中断セーブ）: ぼうけんのしおりを挟んだ時だけ出す。
+                     出し分けと「ぼうけんスタート→さいしょから」の差し替えは updateContinueButtonUI() が行う
+                     （⚠文言は data-i18n **属性ごと**差し替える＝言語切替 applyLanguage が走っても戻らない） -->
+                <button class="game-button" id="menuContinueButton" style="display: none;
+                    background: linear-gradient(180deg, #7fe3a0 0%, #34a85e 55%, #146b39 100%);
+                    border-bottom-color: rgba(0,60,25,0.55);
+                    box-shadow: 0 4px 12px rgba(52,168,94,0.4), inset 0 1px 0 rgba(255,255,255,0.35);"><img src="images/icon_shiori.png" class="ui-icon"> <span data-i18n="menu_continue">つづきから</span></button>
                 <button class="game-button" id="menuStartButton"><img src="images/icon_play.png" class="ui-icon"> <span data-i18n="menu_start">ぼうけんスタート</span></button>
                 <!-- 地底モード（1.629）: 地底入場パス（エッグ30）を持っていない間はグレーアウト。
                      ⚠無効化は updateUgModeButton が pointer-events も含めて行う（#titleButtons の
@@ -2726,6 +2735,20 @@ function applyRunSave(d) {
     gameState.ugDistOffset = 0;                 // ⚠先に0にしてから warp する（testWarpToM が加算するため）
     testWarpToM(d.distance);                    // 距離から世界を組み直す＝地形/敵は作り直し
     gameState.ugDistOffset = d.ugDistOffset || 0;
+    // ⚠**レベルは距離から出し直す**（1.634）。updateGameSpeed は floor(距離/SPEED_UP_INTERVAL)+1 と
+    //   今の speedLevel を比べるので、resetGame 直後の 1 のままだと再開1フレーム目に
+    //   「SPEED UP!」のテロップと効果音が鳴ってしまう（速度自体は正しい）。
+    gameState.speedLevel = Math.floor(gameState.distance / SPEED_UP_INTERVAL) + 1;
+    gameState.lastSpeedUpDistance = (gameState.speedLevel - 1) * SPEED_UP_INTERVAL;
+    // ⚠**バイオームも合わせておく**（1.634）。地形は testWarpToM が再開地点のバイオームで作るのに、
+    //   biomeState は resetGame の 0（草原）のままなので、揃えないと再開直後に
+    //   「草原のパレットで砂漠の地形」が出て、そこから2秒かけて遷移する絵になる。
+    if (typeof getBiomeIndex === 'function') {
+        var _bi = getBiomeIndex(gameState.distance);
+        biomeState.current = _bi; biomeState.previous = _bi; biomeState.transition = 0;
+        applyBiomePalette(_bi);
+        bgCache = null; terrainCache = {};
+    }
     gameState.score = d.score; gameState.rankScore = d.rankScore;
     gameState.lives = d.lives; gameState.crystalLives = d.crystalLives;
     gameState.enemyKills = d.enemyKills || 0; gameState.coinsCollected = d.coinsCollected || 0;
@@ -4135,6 +4158,7 @@ function showTitleMenu() {
     showScreenEl('titleMenuScreen');
     history.pushState({ screen: 'titleMenu' }, '');
     updateUgModeButton();   // 地底パスの所持でグレーアウトを切り替える（1.629）
+    updateContinueButtonUI(); // しおりが挟まっていれば「つづきから／さいしょから」に切り替える（1.634）
     updateMissionBadge();
     updateAchievementBadge();
     updateZukanBadge();
@@ -4296,6 +4320,13 @@ function startGame() {
     // BACK_HANDLERS 側で消費時に積み直すので、ラン中は戻る=ポーズ⇔再開のトグルになる。
     if (!history.state || history.state.screen !== 'game') history.pushState({ screen: 'game' }, '');
 
+    enterGameScreenUI();
+}
+
+// タイトル系の画面を畳んでゲーム画面を出す（1.634で startGame / startUndergroundMode / continueRunFromSave の
+// 共通末尾を切り出した＝ラン開始の入口が増えても「UIの出し忘れ」が起きないようにするため）。
+// ⚠状態（gameStarted や履歴）はここでは触らない。呼ぶ側の責務のまま残す。
+function enterGameScreenUI() {
     var ss = document.getElementById('startScreen');
     ss.classList.add('hidden');
     ss.style.display = 'none';
@@ -4308,6 +4339,77 @@ function startGame() {
     updateStockUI(); // 空でもストック枠を表示（所持可能数の可視化）
 
     window.scrollTo(0, 1);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ─── 中断セーブ セクション3（1.634）: タイトルの「つづきから／さいしょから」 ───
+// ═══════════════════════════════════════════════════════════════════
+// しおりが挟まっている（hasRunSave）時だけメニューに「つづきから」を足し、
+// 既存の「ぼうけんスタート」を「さいしょから」に変える。セーブが無い時は今までと一切変わらない。
+// ⚠**どちらを選んでもセーブは消える**（ユーザー決定・アンドゥ防止）。
+//   つづきから = 読み込んだ直後に消す／さいしょから = 確認ダイアログで「はい」の時に消す。
+function updateContinueButtonUI() {
+    var cont = document.getElementById('menuContinueButton');
+    var start = document.getElementById('menuStartButton');
+    var has = (typeof hasRunSave === 'function') && hasRunSave();
+    if (cont) cont.style.display = has ? 'block' : 'none';
+    if (start) {
+        // ⚠data-i18n **属性ごと**差し替える。textContent だけ書き換えると、言語切替(applyLanguage)が
+        //   走った瞬間に「ぼうけんスタート」へ戻ってしまう（applyLanguage は属性を見て innerHTML を上書きする）。
+        var span = start.querySelector('[data-i18n]');
+        if (span) {
+            var key = has ? 'menu_start_over' : 'menu_start';
+            span.setAttribute('data-i18n', key);
+            span.innerHTML = t(key);
+        }
+    }
+}
+
+// 「つづきから」= しおりの続きを走らせる。
+// ⚠**buildPermaSlots() と flushPendingStockItems() を素通しで呼んではいけない**（S1の肝）。
+//   前者は永続枠を used:false で作り直す＝使ったはずのしおりが復活して無限に中断できる。
+//   後者は resetGame の中で走ってしまうので、下で「退避→セーブ復元の後にもう一度配る」で辻褄を合わせる。
+function continueRunFromSave() {
+    var d = loadRunState();
+    if (!d) { updateContinueButtonUI(); return; }   // 壊れていた/版数違い＝ボタンを引っ込めて何もしない
+    if (isInTransitionCooldown()) return;
+    markScreenTransition();
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) requestFullscreen();
+
+    // ⚠ログボで受け取った品を退避する。resetGame の中の flushPendingStockItems() が
+    //   pendingStockItems を空にして配ってしまうが、その直後に applyRunSave が持ち物を
+    //   セーブの中身で丸ごと置き換えるため、退避しないと**受け取った品が消える**。
+    var pend = (gameSettings.pendingStockItems || []).slice();
+
+    tutorialState.active = false; tutorialState.forced = false;   // チュートリアルとは排他
+    resetGame();
+    applyUpgrades();          // ポーチ枠数など、ラン開始時にしか効かない永続強化を先に反映
+    applyRunSave(d);          // 距離/所持金/ライフ/持ち物/ラウンドを復元（世界は距離から組み直す）
+    clearRunState();          // ⚠**読み込んだら即消す**＝落ちても同じ地点を何度も再開できない
+
+    // 退避したログボ品を「セーブから戻した持ち物の上に」配り直す（空きが無ければ貯金へ換算＝通常と同じ扱い）
+    if (pend.length) { gameSettings.pendingStockItems = pend; flushPendingStockItems(); }
+
+    gameState.gameStarted = true;
+    gameState.gamePaused  = false;
+    if (!history.state || history.state.screen !== 'game') history.pushState({ screen: 'game' }, '');
+    try { playStageBGM(); } catch (_) {}   // ⚠gameRound が確定した後に鳴らす（ラウンドで曲が変わるため）
+    enterGameScreenUI();
+}
+
+// 「さいしょから」= セーブがある時だけ確認してから通常の startGame へ。
+// ⚠セーブが無い時はこれまでどおり即スタート（確認は出さない）。
+function startNewRunFromMenu() {
+    if (typeof hasRunSave === 'function' && hasRunSave()) {
+        showConfirmModal(t('menu_new_run_confirm')).then(function(yes) {
+            if (!yes) return;
+            clearRunState();
+            updateContinueButtonUI();
+            startGame();
+        });
+        return;
+    }
+    startGame();
 }
 
 // ─── 地底モード（1.629）───
@@ -4335,17 +4437,8 @@ function startUndergroundMode() {
     gameState.gamePaused  = false;
     if (!history.state || history.state.screen !== 'game') history.pushState({ screen: 'game' }, '');
 
-    var ss2 = document.getElementById('startScreen');
-    ss2.classList.add('hidden');
-    ss2.style.display = 'none';
-    hidePauseScreenUI();
-    hideScreenEl('titleMenuScreen');
-    document.getElementById('startMessage').style.display = 'none';
-    document.getElementById('ui').style.display = 'block';
-    document.getElementById('controlBar').style.display = 'flex';
-    updateStockUI();
+    enterGameScreenUI();
     updateUgModeHud();
-    window.scrollTo(0, 1);
 }
 
 // 地底モードのHUD切り替え（1.629）: 距離とレベルを消して「地底 N/4」を出す。
