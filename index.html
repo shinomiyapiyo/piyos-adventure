@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.643";
+                content: "Ver.1.644";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -507,11 +507,24 @@
             border-bottom-color: rgba(120,50,0,0.6);
             box-shadow: 0 4px 12px rgba(255,160,0,0.4), inset 0 1px 0 rgba(255,255,255,0.35);
         }
+        /* 地底モード（1.644でフル幅に揃えた・ユーザー指摘「ボタンの並びが雑」）。
+           ⚠中途半端な幅で中央にぽつんと置かれていたのが乱れの主因。「遊ぶ」系の2つ
+           （ぼうけんスタート／地底モード）を同じ幅で縦に並べ、色と文字サイズだけで主従を出す。 */
+        #ugModeButton {
+            display: block;
+            width: 100%;
+            min-width: 0 !important;
+            max-width: none !important;
+            margin: 0 0 10px !important;
+            padding: clamp(8px, 1.8vh, 13px) 10px !important;
+            font-size: clamp(13px, 4vw, 18px) !important;
+        }
         #menuBackButton {
             display: block;
             min-width: 0 !important;
-            width: 72%;
-            margin: 10px auto 0 !important;
+            max-width: none !important;   /* ⚠.game-button の max-width:280px を外さないと100%が効かない */
+            width: 100%;              /* 1.644: 72%→100%。上のブロックと左右の端を揃える */
+            margin: 10px 0 0 !important;
             padding: clamp(7px, 1.6vh, 11px) 10px !important;
             font-size: clamp(12px, 3.4vw, 16px) !important;
         }
@@ -534,13 +547,21 @@
         /* 横向き: 高さが足りないため3列＋vh基準の小型化で1画面に収める */
         @media (orientation: landscape) {
             #titleMenuPanel { width: min(94vw, 640px) !important; }
+            /* ⚠1.644: 3列→**4列**（ユーザー指摘「ボタンの並びが雑」）。項目は8個なので3列だと
+               最終行が2個で右端が空き、そこが一番「雑」に見えていた。4列なら 4×2 でぴったり埋まり、
+               行数も3→2に減るので縦にも余裕が出る。⚠項目を増減したら列数を割り切れる数に見直すこと。 */
             #titleButtons {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: clamp(5px, 1.2vh, 8px) 10px;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: clamp(5px, 1.2vh, 8px) 8px;
             }
             #titleButtons button {
-                font-size: clamp(11px, 3.4vh, 16px) !important;
-                padding: clamp(5px, 1.5vh, 10px) 6px !important;
+                font-size: clamp(10px, 3vh, 14px) !important;   /* 4列ぶん狭くなるので少し小さく */
+                padding: clamp(5px, 1.5vh, 10px) 4px !important;
+            }
+            #ugModeButton {
+                font-size: clamp(11px, 3.8vh, 17px) !important;
+                padding: clamp(5px, 1.4vh, 10px) 10px !important;
+                margin-bottom: clamp(5px, 1.2vh, 10px) !important;
             }
             #menuStartButton, #menuContinueButton {
                 font-size: clamp(13px, 4.6vh, 20px) !important;
@@ -868,7 +889,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.643</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.644</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -913,7 +934,7 @@
                     border-bottom-color: rgba(0,60,25,0.55);
                     box-shadow: 0 4px 12px rgba(52,168,94,0.4), inset 0 1px 0 rgba(255,255,255,0.35);"><img src="images/icon_shiori.png" class="ui-icon"> <span data-i18n="menu_continue">つづきから</span></button>
                 <button class="game-button" id="menuStartButton"><img src="images/icon_play.png" class="ui-icon"> <span data-i18n="menu_start">ぼうけんスタート</span></button>
-                <!-- 地底モード（1.629）: 地底入場パス（エッグ30）を持っていない間はグレーアウト。
+                <!-- 地底モード（1.629）: 地底入場パス（300,000円）を持っていない間はグレーアウト。
                      ⚠無効化は updateUgModeButton が pointer-events も含めて行う（#titleButtons の
                        `pointer-events:auto !important` に負けないよう setProperty で指定する。きせかえボタンと同じ作法） -->
                 <button class="game-button" id="ugModeButton" style="
@@ -4466,7 +4487,7 @@ function startNewRunFromMenu() {
 // ─── 地底モード（1.629）───
 // 地上を一切通らず、地底の4レイアウトを R1〜R4 として連続で遊ぶ。startGame と同じ準備をしてから
 // **地上ステージの生成を挟まずに**ステージ1へ落下スポーンする。
-// ⚠パス（エッグ30の永続アンロック）を持っていなければ入れない。ボタン側でもグレーアウトしているが、
+// ⚠パス（300,000円の永続アンロック）を持っていなければ入れない。ボタン側でもグレーアウトしているが、
 //   ここでも弾く＝将来ほかの入口が増えても穴が開かない。
 function startUndergroundMode() {
     if (!hasUndergroundPass()) { if (soundManager) soundManager.playDamage(); return; }

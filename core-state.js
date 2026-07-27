@@ -182,7 +182,7 @@ const UG_MODE_STAGES      = UG_MODE_ROUNDS.length;   // 4
 // ⚠貯金は地底モード中は隠す（下記）＝この路銀は**モード内でしか使えず、終われば消える**。
 // ⚠rankScore には足さないこと（所持金とランキング用スコアは別勘定・gainScore を使わず score だけに入れる）。
 const UG_MODE_START_MONEY = 30000;
-const UG_MODE_PASS_ID     = 'ug_pass';   // 地底入場パス（エッグ交換の永続アップグレードとして持つ）
+const UG_MODE_PASS_ID     = 'ug_pass';   // 地底入場パス（1.644でエッグ交換→円建て300,000円。upgrades に入る点は同じ）
 // stage: 1〜4（active=false の時は0）
 // cleared: リザルト画面の出し分け用（1.637）。⚠active と同じく resetGame まで保つ＝
 //   ゲームオーバー画面は「クリアで終わったのか、力尽きたのか」をここで見分ける。
@@ -1923,7 +1923,11 @@ function ug28BuildDivide() {
     // ── 飾り・ギミック・敵 [行, 列, 文字] ──
     var deco = [
         // 【入口の中段】バー2・トゲ2組・敵5
-        [31, 12, 'G'], [31, 28, 'F'], [31, 18, '^'], [31, 19, '^'], [31, 34, '^'], [31, 35, '^'],
+        // ⚠トゲは列17-18（1.644で18-19から**1マス左へ**・ユーザー実機報告「滝のすぐ左隣に針の山があって
+        //   分かりづらい」）。滝は列20-21なので、間に列19が空く＝**滝と重ならず輪郭が読める**。
+        //   ⚠滝は演出専用（当たり判定なし）だが、水しぶきの白がトゲの白い輪郭を消してしまう。
+        //   ギミックを滝の隣に置く時は必ず1マス以上あけること。
+        [31, 12, 'G'], [31, 28, 'F'], [31, 17, '^'], [31, 18, '^'], [31, 34, '^'], [31, 35, '^'],
         [27, 8, 'o'], [27, 22, 'o'], [27, 36, 'o'], [29, 24, '1'],
         [31, 5, 'm'], [31, 15, 'v'], [31, 24, 'S'], [31, 31, 'm'], [31, 38, 'v'],
         // ★分岐の道しるべ: 穴（列40-41）の中にコインを2枚置いて「下も道である」と絵で伝える。
@@ -2330,6 +2334,12 @@ var TITLE_SHOP_UPGRADES = [
       icon: '', iconImg: 'images/icon_combo_master.png', maxLevel: 1, prices: [50000], effectDesc: ['1.5秒'], effectDescEn: ['1.5s'] },
     { id: 'swift_feet', nameKey: 'tshop_swift_feet', descKey: 'tshop_swift_feet_desc',
       icon: '', iconImg: 'images/icon_swift_feet.png', maxLevel: 1, prices: [50000], effectDesc: ['x1.3'], saleFrom: 100000 },
+    // 地底入場パス（1.629でエッグ30として実装 → **1.644で円建て300,000円へ移設**・ユーザー決定）。
+    // タイトルの「地底モード」が解禁される**永久**アンロック（消費型ではない）。
+    // ⚠id は UG_MODE_PASS_ID と同じ 'ug_pass' でなければならない。円建ての購入処理は
+    //   gameSettings.upgrades[id] にレベルを入れるので、hasUndergroundPass() がそのまま通る。
+    { id: 'ug_pass', nameKey: 'egg_ug_pass', descKey: 'egg_ug_pass_desc',
+      icon: '', iconImg: 'images/icon_ug_pass.png', maxLevel: 1, prices: [300000], effectDesc: ['地底モード'], effectDescEn: ['UG mode'] },
     { id: 'revival_feather', nameKey: 'tshop_revival_feather', descKey: 'tshop_revival_feather_desc',
       icon: '', iconImg: 'images/icon_revival_machine.png', maxLevel: 2, prices: [500000, 1000000], effectDesc: ['1回/ラン', '2回/ラン'], effectDescEn: ['1/run', '2/run'] },
     // クリスタルハート（1.505・高額レーン第1弾）: 青ハート+1/+2/+3。赤ハートより先に削れ、回復不可
@@ -2370,11 +2380,9 @@ var EGG_SHOP_ITEMS = [
       iconImg: 'images/item_pouch.png', eggPrice: 10 },
     { id: 'skin_kigurumi', type: 'skin', skinId: 'kigurumi', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc',
       iconImg: 'images/skin_kigurumi_idle.png', eggPrice: 10 }, // 1.424で🥚5→10（入手が簡単すぎたため）
-    // 地底入場パス（1.629）: タイトルの「地底モード」が解禁される**永久**アンロック。
-    // ⚠消費型ではない（1回30個の消費だと、入手ペース約0.86個/日＝1回潜るのに35日かかりモードが成立しない）。
-    // ⚠type:'upgrade' をそのまま使う＝confirmEggBuy/isEggItemOwned に手を入れずに済む（未対応typeは安全側で弾かれる）。
-    { id: 'ug_pass', type: 'upgrade', upgradeId: UG_MODE_PASS_ID, nameKey: 'egg_ug_pass', descKey: 'egg_ug_pass_desc',
-      iconImg: 'images/icon_ug_pass.png', eggPrice: 30 },
+    // ⚠地底入場パスは 1.644 で**エッグこうかん(🥚30)から円建て300,000円へ移した**（ユーザー決定）。
+    //   定義は TITLE_SHOP_UPGRADES 側にある（upgrades.ug_pass に入る点は変わらないので、
+    //   hasUndergroundPass() も図鑑の seenIf もそのまま動く）。
     // 魔女ぴよ: ジャンプ長押しでグライド滞空。（1.456・アート1.457・価格1.493で200→80・1.507で価格昇順の位置へ）
     { id: 'skin_witch', type: 'skin', skinId: 'witch', nameKey: 'skin_witch', descKey: 'egg_item_witch_desc',
       iconImg: 'images/skin_witch_idle.png', eggPrice: 80 },
