@@ -264,7 +264,7 @@ function checkRound(round, rooms, overlaps, out) {
 
         // ── 「上から下へ絶対に落ちられない」床（R28の分水嶺の上ルート）に穴が1マスも無いか ──
         if (room.sealedFloor) {
-            const { row, from, to, thick = 3 } = room.sealedFloor;
+            const { row, from, to, thick = 10 } = room.sealedFloor;
             // ⚠**帯のどこか1行でも岩なら塞がっている**。最上行を溶岩にして「マグマの池」を作っても
             //   下の行が岩なら落下は起きない（1.613で上ルートに溶岩を入れたため、単一行判定から変更）。
             for (let c = from; c <= to; c++) {

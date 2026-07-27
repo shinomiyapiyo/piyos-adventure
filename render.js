@@ -2629,99 +2629,108 @@ function getUgIdolRedCanvas() {
 
 // 滝（1.611・**演出専用**／ユーザー指定「ただの演出でありギミックではない」）。
 // ⚠当たり判定は一切無い＝通り抜けられる。地形の直後・足場より奥に描く。
-// ⚠1.613で描き直した（ユーザー指摘「グラフィックがしょぼい」）。作り:
-//   ①奥のしぶき（幅を広げた薄い層・ゆっくり）→ ②本体（縦グラデ×横グラデで**縁が暗く中心が明るい**＝
-//   水塊の丸みが出る）→ ③速い白筋（幅・速さ・位相をばらす）→ ④落ち口の光 → ⑤着水の水煙と粒。
-//   ⚠グラデーションは**サイズごとにキャッシュ**（毎フレーム作ると滝の本数ぶん確保が走る）。
-var _ugFallGradV = {}, _ugFallGradH = {};
+// ⚠1.615で**ドット絵方式に作り替えた**（ユーザー指摘「グラフィックがまだしょぼい」「SFC〜PS1くらいに」）。
+//   1.613までは滑らかなグラデと細線で描いていたため、32pxタイルのドット絵であるこのゲームの中で
+//   そこだけベクター調に浮いていた。SFCの滝と同じ作り＝**水面のタイルを1枚焼いて縦にスクロールさせる**
+//   に変更し、色は4段のパレットに量子化、粒はすべて4pxブロックに揃えてある。
+//   ⚠タイルは幅ごとに1枚だけ作ってキャッシュ（毎フレーム描き起こさない）。
+var _ugFallTile = {};
+var UG_FALL_PX = 2;                 // ドットの粒。⚠溶岩(2px)と揃える。4pxは「粗すぎる」と実機で不可（1.616）
+var UG_FALL_TILE_H = 128;           // スクロールの周期。⚠粒を細かくした分、長くしないと繰り返しが見える
+var UG_FALL_PAL = ['#0d2a42', '#22597e', '#4b98bf', '#96d6ec', '#eafaff'];  // 暗→明→泡（縁を落として水塊を丸く見せる）
+
+function ugFallTile(w) {
+    if (_ugFallTile[w]) return _ugFallTile[w];
+    var PX = UG_FALL_PX, H = UG_FALL_TILE_H;
+    var cv = document.createElement('canvas'); cv.width = w; cv.height = H;
+    var c2 = cv.getContext('2d');
+    // ⚠乱数は使わない（毎フレーム描き直さない焼き込みだが、再生成しても同じ絵になるようにする）
+    var hash = function (a, b) { var v = (a * 374761393 + b * 668265263) ^ 0x5bf03635; v = (v ^ (v >> 13)) * 1274126177; return ((v ^ (v >> 16)) >>> 0) % 1000; };
+    for (var x = 0; x < w; x += PX) {
+        var e = Math.abs((x + PX / 2) / w - 0.5) * 2;                  // 0=中心 1=縁
+        var base = e > 0.84 ? 0 : e > 0.56 ? 1 : e > 0.26 ? 2 : 3;     // 縁ほど暗い＝水塊の丸み
+        var lane = hash(x, 7) % 9 === 0;                               // この列は「泡の筋」（粒が細かい分、本数は絞る）
+        var laneLen = 20 + (hash(x, 11) % 5) * 8;
+        var laneOff = hash(x, 13) % laneLen;
+        for (var y = 0; y < H; y += PX) {
+            var idx = base;
+            var h = hash(x, y);
+            if (h % 7 === 0) idx++;                                    // ちらつき（明）
+            else if (h % 13 === 0) idx--;                              // ちらつき（暗）
+            if (lane && ((y / PX + laneOff) % laneLen) < laneLen * 0.35) idx = 4;  // 白い筋
+            if (idx < 0) idx = 0; if (idx > 4) idx = 4;
+            c2.fillStyle = UG_FALL_PAL[idx];
+            c2.fillRect(x, y, PX, PX);
+        }
+    }
+    _ugFallTile[w] = cv;
+    return cv;
+}
+
 function drawUgFalls(camL, camR) {
-    var fs = undergroundState.falls, i, f, k;
+    var fs = undergroundState.falls, i, f, y;
     if (!fs || !fs.length) return;
-    var t = gameState.time;
+    var t = gameState.time, H = UG_FALL_TILE_H, PX = UG_FALL_PX;
     for (i = 0; i < fs.length; i++) {
         f = fs[i];
         if (f.x + f.w < camL || f.x > camR) continue;
-        // ⚠滝ごとに save/restore する。setTransform で行列を組み直すと、画面揺れなど
-        //   呼び出し元が積んでいるオフセットを取りこぼす（1.611で一度やりかけた）。
+        var tile = ugFallTile(f.w);
+        // ── 背面のにじみ: 暗い洞窟の中で水だけが光を拾っている感じを出す（ドットの外側なので滑らかでよい）──
         ctx.save();
+        ctx.globalAlpha = 0.13;
+        ctx.fillStyle = '#7fc8e4';
+        ctx.fillRect(f.x - 7, f.y, f.w + 14, f.h);
+        ctx.globalAlpha = 0.09;
+        ctx.fillRect(f.x - 14, f.y, f.w + 28, f.h);
+        ctx.restore();
+
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;          // ⚠ドットを滲ませない
+        ctx.beginPath(); ctx.rect(f.x, f.y, f.w, f.h); ctx.clip();
         ctx.translate(f.x, f.y);
 
-        // ── ① 奥のしぶき: 本体より少し広く、薄く、ゆっくり ──
-        ctx.globalAlpha = 0.16;
-        ctx.fillStyle = '#9ec7dd';
-        ctx.fillRect(-5, 0, f.w + 10, f.h);
+        // ── 奥の層: ゆっくり・薄い（速度差で厚みを出す）──
+        ctx.globalAlpha = 0.42;
+        var offB = (t * 2.2 + f.seed * 5) % H;
+        for (y = -H + offB; y < f.h; y += H) ctx.drawImage(tile, 0, Math.round(y));
+        // ── 手前の層: 速い・濃い ──
+        ctx.globalAlpha = 0.82;
+        var offF = (t * 5.4 + f.seed * 9) % H;
+        for (y = -H + offF; y < f.h; y += H) ctx.drawImage(tile, 0, Math.round(y));
 
-        // ── ② 本体 ──
-        var kv = f.h;
-        if (!_ugFallGradV[kv]) {
-            var gv = ctx.createLinearGradient(0, 0, 0, f.h);
-            gv.addColorStop(0.00, 'rgba(120,175,205,0.30)');  // 落ち口は岩の陰で暗い
-            gv.addColorStop(0.06, 'rgba(205,235,248,0.62)');  // 落ち始めが一番明るい
-            gv.addColorStop(0.45, 'rgba(176,216,236,0.52)');
-            gv.addColorStop(0.92, 'rgba(198,230,244,0.42)');
-            gv.addColorStop(1.00, 'rgba(222,242,251,0.18)');  // 着水はぼかす
-            _ugFallGradV[kv] = gv;
-        }
+        // ── 落ち口: 岩から出る所の泡（4pxの粒で3段）──
         ctx.globalAlpha = 1;
-        ctx.fillStyle = _ugFallGradV[kv];
-        ctx.fillRect(0, 0, f.w, f.h);
-        // 横方向: 縁を暗く、中心を明るく＝水塊が丸く見える
-        var kh = f.w;
-        if (!_ugFallGradH[kh]) {
-            var gh = ctx.createLinearGradient(0, 0, f.w, 0);
-            gh.addColorStop(0.00, 'rgba(40,70,95,0.42)');
-            gh.addColorStop(0.28, 'rgba(255,255,255,0.00)');
-            gh.addColorStop(0.50, 'rgba(255,255,255,0.16)');
-            gh.addColorStop(0.72, 'rgba(255,255,255,0.00)');
-            gh.addColorStop(1.00, 'rgba(40,70,95,0.42)');
-            _ugFallGradH[kh] = gh;
+        for (var lx = 0; lx < f.w; lx += PX) {
+            var lh = PX * (1 + ((lx / PX + Math.floor(t * 0.12)) % 3));
+            ctx.fillStyle = UG_FALL_PAL[4];
+            ctx.fillRect(lx, 0, PX, lh);
         }
-        ctx.fillStyle = _ugFallGradH[kh];
-        ctx.fillRect(0, 0, f.w, f.h);
+        ctx.restore();
 
-        // ── ③ 速い白筋。幅に応じて本数を増やし、太さ・速さ・位相をばらす ──
-        var lanes = Math.max(3, Math.round(f.w / 7));
-        for (k = 0; k < lanes; k++) {
-            var lx = (k + 0.5) * (f.w / lanes) + Math.sin(t * 0.05 + k * 1.7 + f.seed) * 1.2;
-            var sp = 4.2 + ((k * 7 + f.seed) % 5) * 0.9;          // 筋ごとに落下速度を変える
-            var len = 40 + ((k * 13 + f.seed) % 4) * 22;
-            var off = ((t * sp + k * 53 + f.seed * 11) % (f.h + len)) - len;
-            ctx.globalAlpha = 0.20 + ((k + f.seed) % 3) * 0.14;
-            ctx.strokeStyle = '#f2fbff';
-            ctx.lineWidth = 1 + ((k + f.seed) % 3);
-            ctx.beginPath();
-            ctx.moveTo(lx, Math.max(0, off));
-            ctx.lineTo(lx, Math.min(f.h, off + len));
-            ctx.stroke();
+        // ── 着水: 泡の山と跳ねる粒（クリップの外＝滝より少し広がる）──
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.translate(f.x, f.y + f.h);
+        var beat = Math.floor(t * 0.14) % 4;
+        ctx.fillStyle = UG_FALL_PAL[4];
+        for (var bx = -PX * 4; bx < f.w + PX * 4; bx += PX) {
+            var u = (bx + PX / 2) / f.w - 0.5;
+            var hgt = Math.max(0, PX * (5 - Math.abs(u) * 6) + ((bx / PX + beat) % 2) * PX);
+            if (hgt > 0) ctx.fillRect(bx, -hgt, PX, hgt);
         }
-
-        // ── ④ 落ち口: 岩から出る瞬間の白い盛り上がり ──
-        ctx.globalAlpha = 0.55;
-        ctx.fillStyle = '#eaf7ff';
-        ctx.beginPath();
-        ctx.ellipse(f.w / 2, 2, f.w * 0.52, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // ── ⑤ 着水: 水煙を2枚重ね＋跳ねる粒 ──
-        var pulse = Math.sin(t * 0.07 + f.seed);
-        ctx.globalAlpha = 0.26 + 0.08 * pulse;
-        ctx.fillStyle = '#e8f6ff';
-        ctx.beginPath();
-        ctx.ellipse(f.w / 2, f.h - 2, f.w * 1.05, 13, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 0.18 - 0.05 * pulse;
-        ctx.beginPath();
-        ctx.ellipse(f.w / 2, f.h - 8, f.w * 0.72, 20, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 0.6;
-        ctx.fillStyle = '#ffffff';
-        for (k = 0; k < 5; k++) {
-            var ph = (t * 0.09 + k * 1.26 + f.seed) % 6.283;      // 0..2π を粒の寿命に使う
-            var pr = Math.sin(ph);
-            if (pr <= 0) continue;
+        ctx.fillStyle = UG_FALL_PAL[3];
+        for (var sx = -PX * 3; sx < f.w + PX * 3; sx += PX * 2) {
+            if (((sx / PX + beat) % 3) !== 0) continue;
+            ctx.fillRect(sx, -PX, PX, PX);
+        }
+        // 跳ねる粒（左右へ弧を描いて飛ぶ）
+        ctx.fillStyle = UG_FALL_PAL[4];
+        for (var k = 0; k < 6; k++) {
+            var ph = ((t * 0.055 + k * 0.9 + f.seed * 0.3) % 1);
             var side = (k % 2 ? 1 : -1);
-            ctx.fillRect(f.w / 2 + side * pr * (f.w * 0.8 + k * 5),
-                         f.h - 4 - pr * (16 + k * 3), 2, 2);
+            var dx = side * ph * (f.w * 0.75 + k * 6);
+            var dy = -(Math.sin(ph * Math.PI) * (18 + k * 2));
+            ctx.fillRect(Math.round((f.w / 2 + dx) / PX) * PX, Math.round(dy / PX) * PX, PX, PX);
         }
         ctx.restore();
     }

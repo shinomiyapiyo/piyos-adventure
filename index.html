@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.614";
+                content: "Ver.1.616";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -833,7 +833,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.614</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.616</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4037,7 +4037,7 @@ function startGame() {
     ss.classList.add('hidden');
     ss.style.display = 'none';
 
-    document.getElementById('pauseScreen').classList.add('hidden');
+    hidePauseScreenUI();
     hideScreenEl('titleMenuScreen'); // メニューの「ぼうけんスタート」から開始した場合も確実に閉じる
     document.getElementById('startMessage').style.display = 'none';
     document.getElementById('ui').style.display = 'block';
@@ -4054,7 +4054,7 @@ function showStartScreen() {
     ss.classList.remove('hidden');
     ss.style.display = 'block';
 
-    document.getElementById('pauseScreen').classList.add('hidden');
+    hidePauseScreenUI();
     hideRankingDirect();
     hideNameInputDirect();
     hideGameOverScreen();
@@ -4253,7 +4253,7 @@ function resetGame() {
     var ss = document.getElementById('startScreen');
     ss.classList.remove('hidden');
     ss.style.display = 'block';
-    document.getElementById('pauseScreen').classList.add('hidden');
+    hidePauseScreenUI();
     document.getElementById('pauseButton').innerHTML = _ic('icon_pause.png');
     document.getElementById('ui').style.display = 'none';
     document.getElementById('controlBar').style.display = 'none';
@@ -4298,15 +4298,23 @@ function pauseGame() {
     finishPauseToggle();
 }
 
+// ポーズ画面を閉じる共通処理。⚠**body.is-paused を必ず一緒に外す**。
+//   1.613 で「ポーズ中は右上のボタンを押せなくする」を入れたが、ポーズ→リタイア／死亡／タイトルへ戻る
+//   の経路では画面を隠すだけでクラスを外していなかったため、**次のランでポーズボタンが永久に押せなく**
+//   なっていた（1.615・ユーザー実機報告）。閉じる処理を1箇所に集約して外し忘れを構造的に無くす。
+function hidePauseScreenUI() {
+    document.getElementById('pauseScreen').classList.add('hidden');
+    document.body.classList.remove('is-paused');
+}
+
 // 復帰。⚠**呼んでよいのは再開ボタンだけ**（index.html の #resumeButton）。
 function resumeGame() {
     if (!gameState.gameStarted || !gameState.gamePaused) return;
     if (isInTransitionCooldown()) return;
     markScreenTransition();
     gameState.gamePaused = false;
-    document.getElementById('pauseScreen').classList.add('hidden');
+    hidePauseScreenUI();
     document.getElementById('pauseButton').innerHTML = _ic('icon_pause.png');
-    document.body.classList.remove('is-paused');
     // 再開時にWebAudioを復帰。バックグラウンドでOSがAudioContextをsuspendすると、
     // 戻ってきてもSEが無音のままになるため、再開タップ（ユーザー操作）で resume する（監査LOW）。
     if (soundManager && soundManager.ctx && soundManager.ctx.state !== 'running' && gameSettings.soundEnabled) {
