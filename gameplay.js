@@ -1565,7 +1565,9 @@ function updateUnderground() {
     //   クランプに貼り付かない（貼り付くと velX=0 されて前方へジャンプできなくなる）。
     //   MOVE_SPEED(6) === BASE_SCROLL_SPEED*5.0(6)＝地上のスクロール上限なので、0.5 なら地上の半分＝18m/秒。
     //   はやあし(1.3倍)は speedMul 側で地底無効にしてあるので、ここには掛からない。
-    var maxAdvance = MOVE_SPEED * UG_SPEED_RATE;
+    // ⚠**歩行と同じ ugSpeedRate() を使う**（はやあし持ちは1.1倍）。片方だけ上げると右端クランプに
+    //   貼り付いて前方ジャンプ不能になる（1.543の失敗）。1.614でここを共通の関数に一本化した。
+    var maxAdvance = MOVE_SPEED * ugSpeedRate();
     var capped = gameState.camera.x + maxAdvance;
     if (target > capped) target = capped;
     // 「見かけ上のm」の圧縮（1.548）: カメラが進んだ量の (1-UG_DIST_SCALE) 倍を ugDistOffset に積む。

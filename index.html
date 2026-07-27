@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.613";
+                content: "Ver.1.614";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -833,7 +833,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.613</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.614</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -5717,11 +5717,12 @@ function updatePlayer() {
     gameState.gaugeDistMark = gameState.distance;
 
     // 入力（地形ギミック: 流砂=減速, 氷床=慣性増加）
-    // 地底(1.544)は UG_SPEED_RATE で固定＝①はやあし(1.3倍)は地底では発動しない ②歩行がカメラ前進の上限と
-    // 一致するのでプレイヤーが画面右端に貼り付かない（貼り付くと velX=0 で前方ジャンプ不能になる）。
+    // 地底(1.544)は ugSpeedRate() で固定＝①**はやあしは地底では1.1倍**（1.614・地上の1.3倍ではない）
+    // ②歩行がカメラ前進の上限と一致するのでプレイヤーが画面右端に貼り付かない
+    // （貼り付くと velX=0 で前方ジャンプ不能になる）。⚠必ず gameplay.js の maxAdvance と同じ関数を使う。
     // ⚠ここで上書きするのは「使う瞬間だけ」＝gameState.speedMultiplier 自体は触らないので地上復帰で自動で戻る。
     // 🔜P3で「闇の巫女」を実装したとき、ボス戦だけ通常速度に戻したくなったら !bossState.active を条件に足す。
-    var speedMul = undergroundState.active ? UG_SPEED_RATE : (gameState.speedMultiplier || 1.0);
+    var speedMul = undergroundState.active ? ugSpeedRate() : (gameState.speedMultiplier || 1.0);
     var moveAccel = 1.2 * speedMul;
     var moveMax = MOVE_SPEED * speedMul;
     var moveFriction = 0.85;

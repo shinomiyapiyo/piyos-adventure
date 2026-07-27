@@ -429,6 +429,17 @@ const UG_TRAVEL_PX     = 24000;
 const UG_ENEMY_SPEED_MULT = 1 + (BOSS_CYCLE_ROUNDS - 1) * 0.3;   // = 2.8（R7相当で固定）
 
 const UG_SPEED_RATE    = 0.5;
+// はやあし（地上は横移動1.3倍）を持っているとき、地底では **1.1倍** で歩ける（1.614・ユーザー指定）。
+// ⚠元は地底では完全に無効だった。1.3倍のままだと地底の作図（穴3タイル/段差4行）の前提が崩れるので、
+//   「無効」と「1.3倍」の間を取って 1.1 にしてある。
+// ⚠⚠**この値は歩行とカメラ前進の両方に掛けること**。片方だけ上げると、プレイヤーが画面右端の
+//   クランプに貼り付いて velX=0 にされ、**前方へジャンプできなくなる**（1.543で実際にやって1.544で廃止）。
+//   その事故を二度と起こさないよう、両者が必ずこの関数を通るようにしてある。
+const UG_SWIFT_BONUS = 1.1;
+function ugSpeedRate() {
+    var lv = ((gameSettings && gameSettings.upgrades) ? gameSettings.upgrades.swift_feet : 0) || 0;
+    return lv > 0 ? UG_SPEED_RATE * UG_SWIFT_BONUS : UG_SPEED_RATE;
+}
 // 「見かけ上のm」だけを圧縮する倍率（1.548・ユーザー指定「人間の歩く速度にしては加算が多すぎる」）。
 // ⚠これは**表示される距離だけ**を変える。カメラ・歩行速度・床や物との位置関係・物理は一切変わらない。
 //   仕組み: 地底でカメラが d px 進むたび gameState.ugDistOffset に d*(1-UG_DIST_SCALE) を積み、
