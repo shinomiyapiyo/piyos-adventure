@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.642";
+                content: "Ver.1.643";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -868,7 +868,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.642</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.643</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3554,6 +3554,12 @@ function handleSkinClick(e) {
 // 完全同一（ダメージ10/空中ボス5/装甲0・1.516ユーザー確定）＝ボスに当たると踏み同様に跳ねて斬り終了
 // （gameplay.js endSamuraiDiveOnBossStomp）。跳ね中は samuraiDiveLock で再発動不可・着地でリセット。
 var SAMURAI_DIVE_SPEED = 16;    // 急降下の初速（調整ノブ）
+// 着地の巻き込み猶予フレーム（1.643・調整ノブ・ユーザー実機報告「着地した瞬間に目の前に雑魚敵がいると
+// 攻撃を喰らってしまう」）。斬りは着地した瞬間に解除されるので、その1フレーム後に触れた敵は
+// 「斬っていない」＝被弾になっていた。着地後この間だけ**雑魚に限り**触れたら倒す。
+// ⚠**ボスには効かせない**（ユーザー指定「ボスに対しては完全に上から攻撃した時のみダメージを与える」）。
+//   ボスの踏み判定は従来どおり「落下中(velY>0)かつ相手の上から」の条件を通った時だけ成立する。
+var SAMURAI_DIVE_GRACE_F = 10;
 // ── サイバーぴよ（1.520）: ドローンビット。約2.5秒ごとに前後の画面内最寄りの敵へ同時ロックオンレーザー。
 // 発射・位置更新=updateBullets／描画=render.js drawCyberDrone／弾はbullets共通（装甲/空中半減/クリティカルも既存準拠）。
 var CYBER_DRONE_INTERVAL = 150; // 発射間隔フレーム（150=2.5秒・調整ノブ）
@@ -6454,10 +6460,13 @@ function updatePlayer() {
 
     // 侍ぴよ 急降下斬り（1.509）: 着地で解除（小シェイクの手応え）／降下中は金の斬撃トレイル
     // ボスヒット跳ね中の再発動ロックも着地でリセット（1.516・ジャンプすればまた出せる）
+    // ⚠猶予の消化は**斬りの終了判定より前**に置くこと（下で立てた同じフレームに減らさないため）
+    if (player.diveGrace > 0) player.diveGrace--;
     if (player.samuraiDiveLock && player.onGround) player.samuraiDiveLock = false;
     if (player.samuraiDive) {
         if (player.onGround) {
             player.samuraiDive = false;
+            player.diveGrace = SAMURAI_DIVE_GRACE_F;   // 着地の瞬間だけ雑魚を巻き込む（1.643）
             screenShake.intensity = 4; screenShake.timer = 8;
         } else {
             floatEffects.push({
@@ -6850,7 +6859,9 @@ function updateEnemies() {
         }
 
         // 侍ぴよ 急降下斬り中（1.509）: 触れた敵を斬り伏せる（スコアは踏み同等・バウンドせず降下継続=畳みかけ）
-        if (player.samuraiDive) {
+        // ⚠着地直後の猶予(diveGrace)も同じ扱い（1.643）＝**着地した瞬間に目の前にいた雑魚は倒せる**。
+        //   ボスにはこの猶予を効かせない（ボス側の判定は「落下中かつ上から」のまま）。
+        if (player.samuraiDive || player.diveGrace > 0) {
             killEnemy(enemies, i, e, 200);
             continue;
         }
@@ -6888,8 +6899,8 @@ function updateEnemies() {
             continue;
         }
 
-        // 侍ぴよ 急降下斬り中（1.509）: 空中敵も接触で撃破（降下継続）
-        if (player.samuraiDive) {
+        // 侍ぴよ 急降下斬り中（1.509）: 空中敵も接触で撃破（降下継続）。着地直後の猶予も同じ（1.643）
+        if (player.samuraiDive || player.diveGrace > 0) {
             killEnemy(flyingEnemies, i, e, 300);
             continue;
         }
@@ -7583,6 +7594,7 @@ function updateBullets() {
 
 function resetPlayerPosition() {
     player.samuraiDive = false; player.samuraiDiveLock = false; // リスポーン/復活時に急降下斬りとロックを解除（1.509/1.516）
+    player.diveGrace = 0;   // 着地の巻き込み猶予もリセット（1.643・残ると復活直後に敵を素通しで倒せてしまう）
     // 地底は直近の安全な足場（チェックポイント）へ復帰する。溶岩の上や到達不能な位置に戻さないため。
     if (undergroundState.active) {
         player.x = undergroundState.checkpointX;

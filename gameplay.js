@@ -1685,6 +1685,13 @@ function updateUnderground() {
     // ⚠**歩行と同じ ugSpeedRate() を使う**（はやあし持ちは1.1倍）。片方だけ上げると右端クランプに
     //   貼り付いて前方ジャンプ不能になる（1.543の失敗）。1.614でここを共通の関数に一本化した。
     var maxAdvance = MOVE_SPEED * ugSpeedRate();
+    // ⚠**置いていかれたぶんに比例して追いつく**（1.643・ユーザー実機報告）。上の上限は歩行基準(3.0px/f)で、
+    //   急降下斬り(地底14px/f)には全く足りず、数回撃つと画面右端のクランプに貼り付いていた
+    //   （右端に貼り付くと velX=0 されて前方ジャンプもできなくなる）。本来いてほしい位置より
+    //   前に出ているぶんだけ上限を上げる＝離されるほど強く追い、追いついたら自然に元の速さへ戻る。
+    var _lead = player.x - gameState.camera.x;      // いま画面のどこにいるか
+    var _want = GAME_WIDTH * UG_CAM_LEAD;           // 本来いてほしい位置
+    if (_lead > _want) maxAdvance += (_lead - _want) * UG_CAM_CATCHUP;
     var capped = gameState.camera.x + maxAdvance;
     if (target > capped) target = capped;
     // 「見かけ上のm」の圧縮（1.548）: カメラが進んだ量の (1-UG_DIST_SCALE) 倍を ugDistOffset に積む。
@@ -5709,6 +5716,10 @@ function endSamuraiDiveOnBossStomp() {
     if (!player.samuraiDive) return;
     player.samuraiDive = false;
     player.samuraiDiveLock = true;
+    // ⚠**横の勢いをその場で殺す**（1.643・ユーザー実機報告「跳ね返った時の挙動が速すぎるし遠くまで飛びすぎる」）。
+    //   斬りは前方へ突っ込みながら当たるので、velX を残したまま跳ねると当てた場所から大きく流される。
+    //   当てた位置に留まる＝手応え（ヒットストップ）になり、着地して次の一撃も狙いやすくなる。
+    player.velX = 0;
 }
 // 侍ぴよ急降下斬り中のボス踏みダメージ加算（1.521・ユーザー指定=通常踏み10/5に対し斬りは11/6）。
 // 各ボスの踏み成功ダメージ行で (基本値 + samuraiDiveDmgBonus()) として使う。装甲弾き(卵の殻)は0のまま。
