@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.625";
+                content: "Ver.1.626";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -864,7 +864,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.625</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.626</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4059,7 +4059,8 @@ function applyTestStart() {
         var b = document.createElement('div');
         b.id = 'testModeBadge';
         // ⚠倍率も出す（1.624）＝キャップが効いているかを実機の画面だけで判別できる（素のR17なら5.80）
-        b.textContent = 'TEST R' + gameRound + ' ' + TEST_START_MODE + ' 敵速x' + enemySpeedMult().toFixed(2);
+        b.textContent = 'TEST R' + gameRound + ' ' + TEST_START_MODE +
+                        ' 地上x' + enemySpeedMult().toFixed(2) + ' 空x' + flyingSpeedMult().toFixed(2);
         // ⚠1.624で左上→上端中央へ移動。左上はHUDの「距離」と重なって、テスト中に何m進んだか読めなかった。
         b.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:99999;' +
             'background:#e0243c;color:#fff;font:bold 12px monospace;padding:3px 7px;border-radius:4px;' +
@@ -5519,7 +5520,7 @@ function spawnFlyingEnemy() {
         x: gameState.camera.x + GAME_WIDTH + Math.random() * 300,
         y: 82 + Math.random() * 164,
         width: 60, height: 54,
-        velX: -(2 + Math.random() * 2) * enemySpeedMult(),   // ラウンド倍率（core-state.js に集約・1.624）
+        velX: -(2 + Math.random() * 2) * flyingSpeedMult(),  // ⚠飛行は**地上と別の倍率**（1.626・素の速度が2倍近く速いため）
         velY: Math.sin(Math.random() * Math.PI * 2) * 0.5,
         type: 'flying_chick',
         flySprite: biomeFlyingSprite(), // バイオーム見た目（行動/判定は不変）
