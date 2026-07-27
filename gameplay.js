@@ -362,18 +362,28 @@ function setupUndergroundStage() {
                 c++;
             }
         }
-        // 滝: **縦に**続く分を1本に結合する（トゲ/足場は横だが、滝は落ちるので縦に伸ばす）。
-        // ⚠横に隣り合う列はそれぞれ別の滝にしておく＝描画側で筋の位相をずらして「幅のある流れ」に見せる。
+        // 滝: **縦に**続く分を1本にし、さらに**横に隣り合う同じ形を1枚に結合**する（1.613）。
+        // ⚠1.611は列ごとに別オブジェクトにしていたため、32pxの帯が並ぶだけの見た目になっていた
+        //   （ユーザー指摘「滝のグラフィックがしょぼい」）。1枚の幅のある水塊にして、
+        //   描画側で「縁が暗く中心が明るい」立体感と、幅に応じた本数の筋を出せるようにする。
+        var runs = [];
         for (c = 0; c < w; c++) {
             r = 0;
             while (r < rowsN) {
                 if (!fallCell[r][c]) { r++; continue; }
                 var f0 = r;
                 while (r + 1 < rowsN && fallCell[r + 1][c]) r++;
-                ug.falls.push({ x: x0 + c * UG_TILE, y: topY + f0 * UG_TILE,
-                                w: UG_TILE, h: (r - f0 + 1) * UG_TILE, seed: (c * 7 + f0) % 100 });
+                runs.push({ x: x0 + c * UG_TILE, y: topY + f0 * UG_TILE, w: UG_TILE, h: (r - f0 + 1) * UG_TILE });
                 r++;
             }
+        }
+        runs.sort(function (a, b) { return (a.y - b.y) || (a.h - b.h) || (a.x - b.x); });
+        for (var fi = 0; fi < runs.length; fi++) {
+            var f = runs[fi];
+            while (fi + 1 < runs.length && runs[fi + 1].y === f.y && runs[fi + 1].h === f.h &&
+                   runs[fi + 1].x === f.x + f.w) { f.w += runs[fi + 1].w; fi++; }
+            f.seed = ((f.x / UG_TILE) * 7 + (f.y / UG_TILE)) % 100;
+            ug.falls.push(f);
         }
         ugMergeCells(solid, rowsN, w, x0, topY, terrain, true);
         ugMergeCells(deco,  rowsN, w, x0, topY, ug.decor, true);

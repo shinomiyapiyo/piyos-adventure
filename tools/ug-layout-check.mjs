@@ -154,6 +154,13 @@ function checkRound(round, rooms, overlaps, out) {
                     if (!isFooting(below)) err(`${tag} 行${r} 列${c} のトゲが宙に浮いている（真下=' ${below} '）`);
                     if (below === 'M') err(`${tag} 行${r} 列${c} のトゲが動く床の上にある（トゲは静止するので分離する）`);
                 }
+                // 火の玉の噴出口は**必ずマグマ(溶岩)の上**に置く（ユーザー指定「火の玉はマグマから
+                // 出てくるのが絶対」）。真下1〜2行以内に 'L' が無ければ、岩から火が噴いていることになる。
+                if (SPOUT.has(ch)) {
+                    var onLava = false;
+                    for (var k = 1; k <= 2 && r + k < rowsN; k++) if (g[r + k][c] === 'L') { onLava = true; break; }
+                    if (!onLava) err(`${tag} 行${r} 列${c} の噴出口 '${ch}' の真下にマグマが無い（岩から火が噴いてしまう）`);
+                }
                 // 敵（地上）: 落ちた先が足場であること。⚠空中に書いても落ちて着地するので
                 //   「真下が空」は問題ない。**落ちた先が溶岩／マップの底**だと湧いた瞬間に消える。
                 if (GROUND_ENEMY.has(ch)) {
@@ -257,9 +264,14 @@ function checkRound(round, rooms, overlaps, out) {
 
         // ── 「上から下へ絶対に落ちられない」床（R28の分水嶺の上ルート）に穴が1マスも無いか ──
         if (room.sealedFloor) {
-            const { row, from, to } = room.sealedFloor;
-            for (let c = from; c <= to; c++) if (!SOLID.has(g[row][c]))
-                err(`${tag} 行${row} 列${c} で上ルートの床に穴（＝上から下ルートへ落ちられてしまう）`);
+            const { row, from, to, thick = 3 } = room.sealedFloor;
+            // ⚠**帯のどこか1行でも岩なら塞がっている**。最上行を溶岩にして「マグマの池」を作っても
+            //   下の行が岩なら落下は起きない（1.613で上ルートに溶岩を入れたため、単一行判定から変更）。
+            for (let c = from; c <= to; c++) {
+                let solid = false;
+                for (let k = 0; k < thick && row + k < rowsN; k++) if (SOLID.has(g[row + k][c])) { solid = true; break; }
+                if (!solid) err(`${tag} 行${row}〜${row + thick - 1} 列${c} で上ルートの床が抜けている（＝下ルートへ落ちられてしまう）`);
+            }
         }
 
         // ── 'c'(ひよこ)は穴/溶岩に落ちる種。床に穴のある部屋に置いたら警告 ──

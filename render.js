@@ -2628,49 +2628,101 @@ function getUgIdolRedCanvas() {
 }
 
 // 滝（1.611・**演出専用**／ユーザー指定「ただの演出でありギミックではない」）。
-// ⚠当たり判定は一切無い＝通り抜けられる。プレイヤーより奥（地形の直後・足場より手前でない）に描く。
-// ⚠グラデーションは**高さごとに1つだけ作って使い回す**（毎フレーム createLinearGradient すると
-//   滝の本数ぶんアロケーションが増える。エッグ弾のグラデをキャッシュしたのと同じ理由）。
-var _ugFallGrad = {};
+// ⚠当たり判定は一切無い＝通り抜けられる。地形の直後・足場より奥に描く。
+// ⚠1.613で描き直した（ユーザー指摘「グラフィックがしょぼい」）。作り:
+//   ①奥のしぶき（幅を広げた薄い層・ゆっくり）→ ②本体（縦グラデ×横グラデで**縁が暗く中心が明るい**＝
+//   水塊の丸みが出る）→ ③速い白筋（幅・速さ・位相をばらす）→ ④落ち口の光 → ⑤着水の水煙と粒。
+//   ⚠グラデーションは**サイズごとにキャッシュ**（毎フレーム作ると滝の本数ぶん確保が走る）。
+var _ugFallGradV = {}, _ugFallGradH = {};
 function drawUgFalls(camL, camR) {
-    var fs = undergroundState.falls, i, f;
+    var fs = undergroundState.falls, i, f, k;
     if (!fs || !fs.length) return;
     var t = gameState.time;
     for (i = 0; i < fs.length; i++) {
         f = fs[i];
         if (f.x + f.w < camL || f.x > camR) continue;
-        // ⚠**滝ごとに save/restore する**。setTransform で行列を組み直すと、画面揺れなど
+        // ⚠滝ごとに save/restore する。setTransform で行列を組み直すと、画面揺れなど
         //   呼び出し元が積んでいるオフセットを取りこぼす（1.611で一度やりかけた）。
         ctx.save();
-        var key = f.h;
-        if (!_ugFallGrad[key]) {
-            var g = ctx.createLinearGradient(0, 0, 0, f.h);
-            g.addColorStop(0.00, 'rgba(150,198,224,0.34)');   // 落ち口＝岩から染み出す
-            g.addColorStop(0.12, 'rgba(196,228,242,0.46)');
-            g.addColorStop(0.80, 'rgba(178,216,235,0.38)');
-            g.addColorStop(1.00, 'rgba(206,234,245,0.22)');   // 着水点はぼかす
-            _ugFallGrad[key] = g;
-        }
         ctx.translate(f.x, f.y);
-        ctx.fillStyle = _ugFallGrad[key];
+
+        // ── ① 奥のしぶき: 本体より少し広く、薄く、ゆっくり ──
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = '#9ec7dd';
+        ctx.fillRect(-5, 0, f.w + 10, f.h);
+
+        // ── ② 本体 ──
+        var kv = f.h;
+        if (!_ugFallGradV[kv]) {
+            var gv = ctx.createLinearGradient(0, 0, 0, f.h);
+            gv.addColorStop(0.00, 'rgba(120,175,205,0.30)');  // 落ち口は岩の陰で暗い
+            gv.addColorStop(0.06, 'rgba(205,235,248,0.62)');  // 落ち始めが一番明るい
+            gv.addColorStop(0.45, 'rgba(176,216,236,0.52)');
+            gv.addColorStop(0.92, 'rgba(198,230,244,0.42)');
+            gv.addColorStop(1.00, 'rgba(222,242,251,0.18)');  // 着水はぼかす
+            _ugFallGradV[kv] = gv;
+        }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = _ugFallGradV[kv];
         ctx.fillRect(0, 0, f.w, f.h);
-        // 流れの筋。位相を seed でずらす＝隣の列と揃わないので「幅のある流れ」に見える
-        ctx.globalAlpha = 0.5;
-        ctx.strokeStyle = 'rgba(238,250,255,0.55)';
-        ctx.lineWidth = 2;
-        for (var k = 3; k < f.w; k += 9) {
-            var off = ((t * (3.0 + (k % 3) * 0.6) + f.seed * 13 + k * 29) % (f.h + 60)) - 60;
+        // 横方向: 縁を暗く、中心を明るく＝水塊が丸く見える
+        var kh = f.w;
+        if (!_ugFallGradH[kh]) {
+            var gh = ctx.createLinearGradient(0, 0, f.w, 0);
+            gh.addColorStop(0.00, 'rgba(40,70,95,0.42)');
+            gh.addColorStop(0.28, 'rgba(255,255,255,0.00)');
+            gh.addColorStop(0.50, 'rgba(255,255,255,0.16)');
+            gh.addColorStop(0.72, 'rgba(255,255,255,0.00)');
+            gh.addColorStop(1.00, 'rgba(40,70,95,0.42)');
+            _ugFallGradH[kh] = gh;
+        }
+        ctx.fillStyle = _ugFallGradH[kh];
+        ctx.fillRect(0, 0, f.w, f.h);
+
+        // ── ③ 速い白筋。幅に応じて本数を増やし、太さ・速さ・位相をばらす ──
+        var lanes = Math.max(3, Math.round(f.w / 7));
+        for (k = 0; k < lanes; k++) {
+            var lx = (k + 0.5) * (f.w / lanes) + Math.sin(t * 0.05 + k * 1.7 + f.seed) * 1.2;
+            var sp = 4.2 + ((k * 7 + f.seed) % 5) * 0.9;          // 筋ごとに落下速度を変える
+            var len = 40 + ((k * 13 + f.seed) % 4) * 22;
+            var off = ((t * sp + k * 53 + f.seed * 11) % (f.h + len)) - len;
+            ctx.globalAlpha = 0.20 + ((k + f.seed) % 3) * 0.14;
+            ctx.strokeStyle = '#f2fbff';
+            ctx.lineWidth = 1 + ((k + f.seed) % 3);
             ctx.beginPath();
-            ctx.moveTo(k, Math.max(0, off));
-            ctx.lineTo(k, Math.min(f.h, off + 54));
+            ctx.moveTo(lx, Math.max(0, off));
+            ctx.lineTo(lx, Math.min(f.h, off + len));
             ctx.stroke();
         }
-        // 着水の水煙
-        ctx.globalAlpha = 0.22 + 0.06 * Math.sin(t * 0.06 + f.seed);
-        ctx.fillStyle = '#dff2fb';
+
+        // ── ④ 落ち口: 岩から出る瞬間の白い盛り上がり ──
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = '#eaf7ff';
         ctx.beginPath();
-        ctx.ellipse(f.w / 2, f.h, f.w * 0.85, 9, 0, 0, Math.PI * 2);
+        ctx.ellipse(f.w / 2, 2, f.w * 0.52, 5, 0, 0, Math.PI * 2);
         ctx.fill();
+
+        // ── ⑤ 着水: 水煙を2枚重ね＋跳ねる粒 ──
+        var pulse = Math.sin(t * 0.07 + f.seed);
+        ctx.globalAlpha = 0.26 + 0.08 * pulse;
+        ctx.fillStyle = '#e8f6ff';
+        ctx.beginPath();
+        ctx.ellipse(f.w / 2, f.h - 2, f.w * 1.05, 13, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.18 - 0.05 * pulse;
+        ctx.beginPath();
+        ctx.ellipse(f.w / 2, f.h - 8, f.w * 0.72, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#ffffff';
+        for (k = 0; k < 5; k++) {
+            var ph = (t * 0.09 + k * 1.26 + f.seed) % 6.283;      // 0..2π を粒の寿命に使う
+            var pr = Math.sin(ph);
+            if (pr <= 0) continue;
+            var side = (k % 2 ? 1 : -1);
+            ctx.fillRect(f.w / 2 + side * pr * (f.w * 0.8 + k * 5),
+                         f.h - 4 - pr * (16 + k * 3), 2, 2);
+        }
         ctx.restore();
     }
 }

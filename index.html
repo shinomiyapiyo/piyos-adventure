@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.612";
+                content: "Ver.1.613";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -127,6 +127,9 @@
         @media (min-width: 600px) { #ui { font-size: 12px; padding: 6px 9px; } }
 
         /* --- ポーズボタン --- */
+        /* ⚠1.613: ポーズ中は右上のポーズボタンを押せなくする。復帰は「再開」ボタンだけ（ユーザー指示）。
+           押しても何も起きないボタンが光っていると誤解を招くので、見た目でも「今は押せない」と伝える。 */
+        body.is-paused #pauseButton { opacity: 0.3; pointer-events: none; }
         #pauseButton {
             position: absolute;
             top: 6px; right: calc(6px + env(safe-area-inset-right, 0px));
@@ -830,7 +833,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.612</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.613</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -903,7 +906,7 @@
                     background: linear-gradient(90deg, transparent, rgba(255,215,0,0.5), transparent);"></div>
                 <div id="pauseMainView">
                     <div id="pauseTitle" class="game-title" data-i18n="pause_title" style="margin-bottom: 18px;"><img src="images/icon_pause.png" class="ui-icon"> ポーズ中</div>
-                    <button id="resumeButton" class="game-button" data-i18n="pause_resume" onclick="pauseGame()" style="min-width: 40vw; max-width: 260px;"><img src="images/icon_play.png" class="ui-icon"> 再開</button>
+                    <button id="resumeButton" class="game-button" data-i18n="pause_resume" onclick="resumeGame()" style="min-width: 40vw; max-width: 260px;"><img src="images/icon_play.png" class="ui-icon"> 再開</button>
                     <button id="pauseSkinButton" class="game-button" onclick="openPauseSkin()" style="min-width: 40vw; max-width: 260px;"><img src="images/skin_maid_idle.png" class="ui-icon"> <span data-i18n="title_skin">きせかえ</span></button>
                     <button id="retireButton" class="game-button" data-i18n="pause_retire" onclick="confirmRetire()" style="min-width: 40vw; max-width: 260px; background: linear-gradient(180deg, #666, #444); border-color: rgba(255,255,255,0.2);"><img src="images/icon_flag.png" class="ui-icon"> リタイア</button>
                     <div class="instruction-text" data-i18n="pause_hint" style="margin-top: 12px; opacity: 0.7;">画面をタップで再開</div>
@@ -4270,29 +4273,49 @@ function clearHeldInput() {
     gameState.downSwipeActive = false; gameState.downSwipeTimer = 0;
 }
 
+// ⚠1.613: **ポーズと再開を完全に分離した**（ユーザー実機報告「再開以外の部分をタップしても復帰する。
+//   特に元々ポーズボタンがあった右上領域」／指示「**再開ボタン以外で復帰は禁止**」）。
+//   元は pauseGame() が**トグル**で、復帰の経路が4つもあった:
+//     ①再開ボタン ②右上のポーズボタン（アイコンが▶に変わり、押すと復帰）
+//     ③ポーズ画面の背景タップ（bootstrap.js）④キーボード Esc/P/Space
+//   ②〜④を塞ぎ、復帰は resumeGame()＝**再開ボタンだけ**にした。
+//   ⚠右上のポーズボタンはポーズ中「押しても何も起きない」ので、body.is-paused で
+//     半透明＋pointer-events:none にして「今は押せない」と見た目でも伝える。
 function pauseGame() {
     if (!gameState.gameStarted) return;
+    if (gameState.gamePaused) return;   // ⚠トグルにしない＝ここでは絶対に復帰させない
     // ⚠1.604: 真のエンディング中はポーズさせない（ユーザー実機報告「エンディング中にポーズを押すと操作不能」）。
     //   演出中は世界が止まっているのでポーズに意味が無く、ポーズ画面とテロップ送りのタップが取り合いになる。
     if (typeof undergroundState !== 'undefined' && undergroundState.ending) return;
     if (isInTransitionCooldown()) return;
     markScreenTransition();
-    gameState.gamePaused = !gameState.gamePaused;
+    gameState.gamePaused = true;
+    var _pm = document.getElementById('pauseMainView'); if (_pm) _pm.style.display = 'block';
+    var _psv = document.getElementById('pauseSkinView'); if (_psv) _psv.style.display = 'none';
+    document.getElementById('pauseScreen').classList.remove('hidden');
+    document.getElementById('pauseButton').innerHTML = _ic('icon_play.png');
+    document.body.classList.add('is-paused');
+    finishPauseToggle();
+}
 
-    if (gameState.gamePaused) {
-        var _pm = document.getElementById('pauseMainView'); if (_pm) _pm.style.display = 'block';
-        var _psv = document.getElementById('pauseSkinView'); if (_psv) _psv.style.display = 'none';
-        document.getElementById('pauseScreen').classList.remove('hidden');
-        document.getElementById('pauseButton').innerHTML = _ic('icon_play.png');
-    } else {
-        document.getElementById('pauseScreen').classList.add('hidden');
-        document.getElementById('pauseButton').innerHTML = _ic('icon_pause.png');
-        // 再開時にWebAudioを復帰。バックグラウンドでOSがAudioContextをsuspendすると、
-        // 戻ってきてもSEが無音のままになるため、再開タップ（ユーザー操作）で resume する（監査LOW）。
-        if (soundManager && soundManager.ctx && soundManager.ctx.state !== 'running' && gameSettings.soundEnabled) {
-            try { soundManager.ctx.resume(); } catch (_) {}
-        }
+// 復帰。⚠**呼んでよいのは再開ボタンだけ**（index.html の #resumeButton）。
+function resumeGame() {
+    if (!gameState.gameStarted || !gameState.gamePaused) return;
+    if (isInTransitionCooldown()) return;
+    markScreenTransition();
+    gameState.gamePaused = false;
+    document.getElementById('pauseScreen').classList.add('hidden');
+    document.getElementById('pauseButton').innerHTML = _ic('icon_pause.png');
+    document.body.classList.remove('is-paused');
+    // 再開時にWebAudioを復帰。バックグラウンドでOSがAudioContextをsuspendすると、
+    // 戻ってきてもSEが無音のままになるため、再開タップ（ユーザー操作）で resume する（監査LOW）。
+    if (soundManager && soundManager.ctx && soundManager.ctx.state !== 'running' && gameSettings.soundEnabled) {
+        try { soundManager.ctx.resume(); } catch (_) {}
     }
+    finishPauseToggle();
+}
+
+function finishPauseToggle() {
     // ポーズ中はストック枠を読み取り専用で再描画（枠(z:100)はポーズ幕より上にあり、
     // 放置するとポーズ中のタップでアイテムを誤使用できてしまう）。再開時は操作可能に戻す。
     if (typeof updateStockUI === 'function') updateStockUI();

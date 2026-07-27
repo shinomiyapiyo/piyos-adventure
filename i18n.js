@@ -26,7 +26,7 @@ ja: {
     pause_title: _ic('icon_pause.png') + ' ポーズ中',
     pause_resume: _ic('icon_play.png') + ' 再開',
     pause_retire: _ic('icon_flag.png') + ' リタイア',
-    pause_hint: '画面をタップで再開',
+    pause_hint: '「再開」を押すとつづきから',
     // ランキング
     ranking_title: _ic('icon_trophy.png') + ' ランキング',
     ranking_score: _ic('icon_money.png') + ' 金額',
@@ -646,7 +646,7 @@ en: {
     pause_title: _ic('icon_pause.png') + ' Paused',
     pause_resume: _ic('icon_play.png') + ' Resume',
     pause_retire: _ic('icon_flag.png') + ' Retire',
-    pause_hint: 'Tap to resume',
+    pause_hint: 'Press Resume to continue',
     ranking_title: _ic('icon_trophy.png') + ' Ranking',
     ranking_score: _ic('icon_money.png') + ' Score',
     ranking_distance: _ic('icon_distance.png') + ' Distance',
