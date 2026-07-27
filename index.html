@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.637";
+                content: "Ver.1.638";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -868,7 +868,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.637</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.638</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2452,6 +2452,7 @@ var gameSettings = {
     achievementStats: { totalKills: 0, totalDistance: 0, totalPlays: 0, bestDistance: 0, ts: 0 }, // 実績用の生涯累計（リセットなし）
     achievements: { claimed: {} },  // 実績の受取済み（id別マップ）
     badges: {},                     // 獲得済みバッジ（称号）id別マップ（値=獲得時刻ms）。実績達成/チュートリアルクリアで自動解放
+    badgeNew: {},                   // 未閲覧の新規バッジ id別マップ（1.638・図鑑の zukan.new と同じ作法。バッジ画面を閉じたら全クリア）
     ugEmperor: false,               // バッジ「地底の帝王」の解放条件（地底モードR4クリア or 通常プレイでR28踏破・1.629）
     tshopAdCooldown: 0,    // タイトルショップ広告のクールダウン（timestamp, 永続化）
     // ── 課金関連 ──
@@ -2520,6 +2521,7 @@ var gameSettings = {
             if (parsed.badges && typeof parsed.badges === 'object') {
                 gameSettings.badges = parsed.badges;
             }
+            if (parsed.badgeNew && typeof parsed.badgeNew === 'object') gameSettings.badgeNew = parsed.badgeNew;
             if (typeof parsed.ugEmperor === 'boolean') gameSettings.ugEmperor = parsed.ugEmperor;
             // ── 広告クールダウン ──
             if (typeof parsed.tshopAdCooldown === 'number') gameSettings.tshopAdCooldown = parsed.tshopAdCooldown;
@@ -3283,15 +3285,28 @@ function isBadgeUnlockable(b) {
     if (b.achId) { var a = achById(b.achId); return a ? isAchievementComplete(a) : false; }
     return false;
 }
-// 未獲得で条件を満たしたバッジを付与。新規解放があればトーストで知らせ、true を返す
+// このランで新しく付いたバッジのid（リザルト画面用・1.638）。⚠resetGame で空にする
+var runEarnedBadges = [];
+// 未獲得で条件を満たしたバッジを付与。新規解放があればトーストで知らせ、true を返す。
+// ⚠**付与のほとんどは silent で走る**（起動時／ラン後にタイトルへ戻った時／バッジ画面を開いた時）。
+//   実績連動の9個は「数値が目標に達した瞬間＝ランの終了時」に条件を満たすので、必ずこの silent 経路が
+//   先に付与してしまい、受け取り時のトーストには一生到達しなかった（ユーザー報告「いつ付与されたか
+//   記憶にない」・1.638で調査）。そこで通知は**トーストに頼らず**、下の2本立てにした:
+//     ① runEarnedBadges … このランで新しく付いたぶんを溜めて、リザルト画面に一覧で出す（消えない）
+//     ② gameSettings.badgeNew … 未閲覧の印。バッジ画面に NEW! と通知ドットを出し、閉じたらクリア
 function checkBadges(silent) {
     if (!gameSettings.badges) gameSettings.badges = {};
+    if (!gameSettings.badgeNew) gameSettings.badgeNew = {};
     var newly = [];
     for (var i = 0; i < BADGES.length; i++) {
         var b = BADGES[i];
         if (!isBadgeEarned(b) && isBadgeUnlockable(b)) {
             gameSettings.badges[b.id] = Date.now();
+            gameSettings.badgeNew[b.id] = 1;            // ①未閲覧の印（バッジ画面を閉じるまで残る）
             newly.push(b);
+            // ②このランのリザルトに出すぶん（resetGame で空になる＝前のランのぶんは混ざらない）。
+            //   ⚠silent かどうかに関わらず溜める＝どの経路で付いても取りこぼさない。
+            if (runEarnedBadges.indexOf(b.id) === -1) runEarnedBadges.push(b.id);
         }
     }
     if (newly.length > 0) {
@@ -3307,9 +3322,14 @@ function showBadgeToast(b) {
         'linear-gradient(180deg,#c9a0ff,#7a3fd0)', '#fff');
 }
 function earnedBadgeCount() { var c = 0; for (var i = 0; i < BADGES.length; i++) if (isBadgeEarned(BADGES[i])) c++; return c; }
-// 「未獲得だが今まさに解放可能」なバッジがあれば通知ドット（タイトルのバッジ入口に付ける）
+// 未閲覧の新規バッジがあれば通知ドット（タイトルのバッジ入口に付ける）。
+// ⚠1.638で判定を作り直した。旧実装は「未獲得だが今まさに解放可能」を見ていたが、通知ドットを更新する
+//   3画面（起動時/タイトル復帰/タイトルメニュー）はいずれも**その直前に checkBadges(true) が走って
+//   付与し終えている**ため、判定時には必ず「獲得済み」になっており**ドットは一度も点かなかった**。
+//   図鑑と同じく「見たかどうか」の印（badgeNew）で見る＝付与のタイミングに左右されない。
 function hasUnnotifiedBadge() {
-    for (var i = 0; i < BADGES.length; i++) if (!isBadgeEarned(BADGES[i]) && isBadgeUnlockable(BADGES[i])) return true;
+    var mp = gameSettings.badgeNew || {};
+    for (var k in mp) if (mp[k]) return true;
     return false;
 }
 function updateBadgeNotify() {
@@ -3323,7 +3343,12 @@ function renderBadgeRow(b) {
     var stateHtml = earned
         ? '<div style="color:#c9a0ff; font-weight:800; font-size:clamp(9px,1.8vw,13px); white-space:nowrap;">' + t('badge_owned') + '</div>'
         : '<div style="color:rgba(255,255,255,0.35); font-weight:700; font-size:clamp(9px,1.7vw,12px); white-space:nowrap;">' + t('badge_locked') + '</div>';
-    return '<div style="display:flex; align-items:center; gap:9px; background:rgba(0,0,40,0.55); border:1px solid ' + (earned ? 'rgba(201,160,255,0.4)' : 'rgba(255,255,255,0.1)') + '; border-radius:9px; padding:6px 10px;">' +
+    // 未閲覧の新規バッジには図鑑と同じ「NEW!」リボン（1.638・バッジ画面を閉じるまで残る）
+    var newRibbon = (gameSettings.badgeNew && gameSettings.badgeNew[b.id])
+        ? '<div style="position:absolute; top:-5px; left:-5px; background:#ff3344; color:#fff; font-size:8px; font-weight:900; padding:1px 4px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.5); letter-spacing:0.3px; z-index:2;">NEW!</div>'
+        : '';
+    return '<div style="position:relative; display:flex; align-items:center; gap:9px; background:rgba(0,0,40,0.55); border:1px solid ' + (earned ? 'rgba(201,160,255,0.4)' : 'rgba(255,255,255,0.1)') + '; border-radius:9px; padding:6px 10px;">' +
+        newRibbon +
         '<img src="' + b.iconImg + '" width="30" height="30" style="' + iconStyle + '">' +
         '<div style="flex:1 1 auto; min-width:0;">' +
             '<div style="color:' + nameColor + '; font-size:clamp(11px,2.2vw,15px); font-weight:800; font-family:\'M PLUS Rounded 1c\',sans-serif; margin-bottom:1px;">' + escapeHtml(t(b.nameKey)) + '</div>' +
@@ -3352,6 +3377,12 @@ function showBadgeScreen() {
     if (soundManager) soundManager.playConfirmSelect();
 }
 function hideBadgeScreen() {
+    // 開いて見たので「NEW!」を全クリア（通知ドットも消える）＝図鑑の hideZukanScreen と同じ作法（1.638）
+    if (gameSettings.badgeNew && Object.keys(gameSettings.badgeNew).length) {
+        gameSettings.badgeNew = {};
+        saveSettings();
+    }
+    updateBadgeNotify();
     hideScreenEl('badgeScreen');
     if (soundManager) soundManager.playCursorMove();
 }
@@ -4552,7 +4583,8 @@ function resetGame() {
     //   （記録の除外判定に使う）、落とすのは**次のランの開始＝ここ**だけにする。
     undergroundMode.active = false;
     undergroundMode.stage = 0;
-    undergroundMode.cleared = false; undergroundMode.emperorNew = false;   // リザルトの出し分け用（1.637）
+    undergroundMode.cleared = false;      // リザルトの出し分け用（1.637）
+    runEarnedBadges = [];                 // このランで獲得したバッジの一覧（1.638・リザルトに出す）
     if (typeof updateUgModeHud === 'function') updateUgModeHud();   // 隠していた距離/レベル行を戻す
     var _tsbReset = document.getElementById('tutorialSkipBtn');
     if (_tsbReset) { _tsbReset.style.display = 'none'; } // ラン途中でタイトルへ戻った時にスキップボタンが残留しないように

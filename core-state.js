@@ -184,9 +184,10 @@ const UG_MODE_STAGES      = UG_MODE_ROUNDS.length;   // 4
 const UG_MODE_START_MONEY = 30000;
 const UG_MODE_PASS_ID     = 'ug_pass';   // 地底入場パス（エッグ交換の永続アップグレードとして持つ）
 // stage: 1〜4（active=false の時は0）
-// cleared/emperorNew: リザルト画面の出し分け用（1.637）。⚠active と同じく resetGame まで保つ＝
+// cleared: リザルト画面の出し分け用（1.637）。⚠active と同じく resetGame まで保つ＝
 //   ゲームオーバー画面は「クリアで終わったのか、力尽きたのか」をここで見分ける。
-var undergroundMode = { active: false, stage: 0, cleared: false, emperorNew: false };
+//   （獲得バッジの告知は1.638で全バッジ共通の runEarnedBadges に一本化＝ここでは持たない）
+var undergroundMode = { active: false, stage: 0, cleared: false };
 function hasUndergroundPass() { return ((gameSettings.upgrades || {})[UG_MODE_PASS_ID] || 0) > 0; }
 function ugModeIsFinalStage() { return undergroundMode.active && undergroundMode.stage >= UG_MODE_STAGES; }
 function bossKindForRound(round) {

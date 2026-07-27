@@ -164,13 +164,12 @@ function ugModeClear() {
     // ⚠**クリアで終わった印**を残す（1.637・ユーザー報告「クリアなのに通常のゲームオーバー画面」）。
     //   undergroundMode は resetGame まで生きているので、リザルト画面がこれを見て出し分ける。
     undergroundMode.cleared = true;
-    // ⚠バッジが「今回はじめて付いたか」も先に控える（ユーザー報告「いつ付与されたのか分からなかった」）。
-    //   checkBadges のトーストは2.2秒で消えるうえ、直後に出るゲームオーバー画面と重なって見逃される＝
-    //   リザルトに1行として据える。ここで控えないと gameSettings.ugEmperor が true になった後では判別できない。
-    undergroundMode.emperorNew = !gameSettings.ugEmperor;
     gameSettings.ugEmperor = true;                  // バッジ「地底の帝王」の解放条件（通常プレイのR28撃破と同じ扱い）
     saveSettings();
-    if (typeof checkBadges === 'function') checkBadges();
+    // ⚠**silent で付与する**（1.638）。トーストは2.2秒で消えるうえ、直後に出るリザルト画面の登場と
+    //   重なって見逃される（ユーザー報告）。付与だけ済ませて runEarnedBadges に積み、
+    //   0.5秒後のリザルトが「しょうごうゲット！「地底の帝王」」として消えない形で見せる。
+    if (typeof checkBadges === 'function') checkBadges(true);
     ugHudVisible(true);
     groundReturnFade.phase = ''; groundReturnFade.timer = 0;
     gameOver();                                     // リザルト（ゲームオーバー画面）へ。⚠記録はここで通常どおり確定する
@@ -6298,15 +6297,28 @@ function showGameOverScreen() {
             t('gameover_kills') + finalGameStats.enemyKills + t('ranking_unit_kills') + '<br>' +
             t('gameover_level') + finalGameStats.speedLevel;
     }
-    // 獲得バッジの明示（1.637・ユーザー報告「バッジもいつ付与されたのか分からなかった」）。
-    // トースト（2.2秒で消える）はこの画面の登場と重なって見逃されるので、リザルトに1行として据える。
+    // 獲得バッジの明示（1.637で地底の帝王だけ→**1.638で全バッジに一般化**）。
+    // ⚠ユーザー報告「バッジは全体的にいつゲットしたか記憶にない」。実績連動の9個は
+    //   「累計値が目標に達した瞬間＝ランの終了時」に条件を満たすため、ラン後の
+    //   showStartScreen が呼ぶ checkBadges(true) が**必ず無言で付与**していた（受け取り時の
+    //   トーストには一生到達しない）。取った直後に必ず目に入る場所＝このリザルトに一覧で出す。
     var badgeEl = document.getElementById('gameOverBadge');
     if (badgeEl) {
-        var showBadge = ugCleared && undergroundMode.emperorNew;   // 2回目以降のクリアでは出さない（もう持っている）
-        badgeEl.style.display = showBadge ? 'block' : 'none';
-        if (showBadge) {
-            badgeEl.innerHTML = '<img src="images/icon_ug_pass.png" width="20" height="20" style="image-rendering:pixelated; vertical-align:middle;"> ' +
-                escapeHtml(t('badge_earned_toast')) + '「' + escapeHtml(t('badge_ug_emperor')) + '」';
+        // 数値はここまでに recordMissionProgress で加算済み＝この時点で判定すれば取りこぼさない
+        if (typeof checkBadges === 'function') checkBadges(true);
+        var got = (typeof runEarnedBadges !== 'undefined') ? runEarnedBadges : [];
+        badgeEl.style.display = got.length ? 'block' : 'none';
+        if (got.length) {
+            var rows = [];
+            for (var gi = 0; gi < got.length; gi++) {
+                var bd = null;
+                for (var bj = 0; bj < BADGES.length; bj++) if (BADGES[bj].id === got[gi]) { bd = BADGES[bj]; break; }
+                if (!bd) continue;
+                rows.push('<img src="' + bd.iconImg + '" width="18" height="18" style="image-rendering:pixelated; vertical-align:middle;"> ' +
+                    escapeHtml(t('badge_earned_toast')) + '「' + escapeHtml(t(bd.nameKey)) + '」');
+            }
+            badgeEl.innerHTML = rows.join('<br>');
+            badgeEl.style.display = rows.length ? 'block' : 'none';
         }
     }
     // リワード広告復活ボタンの表示制御（1プレイ1回、広告非表示設定時は非表示）
