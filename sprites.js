@@ -30,9 +30,10 @@ var IMAGE_SPRITES = {
 
     // アイドルぴよスキン（タイトルショップ200,000円・1.667。ぴよ氏本人のアイドル衣装・公認）
     // 立ち絵=Gemini（正面）／歩行=Veo veo_idol_walk.mp4 の f_24/30/36/42／
-    // jump/fall=Veo veo_idol_jumpfall.mp4 の f_13（上昇・膝を抱える）と f_21（下降・脚を流す）。
+    // jump/fall=Veo veo_idol_jumpfall.mp4 の f_14（上昇の頂点）と f_53（下降・脚が流れた所）。
     // ⚠jump/fall のコマは**足元Yを全コマ測って**選ぶこと。目視だと上昇中と下降中を取り違える
-    //   （このクリップは接地1185→頂点977＝208pxの跳躍。空中率0.9超のうち上昇=13、下降=21）。
+    //   （このクリップは接地1185→頂点977＝208pxの跳躍。空中率で上昇=14が100%、下降=53が64%）。
+    //   候補一覧は tools/idol-jumpfall-candidates.mjs で作れる（APIを使わず作り直せる）。
     skin_idol_idle: { files: ['images/skin_idol_idle.png'] },
     skin_idol_walk: { files: [
         'images/skin_idol_walk_1.png',
