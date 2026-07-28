@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.661";
+                content: "Ver.1.662";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -584,7 +584,17 @@
             font-size: clamp(18px, 6vw, 30px);
             margin: 0 0 10px;
         }
-        /* --- ランキング通報モード（行がタップ対象になったことを強調） --- */
+        /* --- ランキングの縞（1.662・ユーザー要望）---
+           パネルを画面幅いっぱいにしたぶん「名前(左)」と「スコア(右)」の距離が伸び、
+           どの行のスコアなのか目で追いにくくなった。1行おきに薄い帯を敷いて横方向に繋げる。
+           1位・3位…＝下地のまま／2位・4位…＝白をごく薄くのせる。
+           ⚠nth-child は使わない（一覧の先頭に見出しの div が入るので番号がずれる）。
+             描画側で 偶数順位に rank-alt を付けている。 */
+        #rankingList .rank-row.rank-alt { background: rgba(255,255,255,0.075); }
+
+        /* --- ランキング通報モード（行がタップ対象になったことを強調） ---
+           ⚠この2つは縞より**後**に置くこと。詳細度が同じなので、先に書くと縞に負けて
+             通報モードの赤い塗りが出なくなる。 */
         #rankingList.report-mode .rank-row {
             background: rgba(150, 20, 45, 0.5);
             cursor: pointer;
@@ -941,7 +951,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.661</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.662</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1133,7 +1143,7 @@
                 box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,105,180,0.12);
                 padding: 4px 12px; box-sizing: border-box;">
                 <div class="head-row" style="margin-bottom:4px;">
-                    <span data-i18n="settings_title" style="color: #ffd700; font-size: clamp(14px, 3.5vw, 20px); font-weight: 800; white-space: nowrap;
+                    <span data-i18n="settings_title" style="color: #ffd700; font-size: clamp(16px, 3.5vw, 24px); font-weight: 800; white-space: nowrap;
                         font-family: 'M PLUS Rounded 1c', sans-serif;
                         text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
                         letter-spacing: 0.08em;"><img src="images/icon_settings.png" class="ui-icon"> 設定</span>
@@ -1155,11 +1165,11 @@
 
                 <!-- サウンド設定 -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
-                    <span data-i18n="settings_sound" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;"><img src="images/icon_sound.png" class="ui-icon"> サウンド</span>
+                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_sound" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;"><img src="images/icon_sound.png" class="ui-icon"> サウンド</span>
                     <button id="soundToggleBtn" style="
-                        min-width: 60px; min-height: 36px; padding: 6px 14px; border-radius: 18px; border: none;
-                        font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                        min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
+                        font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                         font-family: 'M PLUS Rounded 1c', sans-serif;
                         transition: background 0.15s ease;
                         -webkit-tap-highlight-color: transparent;
@@ -1168,18 +1178,18 @@
 
                 <!-- 言語設定 -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
-                    <span style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;">LANG</span>
+                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">LANG</span>
                     <div style="display: flex; gap: 6px;">
                         <button id="langJaBtn" onclick="setLanguage('ja')" style="
-                            min-width: 70px; padding: 6px 12px; border-radius: 18px; border: none;
-                            font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                            min-width: 88px; min-height: 44px; padding: 8px 16px; border-radius: 22px; border: none;
+                            font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                             font-family: 'M PLUS Rounded 1c', sans-serif;
                             transition: all 0.2s ease;
                             color: #fff;">日本語</button>
                         <button id="langEnBtn" onclick="setLanguage('en')" style="
-                            min-width: 70px; padding: 6px 12px; border-radius: 18px; border: none;
-                            font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                            min-width: 88px; min-height: 44px; padding: 8px 16px; border-radius: 22px; border: none;
+                            font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                             font-family: 'M PLUS Rounded 1c', sans-serif;
                             transition: all 0.2s ease;
                             color: #fff;">English</button>
@@ -1188,11 +1198,11 @@
 
                 <!-- 遊び方 -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
-                    <span data-i18n="settings_howtoplay" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;">遊び方</span>
+                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_howtoplay" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">遊び方</span>
                     <button id="howToPlayBtn" onclick="showGuide()" style="
-                        min-width: 60px; min-height: 36px; padding: 6px 14px; border-radius: 18px; border: none;
-                        font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                        min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
+                        font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                         font-family: 'M PLUS Rounded 1c', sans-serif;
                         background: linear-gradient(180deg, #44bb77, #228855);
                         color: #fff; transition: background 0.15s ease;
@@ -1203,18 +1213,18 @@
 
                 <!-- データ引き継ぎ（機種変更/ブラウザ変更時のセーブ移行） -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
-                    <span data-i18n="settings_transfer" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;">データ引き継ぎ</span>
+                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_transfer" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">データ引き継ぎ</span>
                     <div style="display: flex; gap: 6px;">
                         <button onclick="showTransferExport()" data-i18n="transfer_export_btn" style="
                             min-width: 60px; min-height: 36px; padding: 6px 12px; border-radius: 18px; border: none;
-                            font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                            font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                             font-family: 'M PLUS Rounded 1c', sans-serif;
                             background: linear-gradient(180deg, #4488dd, #2255aa);
                             color: #fff; -webkit-tap-highlight-color: transparent;">発行</button>
                         <button onclick="showTransferImport()" data-i18n="transfer_import_btn" style="
                             min-width: 60px; min-height: 36px; padding: 6px 12px; border-radius: 18px; border: none;
-                            font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                            font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                             font-family: 'M PLUS Rounded 1c', sans-serif;
                             background: linear-gradient(180deg, #44bb77, #228855);
                             color: #fff; -webkit-tap-highlight-color: transparent;">入力</button>
@@ -1224,11 +1234,11 @@
                 <!-- プライバシー設定（GDPR・1.655）。⚠EEA/UKなど**同意の変更が必要な地域でだけ**表示する。
                      行ごと display:none で始め、umpNeedsPrivacyOptions() が true の時に showSettings が出す。 -->
                 <div id="privacyOptionsRow" style="display: none; justify-content: space-between; align-items: center;
-                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
-                    <span data-i18n="settings_privacy" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;">広告のプライバシー設定</span>
+                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_privacy" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">広告のプライバシー設定</span>
                     <button onclick="openPrivacyOptions()" data-i18n="settings_privacy_btn" style="
-                        min-width: 60px; min-height: 36px; padding: 6px 14px; border-radius: 18px; border: none;
-                        font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                        min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
+                        font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                         font-family: 'M PLUS Rounded 1c', sans-serif;
                         background: linear-gradient(180deg, #8888cc, #555599);
                         color: #fff; -webkit-tap-highlight-color: transparent;">変更</button>
@@ -1236,51 +1246,58 @@
 
                 <!-- セーブデータ削除（元に戻せない・二段確認） -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
-                    <span data-i18n="settings_delete" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;"><img src="images/icon_settings.png" class="ui-icon"> セーブデータを削除</span>
+                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_delete" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;"><img src="images/icon_settings.png" class="ui-icon"> セーブデータを削除</span>
                     <button onclick="deleteSaveData()" data-i18n="settings_delete_btn" style="
-                        min-width: 60px; min-height: 36px; padding: 6px 14px; border-radius: 18px; border: none;
-                        font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                        min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
+                        font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                         font-family: 'M PLUS Rounded 1c', sans-serif;
                         background: linear-gradient(180deg, #dd4455, #a02030);
                         color: #fff; -webkit-tap-highlight-color: transparent;">削除</button>
                 </div>
 
-                <!-- プライバシーポリシー & 利用規約 -->
-                <div style="display: flex; justify-content: center; align-items: center; gap: 12px;
-                    padding: 6px 0;">
-                    <a id="privacyLinkSettings" href="https://nullpoworks.pages.dev/privacy-policy.html"
-                       target="_blank" rel="noopener"
-                       onclick="event.stopPropagation();" ontouchend="event.stopPropagation();"
-                       style="color: rgba(255,255,255,0.5); font-size: clamp(7px, 1.6vw, 11px); text-decoration: underline;
-                           font-family: 'M PLUS Rounded 1c', sans-serif;"
-                       data-i18n="privacy_link_short">プライバシーポリシー</a>
-                    <span style="color: rgba(255,255,255,0.3);">|</span>
-                    <a id="termsLink" href="https://nullpoworks.pages.dev/terms-piyo-adventure.html"
-                       target="_blank" rel="noopener"
-                       onclick="event.stopPropagation();" ontouchend="event.stopPropagation();"
-                       style="color: rgba(255,255,255,0.5); font-size: clamp(7px, 1.6vw, 11px); text-decoration: underline;
-                           font-family: 'M PLUS Rounded 1c', sans-serif;"
-                       data-i18n="terms_link_short">利用規約</a>
-                </div>
-
                 <!-- チュートリアル再プレイ（クリア後もここから何度でも遊べる・報酬は初回のみ） -->
-                <div style="display: flex; justify-content: center; align-items: center; padding: 4px 0 8px;">
-                    <button class="game-button" id="playTutorialBtn" data-i18n="settings_play_tutorial" style="
-                        min-width: auto; padding: 6px 18px; font-size: clamp(10px, 2.2vw, 14px); min-height: 36px;
+                <div style="display: flex; justify-content: space-between; align-items: center;
+                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_tutorial" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;"><img src="images/icon_play.png" class="ui-icon"> チュートリアル</span>
+                    <button class="game-button" id="playTutorialBtn" data-i18n="settings_tutorial_btn" style="
+                        min-width: auto; max-width: none; margin: 0; padding: 8px 18px;
+                        font-size: clamp(12px, 2.4vw, 18px); min-height: 44px;
                         background: linear-gradient(180deg, #6ec06e 0%, #3f9f3f 50%, #2a7a2a 100%);
                         border-bottom-color: rgba(0,0,0,0.4);
-                        -webkit-tap-highlight-color: transparent;">チュートリアルをあそぶ</button>
+                        -webkit-tap-highlight-color: transparent;">あそぶ</button>
                 </div>
 
-                <!-- 素材クレジット（OtoLogic は CC BY 4.0 ＝帰属表示が必須） -->
-                <div style="display: flex; justify-content: center; align-items: center; padding: 0 0 6px;">
+                <!-- 規約類とクレジット（1.662・ユーザー要望「右下にまとめて詰める」）。
+                     設定そのものではない情報なので、行として散らさず最後の1行に寄せる。
+                     grid-column:1/-1 で列を跨いで最終行に置き、justify-self:end で右下へ。 -->
+                <div style="grid-column: 1 / -1; justify-self: end; align-self: end;
+                    display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+                    padding: 8px 2px 2px; text-align: right; line-height: 1.4;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <a id="privacyLinkSettings" href="https://nullpoworks.pages.dev/privacy-policy.html"
+                           target="_blank" rel="noopener"
+                           onclick="event.stopPropagation();" ontouchend="event.stopPropagation();"
+                           style="color: rgba(255,255,255,0.55); font-size: clamp(9px, 1.7vw, 13px); text-decoration: underline;
+                               font-family: 'M PLUS Rounded 1c', sans-serif;"
+                           data-i18n="privacy_link_short">プライバシーポリシー</a>
+                        <span style="color: rgba(255,255,255,0.3);">|</span>
+                        <a id="termsLink" href="https://nullpoworks.pages.dev/terms-piyo-adventure.html"
+                           target="_blank" rel="noopener"
+                           onclick="event.stopPropagation();" ontouchend="event.stopPropagation();"
+                           style="color: rgba(255,255,255,0.55); font-size: clamp(9px, 1.7vw, 13px); text-decoration: underline;
+                               font-family: 'M PLUS Rounded 1c', sans-serif;"
+                           data-i18n="terms_link_short">利用規約</a>
+                    </div>
                     <a href="https://otologic.jp" target="_blank" rel="noopener"
                        onclick="event.stopPropagation();" ontouchend="event.stopPropagation();"
-                       style="color: rgba(255,255,255,0.5); font-size: clamp(7px, 1.6vw, 11px); text-decoration: underline;
-                           font-family: 'M PLUS Rounded 1c', sans-serif; text-align: center;"
+                       style="color: rgba(255,255,255,0.4); font-size: clamp(8px, 1.5vw, 11px); text-decoration: underline;
+                           font-family: 'M PLUS Rounded 1c', sans-serif;"
                        data-i18n="credit_otologic">効果音素材：OtoLogic（https://otologic.jp）/ CC BY 4.0</a>
                 </div>
+
+                <!-- 素材クレジット（OtoLogic は CC BY 4.0 ＝帰属表示が必須）は
+                     1.662 で上の「規約類とクレジット」ブロックへ統合した（右下にまとめる要望）。 -->
 
                 <!-- 広告非表示（課金実装時に display:flex に戻す） -->
                 <div id="adFreeRow" style="display: none; justify-content: space-between; align-items: center;
@@ -5110,7 +5127,9 @@ function showRankingByType(type) {
             // しおり再開マーク（1.636）: 中断→つづきから で伸ばしたランに 🔖。↺ と併記されることもある
             // （フィールドが無い旧エントリは undefined＝falsy＝無印。ルールは2026-07-28に resumed を任意boolで公開済）
             if (rankings[i].resumed) { anyResumed = true; revMark += '<span style="font-size:0.85em;margin-left:3px;">🔖</span>'; }
-            html += '<div class="rank-row" data-name="' + escapeHtml(rawName) + '" data-value="' + (Number(rankings[i][type]) || 0) + '" style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.3);color:#fff;font-size:1.5vw;">' +
+            // 縞（1.662）: 偶数順位にだけ rank-alt。CSS の nth-child だと見出し行のぶんずれるので明示的に付ける
+            var altCls = (rank % 2 === 0) ? ' rank-alt' : '';
+            html += '<div class="rank-row' + altCls + '" data-name="' + escapeHtml(rawName) + '" data-value="' + (Number(rankings[i][type]) || 0) + '" style="display:flex;justify-content:space-between;align-items:center;padding:2px 6px;border-bottom:1px solid rgba(255,255,255,0.12);color:#fff;font-size:clamp(10px,1.9vw,15px);">' +
                 '<span style="color:' + color + ';">' + rank + '. ' + escapeHtml(dispName) + revMark + '</span>' +
                 '<span style="color:#ffd700;font-weight:bold;">' + escapeHtml(rankings[i][type] || 0) + t(unitKeys[type]) + '</span></div>';
         }

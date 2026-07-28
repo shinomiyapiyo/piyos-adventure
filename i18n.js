@@ -411,6 +411,10 @@ ja: {
     tut_clear_reward: 'ごほうびに ゴールデンエッグを ゲット！',
     tut_to_title: 'タイトルへ',
     settings_play_tutorial: 'チュートリアルをあそぶ',
+    // 設定画面のチュートリアル行（1.662）。⚠ラベルを『あそびかた』にすると同じ画面の
+    //   『遊び方』(ガイド) と見分けが付かないので、必ず『チュートリアル』にすること。
+    settings_tutorial: 'チュートリアル',
+    settings_tutorial_btn: 'あそぶ',
     // 広告のプライバシー設定（1.655・GDPR）。EEA/UK など同意の変更が必要な地域でのみ表示される
     settings_privacy: '広告のプライバシー設定',
     settings_privacy_btn: '変更',
@@ -1043,6 +1047,8 @@ en: {
     tut_clear_reward: 'Reward: Golden Eggs!',
     tut_to_title: 'To Title',
     settings_play_tutorial: 'Play Tutorial',
+    settings_tutorial: 'Tutorial',
+    settings_tutorial_btn: 'Play',
     settings_privacy: 'Ad privacy settings',
     settings_privacy_btn: 'Change',
     // ── Title Shop ──
