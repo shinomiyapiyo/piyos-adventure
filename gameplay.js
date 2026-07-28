@@ -5858,7 +5858,17 @@ function updateBossCollision_egg(b) {
             //   届かず、R3は破片(enc>=2)も出ないため完全無敵。そこへ露出が来ると自動で命中していた。
             //   → **殻の外へ弾き出す**。跳ね返りを低くして横初速を与え、短い操作硬直で押し戻しを効かなくする。
             //   ダメージは足さない（踏みミスを罰しない＝従来どおり「無駄だった」で済ませる）。
-            var kdir = ((player.x + player.width / 2) < (b.x + b.width / 2)) ? -1 : 1;
+            var _pcx = player.x + player.width / 2;
+            var kdir = (_pcx < (b.x + b.width / 2)) ? -1 : 1;
+            // ⚠1.650: 壁際では**逃げ場が無く弾き飛ばしが成立しない**（ユーザー実機報告「画面左端で踏むと
+            //   その場で跳ねて居座れる」）。ボス戦中はプレイヤーのxが画面端(index.html:6353)とアリーナ壁
+            //   (同6359)で毎フレーム強制クランプされるため、壁向きに弾いても座標ごと打ち消され、
+            //   そのまま殻の上へ落ちて居座りが復活していた。→ **殻を抜けられる幅がある側**を選び直す。
+            var _wallL = Math.max(bossState.arenaLeft, gameState.camera.x + 25);
+            var _wallR = Math.min(bossState.arenaRight, gameState.camera.x + GAME_WIDTH - 25);
+            var _need = b.width / 2 + player.width / 2 + 16;   // 殻の外へ出るのに要る横距離
+            if (kdir < 0 && (_pcx - _wallL) < _need) kdir = 1;
+            else if (kdir > 0 && (_wallR - _pcx) < _need) kdir = -1;
             player.velX = kdir * 9;
             player.knockbackTimer = 16;   // 約0.27秒。この間だけ横入力を無効化（index.html updatePlayer）
             player.velY = JUMP_FORCE * 0.42;
