@@ -6213,6 +6213,9 @@ function gameOver() {
         distance: gameState.distance,
         enemyKills: gameState.enemyKills,
         speedLevel: gameState.speedLevel,
+        // 最高コンボ（1.656）。⚠**ランキングには送らない**（送信項目は従来の9つのまま＝Firebaseルールの
+        //   更新が要らない）。リザルトに出すためだけに finalGameStats へ写す。resetGame より先に確定させる。
+        maxCombo: gameState.maxCombo || 0,
         // 復活ランキング記録方式(1.523・魂の共鳴v3.799から移植): 広告復活を使ったランは ↺ 付きで記録する。
         // 対象は広告復活のみ（アイテム=復活ポーション/ふっかつマシーンは対象外＝ユーザー決定）。
         // ここで値を確定させる＝保存より先に resetGame がフラグを戻しても記録内容が狂わない（仕様書の落とし穴対策）。
@@ -6378,6 +6381,16 @@ function showGameOverScreen() {
                                              : '0 0 20px rgba(255,68,102,0.5), 0 2px 6px rgba(0,0,0,0.6)';
     }
     // スタッツ表示
+    // 最高コンボの行（1.656・計測用の表示）。⚠**0や1の時は出さない**＝ほぼ全ランに出る無意味な行を増やさない。
+    //   自己ベストを更新した時だけ「さいこう記録！」を添える（次はもっと繋ごう、と思える手がかり）。
+    function comboResultLine() {
+        var mc = finalGameStats.maxCombo || 0;
+        if (mc < 2) return '';
+        var best = (gameSettings.achievementStats && gameSettings.achievementStats.bestCombo) || 0;
+        var isBest = (mc >= best && mc > 0);   // recordMissionProgress が先に走っているので mc === best になる
+        return '<br>' + t('gameover_combo') + mc + t('ranking_unit_combo') +
+               (isBest ? ' <span style="color:#ffd700;">' + t('gameover_combo_best') + '</span>' : '');
+    }
     var statsEl = document.getElementById('gameOverStats');
     if (ugMode) {
         // ⚠地底モードでは**距離とレベルを出さない**。どちらもこのモードでは計上しない値で
@@ -6388,13 +6401,15 @@ function showGameOverScreen() {
         statsEl.innerHTML =
             t(ugCleared ? 'ugmode_result_clear' : 'ugmode_result_reached', _sv) + '<br>' +
             t('gameover_score') + finalGameStats.score + t('ranking_unit_score') + '<br>' +
-            t('gameover_kills') + finalGameStats.enemyKills + t('ranking_unit_kills');
+            t('gameover_kills') + finalGameStats.enemyKills + t('ranking_unit_kills') +
+            comboResultLine();
     } else {
         statsEl.innerHTML =
             t('gameover_distance') + finalGameStats.distance + 'm<br>' +
             t('gameover_score') + finalGameStats.score + t('ranking_unit_score') + '<br>' +
             t('gameover_kills') + finalGameStats.enemyKills + t('ranking_unit_kills') + '<br>' +
-            t('gameover_level') + finalGameStats.speedLevel;
+            t('gameover_level') + finalGameStats.speedLevel +
+            comboResultLine();
     }
     // 獲得バッジの明示（1.637で地底の帝王だけ→**1.638で全バッジに一般化**）。
     // ⚠ユーザー報告「バッジは全体的にいつゲットしたか記憶にない」。実績連動の9個は

@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.655";
+                content: "Ver.1.656";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -889,7 +889,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.655</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.656</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2483,7 +2483,7 @@ var gameSettings = {
     loginStreak: 0, lastLoginDate: '', pendingStockItems: [],
     lastLoginTimestamp: 0, loginBonusHistory: [],
     dailyMissions: { date: '', plays: 0, distance: 0, kills: 0, coins: 0, boss: 0, special: 0, claimed: [false, false, false], bonusClaimed: false, ts: 0 },
-    achievementStats: { totalKills: 0, totalDistance: 0, totalPlays: 0, bestDistance: 0, ts: 0 }, // 実績用の生涯累計（リセットなし）
+    achievementStats: { totalKills: 0, totalDistance: 0, totalPlays: 0, bestDistance: 0, bestCombo: 0, ts: 0 }, // 実績用の生涯累計（リセットなし）。bestCombo=1.656
     achievements: { claimed: {} },  // 実績の受取済み（id別マップ）
     badges: {},                     // 獲得済みバッジ（称号）id別マップ（値=獲得時刻ms）。実績達成/チュートリアルクリアで自動解放
     badgeNew: {},                   // 未閲覧の新規バッジ id別マップ（1.638・図鑑の zukan.new と同じ作法。バッジ画面を閉じたら全クリア）
@@ -2547,6 +2547,7 @@ var gameSettings = {
                 if (typeof pas.totalDistance === 'number') gameSettings.achievementStats.totalDistance = pas.totalDistance;
                 if (typeof pas.totalPlays === 'number') gameSettings.achievementStats.totalPlays = pas.totalPlays;
                 if (typeof pas.bestDistance === 'number') gameSettings.achievementStats.bestDistance = pas.bestDistance;
+                if (typeof pas.bestCombo === 'number') gameSettings.achievementStats.bestCombo = pas.bestCombo; // 1.656（旧セーブは0のまま＝初回のランで埋まる）
                 if (typeof pas.ts === 'number') gameSettings.achievementStats.ts = pas.ts;
             }
             if (parsed.achievements && typeof parsed.achievements === 'object' && parsed.achievements.claimed && typeof parsed.achievements.claimed === 'object') {
@@ -2635,6 +2636,7 @@ var gameSettings = {
                 var _as = gameSettings.achievementStats;
                 _as.totalKills = _hn(_as.totalKills); _as.totalDistance = _hn(_as.totalDistance);
                 _as.totalPlays = _hn(_as.totalPlays); _as.bestDistance = _hn(_as.bestDistance); _as.ts = _hn(_as.ts);
+                _as.bestCombo = _hn(_as.bestCombo); // 1.656
             }
             if (typeof parsed.tutorialSeen === 'boolean') gameSettings.tutorialSeen = parsed.tutorialSeen;
             if (typeof parsed.tutorialCleared === 'boolean') gameSettings.tutorialCleared = parsed.tutorialCleared;
@@ -2711,6 +2713,7 @@ function buildRunSave() {
         score: gameState.score, rankScore: gameState.rankScore,
         lives: gameState.lives, crystalLives: gameState.crystalLives || 0,
         enemyKills: gameState.enemyKills, coinsCollected: gameState.coinsCollected,
+        maxCombo: gameState.maxCombo || 0,   // 1.656: ランの成績なので中断で失わせない（監査の教訓）
         bossKills: gameState.bossKills, specialUses: gameState.specialUses,
         specialGauge: gameState.specialGauge || 0,
         revivesLeft: gameState.revivesLeft || 0,
@@ -2816,6 +2819,7 @@ function applyRunSave(d) {
     gameState.score = d.score; gameState.rankScore = d.rankScore;
     gameState.lives = d.lives; gameState.crystalLives = d.crystalLives;
     gameState.enemyKills = d.enemyKills || 0; gameState.coinsCollected = d.coinsCollected || 0;
+    gameState.maxCombo = d.maxCombo || 0;   // 1.656（旧セーブはキーが無いので0＝そのランの以降で埋まる）
     gameState.bossKills = d.bossKills || 0; gameState.specialUses = d.specialUses || 0;
     gameState.specialGauge = d.specialGauge || 0; gameState.revivesLeft = d.revivesLeft || 0;
     gameState.noDmgMark = d.noDmgMark || 0; gameState.noDmgNext = d.noDmgNext || 500;
@@ -3134,6 +3138,9 @@ function recordMissionProgress() {
     var addSpecial = gameState.specialUses - (gameState.missionCountedSpecial || 0);
     if (addSpecial > 0) { dm.special = (dm.special || 0) + addSpecial; gameState.missionCountedSpecial = gameState.specialUses; }
     if (!undergroundMode.active && gameState.distance > as.bestDistance) as.bestDistance = gameState.distance; // 自己ベスト距離（⚠地底モードは除外・1.629）
+    // 自己ベストのコンボ（1.656・計測用）。⚠距離と違い**地底モードも数える**＝コンボは距離の圧縮と無関係で、
+    //   むしろ地底のほうが敵が密なので「どこで最高値が出るか」を知りたいという計測の目的に合う。
+    if ((gameState.maxCombo || 0) > (as.bestCombo || 0)) as.bestCombo = gameState.maxCombo;
     as.ts = Date.now();
     dm.ts = Date.now();
     saveSettings();
@@ -4715,6 +4722,7 @@ function resetGame() {
     gameState.enemyKills = 0;
     gameState.comboCount = 0;
     gameState.comboTimer = 0;
+    gameState.maxCombo = 0;   // ランごとの最高コンボ（1.656）
     gameState.revivesLeft = 0;
     gameState.revivalFlashTimer = 0;
     gameState.hasRecordedHighScore = false;
@@ -6603,6 +6611,11 @@ function registerKill(scoreValue, effectX, effectY) {
     gameState.enemyKills++;
     gameState.comboTimer = COMBO_TIMEOUT;
     gameState.comboCount++;
+    // このランの最高コンボ（1.656）。⚠**まだランキングには送らない**＝ローカル記録＋リザルト表示だけ。
+    //   ランキング部門にするかは「最高コンボが距離と相関するか」を実データで見てから決める。
+    //   撃破数は距離にほぼ比例して部門にならなかった（実測: 距離TOP10と撃破TOP10が顔ぶれ一致）が、
+    //   コンボは合計でなく**瞬間の最大値**なので距離では稼げない可能性がある。それを確かめるための計測。
+    if (gameState.comboCount > (gameState.maxCombo || 0)) gameState.maxCombo = gameState.comboCount;
     var idx = Math.min(gameState.comboCount, COMBO_MULTIPLIERS.length) - 1;
     var multiplier = COMBO_MULTIPLIERS[idx];
     var comboScore = Math.floor(scoreValue * multiplier);

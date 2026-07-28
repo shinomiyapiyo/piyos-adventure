@@ -57,6 +57,7 @@ ja: {
     ranking_unit_score: '円',
     ranking_unit_distance: 'm',
     ranking_unit_kills: '体',
+    ranking_unit_combo: 'コンボ',   // 1.656
     ranking_unit_level: 'レベル',
     btn_back: _ic('icon_back.png') + ' 戻る',
     // 名前入力
@@ -90,6 +91,9 @@ ja: {
     gameover_score: '獲得金額: ',
     gameover_kills: '敵撃破数: ',
     gameover_level: '到達レベル: ',
+    // 最高コンボ（1.656・計測用。2コンボ以上の時だけリザルトに出す）
+    gameover_combo: 'さいこうコンボ: ',
+    gameover_combo_best: '自己ベスト！',
     boss_warning: 'WARNING',
     boss_defeated: 'BOSS DEFEATED!',
     boss_round: 'ROUND ',
@@ -710,6 +714,7 @@ en: {
     ranking_unit_score: ' pts',
     ranking_unit_distance: 'm',
     ranking_unit_kills: ' kills',
+    ranking_unit_combo: ' combo',
     ranking_unit_level: 'Lv.',
     btn_back: _ic('icon_back.png') + ' Back',
     name_title: _ic('icon_celebrate.png') + ' High Score!',
@@ -739,6 +744,8 @@ en: {
     gameover_score: 'Score: ',
     gameover_kills: 'Enemies: ',
     gameover_level: 'Level: ',
+    gameover_combo: 'Best combo: ',
+    gameover_combo_best: 'New best!',
     boss_warning: 'WARNING',
     boss_defeated: 'BOSS DEFEATED!',
     boss_round: 'ROUND ',

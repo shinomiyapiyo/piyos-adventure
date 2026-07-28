@@ -367,6 +367,7 @@ var gameState = {
     isRespawning: false, enemyKills: 0,
     bulletFireTimer: 0,
     comboCount: 0, comboTimer: 0,
+    maxCombo: 0,             // このランの最高コンボ（1.656・計測用。resetGameで戻す／中断セーブでも保つ）
     revivesLeft: 0, revivalFlashTimer: 0,
     hasRecordedHighScore: false,
     resumedThisRun: false,   // ぼうけんのしおりで中断→再開したランか（1.636・ランキングの🔖。resetGameで戻す）
