@@ -415,7 +415,7 @@ ja: {
     tshop_keeper_sell_confirm: '{item}を {price}円で\n売りますか？',
     // 売値を例外的に安く固定した品（＝老婆の劇薬）。地上の店と同じく、店員が訝しがる専用のセリフにする
     // （1.646・ステージショップだけに付けていた 1.629 の対応がタイトルショップに無かった）
-    tshop_keeper_sell_odd: 'うっ、{item}か……\nどこで こんなものを。\n{price}円なら 引き取るのだ……',
+    tshop_keeper_sell_odd: 'な…なんなのだ\nこのまがまがしいくすりは…。\n{price}円ならひきとるのだ…。',
     tshop_keeper_sold: '{item}を売ったのだ！\n+{price}円 貯金に入れたのだ',
     tshop_sell_empty: '売れるアイテムが ないのだ',
     tshop_keeper_sell_greet: '何を 売るのだ？',
@@ -1066,7 +1066,7 @@ en: {
     tshop_keeper_cant_afford: 'Sorry...\nNot enough savings',
     tshop_egg_section: 'Egg Exchange',
     tshop_keeper_sell_confirm: 'Sell {item} for {price}?',
-    tshop_keeper_sell_odd: 'Ugh, {item}...?\nWhere did you even get that.\n{price} is my best offer...',
+    tshop_keeper_sell_odd: 'W-what even is this...\nthis sinister-looking potion...?\nI\'ll take it for {price}, then...',
     tshop_keeper_sold: 'Sold {item}!\n+{price} to your savings',
     tshop_sell_empty: 'Nothing to sell',
     tshop_keeper_sell_greet: 'What would you like to sell?',
