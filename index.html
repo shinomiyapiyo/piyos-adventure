@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.654";
+                content: "Ver.1.655";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -889,7 +889,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.654</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.655</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1136,6 +1136,19 @@
                             background: linear-gradient(180deg, #44bb77, #228855);
                             color: #fff; -webkit-tap-highlight-color: transparent;">入力</button>
                     </div>
+                </div>
+
+                <!-- プライバシー設定（GDPR・1.655）。⚠EEA/UKなど**同意の変更が必要な地域でだけ**表示する。
+                     行ごと display:none で始め、umpNeedsPrivacyOptions() が true の時に showSettings が出す。 -->
+                <div id="privacyOptionsRow" style="display: none; justify-content: space-between; align-items: center;
+                    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    <span data-i18n="settings_privacy" style="color: #fff; font-size: clamp(11px, 2.5vw, 16px); font-weight: 700;">広告のプライバシー設定</span>
+                    <button onclick="openPrivacyOptions()" data-i18n="settings_privacy_btn" style="
+                        min-width: 60px; min-height: 36px; padding: 6px 14px; border-radius: 18px; border: none;
+                        font-size: clamp(10px, 2.2vw, 14px); font-weight: 700; cursor: pointer;
+                        font-family: 'M PLUS Rounded 1c', sans-serif;
+                        background: linear-gradient(180deg, #8888cc, #555599);
+                        color: #fff; -webkit-tap-highlight-color: transparent;">変更</button>
                 </div>
 
                 <!-- セーブデータ削除（元に戻せない・二段確認） -->
@@ -5098,6 +5111,23 @@ function showSettings() {
     history.pushState({ screen: 'settings' }, '');
     updateSettingsUI();
     updateZukanBadge(); // 図鑑の新規発見バッジ（設定内の図鑑行）を更新
+    updatePrivacyOptionsRow(); // 広告のプライバシー設定（EEA/UK等でのみ表示・1.655）
+}
+
+// GDPRの「後から同意を変更できる導線」。⚠必要な地域でだけ出す（不要な地域に出すと意味不明な項目が増える）。
+// UMP未対応環境（Web/PWA・古いプラグイン）では umpNeedsPrivacyOptions 自体が無いので常に非表示。
+function updatePrivacyOptionsRow() {
+    var row = document.getElementById('privacyOptionsRow');
+    if (!row) return;
+    var need = (typeof window.umpNeedsPrivacyOptions === 'function') && window.umpNeedsPrivacyOptions();
+    row.style.display = need ? 'flex' : 'none';
+}
+
+function openPrivacyOptions() {
+    if (typeof window.umpShowPrivacyOptions !== 'function') return;
+    window.umpShowPrivacyOptions(function () {
+        updatePrivacyOptionsRow(); // 変更後に要否が変わることがあるので出し直す
+    });
 }
 
 function hideSettings() {

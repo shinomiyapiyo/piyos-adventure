@@ -294,7 +294,79 @@
     // ⚠これは秘密情報(APIキー等)ではなく端末フィンガープリント。他人がこの値を使っても自分の端末では効かないため公開しても無害。端末を足す時はこの配列に追記。
     var TEST_DEVICE_IDS = ['813d9fbc60131fe5bda48ff671516b51']; // Rhyn-iPhone Air（白柳）
 
+    // ─── UMP（GDPR同意）───────────────────────────────────────────
+    // ⚠**NPA配信でも省略できない**（1.655）。GoogleのEUユーザー同意ポリシーは、EEA/UK へ配信するなら
+    //   非パーソナライズ広告であっても認定CMPでの同意取得を求める（端末への情報の保存/読み出しが発生するため）。
+    //   本アプリは175地域配信なので EEA/UK を含む。
+    // ⚠**ゲームを止めない**のが最優先。同意が取れない/失敗した場合は「広告を出さない」だけにして、
+    //   プレイは必ず続行させる（報酬は自社紹介カードのbackstopで従来どおり出る＝isRewardReady参照）。
+    // ⚠管理画面側の設定が別途必要: AdMob「プライバシーとメッセージ → GDPR」でメッセージを作成しないと
+    //   isConsentFormAvailable が false のままで、フォームは一度も出ない（コードだけでは完結しない）。
+    var UMP_DEBUG_EEA = false;   // ★実機で同意フローを確認する時だけ true（TEST_DEVICE_IDS の端末が EEA 扱いになる）
+    var consentInfo = null;      // 最後に取得した AdmobConsentInfo
+    var consentFailed = false;   // requestConsentInfo が例外/無応答だった（＝地域も同意状態も不明）
+    // 広告をリクエストしてよいか。canRequestAds が無い環境では status から保守的に判断する
+    function adsAllowed() {
+        // ⚠**問い合わせに失敗した時は出さない**（1.655）。プラグインは持っているのに応答が無い＝
+        //   EEA/UKかどうかも同意の有無も分からない状態で、ここで配信すると同意なし配信になりうる。
+        //   起動時にネットが無いケースが主だが、その場合はどのみち在庫が来ないので実害はほぼ無い。
+        //   報酬は自社紹介カードのbackstopで従来どおり出るので、プレイヤーは損をしない。
+        if (consentFailed) return false;
+        if (!consentInfo) return true;                       // そもそもUMP非対応の環境（旧プラグイン/Web）は従来どおり
+        if (typeof consentInfo.canRequestAds === 'boolean') return consentInfo.canRequestAds;
+        return consentInfo.status !== 'REQUIRED';
+    }
+    // 「プライバシー設定」の導線を出すべきか（GDPRは後から同意を変更できることを求める）
+    window.umpNeedsPrivacyOptions = function () {
+        return !!(consentInfo && consentInfo.privacyOptionsRequirementStatus === 'REQUIRED'
+                  && AdMob && typeof AdMob.showPrivacyOptionsForm === 'function');
+    };
+    // 設定画面から呼ぶ。done(ok) で結果を返す（失敗しても画面は壊さない）
+    window.umpShowPrivacyOptions = function (done) {
+        if (!window.umpNeedsPrivacyOptions()) { if (done) done(false); return; }
+        Promise.resolve(AdMob.showPrivacyOptionsForm())
+            .then(function () { return AdMob.requestConsentInfo({}); })   // 変更後の状態を取り直す
+            .then(function (info) {
+                if (info) consentInfo = info;
+                // 拒否→同意に変えた場合はここから事前ロードを開始する（再起動を待たせない）
+                if (adsAllowed()) { prepareInterstitial(); prepareReward(); }
+                if (done) done(true);
+            })
+            .catch(function () { if (done) done(false); });
+    };
+    // 同意フローを回してから next(広告可否) を呼ぶ。**next は必ず1回呼ぶ**
+    function runConsentFlow(next) {
+        if (!AdMob || typeof AdMob.requestConsentInfo !== 'function') { next(true); return; }
+        var opts = {};
+        if (UMP_DEBUG_EEA && TEST_DEVICE_IDS.length) {
+            opts.debugGeography = 1;                          // AdmobConsentDebugGeography.EEA
+            opts.testDeviceIdentifiers = TEST_DEVICE_IDS;
+        }
+        var settled = false;
+        function finish() { if (settled) return; settled = true; next(adsAllowed()); }
+        Promise.resolve(AdMob.requestConsentInfo(opts))
+            .then(function (info) {
+                consentInfo = info || null;
+                // 同意が必要でフォームがある時だけ出す。NOT_REQUIRED/OBTAINED は何も出さない
+                if (info && info.status === 'REQUIRED' && info.isConsentFormAvailable) {
+                    return Promise.resolve(AdMob.showConsentForm()).then(function (after) {
+                        if (after) consentInfo = after;
+                    });
+                }
+            })
+            .catch(function () { consentFailed = true; /* 取得も表示も失敗＝広告は諦める。ゲームは続行 */ })
+            .then(finish, finish);
+        // 保険: プラグインが応答しない端末でも広告初期化まで進める（同意不明＝広告は出さない）
+        setTimeout(function () { if (!settled) { settled = true; consentFailed = true; next(false); } }, 10000);
+    }
+
     function initAds() {
+        if (!AdMob) return;
+        // ⚠**同意を取ってから初期化する**（1.655）。順序を逆にすると同意前にリクエストが飛ぶ
+        runConsentFlow(function (allowed) { initAdsAfterConsent(allowed); });
+    }
+
+    function initAdsAfterConsent(adsOk) {
         if (!AdMob) return;
         // 非パーソナライズ広告(NPA)方針＝ATT(トラッキング許可)は要求しない。初期化→リスナー登録→事前ロード。失敗しても続行。
         // ⚠プラグイン仕様(AdMobPlugin.swift): testingDevices は initializeForTesting=true の時しか testDeviceIdentifiers に反映されない。
@@ -348,8 +420,10 @@
                 AdMob.addListener(EV.interShowed,   function () { adOnScreen = true; });   // 1.597
                 AdMob.addListener(EV.interDismiss,  function () { adOnScreen = false; recoverGameAudio(); finishInterstitial(); });
                 AdMob.addListener(EV.interFailShow, function () { adOnScreen = false; finishInterstitial(); });
-                prepareInterstitial();
-                prepareReward();
+                // ⚠同意が得られていない（EEA/UKで拒否・取得失敗）なら**事前ロードしない**（1.655）。
+                //   リスナーだけは張っておく＝後から「プライバシー設定」で同意されたら prepareAdsNow() で開始できる。
+                //   報酬は自社紹介カードのbackstopで従来どおり出るのでプレイヤーの不利益にはならない。
+                if (adsOk) { prepareInterstitial(); prepareReward(); }
             })
             .catch(function () {});
     }

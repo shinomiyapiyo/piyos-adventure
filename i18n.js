@@ -407,6 +407,9 @@ ja: {
     tut_clear_reward: 'ごほうびに ゴールデンエッグを ゲット！',
     tut_to_title: 'タイトルへ',
     settings_play_tutorial: 'チュートリアルをあそぶ',
+    // 広告のプライバシー設定（1.655・GDPR）。EEA/UK など同意の変更が必要な地域でのみ表示される
+    settings_privacy: '広告のプライバシー設定',
+    settings_privacy_btn: '変更',
     // ── タイトルショップ ──
     tshop_title: _ic('icon_cart.png') + ' ショップ',
     tshop_keeper_greet: 'いらっしゃいませなのだ！\nここのアイテムはずーっと使えるのだ\n貯金で買い物していくのだ！',
@@ -1033,6 +1036,8 @@ en: {
     tut_clear_reward: 'Reward: Golden Eggs!',
     tut_to_title: 'To Title',
     settings_play_tutorial: 'Play Tutorial',
+    settings_privacy: 'Ad privacy settings',
+    settings_privacy_btn: 'Change',
     // ── Title Shop ──
     tshop_title: 'Shop',
     tshop_coin_master: 'Coin Master',
