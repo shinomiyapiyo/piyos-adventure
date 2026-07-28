@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.662";
+                content: "Ver.1.663";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -951,7 +951,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.662</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.663</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1156,7 +1156,7 @@
                  ⚠ここだけ grid-auto-rows:auto + align-content:stretch にして、余った縦を各行で分け合う。
                    min-content のままだと下に大きな空白が残って「寂しい」見た目になる。 -->
             <div class="list-grid" style="
-                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); column-gap: 20px;
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); column-gap: 22px; row-gap: 8px;
                 grid-auto-rows: auto; align-content: stretch;
                 width: 100%; flex: 1 1 auto; min-height: 0;
                 overflow-y: auto; overflow-x: hidden;
@@ -1165,7 +1165,7 @@
 
                 <!-- サウンド設定 -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
                     <span data-i18n="settings_sound" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;"><img src="images/icon_sound.png" class="ui-icon"> サウンド</span>
                     <button id="soundToggleBtn" style="
                         min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
@@ -1178,7 +1178,7 @@
 
                 <!-- 言語設定 -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
                     <span style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">LANG</span>
                     <div style="display: flex; gap: 6px;">
                         <button id="langJaBtn" onclick="setLanguage('ja')" style="
@@ -1198,7 +1198,7 @@
 
                 <!-- 遊び方 -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
                     <span data-i18n="settings_howtoplay" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">遊び方</span>
                     <button id="howToPlayBtn" onclick="showGuide()" style="
                         min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
@@ -1213,7 +1213,7 @@
 
                 <!-- データ引き継ぎ（機種変更/ブラウザ変更時のセーブ移行） -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
                     <span data-i18n="settings_transfer" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">データ引き継ぎ</span>
                     <div style="display: flex; gap: 6px;">
                         <button onclick="showTransferExport()" data-i18n="transfer_export_btn" style="
@@ -1234,7 +1234,7 @@
                 <!-- プライバシー設定（GDPR・1.655）。⚠EEA/UKなど**同意の変更が必要な地域でだけ**表示する。
                      行ごと display:none で始め、umpNeedsPrivacyOptions() が true の時に showSettings が出す。 -->
                 <div id="privacyOptionsRow" style="display: none; justify-content: space-between; align-items: center;
-                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
                     <span data-i18n="settings_privacy" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">広告のプライバシー設定</span>
                     <button onclick="openPrivacyOptions()" data-i18n="settings_privacy_btn" style="
                         min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
@@ -1246,7 +1246,7 @@
 
                 <!-- セーブデータ削除（元に戻せない・二段確認） -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
                     <span data-i18n="settings_delete" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;"><img src="images/icon_settings.png" class="ui-icon"> セーブデータを削除</span>
                     <button onclick="deleteSaveData()" data-i18n="settings_delete_btn" style="
                         min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
@@ -1258,7 +1258,7 @@
 
                 <!-- チュートリアル再プレイ（クリア後もここから何度でも遊べる・報酬は初回のみ） -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
-                    padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,0.15);">
+                    padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
                     <span data-i18n="settings_tutorial" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;"><img src="images/icon_play.png" class="ui-icon"> チュートリアル</span>
                     <button class="game-button" id="playTutorialBtn" data-i18n="settings_tutorial_btn" style="
                         min-width: auto; max-width: none; margin: 0; padding: 8px 18px;
@@ -1319,48 +1319,51 @@
             position: fixed; top: 0; left: 0;
             width: 100vw; height: 100vh;
             box-sizing: border-box;
-            background: rgba(0,0,0,0.95);
+            background: linear-gradient(160deg, #1a0d32, #0d0520);
             display: none; flex-direction: column;
-            justify-content: flex-start; align-items: center;
+            justify-content: center; align-items: center;
             z-index: 10000;
-            padding: calc(1vh + env(safe-area-inset-top, 0px)) calc(6px + env(safe-area-inset-right, 0px)) calc(0.5vh + env(safe-area-inset-bottom, 0px)) calc(6px + env(safe-area-inset-left, 0px));
+            padding: 4px calc(env(safe-area-inset-right,0px) + 10px) 4px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
-            <div data-i18n="guide_title" style="color: #ffd700; font-size: 3.5vw; font-weight: 800; margin-bottom: 0.5vh; flex-shrink: 0;
-                font-family: 'M PLUS Rounded 1c', sans-serif;
-                text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
-                letter-spacing: 0.08em;">遊び方</div>
+            <!-- 1.663: 他画面と揃える（背景=紫グラデ／画面いっぱいのパネル／見出し行に戻る）。
+                 中身も1本の長文ではなく、章ごとのカードを横に並べる格子にした。
+                 520px幅の1列だと縦2555pxの帯になり（実測 292pxの窓に対して875%）、
+                 どこを読んでいるのか分からなくなっていたため。 -->
+            <div class="list-panel" style="height: 100%; display: flex; flex-direction: column;
+                background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
+                border: 2px solid rgba(255,105,180,0.5); border-radius: 14px;
+                box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,105,180,0.12);
+                padding: 4px 12px; box-sizing: border-box;">
+            <div class="head-row" style="margin-bottom:4px;">
+                <span data-i18n="guide_title" style="color: #ffd700; font-size: clamp(14px,3.5vw,22px); font-weight: 800; white-space: nowrap;
+                    font-family: 'M PLUS Rounded 1c', sans-serif;
+                    text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
+                    letter-spacing: 0.08em;">遊び方</span>
+                <span class="head-spacer"></span>
+                <button class="game-button head-btn" onclick="closeGuide()" data-i18n="btn_back"
+                    style="font-size: clamp(11px,2.4vw,15px);">戻る</button>
+            </div>
             <div id="guideContentWrap" style="
                 position: relative;
-                width: 100%; max-width: 520px; flex: 1; min-height: 0;
+                width: 100%; flex: 1 1 auto; min-height: 0;
                 box-sizing: border-box;">
                 <div id="guideContent" style="
-                    background: linear-gradient(180deg, rgba(15,5,30,0.9), rgba(5,0,15,0.95));
-                    border: 2px solid rgba(255,105,180,0.4);
-                    border-radius: 12px; padding: 12px 14px;
                     width: 100%; height: 100%;
                     box-sizing: border-box;
+                    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                    grid-auto-rows: min-content; align-content: start; gap: 8px;
                     overflow-y: auto; overflow-x: hidden;
-                    color: #fff; font-size: 2vw; line-height: 1.6;
+                    color: #fff; line-height: 1.6;
                     font-family: 'M PLUS Rounded 1c', sans-serif;
                     -webkit-overflow-scrolling: touch;
                     touch-action: pan-y; overscroll-behavior: contain;
-                    box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);
                     -webkit-text-size-adjust: 100%; text-size-adjust: 100%;">
                 </div>
-                <div id="guideScrollHint" style="
-                    position: absolute; bottom: 0; left: 0; right: 0;
-                    height: 36px;
-                    background: linear-gradient(transparent, rgba(5,0,15,0.95));
-                    border-radius: 0 0 12px 12px;
-                    display: flex; justify-content: center; align-items: flex-end;
-                    padding-bottom: 4px;
-                    pointer-events: none;
-                    transition: opacity 0.3s;">
-                    <span data-i18n="guide_scroll_hint" style="color: rgba(255,215,0,0.8); font-size: 1.6vw; font-family: 'M PLUS Rounded 1c', sans-serif;
-                        animation: guideScrollBounce 1.5s ease-in-out infinite;">▼ スクロール</span>
-                </div>
+                <!-- ▼スクロール のヒントは 1.663 で撤去。1.658 で「スクロールできる所には常にバーを出す」を
+                     入れたので役目が重複しており、2列カードの上に重なって文章を隠していた。
+                     JS 側（showGuide）はこの要素が無くても動くようにしてある。 -->
             </div>
-            <button class="game-button" onclick="closeGuide()" data-i18n="btn_back" style="margin-top: 0.5vh; flex-shrink: 0; z-index: 31; font-size: 2vw; padding: 4px 14px;">戻る</button>
+            </div>
         </div>
 
         <!-- 初回チュートリアル: 操作カード（初回起動時に1回だけ表示） -->
@@ -5600,19 +5603,22 @@ function showGuide() {
     showScreenEl('guideScreen');
     history.pushState({ screen: 'guide' }, '');
     // ガイド内容を動的に生成（言語切替対応）
-    var sections = ['controls', 'items', 'stock', 'pouch', 'special', 'boss', 'bonus', 'money', 'shop', 'savings', 'titleshop', 'egg', 'avatar', 'datasave', 'tips'];
+    // ⚠新しい章を足したらこの配列にも入れること（i18n に guide_<名前>_title / _body が要る）
+    var sections = ['controls', 'items', 'stock', 'pouch', 'special', 'boss', 'bonus', 'underground', 'money', 'shop', 'savings', 'titleshop', 'egg', 'avatar', 'datasave', 'tips'];
     var html = '';
     for (var i = 0; i < sections.length; i++) {
         var s = sections[i];
-        html += '<div style="margin-bottom:10px;">' +
-            '<div style="color:#ffd700;font-weight:bold;font-size:2.2vw;margin-bottom:3px;">' + t('guide_' + s + '_title') + '</div>' +
-            '<div style="color:#ddd;font-size:1.8vw;white-space:pre-line;line-height:1.5;">' + escapeHtml(t('guide_' + s + '_body')) + '</div>' +
+        // 章ごとにカード化（1.663）。1本の長文だと現在地が分からないうえ、横が余っていても縦に伸び続ける
+        html += '<div style="background:rgba(0,0,40,0.55);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:8px 10px;">' +
+            '<div style="color:#ffd700;font-weight:bold;font-size:clamp(11px,2.2vw,16px);margin-bottom:4px;">' + t('guide_' + s + '_title') + '</div>' +
+            '<div style="color:#ddd;font-size:clamp(10px,1.8vw,14px);white-space:pre-line;line-height:1.5;">' + escapeHtml(t('guide_' + s + '_body')) + '</div>' +
             '</div>';
     }
     var contentEl = document.getElementById('guideContent');
     contentEl.innerHTML = html;
     contentEl.scrollTop = 0;
-    // スクロールヒント表示制御
+    // スクロールヒント表示制御。⚠1.663 で #guideScrollHint は撤去済み（常時バーと役目が重複し
+    //   カードに重なっていた）＝下は実行されない。復活させたくなった時のために残してある。
     var hint = document.getElementById('guideScrollHint');
     if (hint) {
         hint.style.opacity = '1';
