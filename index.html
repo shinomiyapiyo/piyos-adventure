@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.656";
+                content: "Ver.1.657";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -889,7 +889,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.656</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.657</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -5674,7 +5674,11 @@ function submitScore() {
         timestamp: Date.now(),
         date: new Date().toLocaleDateString('ja-JP'),
         revived: !!finalGameStats.revived, // 広告復活を使ったラン＝ランキングで↺表示（DBルールで任意bool・2026-07-24公開済）
-        resumed: !!finalGameStats.resumed  // しおりで中断→再開したラン＝ランキングで🔖表示（DBルールで任意bool・2026-07-28公開済）
+        resumed: !!finalGameStats.resumed,
+        // 最高コンボ（1.657）。⚠**ランキングの部門としてはまだ出さない**＝集計用に記録するだけ。
+        //   「コンボが距離と相関するか」を実データで確かめ、腕前の指標として成立するなら部門化する。
+        //   DBルールは任意number(0〜9999)で 2026-07-29 に公開済＝送らない旧クライアントも従来どおり書き込める。
+        maxCombo: Math.min(9999, Math.max(0, Number(finalGameStats.maxCombo) || 0))
     };
 
     st.textContent = t('submit_sending');
@@ -5723,7 +5727,11 @@ function skipSubmit() {
         timestamp: Date.now(),
         date: new Date().toLocaleDateString('ja-JP'),
         revived: !!finalGameStats.revived, // 広告復活を使ったラン＝ランキングで↺表示（スキップ登録でも同じ扱い）
-        resumed: !!finalGameStats.resumed  // しおり再開ラン＝🔖（スキップ登録でも同じ扱い）
+        resumed: !!finalGameStats.resumed,
+        // 最高コンボ（1.657）。⚠**ランキングの部門としてはまだ出さない**＝集計用に記録するだけ。
+        //   「コンボが距離と相関するか」を実データで確かめ、腕前の指標として成立するなら部門化する。
+        //   DBルールは任意number(0〜9999)で 2026-07-29 に公開済＝送らない旧クライアントも従来どおり書き込める。
+        maxCombo: Math.min(9999, Math.max(0, Number(finalGameStats.maxCombo) || 0))
     };
 
     if (database) {
