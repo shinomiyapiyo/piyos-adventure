@@ -2238,6 +2238,10 @@ var STAGE_SHOP_ITEMS = [
         stockItem: true,
         canUse: function() { return typeof canSaveRun === 'function' && canSaveRun(); },
         blockedKey: 'shiori_blocked',
+        // ⚠**このアイテムだけ確認ダイアログを挟む**（1.651・ユーザー指示）。他の品は誤タップしても
+        //   「1個むだにする」で済むが、しおりは**タップした瞬間にランが終わる**＝取り返しがつかない。
+        //   確認中は useStockItem 側でゲームを止めるので、ダイアログ表示中に死ぬことはない。
+        confirmKey: 'shiori_use_confirm',
         stockEffect: function() { interruptRunWithShiori(); }
     },
     {

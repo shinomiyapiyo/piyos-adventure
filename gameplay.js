@@ -4240,8 +4240,29 @@ function stockUseBlocked(shopItem) {
     return true;
 }
 
-function useStockItem(displayIndex) {
-    if (gameState.gamePaused) return false; // ポーズ中の誤タップで消費しない（表示は読み取り専用だが二重ガード）
+// 取り返しのつかない品（ぼうけんのしおり）だけ確認ダイアログを挟む（1.651・ユーザー指示）。
+// ⚠**確認中はゲームを止める**。止めないとダイアログを読んでいる間にスクロールが進んで死にうる
+//   ＝「誤タップを救済するための確認」で別の事故を作ることになる。
+// ⚠モーダルは全画面なのでストック枠は触れないが、二重表示だけは念のためフラグで塞ぐ。
+// 新しく確認が要る品を足す時は STAGE_SHOP_ITEMS に confirmKey を書けばここが面倒を見る（canUse/blockedKey と同じ作法）。
+var stockConfirmOpen = false;
+function confirmStockUse(displayIndex, shopItem) {
+    if (typeof showConfirmModal !== 'function') return false; // 保険: 使えない環境では従来どおり即実行
+    if (stockConfirmOpen) return true;                        // 既に確認中＝二重に開かない（消費もしない）
+    stockConfirmOpen = true;
+    var wasPaused = gameState.gamePaused;
+    gameState.gamePaused = true;
+    showConfirmModal(t(shopItem.confirmKey)).then(function(yes) {
+        stockConfirmOpen = false;
+        gameState.gamePaused = wasPaused;   // ⚠先に戻す（useStockItem 冒頭の gamePaused ガードに引っかかるため）
+        if (yes) useStockItem(displayIndex, true);
+    });
+    return true;
+}
+
+// confirmed=true は確認ダイアログで「はい」を選んだ再入。確認とポーズ中ガードを飛ばす
+function useStockItem(displayIndex, confirmed) {
+    if (gameState.gamePaused && !confirmed) return false; // ポーズ中の誤タップで消費しない（表示は読み取り専用だが二重ガード）
     if (pipeRoomState.anim !== 'none') return false; // 土管出入り演出中も消費しない
     var pl = permaLevel();
     if (displayIndex < pl) {
@@ -4251,6 +4272,7 @@ function useStockItem(displayIndex) {
         var pItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === pslot.id; });
         if (!pItem || !pItem.stockEffect) return false;
         if (stockUseBlocked(pItem)) return false;
+        if (!confirmed && pItem.confirmKey && confirmStockUse(displayIndex, pItem)) return false;
         pItem.stockEffect();
         pslot.used = true;
         // ⚠**地底専用の品（老婆の劇薬）は使ったら枠の所有ごと外す**（1.642・ユーザー実機報告
@@ -4283,6 +4305,7 @@ function useStockItem(displayIndex) {
     var shopItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === item.id; });
     if (!shopItem || !shopItem.stockEffect) return false;
     if (stockUseBlocked(shopItem)) return false;
+    if (!confirmed && shopItem.confirmKey && confirmStockUse(displayIndex, shopItem)) return false;
     shopItem.stockEffect();
     stockState.items.splice(ni, 1);
     if (soundManager) soundManager.playItem();

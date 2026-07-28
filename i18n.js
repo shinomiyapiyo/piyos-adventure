@@ -339,6 +339,8 @@ ja: {
     shop_item_shiori: 'ぼうけんのしおり',
     shop_item_shiori_desc: 'つかうと ぼうけんを ここで 中断できる。つぎに あそぶとき つづきから はじめられる。※地上のみ・ボス戦や地底では つかえない',
     shiori_blocked: 'ここでは しおりを はさめない！',
+    // 誤タップ防止の確認（1.651）。押した瞬間にランが終わるので、他のアイテムと違って必ず確認する
+    shiori_use_confirm: 'ここまでを しおりに はさんで\nぼうけんを ちゅうだんしますか？\nつぎに あそぶとき つづきから はじめられます。',
     shiori_saved: 'ここまでを しおりに はさみました。\nつぎに あそぶときに\n「つづきから」を えらべます。',
     shop_item_barrier: 'まもりのたて',
     shop_item_barrier_desc: '10びょうかん\nすべてのダメージを ふせぐ',
@@ -968,6 +970,7 @@ en: {
     shop_item_shiori: 'Adventure Bookmark',
     shop_item_shiori_desc: 'Pause your adventure right here. Next time you play, you can pick up where you left off. *Overworld only \u2014 not during boss fights or underground',
     shiori_blocked: "You can't bookmark here!",
+    shiori_use_confirm: 'Bookmark your place here and\npause the adventure?\nYou can continue next time you play.',
     shiori_saved: 'Your place is saved.\nNext time you play, choose\n"Continue" to resume.',
     shop_item_barrier: 'Guardian Shield',
     shop_item_barrier_desc: 'Blocks all damage\nfor 10 seconds',
