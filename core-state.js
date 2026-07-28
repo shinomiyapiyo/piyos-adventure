@@ -280,7 +280,12 @@ function isInTransitionCooldown() { return (Date.now() - screenTransitionTime) <
 // ※storeScreenはhiddenクラスを持たないdisplay制御のみのため対象外
 function showScreenEl(id) {
     var el = document.getElementById(id);
-    if (el) { el.classList.remove('hidden'); el.style.display = 'flex'; }
+    if (el) {
+        el.classList.remove('hidden'); el.style.display = 'flex';
+        // スクロールできる場所には必ずバーを出す（1.658・ユーザー報告「タップしないとバーが出ない」）。
+        // ⚠表示した後に呼ぶこと＝非表示のうちは clientHeight=0 でスクロール可否が判定できない。
+        if (typeof scanScrollBars === 'function') scanScrollBars(el);
+    }
     return el;
 }
 function hideScreenEl(id) {
@@ -291,6 +296,94 @@ function hideScreenEl(id) {
 function isScreenVisible(id) {
     var el = document.getElementById(id);
     return !!el && !el.classList.contains('hidden') && el.style.display !== 'none';
+}
+
+// ─── スクロールバー（1.658・ユーザー報告「下にスクロールできる所は必ずバーを出してほしい」）───
+// ⚠**実物のスクロールバーには頼れない**。
+//   ・素の状態はオーバーレイ表示＝触るまで見えない（このエンジンで実測: 占有幅0px）。
+//   ・`::-webkit-scrollbar` を当てれば常時表示になる（実測: 8px占有）が、**iOSのWKWebViewは
+//     これを無視する**。iOS/Android の両方で確実に見せるには自前で描くしかない。
+// そこで「対象要素の右端に重ねる細いバー」をDOMで作る。⚠**対象要素自身は一切いじらない**
+//   （幅も overflow も触らない）＝既存レイアウトが動かない。バーは親に absolute で置く。
+var SBAR_W = 5, SBAR_MIN_THUMB = 24;
+function layoutScrollBar(el) {
+    var s = el.__sbar;
+    if (!s || !s.track.isConnected) return;
+    var need = el.scrollHeight > el.clientHeight + 1 && el.clientHeight > 0;
+    s.track.style.display = need ? 'block' : 'none';
+    if (!need) return;
+    s.track.style.top    = el.offsetTop + 'px';
+    s.track.style.left   = (el.offsetLeft + el.clientWidth - SBAR_W - 1) + 'px';
+    s.track.style.height = el.clientHeight + 'px';
+    var th   = Math.max(SBAR_MIN_THUMB, el.clientHeight * (el.clientHeight / el.scrollHeight));
+    var prog = el.scrollTop / (el.scrollHeight - el.clientHeight);
+    s.thumb.style.height = th + 'px';
+    s.thumb.style.transform = 'translateY(' + ((el.clientHeight - th) * Math.min(1, Math.max(0, prog))) + 'px)';
+}
+// ⚠**scrollイベントやObserverに依存しない**（1.658）。毎フレーム見に行って描き直す方式にする。
+//   理由: ①中身が差し替わる一覧（ランキング/ショップ/図鑑）と画面サイズ変化の両方に自動で追従する
+//        ②iOSのWKWebViewでのイベント配送を検証できないので、届かなくても壊れない作りにしておく
+//        （実際このプレビュー環境では scrollTop をプログラムで変えても scroll が発火しなかった）
+//   負荷対策: **表示中の画面が1つも無ければループを止める**＝プレイ中(オーバーレイ非表示)は動かない。
+var sbarList = [], sbarRaf = 0;
+function sbarTick() {
+    sbarRaf = 0;
+    var visible = 0;
+    for (var i = sbarList.length - 1; i >= 0; i--) {
+        var el = sbarList[i];
+        if (!el.isConnected) {                       // DOMから消えた要素は登録ごと破棄
+            if (el.__sbar && el.__sbar.track) el.__sbar.track.remove();
+            el.__sbar = null; sbarList.splice(i, 1); continue;
+        }
+        if (el.clientHeight === 0) {                 // 非表示の画面＝バーも隠す
+            if (el.__sbar) el.__sbar.track.style.display = 'none';
+            continue;
+        }
+        visible++;
+        layoutScrollBar(el);
+    }
+    if (visible > 0) sbarRaf = requestAnimationFrame(sbarTick);
+}
+function startSbarLoop() { if (!sbarRaf) sbarRaf = requestAnimationFrame(sbarTick); }
+function ensureScrollBar(el) {
+    if (el.__sbar) { layoutScrollBar(el); return; }
+    var p = el.parentElement;
+    if (!p) return;
+    if (getComputedStyle(p).position === 'static') p.style.position = 'relative';
+    var track = document.createElement('div');
+    track.className = 'sbar-track';
+    var thumb = document.createElement('div');
+    thumb.className = 'sbar-thumb';
+    track.appendChild(thumb);
+    p.appendChild(track);
+    el.__sbar = { track: track, thumb: thumb };
+    sbarList.push(el);
+    // ⚠rAFループ「だけ」には頼らない（1.658）。実機のタッチ操作は scroll が飛ぶので即応でき、
+    //   一覧の差し替えは Observer が拾う。rAFはそれらが届かなかった時の保険という位置づけ＝三重にする。
+    //   （検証環境ではrAFが止まる／このプレビューではプログラム的なscrollTop変更でscrollが飛ばない、
+    //     というように**どの経路も単独では信用できない**ことが実測で分かったため）
+    el.addEventListener('scroll', function () { layoutScrollBar(el); }, { passive: true });
+    try {
+        if (window.ResizeObserver) new ResizeObserver(function () { layoutScrollBar(el); }).observe(el);
+        if (window.MutationObserver) new MutationObserver(function () { layoutScrollBar(el); }).observe(el, { childList: true, subtree: true, characterData: true });
+    } catch (_) {}
+    layoutScrollBar(el);
+}
+// root配下でスクロールする要素を拾ってバーを付ける。⚠表示済みの画面に対して呼ぶこと
+function scanScrollBars(root) {
+    if (!root || !root.querySelectorAll) return;
+    var list = root.querySelectorAll('*');
+    for (var i = 0; i < list.length; i++) {
+        var el = list[i];
+        if (el.classList && (el.classList.contains('sbar-track') || el.classList.contains('sbar-thumb'))) continue;
+        // ⚠**高さ0でも作る**（1.658）。バッジ/実績の一覧は showScreenEl の直後はまだ中身が空で
+        //   clientHeight=0 のため、「高さがある物だけ」を条件にすると永久にバーが付かなかった（実測）。
+        //   出す/隠すの判断は layoutScrollBar が毎回やるので、ここでは作るだけでよい。
+        var oy = getComputedStyle(el).overflowY;
+        if (oy !== 'auto' && oy !== 'scroll') continue;
+        ensureScrollBar(el);
+    }
+    startSbarLoop();   // 画面が出たら追従を再開（プレイ中に止まったループをここで起こす）
 }
 
 // ─── 戻るボタン処理レジストリ ───

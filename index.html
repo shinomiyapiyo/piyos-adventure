@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.657";
+                content: "Ver.1.658";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -467,6 +467,24 @@
         #rankingList::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 4px; }
         #rankingList::-webkit-scrollbar-thumb { background: #ff69b4; border-radius: 4px; }
         #rankingList::-webkit-scrollbar-thumb:hover { background: #ff1493; }
+
+        /* 自前のスクロールバー（1.658）。iOSのWKWebViewが ::-webkit-scrollbar を無視するため、
+           スクロールできる場所には必ずこれを重ねて出す（core-state.js の scanScrollBars が生成）。
+           ⚠pointer-events:none＝**触れない飾り**。掴んで動かす操作は増やさず、指でのスクロールを邪魔しない。 */
+        .sbar-track {
+            position: absolute; width: 5px; border-radius: 3px;
+            background: rgba(255,255,255,0.13);
+            pointer-events: none;
+            /* ⚠**対象要素より前面に出す**。ランキング一覧は z-index:100 を持っており、5 では行の背景の
+               後ろに回り込んで見えなかった（実測）。バーは対象の親に置くので、この値が効くのはその
+               スタッキング文脈の中だけ＝画面の重なり順には影響しない。 */
+            z-index: 9999;
+        }
+        .sbar-thumb {
+            position: absolute; left: 0; top: 0; width: 100%; border-radius: 3px;
+            background: rgba(255,105,180,0.85);
+            box-shadow: 0 0 4px rgba(255,105,180,0.5);
+        }
 
         /* --- スマホ用スタートボタン非表示 --- */
         @media (max-width: 599px) { #startButton { display: none; } }
@@ -889,7 +907,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.657</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.658</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4865,6 +4883,8 @@ function pauseGame() {
     var _pm = document.getElementById('pauseMainView'); if (_pm) _pm.style.display = 'block';
     var _psv = document.getElementById('pauseSkinView'); if (_psv) _psv.style.display = 'none';
     document.getElementById('pauseScreen').classList.remove('hidden');
+    // ⚠ここも showScreenEl を通らない。ポーズ内の「きせかえ」一覧がスクロールするので付与する（1.658）
+    if (typeof scanScrollBars === 'function') scanScrollBars(document.getElementById('pauseScreen'));
     document.getElementById('pauseButton').innerHTML = _ic('icon_play.png');
     document.body.classList.add('is-paused');
     finishPauseToggle();
@@ -4915,6 +4935,9 @@ function showRanking() {
     document.body.appendChild(el);
     el.style.cssText = 'position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;background:rgba(0,0,0,0.9)!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-items:center!important;z-index:999999!important;padding:calc(1vh + env(safe-area-inset-top,0px)) calc(6px + env(safe-area-inset-right,0px)) calc(0.5vh + env(safe-area-inset-bottom,0px)) calc(6px + env(safe-area-inset-left,0px))!important;overflow:hidden!important;';
     el.classList.remove('hidden');
+    // ⚠この画面は showScreenEl を通らない（style.cssText を直で組み立てている）ので、
+    //   スクロールバーの付与をここでも呼ぶ（1.658・ユーザー報告「ランキングもタップしないとバーが出ない」）。
+    if (typeof scanScrollBars === 'function') scanScrollBars(el);
     setRankingReportMode(false); // 開くたびに通常モードから
     showRankingByType('score');
 
