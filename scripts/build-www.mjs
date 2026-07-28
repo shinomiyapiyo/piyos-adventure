@@ -27,7 +27,13 @@ const SKIP = new Set([
   'build',
   'dist', 'out', // 同種の生成物ディレクトリも先回りで塞ぐ
 ]);
-const skip = (name) => SKIP.has(name) || name.endsWith('.md') || name.endsWith('.py');
+// ⚠**リポジトリ直下の写真は問答無用で除外する**（1.667）。
+//   実例: アイドル衣装の参考写真 IMG_0950.jpg を直下に置いたところ、denylist に無いので
+//   **次のビルドでアプリに同梱される**状態になっていた（＝実在の人物の写真がストア配信物に入る）。
+//   ゲームが使う画像はすべて images/ の中にあり、直下に写真を置く正当な理由が無いので一律で塞ぐ。
+//   参考写真の置き場は tools/_raw/reference/（tools ごと SKIP 対象・.gitignore 対象）。
+const isRootPhoto = (name) => /\.(jpe?g|heic|heif)$/i.test(name);
+const skip = (name) => SKIP.has(name) || name.endsWith('.md') || name.endsWith('.py') || isRootPhoto(name);
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
