@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.658";
+                content: "Ver.1.659";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -485,6 +485,31 @@
             background: rgba(255,105,180,0.85);
             box-shadow: 0 0 4px rgba(255,105,180,0.5);
         }
+
+        /* --- 一覧パネルの共通レイアウト（1.659）---
+           ⚠**縦に溢れていた原因は「文字が大きい」ではなく「横を使っていない」**（実測）。
+           端末は横持ち固定（iPhone=852×393）なのに、パネルを min(94vw,580px) で中央に細く置き、
+           中身を1列で縦に積んでいた＝**横が3割余っているのに縦だけ足りない**状態だった。
+           実測（852×393・初期セーブ）: 実績 673/235=287% / バッジ 585/235=250% / きせかえ 525/247=213%
+                                        ずかん 300/194=155% / 設定 400/296=135%
+           対処は「縮める」ではなく「余っている横を使う」。文字サイズは一切変えていない。
+           auto-fill なので iPad の縦持ちや細い画面では自動で1列に戻る＝縦画面の見た目は据え置き。 */
+        .list-panel { width: min(96vw, 1000px) !important; max-height: 100% !important; }
+        .list-grid  { display: grid !important; grid-auto-rows: min-content; align-content: start; }
+        /* 一覧の「戻る」は横幅いっぱいの帯だった（40px+余白＝一覧の高さの2割を占有）。
+           見出し行に寄せて、空いた分をそのまま一覧に返す。 */
+        .head-btn {
+            min-width: auto !important; max-width: none !important;
+            margin: 0 !important; padding: 5px 14px !important;
+            min-height: 30px !important; flex-shrink: 0;
+        }
+        .head-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .head-spacer { flex: 1 1 auto; min-width: 0; }
+        /* ポーズ中の「きせかえ」だけカードを一覧向けに広げる（openPauseSkin が付け外しする）。
+           ポーズ本体（再開/きせかえ/リタイア）は今までどおりの小さいカードのまま。 */
+        /* ⚠padding は !important が要る。#pauseCard は inline style で padding を持っており、
+           クラス側の指定では勝てない（実測: 24px 36px のまま＝一覧の横幅が48px削られていた）。 */
+        #pauseCard.pause-list-mode { padding: 6px 12px !important; width: min(96vw, 1000px); }
 
         /* --- スマホ用スタートボタン非表示 --- */
         @media (max-width: 599px) { #startButton { display: none; } }
@@ -907,7 +932,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.658</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.659</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -982,7 +1007,7 @@
 
         <!-- ポーズ画面 -->
         <div id="pauseScreen" class="overlay hidden">
-            <div style="
+            <div id="pauseCard" style="
                 background: linear-gradient(160deg, rgba(30,15,50,0.95), rgba(15,5,30,0.95));
                 border: 2px solid rgba(255,105,180,0.4);
                 border-radius: 20px; padding: 24px 36px;
@@ -999,9 +1024,13 @@
                     <div class="instruction-text" data-i18n="pause_hint" style="margin-top: 12px; opacity: 0.7;">画面をタップで再開</div>
                 </div>
                 <div id="pauseSkinView" style="display:none;">
-                    <div style="color:#ffd700; font-size:clamp(14px,3vw,20px); font-weight:800; font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4); margin-bottom:10px;"><img src="images/skin_maid_idle.png" class="ui-icon"> <span data-i18n="title_skin">きせかえ</span></div>
-                    <div id="pauseSkinList" onclick="if (handleSkinClick(event)) renderPauseSkins();" style="display:flex; flex-direction:column; gap:7px; max-height:46vh; overflow-y:auto; -webkit-overflow-scrolling:touch; text-align:left;"></div>
-                    <button class="game-button" onclick="closePauseSkin()" style="margin-top:10px; min-width: 40vw; max-width: 260px;"><img src="images/icon_back.png" class="ui-icon"> <span data-i18n="btn_back">戻る</span></button>
+                    <div class="head-row" style="margin-bottom:4px;">
+                        <span style="color:#ffd700; font-size:clamp(14px,3vw,20px); font-weight:800; font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4); white-space:nowrap;"><img src="images/skin_maid_idle.png" class="ui-icon"> <span data-i18n="title_skin">きせかえ</span></span>
+                        <span class="head-spacer"></span>
+                        <!-- data-i18n はボタン自身に付ける。内側の span に付けると t('btn_back') が持つ
+                             アイコンと外側の img が二重に出る（実測でアイコンが2つ並んでいた）。 --><button class="game-button head-btn" data-i18n="btn_back" onclick="closePauseSkin()"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
+                    </div>
+                    <div id="pauseSkinList" class="list-grid" onclick="if (handleSkinClick(event)) renderPauseSkins();" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:4px; max-height:calc(100vh - 69px); overflow-y:auto; -webkit-overflow-scrolling:touch; text-align:left;"></div>
                 </div>
             </div>
         </div>
@@ -1072,17 +1101,20 @@
             background: rgba(0,0,0,0.9);
             display: none; flex-direction: column;
             justify-content: flex-start; align-items: center;
-            z-index: 9999; padding: 2vh 10px;
+            z-index: 9999; padding: 1vh 10px;
             overflow: hidden;">
             <div data-i18n="settings_title" style="color: #ffd700; font-size: clamp(14px, 3.5vw, 20px); font-weight: 800; margin-bottom: 0.5vh; flex-shrink: 0;
                 font-family: 'M PLUS Rounded 1c', sans-serif;
                 text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
                 letter-spacing: 0.08em;"><img src="images/icon_settings.png" class="ui-icon"> 設定</div>
-            <div style="
+            <!-- 設定の各行は「ラベル … ボタン」で真ん中が空く。500px幅の1列だと8行で縦に溢れていた
+                 （実測 400/296=135%）ので、横が余っている時だけ2列に割る（auto-fill＝縦画面では1列のまま）。 -->
+            <div class="list-grid" style="
                 background: linear-gradient(180deg, rgba(15,5,30,0.9), rgba(5,0,15,0.95));
                 border: 2px solid rgba(255,105,180,0.4);
-                border-radius: 14px; padding: 10px 14px;
-                width: 90vw; max-width: 500px; flex: 0 1 auto;
+                border-radius: 14px; padding: 8px 14px;
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); column-gap: 20px;
+                width: 96vw; max-width: 1000px; flex: 0 1 auto;
                 overflow-y: auto; overflow-x: hidden;
                 font-family: 'M PLUS Rounded 1c', sans-serif;
                 -webkit-overflow-scrolling: touch;
@@ -1565,26 +1597,27 @@
             box-sizing: border-box; z-index: 9999;
             background: linear-gradient(160deg, #1a0d32, #0d0520);
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 10px calc(env(safe-area-inset-right,0px) + 12px) 10px calc(env(safe-area-inset-left,0px) + 12px);
+            padding: 6px calc(env(safe-area-inset-right,0px) + 10px) 6px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
-            <div style="width: min(94vw, 580px); max-height: 96vh; display: flex; flex-direction: column;
+            <div class="list-panel" style="display: flex; flex-direction: column;
                 background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
                 border: 2px solid rgba(255,215,0,0.5); border-radius: 14px;
                 box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,215,0,0.12);
-                padding: 7px 14px; box-sizing: border-box;">
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0;">
+                padding: 6px 12px; box-sizing: border-box;">
+                <div class="head-row" style="margin-bottom:5px;">
                     <span id="achievementTitle" style="color:#ffd700; font-size:clamp(13px,3vw,20px); font-weight:800;
-                        font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4);"><img src="images/icon_celebrate.png" class="ui-icon"> 実績</span>
+                        font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4); white-space:nowrap;"><img src="images/icon_celebrate.png" class="ui-icon"> 実績</span>
+                    <span id="achievementHint" style="color:rgba(255,255,255,0.5); font-size:clamp(8px,1.5vw,11px);
+                        font-family:'M PLUS Rounded 1c',sans-serif;">ずっと挑戦できるよ</span>
+                    <span class="head-spacer"></span>
                     <span id="achievementSavings" style="color:#fff; font-size:clamp(9px,1.8vw,13px);
                         font-family:'M PLUS Rounded 1c',sans-serif; background:rgba(255,255,255,0.08);
                         padding:2px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); white-space:nowrap;"><img src="images/icon_bank.png" class="ui-icon ui-icon-sm"> 0円</span>
+                    <button class="game-button head-btn" id="achievementBackBtn" data-i18n="btn_back"
+                        style="font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
                 </div>
-                <div id="achievementHint" style="color:rgba(255,255,255,0.5); font-size:clamp(8px,1.5vw,11px);
-                    font-family:'M PLUS Rounded 1c',sans-serif; margin:2px 0 5px;">ずっと挑戦できるよ</div>
-                <div id="achievementList" style="display:flex; flex-direction:column; gap:5px;
+                <div id="achievementList" class="list-grid" style="grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:5px;
                     overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto; min-height:0;"></div>
-                <button class="game-button" id="achievementBackBtn" data-i18n="btn_back" style="margin-top:7px; flex-shrink:0;
-                    min-height:40px; font-size:clamp(11px,2.4vw,16px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
             </div>
         </div>
 
@@ -1595,23 +1628,24 @@
             box-sizing: border-box; z-index: 9999;
             background: linear-gradient(160deg, #1a0d32, #0d0520);
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 10px calc(env(safe-area-inset-right,0px) + 12px) 10px calc(env(safe-area-inset-left,0px) + 12px);
+            padding: 6px calc(env(safe-area-inset-right,0px) + 10px) 6px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
-            <div style="width: min(94vw, 580px); max-height: 96vh; display: flex; flex-direction: column;
+            <div class="list-panel" style="display: flex; flex-direction: column;
                 background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
                 border: 2px solid rgba(201,160,255,0.5); border-radius: 14px;
                 box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(201,160,255,0.12);
-                padding: 7px 14px; box-sizing: border-box;">
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0;">
+                padding: 6px 12px; box-sizing: border-box;">
+                <div class="head-row" style="margin-bottom:5px;">
                     <span id="badgeTitle" style="color:#c9a0ff; font-size:clamp(13px,3vw,20px); font-weight:800;
-                        font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(201,160,255,0.4);"><img src="images/icon_trophy.png" class="ui-icon"> バッジ</span>
+                        font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(201,160,255,0.4); white-space:nowrap;"><img src="images/icon_trophy.png" class="ui-icon"> バッジ</span>
+                    <span id="badgeHint" style="color:rgba(255,255,255,0.5); font-size:clamp(8px,1.5vw,11px);
+                        font-family:'M PLUS Rounded 1c',sans-serif;">あつめた しょうごう</span>
+                    <span class="head-spacer"></span>
+                    <button class="game-button head-btn" id="badgeBackBtn" data-i18n="btn_back"
+                        style="font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
                 </div>
-                <div id="badgeHint" style="color:rgba(255,255,255,0.5); font-size:clamp(8px,1.5vw,11px);
-                    font-family:'M PLUS Rounded 1c',sans-serif; margin:2px 0 5px;">あつめた しょうごう</div>
-                <div id="badgeList" style="display:flex; flex-direction:column; gap:5px;
+                <div id="badgeList" class="list-grid" style="grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:5px;
                     overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto; min-height:0;"></div>
-                <button class="game-button" id="badgeBackBtn" data-i18n="btn_back" style="margin-top:7px; flex-shrink:0;
-                    min-height:40px; font-size:clamp(11px,2.4vw,16px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
             </div>
         </div>
 
@@ -1622,19 +1656,24 @@
             box-sizing: border-box; z-index: 9999;
             background: linear-gradient(160deg, #1a0d32, #0d0520);
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 10px calc(env(safe-area-inset-right,0px) + 12px) 10px calc(env(safe-area-inset-left,0px) + 12px);
+            padding: 6px calc(env(safe-area-inset-right,0px) + 10px) 6px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
-            <div style="width: min(94vw, 520px); max-height: 96vh; display: flex; flex-direction: column;
+            <div class="list-panel" style="display: flex; flex-direction: column;
                 background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
                 border: 2px solid rgba(255,215,0,0.5); border-radius: 14px;
                 box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,215,0,0.12);
-                padding: 9px 14px; box-sizing: border-box;">
-                <div id="skinTitle" style="color:#ffd700; font-size:clamp(13px,3vw,20px); font-weight:800;
-                    font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4); flex-shrink:0; margin-bottom:6px;"><img src="images/skin_maid_idle.png" class="ui-icon"> きせかえ</div>
-                <div id="skinList" style="display:flex; flex-direction:column; gap:7px;
+                padding: 5px 12px; box-sizing: border-box;">
+                <div class="head-row" style="margin-bottom:4px;">
+                    <span id="skinTitle" style="color:#ffd700; font-size:clamp(13px,3vw,20px); font-weight:800;
+                        font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4); white-space:nowrap;"><img src="images/skin_maid_idle.png" class="ui-icon"> きせかえ</span>
+                    <span class="head-spacer"></span>
+                    <button class="game-button head-btn" id="skinBackBtn" data-i18n="btn_back"
+                        style="font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
+                </div>
+                <!-- きせかえの行は効果説明を持つぶん横に長い（実測 402px）＝3列にすると折り返して逆に高くなる。
+                     minmax は 300px にして 2列で止める（852幅で2列・折り返しなし）。 -->
+                <div id="skinList" class="list-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:4px;
                     overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto; min-height:0;"></div>
-                <button class="game-button" id="skinBackBtn" data-i18n="btn_back" style="margin-top:9px; flex-shrink:0;
-                    min-height:40px; font-size:clamp(11px,2.4vw,16px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
             </div>
         </div>
 
@@ -1645,19 +1684,21 @@
             box-sizing: border-box; z-index: 9999;
             background: linear-gradient(160deg, #141428, #0a0a1a);
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 10px calc(env(safe-area-inset-right,0px) + 12px) 10px calc(env(safe-area-inset-left,0px) + 12px);
+            padding: 6px calc(env(safe-area-inset-right,0px) + 10px) 6px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
-            <div style="width: min(96vw, 600px); max-height: 96vh; display: flex; flex-direction: column;
+            <div class="list-panel" style="display: flex; flex-direction: column;
                 background: linear-gradient(160deg, rgba(25,25,55,0.98), rgba(12,12,30,0.98));
                 border: 2px solid rgba(255,215,0,0.5); border-radius: 14px;
                 box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,215,0,0.1);
-                padding: 9px 12px; box-sizing: border-box;">
-                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-bottom: 6px;">
+                padding: 6px 12px; box-sizing: border-box;">
+                <div class="head-row" style="margin-bottom: 5px;">
                     <div style="color:#ffd700; font-size:clamp(13px,3vw,20px); font-weight:800;
-                        font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4);"
+                        font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4); white-space:nowrap;"
                         data-i18n="zukan_title">ずかん</div>
-                    <div style="flex:1;"></div>
-                    <div id="zukanProgressText" style="color:#ffd24a; font-size:clamp(10px,2vw,13px); font-weight:700; font-family:'M PLUS Rounded 1c',sans-serif;"></div>
+                    <div id="zukanProgressText" style="color:#ffd24a; font-size:clamp(10px,2vw,13px); font-weight:700; font-family:'M PLUS Rounded 1c',sans-serif; white-space:nowrap;"></div>
+                    <span class="head-spacer"></span>
+                    <button class="game-button head-btn" id="zukanBackBtn" data-i18n="btn_back"
+                        style="font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
                 </div>
                 <div style="height:6px; background:#2b2b44; border-radius:4px; overflow:hidden; flex-shrink:0; margin-bottom:8px;">
                     <div id="zukanProgressBar" style="height:100%; width:0%; background:#ffd24a; transition:width 0.3s ease;"></div>
@@ -1667,7 +1708,6 @@
                     <div id="zukanGrid" style="flex:1.5; display:grid; grid-template-columns:repeat(auto-fill,minmax(80px,1fr)); grid-auto-rows:min-content; gap:6px; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; align-content:start; padding-right:2px;"></div>
                     <div id="zukanDetail" style="flex:1; min-width:0; background:#191933; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px 8px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y;"></div>
                 </div>
-                <button class="game-button" id="zukanBackBtn" data-i18n="btn_back" style="margin-top:8px; flex-shrink:0; min-height:38px; font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
             </div>
         </div>
 
@@ -3749,12 +3789,14 @@ function openPauseSkin() {
     if (!SKIN_FEATURE_ENABLED) return;
     var m = document.getElementById('pauseMainView'); if (m) m.style.display = 'none';
     var v = document.getElementById('pauseSkinView'); if (v) v.style.display = 'block';
+    var c = document.getElementById('pauseCard'); if (c) c.classList.add('pause-list-mode');
     renderPauseSkins();
     if (soundManager) soundManager.playConfirmSelect();
 }
 function closePauseSkin() {
     var v = document.getElementById('pauseSkinView'); if (v) v.style.display = 'none';
     var m = document.getElementById('pauseMainView'); if (m) m.style.display = 'block';
+    var c = document.getElementById('pauseCard'); if (c) c.classList.remove('pause-list-mode');
     if (soundManager) soundManager.playCursorMove();
 }
 
@@ -4882,6 +4924,7 @@ function pauseGame() {
     gameState.gamePaused = true;
     var _pm = document.getElementById('pauseMainView'); if (_pm) _pm.style.display = 'block';
     var _psv = document.getElementById('pauseSkinView'); if (_psv) _psv.style.display = 'none';
+    var _pc = document.getElementById('pauseCard'); if (_pc) _pc.classList.remove('pause-list-mode'); // 一覧向けの幅は必ず戻す（1.659）
     document.getElementById('pauseScreen').classList.remove('hidden');
     // ⚠ここも showScreenEl を通らない。ポーズ内の「きせかえ」一覧がスクロールするので付与する（1.658）
     if (typeof scanScrollBars === 'function') scanScrollBars(document.getElementById('pauseScreen'));
