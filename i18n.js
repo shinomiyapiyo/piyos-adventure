@@ -467,6 +467,11 @@ ja: {
     tshop_egg_magnet_desc: 'ゴールデンエッグを引き寄せて自動キャッチ。取り逃しがなくなる',
     skin_samurai: '侍ぴよ',
     tshop_samurai_desc: '空中で下スワイプ「急降下斬り」！触れた敵を斬り伏せるアバター',
+    skin_idol: 'アイドルぴよ',
+    // ⚠周期と無敵時間は調整ノブ（index.html の IDOL_CYCLE_FRAMES / IDOL_PULSE_FRAMES）。
+    //   ここの文言を変えるときは向こうの数値と必ず合わせること。
+    skin_effect_idol: '🎤 5秒ごとに まわり2マスへ全方向の一撃',
+    tshop_idol_desc: 'ぴよ氏のアイドル衣装。5秒ごとに 自分のまわり2マスへ 全方向の一撃（ダメージ1）',
     skin_effect_samurai: '空中で下スワイプ→急降下斬り（触れた敵を撃破）',
     skin_cyber: 'サイバーぴよ',
     tshop_cyber_desc: 'ドローンの相棒が前とうしろへ同時レーザー！未来のハイテクアバター',
@@ -1070,6 +1075,9 @@ en: {
     tshop_egg_magnet_desc: 'Draws golden eggs to you so you never miss one',
     skin_samurai: 'Samurai Piyo',
     tshop_samurai_desc: 'Swipe down in midair for a dive slash that cuts through enemies!',
+    skin_idol: 'Idol Piyo',
+    skin_effect_idol: '🎤 An all-directions hit within 2 tiles, every 5s',
+    tshop_idol_desc: "Piyo's idol outfit. Every 5 seconds, strike all around you within 2 tiles (1 damage)",
     skin_effect_samurai: 'Swipe down in midair to dive-slash enemies',
     skin_cyber: 'Cyber Piyo',
     tshop_cyber_desc: 'A drone buddy fires lasers ahead and behind at the same time!',

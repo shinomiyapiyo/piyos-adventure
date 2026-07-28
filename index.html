@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.665";
+                content: "Ver.1.666";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -951,7 +951,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.665</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.666</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3723,6 +3723,10 @@ var SKINS = [
     { id: 'maid', nameKey: 'skin_maid',    preview: 'images/skin_maid_idle.png', unlockAch: 'dist_5000', effectKey: 'skin_effect_maid' },  // 実績「合計5,000m走る」で解放
     { id: 'kigurumi', nameKey: 'skin_kigurumi', preview: 'images/skin_kigurumi_idle.png', eggItem: true, effectKey: 'skin_effect_kigurumi' },  // タイトルショップの「エッグこうかん」で解放
     { id: 'witch', nameKey: 'skin_witch', preview: 'images/skin_witch_idle.png', eggItem: true, effectKey: 'skin_effect_witch' },    // エッグこうかん🥚80（1.456導入・価格1.493で200→80・魔女を忍者より前に=1.494）
+    // アイドルぴよ（1.666）: ぴよ氏本人のアイドル衣装（公認）。タイトルショップ200,000円。
+    // ⚠プレビューは**プレースホルダ**（images/skin_idol_idle.png が出来たら差し替える）。
+    //   ゲーム内の見た目は未登録スプライトの自動フォールバックでデフォルトのまま＝壊れない（侍/サイバーと同じ運用）。
+    { id: 'idol', nameKey: 'skin_idol', preview: 'images/player_idle_v1.png', moneyItem: true, effectKey: 'skin_effect_idol' },
     { id: 'samurai', nameKey: 'skin_samurai', preview: 'images/skin_samurai_idle.png', moneyItem: true, effectKey: 'skin_effect_samurai' }, // タイトルショップ100万円（1.509・アートは後続=プレビューはプレースホルダ・ゲーム内は未登録スプライトの自動フォールバックでデフォルト見た目）
     { id: 'cyber', nameKey: 'skin_cyber', preview: 'images/skin_cyber_idle.png', moneyItem: true, effectKey: 'skin_effect_cyber' }, // タイトルショップ200万円（1.520・ドローンビット・本体モーションはVeo後続=未登録中はデフォルト見た目フォールバック）
     { id: 'ninja', nameKey: 'skin_ninja', preview: 'images/skin_ninja_idle.png', eggItem: true, effectKey: 'skin_effect_ninja' }    // エッグこうかん🥚200（1.440・現状最強のため末尾=1.494）
@@ -7711,6 +7715,46 @@ function updateBullets() {
         }
     }
 
+    // ── アイドルぴよ（1.666）: 5秒ごとに 自分のまわり2マスへ全方向の一撃（ダメージ1） ──
+    // ⚠**else-if 連鎖には入れない**（1.617のサイバーぴよと同じ理由）。連鎖に入れるとエナジー缶や劇薬が
+    //   出ている間だけ発動しなくなり、200,000円のきせかえが10,000円の消耗品で止まる。
+    // ⚠**当たり判定は自前で書かず「その場に置く弾」として出す**。こうすると既存の弾の衝突処理が
+    //   そのまま効く＝ザコ/飛行敵/ボスの装甲(exposed)・空中半減・クリティカル・地底の巫女まで
+    //   すべて追随する。自前で書くとこの分岐を丸ごと複製することになり、必ず片方だけ古くなる。
+    // 調整ノブ: 周期と範囲。⚠i18n の skin_effect_idol / tshop_idol_desc の文言と必ず揃えること。
+    if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&
+        runActiveSkin() === 'idol' && gameState.gameStarted && !pipeRoomState.active) {
+        var IDOL_CYCLE_FRAMES = 300;   // 5秒ごと
+        var IDOL_REACH_TILES  = 2;     // 半径＝2マス（UG_TILE=32px → 64px）
+        var IDOL_BURST_LIFE   = 8;     // 判定を置いておくフレーム数
+        gameState.idolTimer = (gameState.idolTimer || 0) + 1;
+        if (gameState.idolTimer >= IDOL_CYCLE_FRAMES) {
+            gameState.idolTimer = 0;
+            var iR = IDOL_REACH_TILES * ((typeof UG_TILE !== 'undefined') ? UG_TILE : 32);
+            bullets.push({
+                x: player.x + player.width / 2 - iR,
+                y: player.y + player.height / 2 - iR,
+                width: iR * 2, height: iR * 2,
+                velX: 0, velY: 0,          // その場に置く＝前後左右も上下も同じだけ届く
+                dir: player.facing === 'left' ? -1 : 1,
+                isIdolBurst: true, dmg: 1,
+                life: IDOL_BURST_LIFE, burstAge: 0
+            });
+            if (soundManager && soundManager.ctx && gameSettings.soundEnabled) {
+                try { // 拍を刻む短い音（ライブのビート）
+                    var iao = soundManager.ctx, iosc = iao.createOscillator(), ign = iao.createGain();
+                    iosc.connect(ign); ign.connect(iao.destination);
+                    iosc.type = 'sine';
+                    iosc.frequency.setValueAtTime(880, iao.currentTime);
+                    iosc.frequency.exponentialRampToValueAtTime(1320, iao.currentTime + 0.08);
+                    ign.gain.setValueAtTime(0.035, iao.currentTime);
+                    ign.gain.exponentialRampToValueAtTime(0.001, iao.currentTime + 0.12);
+                    iosc.start(iao.currentTime); iosc.stop(iao.currentTime + 0.12);
+                } catch (_) {}
+            }
+        }
+    }
+
     // ⚠1.617: サイバーぴよのドローンは**上の else-if 連鎖から出して独立させた**（ユーザー実機報告
     //   「老婆の劇薬を使っている間、サイバーぴよのドローンの攻撃が止まる」）。
     //   元は連鎖の最後尾にいたため、エナジー缶(dmg2)や劇薬(dmg1)が成立している間はここへ到達せず、
@@ -7791,6 +7835,12 @@ function updateBullets() {
             b.y < gameState.camera.y - 120 || b.y > gameState.camera.y + GAME_HEIGHT + 120) {
             bullets.splice(i, 1);
             continue;
+        }
+        // 寿命つきの弾（1.666・アイドルぴよの範囲攻撃）。⚠その場に置く弾は画面外へ出ないので、
+        //   これが無いとカメラが追い越すまで判定が残り続ける。life を持つ弾だけが対象。
+        if (b.life !== undefined) {
+            b.burstAge = (b.burstAge || 0) + 1;
+            if (--b.life <= 0) { bullets.splice(i, 1); continue; }
         }
 
         // 地上敵との衝突

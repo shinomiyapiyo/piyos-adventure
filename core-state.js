@@ -2451,6 +2451,9 @@ var TITLE_SHOP_UPGRADES = [
       icon: '', iconImg: 'images/icon_combo_master.png', maxLevel: 1, prices: [50000], effectDesc: ['1.5秒'], effectDescEn: ['1.5s'] },
     { id: 'swift_feet', nameKey: 'tshop_swift_feet', descKey: 'tshop_swift_feet_desc',
       icon: '', iconImg: 'images/icon_swift_feet.png', maxLevel: 1, prices: [50000], effectDesc: ['x1.3'], saleFrom: 100000 },
+    // アイドルぴよ（1.666）。⚠**空いていた20万円帯**に置く（15万の次が30万で穴だった）。
+    { id: 'idol_piyo', nameKey: 'skin_idol', descKey: 'tshop_idol_desc', grantSkin: 'idol',
+      icon: '', iconImg: 'images/player_idle_v1.png', maxLevel: 1, prices: [200000], effectDesc: ['5秒ごと範囲'], effectDescEn: ['5s burst'] },
     // 地底入場パス（1.629でエッグ30として実装 → **1.644で円建て300,000円へ移設**・ユーザー決定）。
     // タイトルの「地底モード」が解禁される**永久**アンロック（消費型ではない）。
     // ⚠id は UG_MODE_PASS_ID と同じ 'ug_pass' でなければならない。円建ての購入処理は
@@ -2615,6 +2618,7 @@ var ZUKAN_ENTRIES = [
     { id: 'item:skin_maid',     cat: 'item', nameKey: 'skin_maid',     descKey: 'zukan_i_skin_maid_d',   img: 'images/skin_maid_idle.png',     seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('maid') >= 0; } },
     { id: 'item:skin_kigurumi', cat: 'item', nameKey: 'skin_kigurumi', descKey: 'egg_item_kigurumi_desc', img: 'images/skin_kigurumi_idle.png', seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('kigurumi') >= 0; } },
     { id: 'item:skin_witch',    cat: 'item', nameKey: 'skin_witch',    descKey: 'egg_item_witch_desc',  img: 'images/skin_witch_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('witch') >= 0; } },
+    { id: 'item:skin_idol',     cat: 'item', nameKey: 'skin_idol',     descKey: 'tshop_idol_desc',      img: 'images/player_idle_v1.png',   seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('idol') >= 0; } },
     { id: 'item:skin_samurai',  cat: 'item', nameKey: 'skin_samurai',  descKey: 'tshop_samurai_desc',   img: 'images/skin_samurai_idle.png', seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('samurai') >= 0; } },
     { id: 'item:skin_cyber',    cat: 'item', nameKey: 'skin_cyber',    descKey: 'tshop_cyber_desc',     img: 'images/skin_cyber_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('cyber') >= 0; } }, // きせかえSKINSと同順（侍→サイバー→忍者・1.520）
     { id: 'item:skin_ninja',    cat: 'item', nameKey: 'skin_ninja',    descKey: 'egg_item_ninja_desc',  img: 'images/skin_ninja_idle.png',  seenIf: function(gs){ return (gs.ownedSkins || []).indexOf('ninja') >= 0; } },

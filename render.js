@@ -3108,7 +3108,22 @@ function drawPowerUp(pu) {
 
 function drawBullet(b) {
     ctx.save();
-    if (b.isZap) {
+    if (b.isIdolBurst) {
+        // アイドルぴよの範囲攻撃（1.666）: 判定は「その場に置いた四角い弾」だが、見た目は**広がる輪**。
+        // ⚠四角を描かない＝プレイヤーに箱が張り付いて見えると当たり判定を誤解させる。
+        //   life が減るのに合わせて輪を広げつつ薄くする＝「声援が波になって広がる」表現。
+        var ibx = b.x + b.width / 2, iby = b.y + b.height / 2;
+        var ibP = Math.min(1, (b.burstAge || 0) / 8);          // 0→1（IDOL_BURST_LIFE と同じ 8 フレーム）
+        var ibR = (b.width / 2) * (0.35 + ibP * 0.65);
+        ctx.globalAlpha = (1 - ibP) * 0.85;
+        ctx.strokeStyle = '#ff9ed8'; ctx.lineWidth = 3;
+        ctx.shadowColor = '#ff9ed8'; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.arc(ibx, iby, ibR, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = (1 - ibP) * 0.45;
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.shadowBlur = 6;
+        ctx.beginPath(); ctx.arc(ibx, iby, ibR * 0.72, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 1;
+    } else if (b.isZap) {
         // きぐるみのエネルギー弾（水色の発光オーブ）。旧=青白い稲妻の電気弾→1.497でエネルギー攻撃に変更
         // （「黄色ネズミ＋電気」=ピカチュウ連想の回避。稲妻ビジュアルもオーブに置換）。
         var zx = b.x + b.width / 2, zy = b.y + b.height / 2;
