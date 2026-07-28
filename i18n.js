@@ -109,6 +109,9 @@ ja: {
     reward_ad_tshop_savings_ok: '貯金ボーナス {amount}円\nゲットしたのだ！',
     reward_ad_cooldown: '次の広告ボーナスまで\nしばらく待ってほしいのだ',
     ad_load_failed: '広告を読み込めませんでした\n時間をおいてお試しください',
+    // 広告は流れたのに報酬が届かなかった時（1.646）。ユーザーに落ち度がないので機会は消費せず、
+    // 「また押せる」ことを必ず伝える（旧: ad_load_failed を出したうえで選択肢ごと消していた）
+    ad_reward_missed: 'ボーナスを うけとれませんでした\nもう一度 ためせます',
     ad_preparing: '広告を準備中です\nもう少し待ってね',
     ad_preparing_btn: '広告を準備中…',
     house_ad_pr: 'PR ・ NullPo Works',
@@ -410,6 +413,9 @@ ja: {
     tshop_keeper_cant_afford: 'ざんねん…\n貯金がたりないみたいなのだ',
     tshop_egg_section: 'エッグこうかん',
     tshop_keeper_sell_confirm: '{item}を {price}円で\n売りますか？',
+    // 売値を例外的に安く固定した品（＝老婆の劇薬）。地上の店と同じく、店員が訝しがる専用のセリフにする
+    // （1.646・ステージショップだけに付けていた 1.629 の対応がタイトルショップに無かった）
+    tshop_keeper_sell_odd: 'うっ、{item}か……\nどこで こんなものを。\n{price}円なら 引き取るのだ……',
     tshop_keeper_sold: '{item}を売ったのだ！\n+{price}円 貯金に入れたのだ',
     tshop_sell_empty: '売れるアイテムが ないのだ',
     tshop_keeper_sell_greet: '何を 売るのだ？',
@@ -509,6 +515,7 @@ ja: {
     ug_reward_ad_shop_money_ok: 'ふぉっふぉ、{amount}円だ。\nとって おおき。',
     ug_ad_preparing: 'まあ おまち。\nいま したくを しておるよ。',
     ug_ad_load_failed: 'ふぉっふぉ、しくじったねぇ。\nまた あとで おいで。',
+    ug_ad_reward_missed: 'ふぉっふぉ、しくじったねぇ。\nもう一度 やってみるかい。',
     shop_item_revive_desc: 'たおれたとき\nライフ2で ふっかつする（1回）',
     revive_auto_hint: 'ふっかつやくは たおれたときに じどうで はつどうするよ！',
     // ── ログインボーナス ──
@@ -745,6 +752,7 @@ en: {
     reward_ad_tshop_savings_ok: 'Got {amount} savings bonus!',
     reward_ad_cooldown: 'Please wait a moment\nfor the next ad bonus',
     ad_load_failed: "Couldn't load an ad.\nPlease try again later.",
+    ad_reward_missed: "The bonus didn't come through.\nYou can try again.",
     ad_preparing: 'Preparing an ad...\nPlease wait a moment.',
     ad_preparing_btn: 'Preparing ad…',
     house_ad_pr: 'Ad ・ NullPo Works',
@@ -1058,6 +1066,7 @@ en: {
     tshop_keeper_cant_afford: 'Sorry...\nNot enough savings',
     tshop_egg_section: 'Egg Exchange',
     tshop_keeper_sell_confirm: 'Sell {item} for {price}?',
+    tshop_keeper_sell_odd: 'Ugh, {item}...?\nWhere did you even get that.\n{price} is my best offer...',
     tshop_keeper_sold: 'Sold {item}!\n+{price} to your savings',
     tshop_sell_empty: 'Nothing to sell',
     tshop_keeper_sell_greet: 'What would you like to sell?',
@@ -1127,6 +1136,7 @@ en: {
     ug_reward_ad_shop_money_ok: 'Heh heh. {amount}.\nTake it, child.',
     ug_ad_preparing: 'Patience now.\nI am making ready.',
     ug_ad_load_failed: 'Heh heh, that failed.\nCome back later.',
+    ug_ad_reward_missed: 'Heh heh, that failed.\nCare to try once more?',
     shop_item_revive_desc: 'Auto-revive with 2 life\nwhen defeated (1 use)',
     revive_auto_hint: 'The revival potion activates automatically when you fall.',
     // ── Login Bonus ──

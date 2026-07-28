@@ -3742,7 +3742,10 @@ function selectTshopSell(key) {
     // 1タップで選択＝内容確認＋すぐ右に「うる/うらない」ダイアログ（1.416）
     tshopHighlightedItem = key;
     tshopConfirmingItem = key;
-    setTshopKeeperText('tshop_keeper_sell_confirm', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
+    // ⚠売値が例外の品（＝老婆の劇薬）は専用のセリフにする（1.646）。ステージショップ側は 1.629 で
+    //   対応済みだったが、こちらは分岐が無く常に通常文＝専用セリフが一度も出ていなかった。
+    var _tSellKey = (typeof shopItem.sellPriceOverride === 'number') ? 'tshop_keeper_sell_odd' : 'tshop_keeper_sell_confirm';
+    setTshopKeeperText(_tSellKey, { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
     showTshopConfirm(true, tshopSellLabels());
     updateTitleShopUI();
 }

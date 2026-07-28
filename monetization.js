@@ -562,8 +562,9 @@ function adRevive() {
     if (typeof window.isRewardReady === 'function' && !window.isRewardReady()) {
         if (typeof showRewardToast === 'function') showRewardToast(t('ad_preparing'), 'linear-gradient(180deg,#888,#555)', '#fff');
     }
-    showAd('reward', function(success) {
-        if (!success) { if (typeof showRewardToast === 'function') showRewardToast(t('ad_load_failed'), 'linear-gradient(180deg,#666,#333)', '#fff'); return; }
+    showAd('reward', function(success, info) {
+        // 消費(reviveUsedThisRun)は成功時のみ＝失敗したら何度でも押し直せる（1.646で文言だけ整理）
+        if (!success) { if (typeof showRewardToast === 'function') showRewardToast(t((info && info.shown) ? 'ad_reward_missed' : 'ad_load_failed'), 'linear-gradient(180deg,#666,#333)', '#fff'); return; }
         rewardAdState.reviveUsedThisRun = true;
         // 復活処理
         hideGameOverScreen();
@@ -593,10 +594,18 @@ function adShopBonus() {
         setKeeperText('ad_preparing');
     }
     showAd('reward', function(success, info) {
-        // 消費は「広告が実際に表示された時」だけ＝ショップ訪問につき1回（在庫ゼロ/ロード失敗では消費せず機会を残す）。
-        // 二重視聴の悪用は showReward の進行中ガード＋「表示された時のみ消費」で防ぐ（旧1.484のタップ即消費の欠点を解消）。
-        if (success || (info && info.shown)) { rewardAdState.shopAdUsedThisVisit = true; }
-        if (!success) { setKeeperText('ad_load_failed'); updateStageShopUI(); return; }
+        // ⚠1.646: 消費は「**ボーナスを実際に受け取れた時**」だけ（旧: 広告が表示されたら消費）。
+        //   旧仕様だと、広告は流れたのに報酬イベントが届かなかった場合（プラグイン側の取りこぼし・
+        //   途中終了扱い）に機会だけ消えてメニュー項目が消滅し、二度と押せなくなっていた＝ユーザー報告。
+        //   報酬が出ていないなら何度でも押し直せてよい（未報酬で再視聴できても得は無く、悪用にならない）。
+        //   二重視聴/二重付与は showReward の進行中ガードと finalizeReward の1回きり実行で防いでいる。
+        if (success) { rewardAdState.shopAdUsedThisVisit = true; }
+        if (!success) {
+            // 「広告が出せなかった」のか「流れたのに報酬が来なかった」のかで文言を変える（どちらも再挑戦可）
+            setKeeperText((info && info.shown) ? 'ad_reward_missed' : 'ad_load_failed');
+            updateStageShopUI();
+            return;
+        }
         // 老婆の店は定額5,000円／地上は所持金の30%（100〜3,000円）
         var _ug = (typeof undergroundState !== 'undefined' && undergroundState.active);
         var bonus = _ug ? REWARD_AD_SHOP_BONUS_UG
@@ -620,8 +629,9 @@ function adTshopBonus() {
     if (typeof window.isRewardReady === 'function' && !window.isRewardReady()) {
         setTshopKeeperText('ad_preparing');
     }
-    showAd('reward', function(success) {
-        if (!success) { setTshopKeeperText('ad_load_failed'); return; }
+    showAd('reward', function(success, info) {
+        // クールダウンは成功時のみ設定＝失敗しても4時間の権利を失わず、その場で押し直せる（1.646で文言だけ整理）
+        if (!success) { setTshopKeeperText((info && info.shown) ? 'ad_reward_missed' : 'ad_load_failed'); return; }
         gameSettings.tshopAdCooldown = Date.now() + REWARD_AD_TSHOP_COOLDOWN;
         gameSettings.savings += REWARD_AD_TSHOP_BONUS;
         saveSettings();
