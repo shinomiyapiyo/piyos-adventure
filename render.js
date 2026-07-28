@@ -434,7 +434,7 @@ function spawnBonusText(worldX, worldY, label, score) {
     });
 }
 
-// クリティカル演出（黄色メイド服）: 金色の「クリティカル！」がポップ＋金色フラッシュリング＋スパーク放射（分かりやすく）
+// クリティカル演出（メイドぴよ）: 金色の「クリティカル！」がポップ＋金色フラッシュリング＋スパーク放射（分かりやすく）
 function spawnCritText(worldX, worldY, label) {
     floatEffects.push({
         type: 'crit_text',

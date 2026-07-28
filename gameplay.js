@@ -4961,7 +4961,7 @@ function updateBossAI(b) {
 //   6で割ると各ボスのN回目の遭遇が正しく enc=N になる（ニワトリR1/R7/R13→1/2/3）。
 function bossEncounter() { return Math.ceil(gameRound / BOSS_CYCLE_ROUNDS); }
 
-// 黄色メイド服の特殊効果: 攻撃1回につき1/20(5%)でクリティカル＝与ダメージ2倍。ダメージに掛ける倍率(1 or 2)を返す。
+// メイドぴよの特殊効果: 攻撃1回につき1/20(5%)でクリティカル＝与ダメージ2倍。ダメージに掛ける倍率(1 or 2)を返す。
 // 当たった時だけ演出（クリティカル！）を出す。メイド服以外・スキン無効時は常に1。
 function critMultiplier(worldX, worldY) {
     if (typeof SKIN_FEATURE_ENABLED !== 'undefined' && SKIN_FEATURE_ENABLED &&

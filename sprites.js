@@ -17,7 +17,7 @@ var IMAGE_SPRITES = {
     player_jump: { files: ['images/player_jump.png'] },
     player_fall: { files: ['images/player_fall.png'], flip: true },
 
-    // 黄色メイド服スキン（player_* を再スキンした版・並び/flipを揃える）
+    // メイドぴよスキン（player_* を再スキンした版・並び/flipを揃える）
     skin_maid_idle: { files: ['images/skin_maid_idle.png'] },
     skin_maid_walk: { files: [
         'images/skin_maid_walk_1.png',
@@ -29,9 +29,10 @@ var IMAGE_SPRITES = {
     skin_maid_fall: { files: ['images/skin_maid_fall.png'], flip: true },
 
     // アイドルぴよスキン（タイトルショップ200,000円・1.667。ぴよ氏本人のアイドル衣装・公認）
-    // 立ち絵=Gemini（正面）／歩行=Veo veo_idol_walk.mp4 の f_24/30/36/42 を切り出し。
-    // ⚠jump/fall は**まだ無い**。sprites に無いキーは既存の自動フォールバックで player_* が使われるので
-    //   壊れない（侍ぴよ/サイバーぴよと同じ状態）。作ったらここへ足すこと。
+    // 立ち絵=Gemini（正面）／歩行=Veo veo_idol_walk.mp4 の f_24/30/36/42／
+    // jump/fall=Veo veo_idol_jumpfall.mp4 の f_13（上昇・膝を抱える）と f_21（下降・脚を流す）。
+    // ⚠jump/fall のコマは**足元Yを全コマ測って**選ぶこと。目視だと上昇中と下降中を取り違える
+    //   （このクリップは接地1185→頂点977＝208pxの跳躍。空中率0.9超のうち上昇=13、下降=21）。
     skin_idol_idle: { files: ['images/skin_idol_idle.png'] },
     skin_idol_walk: { files: [
         'images/skin_idol_walk_1.png',
@@ -39,6 +40,8 @@ var IMAGE_SPRITES = {
         'images/skin_idol_walk_3.png',
         'images/skin_idol_walk_4.png'
     ]},
+    skin_idol_jump: { files: ['images/skin_idol_jump.png'] },
+    skin_idol_fall: { files: ['images/skin_idol_fall.png'] },
 
     // でんきネズミきぐるみスキン（エッグ交換限定・player_* と並びを揃える）
     skin_kigurumi_idle: { files: ['images/skin_kigurumi_idle.png'] },

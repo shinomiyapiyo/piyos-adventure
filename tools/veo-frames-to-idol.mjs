@@ -14,10 +14,14 @@ import { fileURLToPath } from 'node:url';
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const IMAGES_DIR = path.resolve(__dirname, '..', 'images');
 const RAW_DIR    = path.resolve(__dirname, '_raw');
-const FRAMES_DIR = path.join(RAW_DIR, 'veo_frames_idol');
 const args = process.argv.slice(2);
 const getArg  = (n) => { const a = args.find(x => x.startsWith(`--${n}=`)); return a ? a.split('=')[1] : null; };
 const hasFlag = (n) => args.includes(`--${n}`);
+// walk は veo_frames_idol / jump・fall は veo_frames_idol_jf（別クリップ）から取る。
+// ⚠--jumpfall=<上昇コマ>,<下降コマ> を渡すと jump/fall モードになる。跳躍の頂点は
+//   足元Yを全コマ測って選ぶこと（目視だと上昇中と下降中を取り違える）。
+const JUMPFALL   = getArg('jumpfall');
+const FRAMES_DIR = path.join(RAW_DIR, JUMPFALL ? 'veo_frames_idol_jf' : 'veo_frames_idol');
 const FRAMES = (getArg('frames') || '22,30,38,46').split(',').map(s => parseInt(s.trim(),10));
 const BRIGHT = getArg('bright') ? parseFloat(getArg('bright')) : 1.0;
 const SAT    = getArg('sat') ? parseFloat(getArg('sat')) : 1.0;
@@ -79,9 +83,11 @@ async function main(){
   const refGap = (idle.height-1)-ib.maxY, refH = ib.h;
   console.log(`idle: charH=${refH} gapBottom=${refGap} S=${isv.S.toFixed(3)} V=${isv.V.toFixed(3)}`);
 
-  for(let k=0;k<FRAMES.length;k++){
-    const key = `walk_${k+1}`;
-    const framePath = path.join(FRAMES_DIR, `f_${String(FRAMES[k]).padStart(3,'0')}.png`);
+  const list = JUMPFALL ? JUMPFALL.split(',').map(s=>parseInt(s.trim(),10)) : FRAMES;
+  const keys = JUMPFALL ? ['jump','fall'] : ['walk_1','walk_2','walk_3','walk_4'];
+  for(let k=0;k<list.length;k++){
+    const key = keys[k];
+    const framePath = path.join(FRAMES_DIR, `f_${String(list[k]).padStart(3,'0')}.png`);
     const keyed = await chromaKey(framePath);
     const sv = meanSV(keyed);
     let keyedPng = await sharp(keyed.data, { raw: { width:keyed.width, height:keyed.height, channels:keyed.channels } }).png().toBuffer();
@@ -98,9 +104,9 @@ async function main(){
       .composite([{input:content,left,top}]).png().toBuffer();
     norm = await despillPng(norm);
 
-    await fs.writeFile(path.join(RAW_DIR,`veo_idol_walk_${k+1}_norm_64.png`), norm);
-    await fs.writeFile(path.join(RAW_DIR,`veo_idol_walk_${k+1}_norm_256.png`), await sharp(norm).resize(256,256,{kernel:'nearest'}).png().toBuffer());
-    console.log(`${key} <= f_${FRAMES[k]}  content=${bb.w}x${bb.h} S=${sv.S.toFixed(3)} V=${sv.V.toFixed(3)} -> ${tW}x${tH}`);
+    await fs.writeFile(path.join(RAW_DIR,`veo_idol_${key}_norm_64.png`), norm);
+    await fs.writeFile(path.join(RAW_DIR,`veo_idol_${key}_norm_256.png`), await sharp(norm).resize(256,256,{kernel:'nearest'}).png().toBuffer());
+    console.log(`${key} <= f_${list[k]}  content=${bb.w}x${bb.h} S=${sv.S.toFixed(3)} V=${sv.V.toFixed(3)} -> ${tW}x${tH}`);
     if(COMMIT){ await fs.writeFile(path.join(IMAGES_DIR,`skin_${SKIN}_${key}.png`), norm); console.log(`  ✓ images/skin_${SKIN}_${key}.png`); }
   }
 }
