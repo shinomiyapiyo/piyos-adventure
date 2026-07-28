@@ -3555,6 +3555,19 @@ function confirmTshopBuy() {
     if (!upgrade) return;
     var currentLevel = (gameSettings.upgrades || {})[tshopConfirmingItem] || 0;
     var price = upgrade.prices[currentLevel];
+    // ⚠**減算前にMAX/価格を再確認する**（1.654・監査でのハードニング。現状 selectTshopUpgrade が MAX を
+    //   弾くのでここには来ないが、来てしまうと price が undefined になり `savings < undefined` は false ＝
+    //   お金不足チェックを素通りして `savings -= undefined` で **貯金が NaN** になる。NaN は次回起動の
+    //   健全化(loadSettings の isFinite チェック)で 0 に落ちる＝**貯金全損**。
+    //   エッグ交換側(confirmEggBuy)が「付与できない物は減算前に弾く」方針なので、そちらに揃える。
+    if (currentLevel >= upgrade.maxLevel || typeof price !== 'number' || !isFinite(price)) {
+        if (soundManager) soundManager.playDamage();
+        showTshopConfirm(false);
+        tshopConfirmingItem = null;
+        setTshopKeeperText(upgrade.grantSkin ? 'tshop_keeper_owned_avatar' : 'tshop_keeper_max');
+        updateTitleShopUI();
+        return;
+    }
     // お金不足チェック
     if (gameSettings.savings < price) {
         if (soundManager) soundManager.playDamage();
@@ -3808,6 +3821,17 @@ function selectEggShopItem(itemId) {
 function confirmEggBuy(itemId) {
     var item = eggShopItemById(itemId);
     if (!item) return;
+    // ⚠**所持済みも減算前に弾く**（1.654・監査でのハードニング）。selectEggShopItem が弾くので現状ここには
+    //   来ないが、来るとエッグだけ減って何も増えない（skin は ownedSkins が重複チェック付きで push されるため
+    //   増えず、upgrade も Lv1 固定で上書きになる）。pouch上限/未実装type と同じ「減算前に弾く」に揃える。
+    if (isEggItemOwned(item)) {
+        if (soundManager) soundManager.playCursorMove();
+        showTshopConfirm(false);
+        tshopConfirmingItem = null;
+        setTshopKeeperText(item.type === 'skin' ? 'tshop_keeper_egg_owned' : 'tshop_keeper_egg_owned_pouch');
+        updateTitleShopUI();
+        return;
+    }
     if ((gameSettings.goldenEggs || 0) < item.eggPrice) { // エッグ不足
         if (soundManager) soundManager.playDamage();
         showTshopConfirm(false);
