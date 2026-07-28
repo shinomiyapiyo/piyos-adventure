@@ -28,6 +28,18 @@ var IMAGE_SPRITES = {
     skin_maid_jump: { files: ['images/skin_maid_jump.png'] },
     skin_maid_fall: { files: ['images/skin_maid_fall.png'], flip: true },
 
+    // アイドルぴよスキン（タイトルショップ200,000円・1.667。ぴよ氏本人のアイドル衣装・公認）
+    // 立ち絵=Gemini（正面）／歩行=Veo veo_idol_walk.mp4 の f_24/30/36/42 を切り出し。
+    // ⚠jump/fall は**まだ無い**。sprites に無いキーは既存の自動フォールバックで player_* が使われるので
+    //   壊れない（侍ぴよ/サイバーぴよと同じ状態）。作ったらここへ足すこと。
+    skin_idol_idle: { files: ['images/skin_idol_idle.png'] },
+    skin_idol_walk: { files: [
+        'images/skin_idol_walk_1.png',
+        'images/skin_idol_walk_2.png',
+        'images/skin_idol_walk_3.png',
+        'images/skin_idol_walk_4.png'
+    ]},
+
     // でんきネズミきぐるみスキン（エッグ交換限定・player_* と並びを揃える）
     skin_kigurumi_idle: { files: ['images/skin_kigurumi_idle.png'] },
     skin_kigurumi_walk: { files: [

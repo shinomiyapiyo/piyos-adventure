@@ -201,6 +201,41 @@ if (hasFlag('rekey')) {
   process.exit(0);
 }
 
+// ── 横向きアンカー（--side）: 歩行アニメ用の種を作る ──
+// ⚠**確定した立ち絵 images/skin_idol_idle.png を種にする**。別の種から起こすと衣装が微妙にズレて、
+//   立ち絵と歩行で別人になる。既存も同じ構成（メイドぴよ＝正面の立ち絵＋横向きの歩行）。
+// ⚠64pxのまま渡すと情報が足りないので nearest で1024へ拡大して渡す（補間はドットが溶けるので禁止）。
+if (hasFlag('side')) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) { console.error('✗ GEMINI_API_KEY がありません（zsh -ic 経由で実行してください）'); process.exit(1); }
+  const ai = new GoogleGenAI({ apiKey });
+  const seed = await sharp(path.join(IMAGES_DIR, 'skin_idol_idle.png'))
+    .resize(1024, 1024, { kernel: 'nearest' }).png().toBuffer();
+  const seedPart = { inlineData: { mimeType: 'image/png', data: seed.toString('base64') } };
+  const SIDE_PROMPT = [
+    'Redraw the EXACT SAME chibi pixel-art girl from the input image, with the IDENTICAL costume, colours and',
+    'proportions, but turned to a SIDE VIEW FACING RIGHT (a profile standing pose for a side-scrolling game).',
+    'Keep every costume element: the BIG FLUFFY WHITE CAT EARS on her headband, the big round WHITE puff sleeve,',
+    'the pastel yellow top with the yellow chick on the chest, the pink/yellow/mint tiered skirt, the pastel yellow',
+    'leg warmers with white cuffs, the yellow shoes, and her LONG BLACK TWIN-TAILS with yellow ribbons',
+    '(in side view the twin-tails hang together behind her and must stay clearly visible).',
+    'AUTHENTIC LOW-RESOLUTION PIXEL ART with large visible square pixels, flat colour blocks, a thick dark outline,',
+    'no anti-aliasing, no gradients, no blur. Single character only, same scale, standing on the same baseline.',
+    'No text, no border, no watermark.',
+    CHROMA_NOTE,
+  ].join(' ');
+  console.log(`■ アイドルぴよ 横向きアンカー（model=${MODEL} / n=${N}）`);
+  for (let i = 1; i <= N; i++) {
+    const buf = await callModel(ai, [{ role: 'user', parts: [seedPart, { text: SIDE_PROMPT }] }]);
+    await fs.writeFile(path.join(RAW_DIR, `idol_side_${i}_raw.png`), buf);
+    const keyed = await fillHoles(await chromaKey(buf));
+    await fs.writeFile(path.join(RAW_DIR, `idol_side_${i}_keyed.png`), keyed);
+    await fs.writeFile(path.join(RAW_DIR, `idol_side_${i}_64.png`), await alignToBase(keyed, 'player_idle_v1.png'));
+    console.log(`  ✓ 候補${i}`);
+  }
+  process.exit(0);
+}
+
 // ── 採用モード ──
 if (PICK) {
   const src = path.join(RAW_DIR, `idol_anchor_${PICK}_keyed.png`);
