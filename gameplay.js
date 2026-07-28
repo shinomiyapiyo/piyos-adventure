@@ -1976,7 +1976,12 @@ function checkShopTrigger() {
     // ショップ建物をワールドに配置（一度だけ） — 安全地帯より100m手前で配置開始（チュートリアルは固定配置済み）
     if (!tutorialState.active && !shopState.buildingPlaced && gameState.distance >= bossDistance - SHOP_SAFE_ZONE_START - 100) {
         shopState.buildingPlaced = true;
-        shopState.buildingX = (bossDistance - SHOP_BUILDING_OFFSET) * 10; // m→px
+        // ⚠m→pxは ×10 だけでは足りない（1.649・ユーザー実機報告「2周目(R8)で店が出現しない」）。
+        //   地底を1回でも通ると距離は floor((camera.x - ugDistOffset)/10) になり、camera.x と m がズレる
+        //   （R7通過後 ugDistOffset=12,000px＝1,200m分／R14で24,000px…と周回ごとに増える）。
+        //   ×10 のままだと**建物がプレイヤーの 12,000px 後方に建つ**＝前を走っている本人には永久に見えない。
+        //   R8だけでなく地底以降の全ラウンドが該当していた。testWarpToM(index.html) と同じ式に揃える。
+        shopState.buildingX = (bossDistance - SHOP_BUILDING_OFFSET) * 10 + (gameState.ugDistOffset || 0); // m→px
     }
 
     // ショップの前で上入力 → 入店

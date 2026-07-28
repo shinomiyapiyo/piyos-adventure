@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.648";
+                content: "Ver.1.649";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -889,7 +889,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.648</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.649</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2715,7 +2715,9 @@ function buildRunSave() {
         items: items, perma: perma,
         // ── そのラウンドで消費済みの「1ラウンド1回」たち ──
         shopVisited: !!shopState.visited, shopDeposited: !!shopState.deposited,
-        shopBuilt: !!shopState.buildingPlaced,
+        // ⚠buildingX も保存する（1.649）。位置を持たずに buildingPlaced だけ復元すると、再配置が
+        //   `!shopState.buildingPlaced` で止まったまま建物が world X=0 に建つ＝そのラウンドの店が消える。
+        shopBuilt: !!shopState.buildingPlaced, shopBuildX: shopState.buildingX || 0,
         pipeVisited: !!pipeRoomState.visited, pipeTargetDist: pipeRoomState.targetDist || 0,
         pipeTargetRound: pipeRoomState.targetRound || 0, pipeExtra: pipeRoomState.extraDist || 0,
         ugVisited: !!undergroundState.visited
@@ -2805,7 +2807,10 @@ function applyRunSave(d) {
     for (var j = 0; j < d.items.length; j++) if (d.items[j] && d.items[j].id) stockState.items.push({ id: d.items[j].id });
     // 「1ラウンド1回」たち
     shopState.visited = !!d.shopVisited; shopState.deposited = !!d.shopDeposited;
-    shopState.buildingPlaced = !!d.shopBuilt;
+    // ⚠位置が無い＝1.648以前のセーブ。その場合は buildingPlaced を立てずに checkShopTrigger の
+    //   再配置へ任せる（立てると world X=0 に建って店が消える）。距離条件は満たしているので次フレームで建つ。
+    shopState.buildingX = d.shopBuildX || 0;
+    shopState.buildingPlaced = !!d.shopBuilt && shopState.buildingX > 0;
     pipeRoomState.visited = !!d.pipeVisited; pipeRoomState.targetDist = d.pipeTargetDist || 0;
     pipeRoomState.targetRound = d.pipeTargetRound || 0; pipeRoomState.extraDist = d.pipeExtra || 0;
     undergroundState.visited = !!d.ugVisited;
@@ -5773,7 +5778,10 @@ function isInSafeZone(distanceM) {
 
 function generateTerrain() {
     var nextX = gameState.lastTerrainX + 100;
-    var nextDistM = Math.floor(nextX / 10);
+    // ⚠px→mも ugDistOffset を引く（1.649・ショップ配置と同じ根っこの取りこぼし）。引かないと地底通過後は
+    //   実際より 1,200m（R14以降はさらに）先の距離として安全地帯を判定し、平地区間がその分早く始まっていた。
+    //   他の isInSafeZone 呼び出し（index.html:6061/6167）は gameState.distance＝真の距離を渡しており、ここだけ不一致だった。
+    var nextDistM = Math.floor((nextX - (gameState.ugDistOffset || 0)) / 10);
     var roll = Math.random();
     var biome = biomeState.current; // 現在のバイオームで生成（先読み地形も統一）
 
