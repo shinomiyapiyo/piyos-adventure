@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.651";
+                content: "Ver.1.652";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -889,7 +889,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.651</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.652</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2706,6 +2706,16 @@ function buildRunSave() {
         mDist: gameState.missionCountedDistance || 0, mKills: gameState.missionCountedKills || 0,
         mCoins: gameState.missionCountedCoins || 0, mBoss: gameState.missionCountedBoss || 0,
         mSpecial: gameState.missionCountedSpecial || 0, mPlay: !!gameState.missionPlayCounted,
+        // ── 効果が残っている強化（1.652・監査で発見）──
+        // ⚠戻さないと、**お金を払った効果を中断だけで失う**。まもりのたて3,000円／老婆の劇薬10,000円
+        //   などが対象で、ユーザーに落ち度のない損になる。いずれも単純なフレーム残量カウンタで、
+        //   保護判定は isPlayerProtected() が `isInvincible || puShield > 0` と派生させているだけなので、
+        //   カウンタを戻すだけで正しく復元できる（isInvincible 等の一時状態は戻さない＝従来どおり）。
+        // ⚠**新規キーの追加なので RUN_SAVE_VERSION は上げない**（上げると既存のしおりが全部無効になる）。
+        //   旧セーブにこのキーは無く、applyRunSave 側が || 0 で受けるので従来どおり0から始まる。
+        puLemon: gameState.puLemon || 0, puShield: gameState.puShield || 0,
+        puEnergy: gameState.puEnergy || 0, puMagnet: gameState.puMagnet || 0,
+        ugElixir: gameState.ugElixir || 0,
         // ── per-run の抽選フラグ（戻さないと日次エッグをもう一度引ける）──
         eggField: !!gameState.goldenEggFieldSpawned,
         eggArmed: !!gameState.goldenEggRescueArmed, eggDone: !!gameState.goldenEggRescueDone,
@@ -2793,6 +2803,10 @@ function applyRunSave(d) {
     gameState.missionCountedDistance = d.mDist || 0; gameState.missionCountedKills = d.mKills || 0;
     gameState.missionCountedCoins = d.mCoins || 0; gameState.missionCountedBoss = d.mBoss || 0;
     gameState.missionCountedSpecial = d.mSpecial || 0; gameState.missionPlayCounted = !!d.mPlay;
+    // 効果が残っている強化を戻す（1.652）。旧セーブはキーが無いので || 0 ＝従来どおり効果なしで再開する
+    gameState.puLemon = d.puLemon || 0; gameState.puShield = d.puShield || 0;
+    gameState.puEnergy = d.puEnergy || 0; gameState.puMagnet = d.puMagnet || 0;
+    gameState.ugElixir = d.ugElixir || 0;
     gameState.goldenEggFieldSpawned = !!d.eggField;
     gameState.goldenEggRescueArmed = !!d.eggArmed; gameState.goldenEggRescueDone = !!d.eggDone;
     if (typeof rewardAdState !== 'undefined') rewardAdState.reviveUsedThisRun = !!d.revived;
@@ -2813,6 +2827,14 @@ function applyRunSave(d) {
     shopState.buildingPlaced = !!d.shopBuilt && shopState.buildingX > 0;
     pipeRoomState.visited = !!d.pipeVisited; pipeRoomState.targetDist = d.pipeTargetDist || 0;
     pipeRoomState.targetRound = d.pipeTargetRound || 0; pipeRoomState.extraDist = d.pipeExtra || 0;
+    // ⚠`placed` は保存せず **visited から導く**（1.652・監査で発見）。土管の位置(x)は世界を作り直すので
+    //   保存しても意味がなく、かといって placed を false のままにすると:
+    //   ・消化済み(visited)のラウンドで再開 → checkPipeTrigger がもう1本置く → 入場は visited で塞がれ
+    //     **降りても何も起きない土管**が立つ（実測で再現）
+    //   ・未消化で再開 → 置き直してほしい（＝false が正しい）
+    //   の2つを両立できない。visited をそのまま placed に写せば両方成立する。
+    //   ⚠ラッキーチャームの2本目は再武装条件が `x + PIPE_W < camera.x` で、x=0 なら必ず真＝従来どおり出る。
+    pipeRoomState.placed = !!d.pipeVisited;
     undergroundState.visited = !!d.ugVisited;
     if (typeof updateStockUI === 'function') updateStockUI();
     return true;
