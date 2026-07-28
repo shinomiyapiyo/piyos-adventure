@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.663";
+                content: "Ver.1.664";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -951,7 +951,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.663</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.664</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -5604,7 +5604,8 @@ function showGuide() {
     history.pushState({ screen: 'guide' }, '');
     // ガイド内容を動的に生成（言語切替対応）
     // ⚠新しい章を足したらこの配列にも入れること（i18n に guide_<名前>_title / _body が要る）
-    var sections = ['controls', 'items', 'stock', 'pouch', 'special', 'boss', 'bonus', 'underground', 'money', 'shop', 'savings', 'titleshop', 'egg', 'avatar', 'datasave', 'tips'];
+    // 地底は「おまけのモード」ではなく **R7 で必ず来る本編**なので、ボス戦の直後に置く（1.664）
+    var sections = ['controls', 'items', 'stock', 'pouch', 'special', 'boss', 'underground', 'bonus', 'money', 'shop', 'savings', 'titleshop', 'egg', 'avatar', 'datasave', 'tips'];
     var html = '';
     for (var i = 0; i < sections.length; i++) {
         var s = sections[i];
