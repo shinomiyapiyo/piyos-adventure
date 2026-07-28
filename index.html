@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.660";
+                content: "Ver.1.661";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -448,13 +448,13 @@
             top: 0 !important; left: 0 !important;
             width: 100vw !important; height: 100vh !important;
             box-sizing: border-box !important;
-            background: rgba(0,0,0,0.9) !important;
+            background: linear-gradient(160deg, #1a0d32, #0d0520) !important;
             display: flex !important;
             flex-direction: column !important;
-            justify-content: flex-start !important;
+            justify-content: center !important;
             align-items: center !important;
             z-index: 9999 !important;
-            padding: calc(1vh + env(safe-area-inset-top, 0px)) calc(6px + env(safe-area-inset-right, 0px)) calc(0.5vh + env(safe-area-inset-bottom, 0px)) calc(6px + env(safe-area-inset-left, 0px)) !important;
+            padding: calc(4px + env(safe-area-inset-top, 0px)) calc(10px + env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) calc(10px + env(safe-area-inset-left, 0px)) !important;
             overflow: hidden !important;
         }
         #rankingScreen.hidden { display: none !important; }
@@ -941,7 +941,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.660</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.661</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1049,48 +1049,60 @@
             position: fixed; top: 0; left: 0;
             width: 100vw; height: 100vh;
             box-sizing: border-box;
-            background: rgba(0,0,0,0.9);
+            background: linear-gradient(160deg, #1a0d32, #0d0520);
             display: none; flex-direction: column;
-            justify-content: flex-start; align-items: center;
-            z-index: 9999; padding: 2vh 10px;
+            justify-content: center; align-items: center;
+            z-index: 9999;
+            padding: 4px calc(env(safe-area-inset-right,0px) + 10px) 4px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
-            <div style="color: #ffd700; font-size: 2.8vw; font-weight: 800; margin-bottom: 0.5vh; flex-shrink: 0;
-                font-family: 'M PLUS Rounded 1c', sans-serif;
-                text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
-                letter-spacing: 0.08em;" data-i18n="ranking_title"><img src="images/icon_trophy.png" class="ui-icon"> ランキング</div>
-            <!-- 通報ボタン（Phase4: 14番地と同方式。タップで通報モード⇔キャンセル） -->
-            <button id="rankingReportBtn" onclick="toggleRankingReport()" data-i18n="ranking_report" style="
-                position: absolute;
-                top: calc(8px + env(safe-area-inset-top, 0px));
-                right: calc(10px + env(safe-area-inset-right, 0px));
-                z-index: 40; padding: 5px 14px; min-width: 0;
-                background: linear-gradient(180deg, #ff5a5a 0%, #d81a2c 60%, #a80f1f 100%);
-                border: none; border-top: 2px solid rgba(255,255,255,0.35);
-                border-bottom: 3px solid rgba(90,0,10,0.6);
-                border-radius: 10px; color: #fff; font-weight: 700;
-                font-family: 'M PLUS Rounded 1c', sans-serif;
-                font-size: clamp(11px, 2vw, 16px);
-                cursor: pointer; -webkit-tap-highlight-color: transparent;
-                box-shadow: 0 3px 10px rgba(216,26,44,0.45);">通報</button>
-            <div id="rankingReportHint" data-i18n="ranking_report_hint" style="
-                display: none; color: #ff6b7a; font-weight: 700;
-                font-size: clamp(11px, 1.8vw, 15px);
-                text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-                margin-bottom: 0.4vh; flex-shrink: 0;
-                font-family: 'M PLUS Rounded 1c', sans-serif;">通報する名前をタップ</div>
-            <div style="display: flex; gap: 4px; margin-bottom: 0.5vh; flex-shrink: 0; flex-wrap: wrap; justify-content: center;">
+            <!-- 1.661: 背景を黒から他画面と同じ紫グラデへ。中身も他画面と同じ「画面いっぱいのパネル」に入れる
+                 （ユーザー指摘「設定とランキングだけ背景が黒く、フィットしている感がなくて寂しい」）。
+                 ⚠縦スクロールは20位まで出すので当然のものとして残す（ユーザー了承済み）。 -->
+            <div class="list-panel" style="height: 100%; display: flex; flex-direction: column;
+                background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
+                border: 2px solid rgba(255,105,180,0.5); border-radius: 14px;
+                box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,105,180,0.12);
+                padding: 4px 12px; box-sizing: border-box;">
+            <div class="head-row" style="margin-bottom:4px;">
+                <span style="color: #ffd700; font-size: clamp(14px,2.8vw,20px); font-weight: 800; white-space: nowrap;
+                    font-family: 'M PLUS Rounded 1c', sans-serif;
+                    text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
+                    letter-spacing: 0.08em;" data-i18n="ranking_title"><img src="images/icon_trophy.png" class="ui-icon"> ランキング</span>
+                <span id="rankingReportHint" data-i18n="ranking_report_hint" style="
+                    display: none; color: #ff6b7a; font-weight: 700;
+                    font-size: clamp(11px, 1.8vw, 15px);
+                    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+                    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                    font-family: 'M PLUS Rounded 1c', sans-serif;">通報する名前をタップ</span>
+                <span class="head-spacer"></span>
+                <!-- 通報ボタン（Phase4: 14番地と同方式。タップで通報モード⇔キャンセル）
+                     1.661: 画面の角に絶対配置していたのを見出し行へ移した（他画面と同じ並び） -->
+                <button id="rankingReportBtn" onclick="toggleRankingReport()" data-i18n="ranking_report" style="
+                    flex-shrink: 0; padding: 5px 14px; min-width: 0;
+                    background: linear-gradient(180deg, #ff5a5a 0%, #d81a2c 60%, #a80f1f 100%);
+                    border: none; border-top: 2px solid rgba(255,255,255,0.35);
+                    border-bottom: 3px solid rgba(90,0,10,0.6);
+                    border-radius: 10px; color: #fff; font-weight: 700;
+                    font-family: 'M PLUS Rounded 1c', sans-serif;
+                    font-size: clamp(11px, 2vw, 16px);
+                    cursor: pointer; -webkit-tap-highlight-color: transparent;
+                    box-shadow: 0 3px 10px rgba(216,26,44,0.45);">通報</button>
+                <button class="game-button head-btn" data-i18n="btn_back" onclick="closeRanking()"
+                    style="font-size: clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
+            </div>
+            <div style="display: flex; gap: 4px; margin-bottom: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: center;">
                 <button class="game-button" data-i18n="ranking_score" onclick="showRankingByType('score')" id="scoreRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_money.png" class="ui-icon"> 金額</button>
                 <button class="game-button" data-i18n="ranking_distance" onclick="showRankingByType('distance')" id="distanceRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_distance.png" class="ui-icon"> 距離</button>
                 <button class="game-button" data-i18n="ranking_kills" onclick="showRankingByType('enemyKills')" id="killsRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_kills.png" class="ui-icon"> 撃破</button>
                 <button class="game-button" data-i18n="ranking_level" onclick="showRankingByType('speedLevel')" id="levelRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_level.png" class="ui-icon"> レベル</button>
             </div>
             <div id="rankingList" style="
-                background: linear-gradient(180deg, rgba(15,5,30,0.9), rgba(5,0,15,0.95));
-                border: 2px solid rgba(255,105,180,0.4);
+                background: rgba(0,0,32,0.5);
+                border: 1px solid rgba(255,105,180,0.25);
                 border-radius: 10px; padding: 6px 8px;
-                width: 100%; max-width: 520px; box-sizing: border-box; flex: 1; min-height: 0;
+                width: 100%; box-sizing: border-box; flex: 1 1 auto; min-height: 0;
                 overflow-y: auto; overflow-x: hidden;
-                color: #fff; font-size: 2.2vw;
+                color: #fff; font-size: clamp(11px,2.2vw,17px);
                 font-family: 'M PLUS Rounded 1c', sans-serif;
                 -webkit-overflow-scrolling: touch;
                 touch-action: pan-y; overscroll-behavior: contain;
@@ -1098,7 +1110,7 @@
                 box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);">
                 <div style="text-align: center; color: rgba(255,255,255,0.6);">読み込み中...</div>
             </div>
-            <button class="game-button" data-i18n="btn_back" onclick="closeRanking()" style="margin-top: 0.5vh; flex-shrink: 0; z-index: 31; font-size: 2vw; padding: 4px 14px;"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
+            </div>
         </div>
 
         <!-- 更新履歴画面 -->
@@ -1107,28 +1119,39 @@
             position: fixed; top: 0; left: 0;
             width: 100vw; height: 100vh;
             box-sizing: border-box;
-            background: rgba(0,0,0,0.9);
+            background: linear-gradient(160deg, #1a0d32, #0d0520);
             display: none; flex-direction: column;
-            justify-content: flex-start; align-items: center;
+            justify-content: center; align-items: center;
             z-index: 9999;
-            padding: 1vh calc(env(safe-area-inset-right,0px) + 10px) 1vh calc(env(safe-area-inset-left,0px) + 10px);
+            padding: 4px calc(env(safe-area-inset-right,0px) + 10px) 4px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
-            <div data-i18n="settings_title" style="color: #ffd700; font-size: clamp(14px, 3.5vw, 20px); font-weight: 800; margin-bottom: 0.5vh; flex-shrink: 0;
-                font-family: 'M PLUS Rounded 1c', sans-serif;
-                text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
-                letter-spacing: 0.08em;"><img src="images/icon_settings.png" class="ui-icon"> 設定</div>
+            <!-- 1.661: 背景を黒(rgba(0,0,0,0.9))から他画面と同じ紫グラデへ。パネルも画面いっぱいに広げる
+                 （ユーザー指摘「設定とランキングだけ背景が黒く、フィットしている感がなくて寂しい」）。 -->
+            <div class="list-panel" style="height: 100%; display: flex; flex-direction: column;
+                background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
+                border: 2px solid rgba(255,105,180,0.5); border-radius: 14px;
+                box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,105,180,0.12);
+                padding: 4px 12px; box-sizing: border-box;">
+                <div class="head-row" style="margin-bottom:4px;">
+                    <span data-i18n="settings_title" style="color: #ffd700; font-size: clamp(14px, 3.5vw, 20px); font-weight: 800; white-space: nowrap;
+                        font-family: 'M PLUS Rounded 1c', sans-serif;
+                        text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
+                        letter-spacing: 0.08em;"><img src="images/icon_settings.png" class="ui-icon"> 設定</span>
+                    <span class="head-spacer"></span>
+                    <button class="game-button head-btn" onclick="closeSettings()" data-i18n="btn_back"
+                        style="font-size: clamp(11px,2.4vw,15px);"></button>
+                </div>
             <!-- 設定の各行は「ラベル … ボタン」で真ん中が空く。500px幅の1列だと8行で縦に溢れていた
-                 （実測 400/296=135%）ので、横が余っている時だけ2列に割る（auto-fill＝縦画面では1列のまま）。 -->
+                 （実測 400/296=135%）ので、横が余っている時だけ2列に割る（auto-fill＝縦画面では1列のまま）。
+                 ⚠ここだけ grid-auto-rows:auto + align-content:stretch にして、余った縦を各行で分け合う。
+                   min-content のままだと下に大きな空白が残って「寂しい」見た目になる。 -->
             <div class="list-grid" style="
-                background: linear-gradient(180deg, rgba(15,5,30,0.9), rgba(5,0,15,0.95));
-                border: 2px solid rgba(255,105,180,0.4);
-                border-radius: 14px; padding: 8px 14px;
                 grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); column-gap: 20px;
-                width: 100%; max-width: 1000px; flex: 0 1 auto;
+                grid-auto-rows: auto; align-content: stretch;
+                width: 100%; flex: 1 1 auto; min-height: 0;
                 overflow-y: auto; overflow-x: hidden;
                 font-family: 'M PLUS Rounded 1c', sans-serif;
-                -webkit-overflow-scrolling: touch;
-                box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);">
+                -webkit-overflow-scrolling: touch;">
 
                 <!-- サウンド設定 -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
@@ -1271,7 +1294,7 @@
                         color: rgba(255,255,255,0.4);" data-i18n="settings_adfree_status">準備中</span>
                 </div>
             </div>
-            <button class="game-button" onclick="closeSettings()" data-i18n="btn_back" style="margin-top: 0.5vh; flex-shrink: 0; z-index: 31; font-size: clamp(10px, 2.5vw, 14px); padding: 6px 18px;"></button>
+            </div>
         </div>
 
         <!-- 遊び方ガイド画面 -->
@@ -4996,7 +5019,9 @@ function showRanking() {
 
     var el = document.getElementById('rankingScreen');
     document.body.appendChild(el);
-    el.style.cssText = 'position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;background:rgba(0,0,0,0.9)!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-items:center!important;z-index:999999!important;padding:calc(1vh + env(safe-area-inset-top,0px)) calc(6px + env(safe-area-inset-right,0px)) calc(0.5vh + env(safe-area-inset-bottom,0px)) calc(6px + env(safe-area-inset-left,0px))!important;overflow:hidden!important;';
+    // ⚠**背景色や余白を変える時はここも直す**（1.661）。この1行がマークアップ側の style を上書きするので、
+    //   HTML だけ直しても実際の見た目は変わらない（黒背景が残る）。
+    el.style.cssText = 'position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;background:linear-gradient(160deg,#1a0d32,#0d0520)!important;display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;z-index:999999!important;padding:calc(4px + env(safe-area-inset-top,0px)) calc(10px + env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) calc(10px + env(safe-area-inset-left,0px))!important;overflow:hidden!important;';
     el.classList.remove('hidden');
     // ⚠この画面は showScreenEl を通らない（style.cssText を直で組み立てている）ので、
     //   スクロールバーの付与をここでも呼ぶ（1.658・ユーザー報告「ランキングもタップしないとバーが出ない」）。
