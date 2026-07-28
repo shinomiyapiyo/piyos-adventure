@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.647";
+                content: "Ver.1.648";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -889,7 +889,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.647</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.648</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6264,7 +6264,15 @@ function updatePlayer() {
         moveAccel = 0.4;
         moveFriction = 0.97;
     }
-    if (gameState.input.left) {
+    // ⚠ノックバック中は横入力を受け付けない（1.648）。横移動は毎フレーム入力で velX を上書きするので、
+    //   velX を入れるだけのノックバックは「押し返す方向にキーを握っていると1フレームで消える」＝効かない。
+    //   短い硬直（十数フレーム）を挟んで初速を残し、摩擦で自然に減衰させる。
+    //   用途: 闇のタマゴの装甲を踏んだ時に殻の外へ弾き出す（殻の上に居座れないようにする）。
+    if (player.knockbackTimer > 0) {
+        player.knockbackTimer--;
+        player.velX *= 0.97;
+        player.facing = player.velX < 0 ? 'left' : 'right';
+    } else if (gameState.input.left) {
         player.velX = Math.max(player.velX - moveAccel, -moveMax);
         player.facing = 'left';
     } else if (gameState.input.right) {
@@ -7616,6 +7624,7 @@ function updateBullets() {
 function resetPlayerPosition() {
     player.samuraiDive = false; player.samuraiDiveLock = false; // リスポーン/復活時に急降下斬りとロックを解除（1.509/1.516）
     player.diveGrace = 0;   // 着地の巻き込み猶予もリセット（1.643・残ると復活直後に敵を素通しで倒せてしまう）
+    player.knockbackTimer = 0; // 弾き飛ばしの操作硬直も解除（1.648・復活直後に操作不能で始まらないように）
     // 地底は直近の安全な足場（チェックポイント）へ復帰する。溶岩の上や到達不能な位置に戻さないため。
     if (undergroundState.active) {
         player.x = undergroundState.checkpointX;

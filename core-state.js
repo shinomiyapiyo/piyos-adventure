@@ -383,7 +383,8 @@ var player = {
     x: 150, y: 286, width: 48, height: 48,
     velX: 0, velY: 0, onGround: false, groundType: 'normal',
     facing: 'right', animFrame: 0,
-    coyoteTimer: 0, jumpBufferTimer: 0  // 操作フィール(1.460): コヨーテタイム/ジャンプ先行入力
+    coyoteTimer: 0, jumpBufferTimer: 0,  // 操作フィール(1.460): コヨーテタイム/ジャンプ先行入力
+    knockbackTimer: 0  // 1.648: 横入力を一時的に無効にして初速を残す（闇のタマゴの装甲を踏んだ時の弾き飛ばし）
 };
 
 var coins = [], enemies = [], platforms = [];

@@ -5847,8 +5847,16 @@ function updateBossCollision_egg(b) {
             b.stompCooldown = 35;
             if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
         } else {
-            // 装甲: 弾かれる（ダメージなし）。高めにバウンス＋リングで「今は踏んでも無駄」と伝える
-            player.velY = JUMP_FORCE * 0.62;
+            // 装甲: 弾かれる（ダメージなし）。リング＋キン音で「今は踏んでも無駄」と伝える。
+            // ⚠1.648: 真上へ跳ね返すと**殻の上で跳ね続けるだけで一方的に勝てた**（ユーザー実機報告）。
+            //   殻の上（足元 GROUND_Y-128）はスラムの衝撃波(GROUND_Y-54以下)も転がり接触(GROUND_Y-55以下)も
+            //   届かず、R3は破片(enc>=2)も出ないため完全無敵。そこへ露出が来ると自動で命中していた。
+            //   → **殻の外へ弾き出す**。跳ね返りを低くして横初速を与え、短い操作硬直で押し戻しを効かなくする。
+            //   ダメージは足さない（踏みミスを罰しない＝従来どおり「無駄だった」で済ませる）。
+            var kdir = ((player.x + player.width / 2) < (b.x + b.width / 2)) ? -1 : 1;
+            player.velX = kdir * 9;
+            player.knockbackTimer = 16;   // 約0.27秒。この間だけ横入力を無効化（index.html updatePlayer）
+            player.velY = JUMP_FORCE * 0.42;
             endSamuraiDiveOnBossStomp();
             b.stompCooldown = 14;
             floatEffects.push({ type: 'boss_shockwave', worldX: player.x + player.width / 2, worldY: b.y + 12, timer: 0, duration: 12 });
