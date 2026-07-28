@@ -493,8 +493,12 @@
            実測（852×393・初期セーブ）: 実績 673/235=287% / バッジ 585/235=250% / きせかえ 525/247=213%
                                         ずかん 300/194=155% / 設定 400/296=135%
            対処は「縮める」ではなく「余っている横を使う」。文字サイズは一切変えていない。
-           auto-fill なので iPad の縦持ちや細い画面では自動で1列に戻る＝縦画面の見た目は据え置き。 */
-        .list-panel { width: min(96vw, 1000px) !important; max-height: 100% !important; }
+           auto-fill なので iPad の縦持ちや細い画面では自動で1列に戻る＝縦画面の見た目は据え置き。
+           ⚠幅は **vw で書かない**。実機の横持ちは左右にセーフエリア（ノッチ/ホームインジケータ）が
+           あり、親が env(safe-area-inset-*) ぶんの padding を持っている。96vw だとその padding を
+           無視した値になり、実機でだけ横にはみ出す（開発機のブラウザは inset=0 なので再現しない）。
+           width:100% なら「親の中身の幅」そのものなので、どの端末でも常に正しい。 */
+        .list-panel { width: 100% !important; max-width: 1000px !important; max-height: 100% !important; }
         .list-grid  { display: grid !important; grid-auto-rows: min-content; align-content: start; }
         /* 一覧の「戻る」は横幅いっぱいの帯だった（40px+余白＝一覧の高さの2割を占有）。
            見出し行に寄せて、空いた分をそのまま一覧に返す。 */
@@ -509,7 +513,12 @@
            ポーズ本体（再開/きせかえ/リタイア）は今までどおりの小さいカードのまま。 */
         /* ⚠padding は !important が要る。#pauseCard は inline style で padding を持っており、
            クラス側の指定では勝てない（実測: 24px 36px のまま＝一覧の横幅が48px削られていた）。 */
-        #pauseCard.pause-list-mode { padding: 6px 12px !important; width: min(96vw, 1000px); }
+        #pauseCard.pause-list-mode {
+            width: 100%; max-width: 1000px;
+            /* ポーズは .overlay（padding:5px）直下でセーフエリアを見ていない。一覧を端まで敷くと
+               ノッチ側に潜るので、この時だけ左右に inset を足す。 */
+            padding: 4px calc(env(safe-area-inset-right,0px) + 12px) 4px calc(env(safe-area-inset-left,0px) + 12px) !important;
+        }
 
         /* --- スマホ用スタートボタン非表示 --- */
         @media (max-width: 599px) { #startButton { display: none; } }
@@ -1024,13 +1033,13 @@
                     <div class="instruction-text" data-i18n="pause_hint" style="margin-top: 12px; opacity: 0.7;">画面をタップで再開</div>
                 </div>
                 <div id="pauseSkinView" style="display:none;">
-                    <div class="head-row" style="margin-bottom:4px;">
+                    <div class="head-row" style="margin-bottom:2px;">
                         <span style="color:#ffd700; font-size:clamp(14px,3vw,20px); font-weight:800; font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4); white-space:nowrap;"><img src="images/skin_maid_idle.png" class="ui-icon"> <span data-i18n="title_skin">きせかえ</span></span>
                         <span class="head-spacer"></span>
                         <!-- data-i18n はボタン自身に付ける。内側の span に付けると t('btn_back') が持つ
                              アイコンと外側の img が二重に出る（実測でアイコンが2つ並んでいた）。 --><button class="game-button head-btn" data-i18n="btn_back" onclick="closePauseSkin()"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
                     </div>
-                    <div id="pauseSkinList" class="list-grid" onclick="if (handleSkinClick(event)) renderPauseSkins();" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:4px; max-height:calc(100vh - 69px); overflow-y:auto; -webkit-overflow-scrolling:touch; text-align:left;"></div>
+                    <div id="pauseSkinList" class="list-grid" onclick="if (handleSkinClick(event)) renderPauseSkins();" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:4px; max-height:calc(100vh - 62px); overflow-y:auto; -webkit-overflow-scrolling:touch; text-align:left;"></div>
                 </div>
             </div>
         </div>
@@ -1101,7 +1110,8 @@
             background: rgba(0,0,0,0.9);
             display: none; flex-direction: column;
             justify-content: flex-start; align-items: center;
-            z-index: 9999; padding: 1vh 10px;
+            z-index: 9999;
+            padding: 1vh calc(env(safe-area-inset-right,0px) + 10px) 1vh calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
             <div data-i18n="settings_title" style="color: #ffd700; font-size: clamp(14px, 3.5vw, 20px); font-weight: 800; margin-bottom: 0.5vh; flex-shrink: 0;
                 font-family: 'M PLUS Rounded 1c', sans-serif;
@@ -1114,7 +1124,7 @@
                 border: 2px solid rgba(255,105,180,0.4);
                 border-radius: 14px; padding: 8px 14px;
                 grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); column-gap: 20px;
-                width: 96vw; max-width: 1000px; flex: 0 1 auto;
+                width: 100%; max-width: 1000px; flex: 0 1 auto;
                 overflow-y: auto; overflow-x: hidden;
                 font-family: 'M PLUS Rounded 1c', sans-serif;
                 -webkit-overflow-scrolling: touch;
@@ -1597,18 +1607,19 @@
             box-sizing: border-box; z-index: 9999;
             background: linear-gradient(160deg, #1a0d32, #0d0520);
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 6px calc(env(safe-area-inset-right,0px) + 10px) 6px calc(env(safe-area-inset-left,0px) + 10px);
+            padding: 4px calc(env(safe-area-inset-right,0px) + 10px) 4px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
             <div class="list-panel" style="display: flex; flex-direction: column;
                 background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
                 border: 2px solid rgba(255,215,0,0.5); border-radius: 14px;
                 box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,215,0,0.12);
-                padding: 6px 12px; box-sizing: border-box;">
-                <div class="head-row" style="margin-bottom:5px;">
+                padding: 4px 12px; box-sizing: border-box;">
+                <div class="head-row" style="margin-bottom:4px;">
                     <span id="achievementTitle" style="color:#ffd700; font-size:clamp(13px,3vw,20px); font-weight:800;
                         font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4); white-space:nowrap;"><img src="images/icon_celebrate.png" class="ui-icon"> 実績</span>
+                    <!-- 見出し行に同居させるので、長い時は折り返さず「…」で切る（2行になると見出しが太る） -->
                     <span id="achievementHint" style="color:rgba(255,255,255,0.5); font-size:clamp(8px,1.5vw,11px);
-                        font-family:'M PLUS Rounded 1c',sans-serif;">ずっと挑戦できるよ</span>
+                        font-family:'M PLUS Rounded 1c',sans-serif; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">ずっと挑戦できるよ</span>
                     <span class="head-spacer"></span>
                     <span id="achievementSavings" style="color:#fff; font-size:clamp(9px,1.8vw,13px);
                         font-family:'M PLUS Rounded 1c',sans-serif; background:rgba(255,255,255,0.08);
@@ -1616,7 +1627,7 @@
                     <button class="game-button head-btn" id="achievementBackBtn" data-i18n="btn_back"
                         style="font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
                 </div>
-                <div id="achievementList" class="list-grid" style="grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:5px;
+                <div id="achievementList" class="list-grid" style="grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:4px;
                     overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto; min-height:0;"></div>
             </div>
         </div>
@@ -1628,23 +1639,23 @@
             box-sizing: border-box; z-index: 9999;
             background: linear-gradient(160deg, #1a0d32, #0d0520);
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 6px calc(env(safe-area-inset-right,0px) + 10px) 6px calc(env(safe-area-inset-left,0px) + 10px);
+            padding: 4px calc(env(safe-area-inset-right,0px) + 10px) 4px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
             <div class="list-panel" style="display: flex; flex-direction: column;
                 background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
                 border: 2px solid rgba(201,160,255,0.5); border-radius: 14px;
                 box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(201,160,255,0.12);
-                padding: 6px 12px; box-sizing: border-box;">
-                <div class="head-row" style="margin-bottom:5px;">
+                padding: 4px 12px; box-sizing: border-box;">
+                <div class="head-row" style="margin-bottom:4px;">
                     <span id="badgeTitle" style="color:#c9a0ff; font-size:clamp(13px,3vw,20px); font-weight:800;
                         font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(201,160,255,0.4); white-space:nowrap;"><img src="images/icon_trophy.png" class="ui-icon"> バッジ</span>
                     <span id="badgeHint" style="color:rgba(255,255,255,0.5); font-size:clamp(8px,1.5vw,11px);
-                        font-family:'M PLUS Rounded 1c',sans-serif;">あつめた しょうごう</span>
+                        font-family:'M PLUS Rounded 1c',sans-serif; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">あつめた しょうごう</span>
                     <span class="head-spacer"></span>
                     <button class="game-button head-btn" id="badgeBackBtn" data-i18n="btn_back"
                         style="font-size:clamp(11px,2.4vw,15px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
                 </div>
-                <div id="badgeList" class="list-grid" style="grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:5px;
+                <div id="badgeList" class="list-grid" style="grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:4px;
                     overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto; min-height:0;"></div>
             </div>
         </div>
@@ -1656,13 +1667,13 @@
             box-sizing: border-box; z-index: 9999;
             background: linear-gradient(160deg, #1a0d32, #0d0520);
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 6px calc(env(safe-area-inset-right,0px) + 10px) 6px calc(env(safe-area-inset-left,0px) + 10px);
+            padding: 4px calc(env(safe-area-inset-right,0px) + 10px) 4px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
             <div class="list-panel" style="display: flex; flex-direction: column;
                 background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
                 border: 2px solid rgba(255,215,0,0.5); border-radius: 14px;
                 box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,215,0,0.12);
-                padding: 5px 12px; box-sizing: border-box;">
+                padding: 4px 12px; box-sizing: border-box;">
                 <div class="head-row" style="margin-bottom:4px;">
                     <span id="skinTitle" style="color:#ffd700; font-size:clamp(13px,3vw,20px); font-weight:800;
                         font-family:'M PLUS Rounded 1c',sans-serif; text-shadow:0 0 10px rgba(255,215,0,0.4); white-space:nowrap;"><img src="images/skin_maid_idle.png" class="ui-icon"> きせかえ</span>
@@ -1684,7 +1695,7 @@
             box-sizing: border-box; z-index: 9999;
             background: linear-gradient(160deg, #141428, #0a0a1a);
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 6px calc(env(safe-area-inset-right,0px) + 10px) 6px calc(env(safe-area-inset-left,0px) + 10px);
+            padding: 4px calc(env(safe-area-inset-right,0px) + 10px) 4px calc(env(safe-area-inset-left,0px) + 10px);
             overflow: hidden;">
             <div class="list-panel" style="display: flex; flex-direction: column;
                 background: linear-gradient(160deg, rgba(25,25,55,0.98), rgba(12,12,30,0.98));
@@ -3493,7 +3504,7 @@ function renderBadgeRow(b) {
     var newRibbon = (gameSettings.badgeNew && gameSettings.badgeNew[b.id])
         ? '<div style="position:absolute; top:-5px; left:-5px; background:#ff3344; color:#fff; font-size:8px; font-weight:900; padding:1px 4px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.5); letter-spacing:0.3px; z-index:2;">NEW!</div>'
         : '';
-    return '<div style="position:relative; display:flex; align-items:center; gap:9px; background:rgba(0,0,40,0.55); border:1px solid ' + (earned ? 'rgba(201,160,255,0.4)' : 'rgba(255,255,255,0.1)') + '; border-radius:9px; padding:6px 10px;">' +
+    return '<div style="position:relative; display:flex; align-items:center; gap:9px; background:rgba(0,0,40,0.55); border:1px solid ' + (earned ? 'rgba(201,160,255,0.4)' : 'rgba(255,255,255,0.1)') + '; border-radius:9px; padding:5px 10px;">' +
         newRibbon +
         '<img src="' + b.iconImg + '" width="30" height="30" style="' + iconStyle + '">' +
         '<div style="flex:1 1 auto; min-width:0;">' +
@@ -3612,7 +3623,7 @@ function renderAchievementRow(a) {
         stateHtml = rewardSpan;
     }
     var barColor = complete ? '#4CAF50' : '#ffd700';
-    return '<div style="display:flex; align-items:center; gap:8px; background:rgba(0,0,40,0.55); border:1px solid rgba(255,255,255,0.12); border-radius:9px; padding:5px 9px;">' +
+    return '<div style="display:flex; align-items:center; gap:8px; background:rgba(0,0,40,0.55); border:1px solid rgba(255,255,255,0.12); border-radius:9px; padding:4px 9px;">' +
         '<img src="' + a.iconImg + '" width="26" height="26" style="image-rendering:pixelated; flex-shrink:0;">' +
         '<div style="flex:1 1 auto; min-width:0;">' +
             '<div style="color:#fff; font-size:clamp(10px,2.1vw,14px); font-weight:700; font-family:\'M PLUS Rounded 1c\',sans-serif; margin-bottom:2px;">' + escapeHtml(t(a.nameKey)) + '</div>' +
@@ -3745,10 +3756,19 @@ function renderSkinRow(s) {
     var dim = (!owned && !equipped) ? ' filter:grayscale(0.75); opacity:0.65;' : '';
     // 特殊スキルの軽い説明（メイド=クリティカル/きぐるみ=電気攻撃）
     var effHtml = s.effectKey ? '<div style="color:#8ee7ff; font-size:clamp(8px,1.7vw,11px); margin-top:2px; font-weight:600; line-height:1.25;">' + escapeHtml(t(s.effectKey)) + '</div>' : '';
-    return '<div style="display:flex; align-items:center; gap:10px; background:rgba(0,0,40,0.55); border:1px solid ' + (equipped ? 'rgba(76,175,80,0.6)' : 'rgba(255,255,255,0.12)') + '; border-radius:10px; padding:6px 10px;">' +
+    // ⚠状態（そうび中／未解放／そうびボタン）は**名前と同じ行**に置く（1.659）。
+    //   右の独立カラムにすると説明文の幅が80px前後削られ、実機の横持ちで2行に折り返して
+    //   行が高くなる＝一覧が縦に溢れる原因になっていた（実測 375/332=113%）。
+    //   同じ行に移すと説明文が1行に収まり、行が約90px→71pxになって1画面に収まる。
+    return '<div style="display:flex; align-items:center; gap:10px; background:rgba(0,0,40,0.55); border:1px solid ' + (equipped ? 'rgba(76,175,80,0.6)' : 'rgba(255,255,255,0.12)') + '; border-radius:10px; padding:5px 10px;">' +
         '<img src="' + s.preview + '" width="44" height="44" style="image-rendering:pixelated; flex-shrink:0; background:rgba(255,255,255,0.06); border-radius:8px;' + dim + '">' +
-        '<div style="flex:1 1 auto; min-width:0; color:#fff; font-size:clamp(11px,2.3vw,15px); font-weight:700; font-family:\'M PLUS Rounded 1c\',sans-serif;">' + escapeHtml(t(s.nameKey)) + effHtml + condHtml + '</div>' +
-        '<div style="flex-shrink:0;">' + stateHtml + '</div>' +
+        '<div style="flex:1 1 auto; min-width:0;">' +
+            '<div style="display:flex; align-items:center; gap:8px;">' +
+                '<span style="flex:1 1 auto; min-width:0; color:#fff; font-size:clamp(11px,2.3vw,15px); font-weight:700; font-family:\'M PLUS Rounded 1c\',sans-serif;">' + escapeHtml(t(s.nameKey)) + '</span>' +
+                '<span style="flex-shrink:0;">' + stateHtml + '</span>' +
+            '</div>' +
+            effHtml + condHtml +
+        '</div>' +
     '</div>';
 }
 function renderSkins() {
