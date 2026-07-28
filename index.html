@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.652";
+                content: "Ver.1.653";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -889,7 +889,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.652</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.653</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2723,6 +2723,12 @@ function buildRunSave() {
         revived: !!(typeof rewardAdState !== 'undefined' && rewardAdState.reviveUsedThisRun),
         // ── 持ち物 ──
         items: items, perma: perma,
+        // ⚠**中断した時点のポーチ所有**を別に控える（1.653・監査で発見した複製の防止）。
+        //   ポーチの所有は gameSettings.permaStock が正だが、セーブも base として所有の写しを持ち、
+        //   ラン終了の commitPermaStock が base で permaStock を上書きする。中断中にタイトルショップで
+        //   ポーチを売ると、**代金を得たまま再開→終了で品が戻る**（実測で再現）。
+        //   再開時にこの控えと今の permaStock を突き合わせ、中断中に変わった枠は今の permaStock を採る。
+        permaOwned: (gameSettings.permaStock || []).slice(),
         // ── そのラウンドで消費済みの「1ラウンド1回」たち ──
         shopVisited: !!shopState.visited, shopDeposited: !!shopState.deposited,
         // ⚠buildingX も保存する（1.649）。位置を持たずに buildingPlaced だけ復元すると、再配置が
@@ -2816,6 +2822,20 @@ function applyRunSave(d) {
         var p = d.perma[i];
         stockState.perma.push(p ? { id: p.id || '', used: !!p.used, temp: !!p.temp, base: p.base || '' }
                                 : { id: '', used: false, temp: false, base: '' });
+    }
+    // ⚠**中断中に変わったポーチの所有は、今の permaStock を正とする**（1.653・監査で見つけた複製の対策）。
+    //   セーブの base は「中断した時点の所有」の写しでしかなく、ラン終了の commitPermaStock がそれで
+    //   permaStock を上書きするため、中断中に売ると「代金を得たまま品が戻る」複製ができていた。
+    //   中断時の控え(permaOwned)と今の permaStock を枠ごとに比べ、**変わっている枠だけ**今の値に差し替える。
+    //   ⚠ラン中に拾って所有が決まった枠は permaOwned も今の permaStock も '' で一致する＝触らない
+    //     （拾得はゲームオーバーの commitPermaStock で初めて確定する、という従来の設計を壊さない）。
+    //   ⚠旧セーブ（permaOwned なし）は従来どおり素通り＝既存のしおりを無効にしない。
+    if (Array.isArray(d.permaOwned)) {
+        var _curOwn = gameSettings.permaStock || [];
+        for (var k = 0; k < stockState.perma.length; k++) {
+            var _was = d.permaOwned[k] || '', _now = _curOwn[k] || '';
+            if (_was !== _now) stockState.perma[k] = { id: _now, used: false, temp: false, base: _now };
+        }
     }
     stockState.items = [];
     for (var j = 0; j < d.items.length; j++) if (d.items[j] && d.items[j].id) stockState.items.push({ id: d.items[j].id });
