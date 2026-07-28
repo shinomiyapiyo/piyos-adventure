@@ -303,13 +303,31 @@ function isScreenVisible(id) {
 //   ・素の状態はオーバーレイ表示＝触るまで見えない（このエンジンで実測: 占有幅0px）。
 //   ・`::-webkit-scrollbar` を当てれば常時表示になる（実測: 8px占有）が、**iOSのWKWebViewは
 //     これを無視する**。iOS/Android の両方で確実に見せるには自前で描くしかない。
-// そこで「対象要素の右端に重ねる細いバー」をDOMで作る。⚠**対象要素自身は一切いじらない**
-//   （幅も overflow も触らない）＝既存レイアウトが動かない。バーは親に absolute で置く。
-var SBAR_W = 5, SBAR_MIN_THUMB = 24;
+// そこで「対象要素の右端に重ねる細いバー」をDOMで作る。バーは親に absolute で置く。
+// ⚠1.660: 当初は「対象要素を一切いじらない」方針だったが、**それでは中身がバーの下に潜る**。
+//   実機報告（タイトルショップ）: 行の右端の「MAX」がバーに隠れて読めなくなっていた。
+//   本物のスクロールバーと同じく、**バーを出す時だけ右に幅ぶんの余白（溝）を作る**ようにする。
+var SBAR_W = 5, SBAR_MIN_THUMB = 24, SBAR_GUTTER = SBAR_W + 3;
+// バーの下に中身が入らないよう、対象要素の padding-right を出し入れする。
+// ⚠出す/しまうで振動しない: 余白を足すと中身は細くなる＝溢れは解消しないので need は true のまま。
+//   逆に余白を外すと中身は広くなる＝さらに収まるので need は false のまま。どちらも一方通行。
+function setSbarGutter(el, on) {
+    if (!!on === !!el.__sbarGutter) return;
+    if (on) {
+        el.__sbarPadR = el.style.paddingRight;   // 元の指定（インライン）を覚えて戻せるようにする
+        var cur = parseFloat(getComputedStyle(el).paddingRight) || 0;
+        el.style.paddingRight = (cur + SBAR_GUTTER) + 'px';
+    } else {
+        el.style.paddingRight = el.__sbarPadR || '';
+    }
+    el.__sbarGutter = !!on;
+}
 function layoutScrollBar(el) {
     var s = el.__sbar;
     if (!s || !s.track.isConnected) return;
     var need = el.scrollHeight > el.clientHeight + 1 && el.clientHeight > 0;
+    setSbarGutter(el, need);
+    need = el.scrollHeight > el.clientHeight + 1 && el.clientHeight > 0;  // 溝を入れた後の値で描く
     s.track.style.display = need ? 'block' : 'none';
     if (!need) return;
     s.track.style.top    = el.offsetTop + 'px';
