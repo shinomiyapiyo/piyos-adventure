@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.684";
+                content: "Ver.1.685";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -978,7 +978,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.684</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.685</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3199,6 +3199,9 @@ function canDrawDailyEggToday() {
     return true;
 }
 // 日次ゴールデンエッグを画面外(右)の平地に出す（穴の上を避ける）。一次抽選/救済抽選の両方から呼ぶ。
+// ⚠**地上専用**（y=240 と isFlatGroundAt は地上の地形が前提・GROUND_Y=348）。地底や入場土管の最中に呼ぶと
+//   届かない場所に湧いて当日の枠だけが消える（1.685で呼び出し側に `!undergroundState.active` を追加した）。
+//   ここを地底対応させる場合は「部屋の床を基準にしたY」を別途決める必要がある＝安易に呼ばないこと。
 function spawnDailyGoldenEgg() {
     var eggX = gameState.camera.x + GAME_WIDTH + 60;
     var eggScanEnd = eggX + 400; // terrain生成範囲(+500)内で前方の平地を探す
@@ -3213,7 +3216,7 @@ function spawnDailyGoldenEgg() {
 function collectGoldenEgg(isDaily) {
     markZukanSeen('item:golden_egg'); // ずかん: ゴールデンエッグ発見（フィールド/日次/土管部屋の全経路を集約）
     gameSettings.goldenEggs = (gameSettings.goldenEggs || 0) + 1;
-    if (isDaily) {                                 // 日次枠を消費した経路(2500m/R4救済/闇の巫女撃破)だけ日付を確定（部屋1/20は無制限・1.588）
+    if (isDaily) {                                 // 日次枠を消費した経路(2500m/R4救済/闇の巫女撃破)だけ日付を確定（土管部屋の1%は無制限・1.588）
         gameSettings.lastGoldenEggDate = getDateString();
         gameSettings.lastGoldenEggTimestamp = Date.now();
     }
@@ -6328,7 +6331,16 @@ function manageObjects() {
     // ゴールデンエッグ（日次・1日1回限りの一発抽選・1.455〜）: 2500mで30% → 外したらR4(≒4800m)で80%救済 → 両方外れたらその日は無し(farm不可)。
     // 一次抽選(2500m)を行った時点で当日の抽選を消費(goldenEggDrawDate)＝別ランでの再挑戦なし。救済はこのラン限定(per-run)。
     // 調整ノブ: 一次=2500m/30% ・ 救済=4800m(R4開始)/80%。
-    if (!gameState.goldenEggFieldSpawned && gameState.distance >= 2500 && !bossState.active && canDrawDailyEggToday()) {
+    //
+    // ⚠**地上にいる時だけ抽選する**（1.685・下の `if (undergroundState.active) return;` より前にこのブロックが
+    //   あるため、地底でも素通りしていた）。spawnDailyGoldenEgg は y=240＝**地上の高さ固定**なので、
+    //   地底（プレイヤーは y≈1,100）で湧くと**絶対に届かない場所に出て、当日の抽選枠だけが消える**。
+    //   実際に起きる筋道: その日の枠を既に使ったランの途中で**日付が変わる**と canDrawDailyEggToday() が復活し、
+    //   距離はもう2,500mを超えているのでその場で抽選が走る（通常プレイのR7以降＝12,018m〜／地底モードのステージ3〜）。
+    //   ⚠入場土管が出ている間（pipePlaced）も同じ＝スクロールが止まっていて画面外の右に出したエッグへは行けない。
+    //   ⚠条件を外すのではなく**据え置き**にしてある（per-runフラグを立てない）＝地上へ戻った時点で普通に抽選される。
+    if (!gameState.goldenEggFieldSpawned && !undergroundState.active && !undergroundState.pipePlaced &&
+        gameState.distance >= 2500 && !bossState.active && canDrawDailyEggToday()) {
         gameState.goldenEggFieldSpawned = true;
         gameSettings.goldenEggDrawDate = getDateString();     // 当日の抽選を消費（1日1回・farm防止）
         gameSettings.lastGoldenEggTimestamp = Date.now();     // 時計巻き戻しガードの基準
@@ -6339,7 +6351,9 @@ function manageObjects() {
     // 救済抽選: 一次を外していたら R3ボス(4800m)の手前 4300m で 80%（このラン限定＝到達前に力尽きたら消失＝1日1回限り）。
     // ⚠4800mちょうどで出すと同フレームでR3ボスがトリガー→setupBossArenaがpowerUpsを全消去し、
     //   エッグが取れない不具合になる（ユーザー報告・1.491）。手前で出して取得の猶予を確保＋ボス中は湧かせない。
-    if (gameState.goldenEggRescueArmed && !gameState.goldenEggRescueDone && gameState.distance >= 4300 && !bossState.active) {
+    // ⚠救済も**地上だけ**（1.685・一次と同じ理由。ここも据え置き＝地上へ戻れば救済のチャンスは残る）。
+    if (gameState.goldenEggRescueArmed && !gameState.goldenEggRescueDone && !undergroundState.active &&
+        !undergroundState.pipePlaced && gameState.distance >= 4300 && !bossState.active) {
         gameState.goldenEggRescueDone = true;
         if (Math.random() < 0.80) spawnDailyGoldenEgg();      // 救済抽選 80%
     }
