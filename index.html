@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.677";
+                content: "Ver.1.678";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -951,7 +951,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.677</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.678</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3763,6 +3763,17 @@ var SAMURAI_DIVE_SPEED = 16;    // 急降下の初速（調整ノブ）
 // ⚠**ボスには効かせない**（ユーザー指定「ボスに対しては完全に上から攻撃した時のみダメージを与える」）。
 //   ボスの踏み判定は従来どおり「落下中(velY>0)かつ相手の上から」の条件を通った時だけ成立する。
 var SAMURAI_DIVE_GRACE_F = 10;
+// ── 急降下斬りの「着地硬直」（1.678・✅ユーザー決定「ランナー性能だけを少し下げたい」）──
+// ⚠1.677まで**斬り直しに一切の制限が無かった**: 最短サイクルは ジャンプ1f→斬り2f→着地 で、
+//   着地した次のフレームにはもう跳べる。着地後10フレームの巻き込み猶予(SAMURAI_DIVE_GRACE_F)が
+//   数珠つなぎになり、地上ステージでは「敵接触という最大の死因」を実質ゼロにできていた。
+// ⚠**稼ぎは削らない**のが肝。COMBO_TIMEOUT(60f)より短いのでコンボは切れず、スコア/撃破数/倍率は不変。
+//   下がるのは安全性だけ＝「穴の手前では斬れない」という判断が要るようになる。
+//   （高速時のスクロール6px/f × 18f＝108px流れる。高速の穴は70〜115pxなので、直前に斬ると跳べずに落ちる）
+// ⚠**地底では掛けない**（下の設定箇所参照）。
+var SAMURAI_DIVE_LAND_LAG      = 18;   // 着地硬直フレーム（0.3秒・調整ノブ。12=軽い / 24=重い）
+var SAMURAI_DIVE_LAND_FRICTION = 0.90; // 硬直中の横速度の減衰（1に近いほど長く滑る・調整ノブ）
+var SAMURAI_DIVE_SKID          = 6;    // 着地した瞬間に与える横の勢い px/f（滑りの見た目・調整ノブ）
 // ── サイバーぴよ（1.520）: ドローンビット。約2.5秒ごとに前後の画面内最寄りの敵へ同時ロックオンレーザー。
 // 発射・位置更新=updateBullets／描画=render.js drawCyberDrone／弾はbullets共通（装甲/空中半減/クリティカルも既存準拠）。
 var CYBER_DRONE_INTERVAL = 150; // 発射間隔フレーム（150=2.5秒・調整ノブ）
@@ -6508,6 +6519,11 @@ function updatePlayer() {
         player.knockbackTimer--;
         player.velX *= 0.97;
         player.facing = player.velX < 0 ? 'left' : 'right';
+    } else if (player.diveLandLag > 0) {
+        // 急降下斬りの着地硬直（1.678）: 横入力を受け付けず、勢いだけが摩擦で消える＝**滑って止まる**。
+        // ⚠向きは変えない（滑っている間にキャラがくるくる向き直ると「操作できている」ように見える）。
+        player.diveLandLag--;
+        player.velX *= SAMURAI_DIVE_LAND_FRICTION;
     } else if (gameState.input.left) {
         player.velX = Math.max(player.velX - moveAccel, -moveMax);
         player.facing = 'left';
@@ -6530,7 +6546,9 @@ function updatePlayer() {
     if (jumpJustPressed) player.jumpBufferTimer = JUMP_BUFFER_FRAMES;
     else if (player.jumpBufferTimer > 0) player.jumpBufferTimer--;
     // 地上ジャンプ（コヨーテ猶予＋先行入力バッファ）
-    if (player.jumpBufferTimer > 0 && player.coyoteTimer > 0 && !gameState.isRespawning) {
+    // ⚠急降下斬りの着地硬直中は跳べない（1.678）。ここが今回の代償の本体＝**斬り直しの間隔**を作る。
+    //   跳べなければ空中にも行けない＝急降下斬りも撃てない（startSamuraiDive は空中限定）。
+    if (player.jumpBufferTimer > 0 && player.coyoteTimer > 0 && !gameState.isRespawning && player.diveLandLag <= 0) {
         player.velY = jf;
         player.onGround = false;
         player.coyoteTimer = 0;      // 二重発火防止
@@ -6765,6 +6783,28 @@ function updatePlayer() {
             player.samuraiDive = false;
             player.diveGrace = SAMURAI_DIVE_GRACE_F;   // 着地の瞬間だけ雑魚を巻き込む（1.643）
             screenShake.intensity = 4; screenShake.timer = 8;
+            // ── 着地硬直＋滑り（1.678）──
+            // ⚠**地底では掛けない**（✅ユーザー了承済みの提案どおり）。理由は2つ:
+            //   ①地底では急降下斬りが移動手段として組み込まれている（SAMURAI_DIVE_UG_MULT=2 は
+            //     「歩くより斬った方が遅い」逆転を防ぐために入れた値）。
+            //   ②「地底に100%被弾する場所は無い」の検証（tools/ug-hazard-overlap-sim.mjs）は
+            //     **自由に動ける前提**で出した結論。溶岩やバーの上で0.3秒固まる仕様を足すとその保証が崩れる。
+            //   地底の距離は全員一律1200mでランキング差にならないので、外して支障がない。
+            if (!undergroundState.active) {
+                player.diveLandLag = SAMURAI_DIVE_LAND_LAG;
+                player.velX = (player.facing === 'left' ? -SAMURAI_DIVE_SKID : SAMURAI_DIVE_SKID);
+                // 土煙（硬直中だと分かる合図。無いと「入力が効かないバグ」に見える）
+                for (var _dl = 0; _dl < 6; _dl++) {
+                    floatEffects.push({
+                        type: 'combo_spark',
+                        worldX: player.x + player.width / 2 + (Math.random() - 0.5) * 26,
+                        worldY: player.y + player.height - 4,
+                        vx: (Math.random() - 0.5) * 3.4, vy: -0.6 - Math.random() * 1.2,
+                        timer: 0, duration: 20 + Math.floor(Math.random() * 10),
+                        size: 2 + Math.random() * 2.5, hue: 40
+                    });
+                }
+            }
         } else {
             floatEffects.push({
                 type: 'combo_spark',
@@ -7944,6 +7984,7 @@ function resetPlayerPosition() {
     player.samuraiDive = false; player.samuraiDiveLock = false; // リスポーン/復活時に急降下斬りとロックを解除（1.509/1.516）
     player.diveGrace = 0;   // 着地の巻き込み猶予もリセット（1.643・残ると復活直後に敵を素通しで倒せてしまう）
     player.knockbackTimer = 0; // 弾き飛ばしの操作硬直も解除（1.648・復活直後に操作不能で始まらないように）
+    player.diveLandLag = 0;    // 急降下斬りの着地硬直も解除（1.678・同上＝復活直後に0.3秒動けないのは理不尽）
     // 地底は直近の安全な足場（チェックポイント）へ復帰する。溶岩の上や到達不能な位置に戻さないため。
     if (undergroundState.active) {
         player.x = undergroundState.checkpointX;

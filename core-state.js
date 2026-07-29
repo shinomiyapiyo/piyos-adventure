@@ -496,7 +496,8 @@ var player = {
     velX: 0, velY: 0, onGround: false, groundType: 'normal',
     facing: 'right', animFrame: 0,
     coyoteTimer: 0, jumpBufferTimer: 0,  // 操作フィール(1.460): コヨーテタイム/ジャンプ先行入力
-    knockbackTimer: 0  // 1.648: 横入力を一時的に無効にして初速を残す（闇のタマゴの装甲を踏んだ時の弾き飛ばし）
+    knockbackTimer: 0, // 1.648: 横入力を一時的に無効にして初速を残す（闇のタマゴの装甲を踏んだ時の弾き飛ばし）
+    diveLandLag: 0     // 1.678: 侍ぴよの急降下斬りの着地硬直（>0 の間は横入力もジャンプも受け付けない＝滑って止まる）
 };
 
 var coins = [], enemies = [], platforms = [];

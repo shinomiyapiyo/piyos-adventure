@@ -122,6 +122,7 @@ function enterUnderground() {
     //   白が明けるまで updateUnderground がこのyへ毎tick引き戻して落下を**始めさせない**（下の落下導入を参照）。
     undergroundState.spawnY = player.y;
     player.velX = 0; player.velY = 0; player.onGround = false; player.facing = 'right';
+    player.diveLandLag = 0;   // ⚠地上で斬った直後に土管へ入ると硬直が持ち越される（1.678）。地底は硬直の対象外なので必ず消す
     gameState.recentlyDropped = false; gameState.dropFromY = 0;
     gameState.input.left = false; gameState.input.right = false;
     gameState.input.jump = false; gameState.input.jumpPressed = false;
