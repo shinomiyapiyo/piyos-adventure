@@ -5856,9 +5856,17 @@ function updateBossCollision(b) {
         b.angerTimer = BOSS_ANGER_DURATION;
         b.stompCooldown = 90; // 1.5秒間踏み無敵
         b.isRushing = false;
-        b.isJumping = false;
         b.isFlaming = false;
         b.isCharging = false;
+        // ⚠ジャンプ中は isJumping を**落とさない**（1.672・ユーザー実機報告
+        //   「闇のニワトリがジャンプしている時に踏むと、そのまま定位置が空中になる」）。
+        //   重力と着地スナップ(GROUND_Y - height)を持っているのは updateBossAI_mama の
+        //   **ジャンプ中の分岐だけ**なので、空中で false にすると以後はパトロール分岐に落ち、
+        //   そこは b.x しか動かさない＝**踏まれた高さのまま空中を歩き続ける**。
+        //   次のジャンプ攻撃（phase3限定）が来るまで直らず、その間は踏み直しの届く高さも
+        //   閃光の地面判定も噛み合わなくなる。踏んだ手応えは「上昇を止めて即落下へ転じる」で出す
+        //   （落下しきれば着地の衝撃波も従来どおり出る）。検証: tools/boss-stomp-airborne-sim.mjs
+        if (b.isJumping && b.velY < 0) b.velY = 0;
         if (b.hp <= 0) {
             bossState.phase = 4;
             bossState.defeatedTimer = 0;
