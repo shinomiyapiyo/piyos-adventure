@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.674";
+                content: "Ver.1.675";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -951,7 +951,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.674</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.675</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6644,6 +6644,38 @@ function updatePlayer() {
             else if (sgt === 'ice_elevated') sgt = 'ice';
             player.groundType = sgt;
             if (gameState.isRespawning) gameState.isRespawning = false;
+        }
+    }
+
+    // 画面左端と高台の壁に挟まれた時の「すり抜け落下」を止める（1.675・ユーザー実機報告）。
+    // ⚠起き方: 地上はカメラが右へ進み、プレイヤーは画面左端(camera.x+25)へ押し戻され続ける。
+    //   高台(elevated=幅100・上端 GROUND_Y-60〜100)が左端に来ると、体が高台のx範囲へ**完全に**入り、
+    //   足元の平地タイルとの重なりが切れる。この時:
+    //     ・着地分岐  → 高台の上端は頭より高いので成立しない
+    //     ・壁分岐    → **クランプでの押し込みは velX を伴わない**ので成立しない
+    //     ・救済スナップ → 深さ条件(player.y < 上端+48)を満たすのは elev<96 の時だけ
+    //   ＝どれにも当たらず高台の中をそのまま落ちていた（＝落下死）。
+    // ⚠上のスナップで「またげる高さ(elev<96)なら上へ乗る」挙動は**そのまま残す**（✅ユーザー了承）。
+    //   ここで扱うのは**乗れない高さの壁に押し込まれた場合だけ**＝落下は止めてその場で支え、
+    //   挟まれた扱いで被弾させる（✅ユーザー了承「被弾扱いにするのはいいが落ちる挙動はおかしい」）。
+    // ⚠発動条件は3つとも必須:
+    //   ①画面左端に貼り付いている ②体の**半分以上**が壁の中 ③地上ステージ（地底ではない）
+    //   ②が無いと、地底の縦穴を左壁に触れながら落ちる時（左クランプ24pxに対し壁は32px＝8px重なる）に
+    //   誤爆して空中で止まってしまう。③は保険（地底のカメラはプレイヤー追従＝そもそも押し込まれない）。
+    if (!player.onGround && player.velY >= 0 && !undergroundState.active &&
+        player.x <= gameState.camera.x + 25.5) {
+        for (var ci = 0; ci < terrain.length; ci++) {
+            var ct = terrain[ci];
+            if (ct.type === 'hole') continue;
+            if (ct.y >= player.y) continue;          // 頭より下＝またげる高さ（スナップの領分）
+            if (!aabb(player, ct)) continue;
+            var cOx = Math.min(player.x + player.width, ct.x + ct.width) - Math.max(player.x, ct.x);
+            if (cOx < player.width * 0.5) continue;  // かすっているだけ＝挟まれてはいない
+            player.y -= player.velY;                 // このフレームの落下を取り消す＝その高さで支える
+            player.velY = 0;
+            player.onGround = true;                  // 跳んで脱出できる（高台は跳べる高さ）
+            if (!isPlayerProtected()) takeDamage();  // 挟まれ＝被弾（takeDamage 側で無敵中は無視される）
+            break;
         }
     }
 
