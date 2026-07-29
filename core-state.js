@@ -487,6 +487,9 @@ var gameState = {
     goldenEggFieldSpawned: false,  // 2500m日次エッグの一次抽選をこのランで行ったか（per-run）
     goldenEggRescueArmed: false,   // 一次抽選(2500m/30%)を外し、R4での救済抽選(80%)が保留中か（per-run・1.455〜）
     goldenEggRescueDone: false,    // R4の救済抽選をこのランで行ったか（per-run・1.455〜）
+    // ふっかつやくをこのランで買った数（1.684・ユーザー指示）。値段は 20,000×(この数+1)＝買うたび+20,000。
+    // ⚠**ラン単位**（resetGame で0／しおりで中断・再開しても保持）。1店1個の maxPerVisit とは別の数え。
+    revivePotionBuys: 0,
     missionCountedCoins: 0, missionCountedBoss: 0, missionCountedSpecial: 0,
     specialGauge: 0, specialMoveLevel: 0, specialCutinTimer: 0, specialCutinActive: false
 };
@@ -2320,6 +2323,12 @@ var stockState = {
     items: [],       // 通常ストック枠（詰めて保持・毎ラン空から）
     perma: []        // 永続ストック枠 [{id,used}]（長さ=pouchLevel・resetGameでpermaStockから構築・毎ラン補充）
 };
+// ⚠**持てる数は必ず maxSlots まで**（1.683・ユーザー厳命「ストック枠がある分以外に所持という概念をなくす。
+//   ストック数以上に持てるのは論外」）。1.682までは、全枠ポーチ(通常枠ゼロ)のときだけ ふっかつやくを
+//   items[] へオーバーフローさせて枠を超えて持てるようにしていた（＝右の縦積みが何段でも伸び、画面下の
+//   ジャンプ領域に重なっていた）。この例外は撤去した。**新しい品を足す時もこの原則を破らないこと。**
+//   ふっかつやくが「ポーチ(金枠)に永続化してはいけない」都合は PERMA_STOCK_EXCLUDE と、
+//   addToStock の「所有(base)を作らない一時補充(route 2)だけ許す」で満たす（枠は1つ使う）。
 
 var STAGE_SHOP_ITEMS = [
     { // チュートリアルショップ限定（1.426）: いちごショート＝HP1回復。演出はそばと同方式（shortcake_scene.jpg）

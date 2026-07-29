@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.679";
+                content: "Ver.1.684";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -507,8 +507,35 @@
             margin: 0 !important; padding: 5px 14px !important;
             min-height: 30px !important; flex-shrink: 0;
         }
+        /* 「戻る」は決定/実行のピンクと**必ず違う見た目**にする（1.682・ユーザー指示
+           「右上の戻るボタンと きがえるボタンが似ていて紛らわしいから戻るボタンはデザインも変えて」）。
+           ピンク＝実行 ／ グレー＝戻る で全画面を統一する（タイトルの「もどる」も元からグレー）。
+           ⚠.head-btn は8画面（ポーズきせかえ/ランキング/設定/ガイド/実績/バッジ/きせかえ/ずかん）の
+             戻るが共有＝ここだけ直せば全部揃う。逆に、ここに「戻る以外」のボタンを足してはいけない。
+           ⚠色は .game-button の指定に勝つ必要があるので !important（:hover も別途上書きしないと
+             ホバーでピンクに戻る＝実測）。 */
+        .head-btn {
+            background: linear-gradient(180deg, #9aa0ad 0%, #5c6270 55%, #3a3f4a 100%) !important;
+            border-top: 2px solid rgba(255,255,255,0.28) !important;
+            border-bottom: 3px solid rgba(0,0,0,0.45) !important;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.18) !important;
+        }
+        .head-btn:hover {
+            background: linear-gradient(180deg, #a8aeba 0%, #6a707e 55%, #464c58 100%) !important;
+        }
+        /* icon_back.png は「右向き矢印」なので左右反転して左向きにする＝色だけでなく形でも戻ると分かる */
+        .head-btn .ui-icon { transform: scaleX(-1); }
         .head-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
         .head-spacer { flex: 1 1 auto; min-width: 0; }
+        /* ポーズ→きせかえの一覧中は、ゲーム中のHUD（#ui＝左上のステータス）とストック枠（#stockSlots＝右端）を隠す
+           （1.682・ユーザー実機報告「プレイ中のポーズからのきせかえを選ぶと、UIが邪魔で見えない」）。
+           どちらも z-index:100 でポーズ幕(z:20)の**上**にあるため、広げた一覧の左上と右端に必ず重なる。
+           ⚠クラスを外すのは closePauseSkin だけでは足りない。ポーズ画面を閉じる全経路（hidePauseScreenUI）と
+             ポーズを開く時（pauseGame）にも外す＝外し忘れるとランに戻った後もHUDが消えたままになる
+             （1.615 の body.is-paused で実際に踏んだ罠と同じ構造なので、同じ集約先で面倒を見る）。 */
+        body.pause-skin-open #ui,
+        body.pause-skin-open #stockSlots,
+        body.pause-skin-open #specialMoveUI { display: none !important; }
         /* ポーズ中の「きせかえ」だけカードを一覧向けに広げる（openPauseSkin が付け外しする）。
            ポーズ本体（再開/きせかえ/リタイア）は今までどおりの小さいカードのまま。 */
         /* ⚠padding は !important が要る。#pauseCard は inline style で padding を持っており、
@@ -951,7 +978,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.679</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.684</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2847,6 +2874,8 @@ function buildRunSave() {
         // ── per-run の抽選フラグ（戻さないと日次エッグをもう一度引ける）──
         eggField: !!gameState.goldenEggFieldSpawned,
         eggArmed: !!gameState.goldenEggRescueArmed, eggDone: !!gameState.goldenEggRescueDone,
+        // ふっかつやくの累積購入数（1.684）。⚠これを運ばないと「しおりで中断→再開」で値段が20,000円に戻る＝抜け道になる
+        potionBuys: gameState.revivePotionBuys || 0,
         // ── 広告復活を使ったか（ランキングの ↺ 判定に使う）──
         revived: !!(typeof rewardAdState !== 'undefined' && rewardAdState.reviveUsedThisRun),
         // ── 持ち物 ──
@@ -2952,6 +2981,7 @@ function applyRunSave(d) {
     gameState.ugElixir = d.ugElixir || 0;
     gameState.goldenEggFieldSpawned = !!d.eggField;
     gameState.goldenEggRescueArmed = !!d.eggArmed; gameState.goldenEggRescueDone = !!d.eggDone;
+    gameState.revivePotionBuys = (typeof d.potionBuys === 'number' && d.potionBuys > 0) ? Math.floor(d.potionBuys) : 0; // 1.684（旧しおりは0＝20,000円から）
     if (typeof rewardAdState !== 'undefined') rewardAdState.reviveUsedThisRun = !!d.revived;
     // 持ち物（⚠used/temp/base をそのまま戻す＝これが「1ランに1回」を守る本体）
     stockState.perma = [];
@@ -2975,7 +3005,15 @@ function applyRunSave(d) {
         }
     }
     stockState.items = [];
-    for (var j = 0; j < d.items.length; j++) if (d.items[j] && d.items[j].id) stockState.items.push({ id: d.items[j].id });
+    // ⚠**通常枠の数を超えて復元しない**（1.683・ユーザー厳命「ストック数以上に持てるのは論外」）。
+    //   1.682以前のしおりには、全枠ポーチ時に買った ふっかつやく が枠数を超えて入っていることがある。
+    //   はみ出したぶんは（拾った品が満杯だった時と同じ扱いで）貯金へ換算する＝払った代金が消えはしない。
+    var _normMax = (typeof normalMaxSlots === 'function') ? normalMaxSlots() : stockState.maxSlots;
+    for (var j = 0; j < d.items.length; j++) {
+        if (!d.items[j] || !d.items[j].id) continue;
+        if (stockState.items.length < _normMax) stockState.items.push({ id: d.items[j].id });
+        else if (typeof convertItemToSavings === 'function') convertItemToSavings(d.items[j].id);
+    }
     // 「1ラウンド1回」たち
     shopState.visited = !!d.shopVisited; shopState.deposited = !!d.shopDeposited;
     // ⚠位置が無い＝1.648以前のセーブ。その場合は buildingPlaced を立てずに checkShopTrigger の
@@ -3875,6 +3913,7 @@ function openPauseSkin() {
     var m = document.getElementById('pauseMainView'); if (m) m.style.display = 'none';
     var v = document.getElementById('pauseSkinView'); if (v) v.style.display = 'block';
     var c = document.getElementById('pauseCard'); if (c) c.classList.add('pause-list-mode');
+    document.body.classList.add('pause-skin-open'); // HUD/ストック枠を隠す（一覧に重なるため・1.682）
     renderPauseSkins();
     if (soundManager) soundManager.playConfirmSelect();
 }
@@ -3882,6 +3921,7 @@ function closePauseSkin() {
     var v = document.getElementById('pauseSkinView'); if (v) v.style.display = 'none';
     var m = document.getElementById('pauseMainView'); if (m) m.style.display = 'block';
     var c = document.getElementById('pauseCard'); if (c) c.classList.remove('pause-list-mode');
+    document.body.classList.remove('pause-skin-open'); // HUD/ストック枠を戻す（1.682）
     if (soundManager) soundManager.playCursorMove();
 }
 
@@ -4884,6 +4924,7 @@ function resetGame() {
     gameState.goldenEggFieldSpawned = false;
     gameState.goldenEggRescueArmed = false;
     gameState.goldenEggRescueDone = false;
+    gameState.revivePotionBuys = 0;   // ふっかつやくの値段は毎ラン 20,000円 から（1.684・ユーザー指示）
     pipeRoomState.active = false; pipeRoomState.visited = false;
     pipeRoomState.placed = false; pipeRoomState.x = 0; pipeRoomState.savedPlayer = null;
     pipeRoomState.targetDist = 0; pipeRoomState.targetRound = 0;
@@ -5010,6 +5051,7 @@ function pauseGame() {
     var _pm = document.getElementById('pauseMainView'); if (_pm) _pm.style.display = 'block';
     var _psv = document.getElementById('pauseSkinView'); if (_psv) _psv.style.display = 'none';
     var _pc = document.getElementById('pauseCard'); if (_pc) _pc.classList.remove('pause-list-mode'); // 一覧向けの幅は必ず戻す（1.659）
+    document.body.classList.remove('pause-skin-open'); // ポーズは常に「本体ビュー」から開く＝HUDを隠すクラスも落とす（1.682）
     document.getElementById('pauseScreen').classList.remove('hidden');
     // ⚠ここも showScreenEl を通らない。ポーズ内の「きせかえ」一覧がスクロールするので付与する（1.658）
     if (typeof scanScrollBars === 'function') scanScrollBars(document.getElementById('pauseScreen'));
@@ -5025,6 +5067,7 @@ function pauseGame() {
 function hidePauseScreenUI() {
     document.getElementById('pauseScreen').classList.add('hidden');
     document.body.classList.remove('is-paused');
+    document.body.classList.remove('pause-skin-open'); // ⚠きせかえ一覧を開いたまま閉じても HUD/ストック枠を必ず戻す（1.682）
 }
 
 // 復帰。⚠**呼んでよいのは再開ボタンだけ**（index.html の #resumeButton）。
@@ -7439,13 +7482,24 @@ function drawWeatherParticles() {
 // ── 復活判定 ──
 // 優先順: 1.復活薬(ストック,HP2) → 2.復活の羽(永続,HP1) → 3.ゲームオーバー
 function tryRevive() {
-    // 1. ストック内の復活薬を探す
-    var potionIdx = -1;
-    for (var i = 0; i < stockState.items.length; i++) {
-        if (stockState.items[i].id === 'revive_potion') { potionIdx = i; break; }
+    // 1. ストックの ふっかつやく を探す。⚠**通常枠とポーチ(金枠)の両方を見る**（1.683）。
+    //    1.682までは通常枠(items)だけを見ていたが、ふっかつやくは「所有を作らない一時補充(route 2)」で
+    //    ポーチの空き枠にも入るようになった＝ここを直さないと、持っているのに復活しない。
+    var _pl = permaLevel();
+    var _permaPotion = -1, potionIdx = -1;
+    for (var pp = 0; pp < _pl; pp++) {
+        var _pps = stockState.perma[pp];
+        if (_pps && _pps.id === 'revive_potion' && !_pps.used) { _permaPotion = pp; break; }
     }
-    if (potionIdx >= 0) {
-        stockState.items.splice(potionIdx, 1);
+    if (_permaPotion < 0) {
+        for (var i = 0; i < stockState.items.length; i++) {
+            if (stockState.items[i].id === 'revive_potion') { potionIdx = i; break; }
+        }
+    }
+    if (_permaPotion >= 0 || potionIdx >= 0) {
+        // ポーチの枠は used=true で残す（翌ランは元の所有品が補充される）／通常枠は詰めて削除
+        if (_permaPotion >= 0) stockState.perma[_permaPotion].used = true;
+        else stockState.items.splice(potionIdx, 1);
         updateStockUI();
         gameState.lives = 2;
         gameState.isInvincible = true;

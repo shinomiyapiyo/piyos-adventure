@@ -3525,14 +3525,20 @@ function drawEggProjectiles() {
             ctx.fill();
         } else if (egg.isFeather) {
             // 羽根弾（進行方向へ向けた暗紫のダート＋赤い先端）
+            // ⚠**暗いボスアリーナでも見えること**が要件（1.681）。1.674は「撃つ前に点滅予告を出す」で解決していたが
+            //   予告はユーザー判断で撤去したので、こちら＝**弾そのものを読めるようにする**方式に置き換えた。
+            //   やり方は「明るい縁取り＋明るい先端」＝形と色の方向性（暗紫の羽根）は変えずに輪郭だけ浮かせる。
+            //   ⚠shadowBlur は使わない（弾は最大11発同時＝1.466で焼き込みに寄せた方針を崩さない）。
             var fex = egg.x + egg.width / 2, fey = egg.y + egg.height / 2;
             ctx.translate(fex, fey);
             ctx.rotate(Math.atan2(egg.velY, egg.velX));
-            ctx.fillStyle = '#2a1840';
+            ctx.fillStyle = '#4b2d6e';                  // 本体（#2a1840＝ほぼ黒 から一段明るく）
+            ctx.strokeStyle = 'rgba(255,214,150,0.95)'; // 縁取り＝暗い空との境目を作る
+            ctx.lineWidth = 1.6;
             ctx.beginPath();
             ctx.moveTo(9, 0); ctx.lineTo(-7, 4); ctx.lineTo(-4, 0); ctx.lineTo(-7, -4);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#c0344e';
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#ff5a72';                  // 先端（#c0344e から明るく＝進行方向が分かる）
             ctx.beginPath();
             ctx.moveTo(9, 0); ctx.lineTo(2, 2); ctx.lineTo(2, -2);
             ctx.closePath(); ctx.fill();
@@ -4136,43 +4142,6 @@ function drawOwlDarkness(b) {
     }
 }
 
-// 闇のカラスの羽根弾「予告」（screen座標・render()のボスオーバーレイから呼ぶ・1.674）。
-// ⚠弾そのもの(#2a1840のダート)は暗いボスアリーナでほぼ見えない＝出てから避けるのは無理（ユーザー実機報告）。
-//   そこで**撃つ前**に「ここから真下の扇へ撒く」を点滅で見せる。弾の見た目・速度・数は一切変えない。
-// ⚠オーバーレイ(暗紫α0.3)の**上**に描く＝背景の暗さに関係なく必ず読める。
-function drawHawkFeatherWarn(b) {
-    var w = b.featherWarn || 0;
-    if (w <= 0) return;
-    var cx = b.x + b.width / 2 - gameState.camera.x;
-    var cy = b.y + b.height * 0.55;
-    var span = b.featherSpan || Math.PI * 0.75;
-    // 発射が近いほど速く点滅（残り12フレームで倍速）＝「今来る」が伝わる
-    var blink = 0.40 + 0.60 * Math.abs(Math.sin(b.animFrame * (w < 12 ? 0.80 : 0.42)));
-    ctx.save();
-    // ① 撃つ範囲（真下中心の扇）を短い破線の光条で示す。画面半分を塗り潰さないよう長さは抑える
-    ctx.globalAlpha = blink * 0.85;
-    ctx.strokeStyle = '#ff6a6a';
-    ctx.lineWidth = 3;
-    ctx.setLineDash([11, 8]);
-    for (var i = 0; i < 5; i++) {
-        var a = Math.PI * 0.5 + (i / 4 - 0.5) * span;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(a) * 26, cy + Math.sin(a) * 26);
-        ctx.lineTo(cx + Math.cos(a) * 96, cy + Math.sin(a) * 96);
-        ctx.stroke();
-    }
-    ctx.setLineDash([]);
-    // ② 発射口の光（カラスの位置＝弾の出どころ）。暗転が濃くてもここだけは浮かぶ
-    var gg = ctx.createRadialGradient(cx, cy, 2, cx, cy, 30);
-    gg.addColorStop(0, 'rgba(255,220,180,' + (0.95 * blink).toFixed(3) + ')');
-    gg.addColorStop(0.45, 'rgba(255,90,60,' + (0.55 * blink).toFixed(3) + ')');
-    gg.addColorStop(1, 'rgba(255,40,20,0)');
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = gg;
-    ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-}
-
 function render() {
     // タイトル/スプラッシュ(不透明オーバーレイ)中はワールド描画を丸ごと省略＝メニュー待機中の電池/発熱を抑える。
     // 半透明のポーズ/ゲームオーバーは背景が見えるので従来どおり描く。
@@ -4374,8 +4343,8 @@ function render() {
         }
         // 闇のフクロウ: 暗転ギミック（プレイヤー周囲は見える vignette＋光る目/急襲・音波の予告を上から）
         if (bossState.boss && bossState.boss.kind === 'owl' && bossState.phase >= 2) drawOwlDarkness(bossState.boss);
-        // 闇のカラス: 羽根弾の点滅予告（1.674）。暗いアリーナで弾が見えない問題への手当て
-        if (bossState.boss && bossState.boss.kind === 'hawk' && bossState.phase === 3) drawHawkFeatherWarn(bossState.boss);
+        // ⚠闇のカラスの予告はここに**足さない**（1.681・ユーザー指示「ダサすぎる」）。1.674の点滅予告は撤去済み。
+        //   暗くて弾が見えない問題は「弾そのものを明るくする」で対応する（drawEggProjectiles の isFeather）。
     } else {
       var nightOverlay = BIOME_CONFIGS[3].overlay;
       var isNightInvolved = biomeState.current === 3 || biomeState.previous === 3;

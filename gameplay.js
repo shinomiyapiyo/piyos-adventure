@@ -2503,12 +2503,18 @@ function openLuckyChest(chest) {
     chest.reward = reward;
     var cx = chest.x + chest.width / 2, cy = chest.y;
 
-    // 在庫アイテム付与（満杯時は addToStock が貯金換算＝非ハズレ）。枠に入った時だけアイコンを見せる。
+    // 在庫アイテム付与（満杯時は addToStock が貯金換算＝非ハズレ）。
+    // ⚠**貰えた物は必ずアイコンで見せる**（1.683・ユーザー実機報告「宝箱を踏んでも何も表示が出ない」）。
+    //   旧実装は `stockState.items.length > before`（＝通常枠に入った時）だけアイコンを出していた。そのため
+    //   ・ポーチ(金枠)の使用済み枠へ補充された（route 2）
+    //   ・枠が満杯で貯金へ換金された（route ③）
+    //   ・ふっかつやくが別枠カウンタへ入った（route ⓪・1.683）
+    //   のどれでも通常枠の数は変わらない＝**リング演出と音だけで、何を得たのか一切出ない**状態だった。
+    //   ポーチを埋めている（=長く遊んだ）プレイヤーほど当たるので、ハズレだと誤解されていた。
     function grantStockReward(id) {
-        var before = stockState.items.length;
         var ok = addToStock(id);
-        if (ok) markZukanSeen('item:' + id);
-        if (ok && stockState.items.length > before) {
+        if (ok) {
+            markZukanSeen('item:' + id);
             floatEffects.push({ type: 'chest_item', worldX: cx, worldY: cy - 28, timer: 0, duration: 80, itemId: id });
         }
         if (soundManager) soundManager.playItem();
@@ -3048,9 +3054,28 @@ function shopExitSequence(callback) {
     }, 800);
 }
 
+// ステージショップの「いま払う値段」。⚠**表示・所持金判定・確認文・支払いの4経路すべてここを通すこと**
+//   （1.684・ユーザー指示「ふっかつやくは1つ買う度に価格を2万円ずつ高くして。1ラウンドでは1つしか買えないのは
+//   そのまま。次の最初の1ラウンドからスタートする時はまた2万円の価格からスタート」）。
+//   1つでも item.price の直読みが残ると「表示20,000／請求40,000」のような食い違いになる。
+// ⚠**売値は上げない**（shopSellPrice は基準価格の半額のまま）＝高く買って半額で売る流れで得は出ない。
+//   逆に売値も上げると「値上げ後に買って売る」で現金が増える抜け道になる。
+// ⚠数え方は**そのラン内の累積購入数**（gameState.revivePotionBuys）。resetGame で0に戻り、しおりで中断しても保持。
+function stageItemPrice(item) {
+    if (!item) return 0;
+    if (isRevivePotion(item.id)) return item.price * (1 + (gameState.revivePotionBuys || 0));
+    return item.price;
+}
+
 function renderStageShopItem(item, purchaseCount) {
-    var canBuy = gameState.score >= item.price && purchaseCount < item.maxPerVisit;
-    if (item.stockItem && !stockHasRoom(item.id)) canBuy = false; // 永続枠/通常枠のどちらにも空きが無ければ買えない
+    var price = stageItemPrice(item);
+    var canBuy = gameState.score >= price && purchaseCount < item.maxPerVisit;
+    // 永続枠/通常枠のどちらにも空きが無ければ買えない。
+    // ⚠**判定は stockHasRoom() 一本に統一する**（1.683）。ユーザー実機報告「ふっかつやくが買えるのに
+    //   グレーアウトしている」の真因は、ここと購入経路が別々の条件を持っていたこと（購入側だけが
+    //   「全枠ポーチなら復活薬は枠を超えて買える」例外を知っていた）。その例外自体を撤去し、
+    //   stockHasRoom を addToStock の受け入れ条件と1対1にしたので、表示と購入は必ず一致する。
+    if (item.stockItem && !stockHasRoom(item.id)) canBuy = false;
     // ライフ上限チェック（回復薬はライフ10で買えない）
     var isHpItem = (item.id === 'heal' || item.id === 'shortcake'); // 即時回復系（そば/いちごショート）
     if (isHpItem && gameState.lives >= 10) canBuy = false;
@@ -3062,7 +3087,7 @@ function renderStageShopItem(item, purchaseCount) {
     var cursor = (isConfirming || isHighlighted) ? '>' : '　';
     var highlighted = isConfirming || isHighlighted;
     var textColor = canBuy ? '#fff' : 'rgba(180,180,180,0.5)';
-    var priceText = soldOut ? t('shop_sold_out') : (hpFull ? '―' : item.price + t('currency_unit'));
+    var priceText = soldOut ? t('shop_sold_out') : (hpFull ? '―' : price + t('currency_unit'));
     return '<div data-item-id="' + item.id + '" class="shop-row shop-row-item' +
         (highlighted ? ' hl' : '') + (canBuy ? '' : ' dim') + '">' +
         '<span class="shop-cursor">' + cursor + '</span>' +
@@ -3326,8 +3351,8 @@ function selectShopItem(itemId) {
     //   老婆の専用セリフ ug_shop_keeper_heal_maxhp「まだ 元気だろう。もったいない。」はこの品のために
     //   書かれているのに、条件に入っていないため一度も再生されない状態でもあった。
     else if ((item.id === 'heal' || item.id === 'shortcake' || item.id === 'ug_manju') && gameState.lives >= 10) { blockKey = 'shop_keeper_heal_maxhp'; }
-    else if (gameState.score < item.price) { blockKey = 'shop_keeper_no_money'; moneyBg = true; }
-    else if (item.stockItem && !stockHasRoom(item.id) && !isTempReviveCase(item.id)) { blockKey = 'shop_keeper_stock_full'; }
+    else if (gameState.score < stageItemPrice(item)) { blockKey = 'shop_keeper_no_money'; moneyBg = true; } // ⚠値段は stageItemPrice（ふっかつやくは累積値上げ・1.684）
+    else if (item.stockItem && !stockHasRoom(item.id)) { blockKey = 'shop_keeper_stock_full'; }
     if (blockKey) {
         shopConfirmingItem = null;
         showShopConfirm(false);
@@ -3341,10 +3366,11 @@ function selectShopItem(itemId) {
         updateStageShopUI();
         return;
     }
-    if (item.stockItem && !stockHasRoom(item.id) && isTempReviveCase(item.id)) {
-        // 全枠ポーチ: 復活薬は永続保存できないが「今回かぎり」で購入可＝保存不可を説明して かう/かわない へ
+    if (item.stockItem && isRevivePotion(item.id)) {
+        // ふっかつやくはポーチ(金枠)に永続化できない＝入っても「今回かぎり」。それを説明して かう/かわない へ（1.683）
+        // ⚠価格は買うたびに +20,000（1.684）。ここは確認文の {price} なので必ず stageItemPrice を使う。
         shopConfirmingItem = itemId;
-        setKeeperText('shop_keeper_revive_nosave_confirm', { price: item.price });
+        setKeeperText('shop_keeper_revive_nosave_confirm', { price: stageItemPrice(item) });
         showShopConfirm(true, tshopBuyLabels());
         updateStageShopUI();
         return;
@@ -3352,7 +3378,7 @@ function selectShopItem(itemId) {
     // 説明+価格＋確認ダイアログ
     shopConfirmingItem = itemId;
     var descEl = document.getElementById('shopKeeperText');
-    if (descEl) descEl.textContent = t(item.descKey) + '\n' + t(keeperKey('shop_keeper_confirm'), { item: t(item.nameKey), price: item.price });
+    if (descEl) descEl.textContent = t(item.descKey) + '\n' + t(keeperKey('shop_keeper_confirm'), { item: t(item.nameKey), price: stageItemPrice(item) });
     showShopConfirm(true, tshopBuyLabels());
     updateStageShopUI();
 }
@@ -3465,7 +3491,7 @@ function buyStageItem(itemId) {
         updateStageShopUI();
         return false;
     }
-    if (gameState.score < item.price) {
+    if (gameState.score < stageItemPrice(item)) {
         setKeeperText('shop_keeper_no_money');
         if (soundManager) soundManager.playDamage();
         setShopBg('shop04', 1200);
@@ -3484,13 +3510,8 @@ function buyStageItem(itemId) {
     }
     if (item.stockItem) {
         if (stockHasRoom(itemId)) {
-            addToStock(itemId); // 空き保証済み→未割当永続枠 or 通常枠へ
-        } else if (isTempReviveCase(itemId)) {
-            // 全枠ポーチ(通常枠0)の例外: 復活薬だけ通常枠へオーバーフロー追加。
-            // stockState.items は毎ラン resetGame で =[] になり localStorage にも保存されない＝持ち越し不可。
-            // 死亡時の自動復活は tryRevive がこの配列を走査して発動する。
-            stockState.items.push({ id: itemId });
-            updateStockUI();
+            // 空き保証済み→未割当永続枠 or 通常枠へ。ふっかつやくは枠を使わず別枠カウンタへ（addToStock ⓪・1.683）
+            addToStock(itemId);
         } else {
             // 有料購入は満杯なら弾く（貯金換算③には落とさない＝金を払って半額戻りの損を防ぐ）。
             setKeeperText('shop_keeper_stock_full');
@@ -3501,7 +3522,9 @@ function buyStageItem(itemId) {
             return false;
         }
     }
-    gameState.score -= item.price;
+    gameState.score -= stageItemPrice(item);   // ⚠**引くのも stageItemPrice**（表示と請求を必ず一致させる・1.684）
+    // ふっかつやくはこのランで買った数を数える＝次の1個は +20,000 になる（ラン開始で0に戻る）
+    if (isRevivePotion(itemId)) gameState.revivePotionBuys = (gameState.revivePotionBuys || 0) + 1;
     shopState.purchaseCounts[itemId] = bought + 1;
     markZukanSeen('item:' + itemId); // ずかん: ショップ品を購入＝発見
     var livesBefore = gameState.lives;
@@ -4225,20 +4248,25 @@ function commitPermaStock() {
 }
 
 // itemId を今この瞬間ストックに入れる余地があるか（購入可否・満杯判定に使用）
+// ⚠**addToStock の受け入れ条件と1対1で対応させること**（ズレると「押せば買えるのにグレーアウト」
+//   1.679までの不具合が再発する。実際にユーザー実機報告で出た）。
 function stockHasRoom(itemId) {
-    // 未割当の永続枠（復活薬など永続化不可品は永続枠に入れられない）
-    if (PERMA_STOCK_EXCLUDE.indexOf(itemId) === -1) {
-        for (var p = 0; p < stockState.perma.length; p++) {
-            // 未割当の空き枠、または今ラン使用済み（表示は空の金枠）の枠には入る余地がある
-            if (!stockState.perma[p].id || stockState.perma[p].used) return true;
-        }
+    var permaExcluded = (PERMA_STOCK_EXCLUDE.indexOf(itemId) !== -1); // ふっかつやく＝ポーチに永続化してはいけない品
+    for (var p = 0; p < stockState.perma.length; p++) {
+        var ps = stockState.perma[p];
+        // route 1: 未割当の空き枠（ここに入ると**その品を所有**＝毎ラン補充されるので、永続化不可の品は入れない）
+        if (!ps.base && !ps.id) { if (!permaExcluded) return true; continue; }
+        // route 2: 所有品が今この枠に居ない枠（使用済み／中身を出した）への**今回かぎりの補充**。
+        //   所有(base)は書き換えないので永続化しない＝ふっかつやくもここには入れる（1.683）。
+        if (ps.base && (ps.used || !ps.id)) return true;
     }
     // 通常枠の空き
     return stockState.items.length < normalMaxSlots();
 }
 
-// 全枠が永続(ポーチ)＝通常枠ゼロのとき、復活薬だけは「今回かぎり(保存されない)」で通常枠へ一時追加して購入できる例外ケース
-function isTempReviveCase(itemId) { return itemId === 'revive_potion' && normalMaxSlots() === 0; }
+// ふっかつやく（永続化してはいけない＝毎ラン補充されると20,000円の保険が無料で湧く品）。
+// ⚠枠は**必ず1つ使う**。枠を使わずに持てる例外は1.683で撤去した（core-state.js の stockState 参照）。
+function isRevivePotion(itemId) { return itemId === 'revive_potion'; }
 
 // ストック満杯時の入手品を貯金へ換算（損なし・売値=定価の半分）。永続化してsaveSettings。
 function convertItemToSavings(itemId) {
@@ -4255,14 +4283,19 @@ function convertItemToSavings(itemId) {
 }
 
 function addToStock(itemId) {
-    // ① 永続枠（まほうのポーチ）へ。復活薬など永続化不可品は除外
-    if (PERMA_STOCK_EXCLUDE.indexOf(itemId) === -1) {
+    // ① 永続枠（まほうのポーチ）へ。
+    // ⚠**枠を1つ使う**のは全ての品で共通（枠を超えて持てる例外は1.683で撤去・core-state.js の stockState 参照）。
+    //   永続化不可の品（ふっかつやく）は下の route 1（＝所有が決まる＝毎ラン補充される）だけを飛ばし、
+    //   所有を作らない route 2（今回かぎりの補充）は使わせる。これで「枠は使う／永続化はしない」が両立する。
+    var _permaExcluded = (PERMA_STOCK_EXCLUDE.indexOf(itemId) !== -1);
+    {
         // 1) 未割当の空き枠に自動割当 → 毎ラン補充される金枠に定着
         //    ⚠永続保存(permaStock)はここでは行わず commitPermaStock() でゲームオーバー時にまとめて確定する(1.526)。
         //    拾った瞬間に保存していた頃は「拾う→リタイア(or強制終了)→次ランで補充→売る」を繰り返せた＝無限売却(転売)。
         //    ⚠条件は「所有なし(base='')かつ空」＝**未割当の枠だけ**(1.576)。id だけで見ると、所有品を
         //      ドラッグで外へ出した枠や temp 補充を売った直後の枠まで「空き」に見え、base を上書きしていた。
-        for (var p = 0; p < stockState.perma.length; p++) {
+        //    ⚠ふっかつやく（_permaExcluded）はここへ入れない＝所有になると毎ラン無料で補充されてしまう。
+        for (var p = 0; !_permaExcluded && p < stockState.perma.length; p++) {
             if (!stockState.perma[p].base && !stockState.perma[p].id) {
                 stockState.perma[p] = { id: itemId, used: false, temp: false, base: itemId }; // ここで所有が決まる
                 updateStockUI();
@@ -4273,6 +4306,8 @@ function addToStock(itemId) {
         //    元の永続品に戻り、設定したポーチ内容は保持）。使用済み枠は表示が空の金枠なので「空きなのに拾えず売却」バグの修正。
         //    ⚠base は触らないこと＝所有はその枠に停めたまま。これで「未割当枠に拾って定着(route 1)→そのランで使う→
         //      もう1個拾う」で最初の1個の定着が消えていた不具合(〜1.575)も同時に塞がる。
+        //    ⚠**ふっかつやくもここは通す**（1.683）。base を触らない＝所有は元の品のまま＝翌ランで元に戻るので
+        //      「20,000円の保険が毎ラン無料で湧く」問題は起きない。枠は1つ使うので所持数も枠の数を超えない。
         for (var q = 0; q < stockState.perma.length; q++) {
             var _ps = stockState.perma[q];
             if (_ps.base && (_ps.used || !_ps.id)) {
@@ -4335,6 +4370,15 @@ function useStockItem(displayIndex, confirmed) {
         // 永続枠: 使っても枠は残す（used=true）。翌ラン resetGame で used=false に補充される。
         var pslot = stockState.perma[displayIndex];
         if (!pslot || !pslot.id || pslot.used) return false;
+        // ふっかつやくは死亡時に tryRevive が自動発動する保険＝手動使用は不可。タップ時はヒントだけ出す。
+        // ⚠1.683でふっかつやくが金枠（所有を作らない一時補充）にも入るようになったので、通常枠と同じ案内をここにも置く。
+        if (isRevivePotion(pslot.id)) {
+            if (typeof showRewardToast === 'function') {
+                showRewardToast(escapeHtml(t('revive_auto_hint')), 'linear-gradient(180deg,#8ad1ff,#3a7bd0)', '#fff');
+            }
+            if (soundManager) soundManager.playCursorMove();
+            return false;
+        }
         var pItem = STAGE_SHOP_ITEMS.find(function(s) { return s.id === pslot.id; });
         if (!pItem || !pItem.stockEffect) return false;
         if (stockUseBlocked(pItem)) return false;
@@ -4474,8 +4518,9 @@ function swapStockSlots(a, b) {
         }
     }
     // 通常枠は詰めて再構築。
-    // ⚠maxSlots を超える一時オーバーフロー（全枠ポーチ時に買える復活薬・gameplay.js の isTempReviveCase）は
-    //   snap に載らないので、切り落とさずそのまま末尾へ戻すこと（切ると買った復活薬が入替のたびに消える）。
+    // ⚠maxSlots を超えるオーバーフローは snap に載らないので、切り落とさずそのまま末尾へ戻す。
+    //   1.682まではここに「全枠ポーチ時に買ったふっかつやく」が載っていた（切ると入替のたびに消えた）。
+    //   1.683でふっかつやくは別枠カウンタへ移したので現状オーバーフローは発生しないが、保険として残す。
     var overflow = stockState.items.slice(Math.max(0, maxN - pl));
     var newItems = [];
     for (var n = pl; n < maxN; n++) { if (snap[n]) newItems.push({ id: snap[n].id }); }
@@ -4518,8 +4563,12 @@ function updateStockUI() {
         var s = STAGE_SHOP_ITEMS.find(function(x) { return x.id === id; });
         return (s && s.iconImg) ? '<img src="' + s.iconImg + '" class="ui-icon">' : '?';
     };
-    // 一時オーバーフロー枠（全枠ポーチ時に一時追加した復活薬など）も末尾に描く。通常時は maxSlots のまま
-    var _slotCount = Math.max(stockState.maxSlots, pl + stockState.items.length);
+    // 枠は常に maxSlots ぶん。⚠**ここを items の数で伸ばさない**こと（1.683・ユーザー実機報告
+    //   「アイテム欄が縦に伸びすぎてジャンプする時に押してしまう」）。1.682までは
+    //   max(maxSlots, pl + items.length) で、全枠ポーチ時に買ったふっかつやくのぶん**何段でも下に伸び**、
+    //   画面下のジャンプ領域（footer）に重なっていた。ふっかつやくは別枠カウンタ＋左HUD表示へ移設済み。
+    //   保険のオーバーフロー（swapStockSlots 参照）が万一起きても、枠の高さは maxSlots で止める。
+    var _slotCount = stockState.maxSlots;
     for (var i = 0; i < _slotCount; i++) {
         if (i < pl) {
             // ── 永続枠（まほうのポーチ・金枠＋スロット番号バッジ） ──
@@ -4696,8 +4745,6 @@ function setupBossArena() {
         stunTimer: 0,        // ダイブ着地後の硬直（=踏める窓）
         diveTargetX: 0,
         pendingDoubleDive: false, // (hawk用) 2連ダイブ予約
-        featherWarn: 0,      // (hawk用) 羽根弾の点滅予告の残りフレーム（1.674）。>0 の間は撃たずに溜める
-        featherCount: 0, featherSpan: 0, featherNext: 0, // 予告明けに撃つ内容と、その後の次弾までの間隔
         // 装甲卵ボス(egg)専用ステート
         eggMode: 'idle',     // idle→roll/slam/summon→exposed→idle
         eggTimer: 0,         // 各モードの残り時間
@@ -5001,12 +5048,12 @@ var HAWK_FRAME_DAMAGED = 4;
 var HAWK_FRAME_FLAP2   = 5; // 羽ばたき下端(Veo f28)。frame 6-9 = f4/f10/f16/f22（同じ羽ばたき動画の連続コマ）
 // ホバーの羽ばたき: f4(上)→f10→f16→f22→f28(下)→f22→f16→f10 の連続5コマ往復（8ステップ＝滑らか。2〜3枚だとカクつく）
 var HAWK_HOVER_CYCLE = [6, 7, 8, 9, 5, 9, 8, 7];
-// 羽根弾の点滅予告フレーム（1.674・ユーザー実機報告「下方向の弾が暗くて見えず何度も被弾する」）。
-// ✅ユーザー判断＝**弾そのものを明るくするのではなく、撃つ前に点滅で知らせる**方針。
-// ⚠1.673までは予告ゼロで即発射だった（羽根弾は #2a1840＝ほぼ黒／ボスアリーナの空は BOSS_SKY の
-//   暗紫なので、出た瞬間から見えない＝反応する手がかりが一つも無かった）。
-var HAWK_FEATHER_WARN    = 32;  // 約0.53秒
-var HAWK_FEATHER_WARN_P3 = 24;  // 瀕死は短い（約0.4秒）＝難度は据え置き
+// ⚠**闇のカラスに攻撃予告は付けない**（1.681・ユーザー指示「ダサすぎる。頼んでいないのに
+//   闇のフクロウの予告を作った時に一緒に実装された」）。1.674で入れた点滅予告（featherWarn ＋
+//   render.js の drawHawkFeatherWarn）は撤去し、羽根弾は**溜めなしで即発射**に戻した。
+//   ⚠1.674が手当てしていた元の問題（「下方向の弾が暗くて見えず何度も被弾する」）は消えないので、
+//   予告の代わりに**羽根弾そのものを見えるようにした**（render.js の isFeather＝明るい縁取り＋赤い先端）。
+//   フクロウ側の音波予告は**そのまま残す**（あちらは依頼されたもの）。
 
 function updateBossAI(b) {
     if (b.kind === 'hawk') { updateBossAI_hawk(b); }
@@ -5115,20 +5162,6 @@ function updateBossAI_hawk(b) {
         // 滞空: 上下に漂いつつプレイヤーのX座標を緩く追う
         b.hawkBob += 0.06;
         b.y = hoverY + Math.sin(b.hawkBob) * 12;
-        // ── 羽根弾の予告中（1.674）: 溜めの姿勢で**その場に留まる**＝「今から真下へ撒く」を絵で出す。
-        //   ⚠横追尾を止めるのが肝。追いながら撃つと、予告を見て逃げても扇の中心が付いてくる＝予告が無意味になる。
-        //   描画は render.js の drawHawkFeatherWarn（暗いボスアリーナでも読めるよう**オーバーレイの上**に描く）。
-        if (b.featherWarn > 0) {
-            b.facing = (b.x + b.width / 2 > player.x + player.width / 2) ? 'left' : 'right';
-            b.spriteFrame = HAWK_FRAME_SHOOT;
-            b.featherWarn--;
-            if (b.featherWarn <= 0) {
-                spawnHawkFeathers(b, b.featherCount, b.featherSpan);
-                b.spriteResetTimer = 20;
-                b.attackTimer = b.featherNext;
-            }
-            break;
-        }
         var tx = Math.max(aL, Math.min(aR - b.width, player.x + player.width / 2 - b.width / 2));
         var hoverSpeed = (phase === 3 ? 1.7 : phase === 2 ? 1.3 : 1.0) * angryMult;
         if (Math.abs(tx - b.x) > 1) b.x += Math.sign(tx - b.x) * Math.min(hoverSpeed, Math.abs(tx - b.x));
@@ -5146,17 +5179,17 @@ function updateBossAI_hawk(b) {
                 b.pendingDoubleDive = (enc >= 3 && Math.random() < 0.45);
             } else if (enc >= 2 && Math.random() < 0.5) {
                 // 【2回目登場〜(R8+)】広角・高密度の羽根バースト（ほぼ水平まで広げて横に避けにくく隙間を突かせる。上向きにはしない）
-                // ⚠1.674: 即発射をやめ、点滅予告を挟んでから撃つ（発射間隔は予告ぶんを差し引いて据え置き＝手数は不変）。
-                b.featherWarn  = (phase === 3 ? HAWK_FEATHER_WARN_P3 : HAWK_FEATHER_WARN);
-                b.featherCount = (phase === 3 ? 11 : 9);
-                b.featherSpan  = Math.PI * 0.95;
-                b.featherNext  = (phase === 3 ? 75 : 115) - b.featherWarn;
+                // ⚠1.681: 予告を撤去して**即発射**に戻した（1.673までと同じ）。発射間隔も予告ぶんを引く前の値に戻す＝手数は不変。
+                spawnHawkFeathers(b, (phase === 3 ? 11 : 9), Math.PI * 0.95);
+                b.spriteFrame = HAWK_FRAME_SHOOT;
+                b.spriteResetTimer = 20;
+                b.attackTimer = (phase === 3 ? 75 : 115);
             } else {
                 // 通常の羽根弾ばらまき（真下中心の扇）
-                b.featherWarn  = (phase === 3 ? HAWK_FEATHER_WARN_P3 : HAWK_FEATHER_WARN);
-                b.featherCount = (phase === 3 ? 7 : 5);
-                b.featherSpan  = Math.PI * 0.75;
-                b.featherNext  = (phase === 3 ? 70 : 110) - b.featherWarn;
+                spawnHawkFeathers(b, (phase === 3 ? 7 : 5), Math.PI * 0.75);
+                b.spriteFrame = HAWK_FRAME_SHOOT;
+                b.spriteResetTimer = 20;
+                b.attackTimer = (phase === 3 ? 70 : 110);
             }
         }
         break;
@@ -5936,7 +5969,6 @@ function updateBossCollision_hawk(b) {
         b.stompCooldown = grounded ? 50 : 40;
         b.hawkMode = 'rise'; // 踏まれたら硬直/攻撃を解いて上昇へ
         b.stunTimer = 0;
-        b.featherWarn = 0;   // ⚠予告中に踏まれたら予約も消す（1.674）。残すと滞空に戻った瞬間に予告の残りだけで撃つ
         b.attackTimer = Math.max(b.attackTimer || 0, 30);
         if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
         return;
