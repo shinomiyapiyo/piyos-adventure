@@ -4689,6 +4689,8 @@ function setupBossArena() {
         stunTimer: 0,        // ダイブ着地後の硬直（=踏める窓）
         diveTargetX: 0,
         pendingDoubleDive: false, // (hawk用) 2連ダイブ予約
+        featherWarn: 0,      // (hawk用) 羽根弾の点滅予告の残りフレーム（1.674）。>0 の間は撃たずに溜める
+        featherCount: 0, featherSpan: 0, featherNext: 0, // 予告明けに撃つ内容と、その後の次弾までの間隔
         // 装甲卵ボス(egg)専用ステート
         eggMode: 'idle',     // idle→roll/slam/summon→exposed→idle
         eggTimer: 0,         // 各モードの残り時間
@@ -4992,6 +4994,12 @@ var HAWK_FRAME_DAMAGED = 4;
 var HAWK_FRAME_FLAP2   = 5; // 羽ばたき下端(Veo f28)。frame 6-9 = f4/f10/f16/f22（同じ羽ばたき動画の連続コマ）
 // ホバーの羽ばたき: f4(上)→f10→f16→f22→f28(下)→f22→f16→f10 の連続5コマ往復（8ステップ＝滑らか。2〜3枚だとカクつく）
 var HAWK_HOVER_CYCLE = [6, 7, 8, 9, 5, 9, 8, 7];
+// 羽根弾の点滅予告フレーム（1.674・ユーザー実機報告「下方向の弾が暗くて見えず何度も被弾する」）。
+// ✅ユーザー判断＝**弾そのものを明るくするのではなく、撃つ前に点滅で知らせる**方針。
+// ⚠1.673までは予告ゼロで即発射だった（羽根弾は #2a1840＝ほぼ黒／ボスアリーナの空は BOSS_SKY の
+//   暗紫なので、出た瞬間から見えない＝反応する手がかりが一つも無かった）。
+var HAWK_FEATHER_WARN    = 32;  // 約0.53秒
+var HAWK_FEATHER_WARN_P3 = 24;  // 瀕死は短い（約0.4秒）＝難度は据え置き
 
 function updateBossAI(b) {
     if (b.kind === 'hawk') { updateBossAI_hawk(b); }
@@ -5100,6 +5108,20 @@ function updateBossAI_hawk(b) {
         // 滞空: 上下に漂いつつプレイヤーのX座標を緩く追う
         b.hawkBob += 0.06;
         b.y = hoverY + Math.sin(b.hawkBob) * 12;
+        // ── 羽根弾の予告中（1.674）: 溜めの姿勢で**その場に留まる**＝「今から真下へ撒く」を絵で出す。
+        //   ⚠横追尾を止めるのが肝。追いながら撃つと、予告を見て逃げても扇の中心が付いてくる＝予告が無意味になる。
+        //   描画は render.js の drawHawkFeatherWarn（暗いボスアリーナでも読めるよう**オーバーレイの上**に描く）。
+        if (b.featherWarn > 0) {
+            b.facing = (b.x + b.width / 2 > player.x + player.width / 2) ? 'left' : 'right';
+            b.spriteFrame = HAWK_FRAME_SHOOT;
+            b.featherWarn--;
+            if (b.featherWarn <= 0) {
+                spawnHawkFeathers(b, b.featherCount, b.featherSpan);
+                b.spriteResetTimer = 20;
+                b.attackTimer = b.featherNext;
+            }
+            break;
+        }
         var tx = Math.max(aL, Math.min(aR - b.width, player.x + player.width / 2 - b.width / 2));
         var hoverSpeed = (phase === 3 ? 1.7 : phase === 2 ? 1.3 : 1.0) * angryMult;
         if (Math.abs(tx - b.x) > 1) b.x += Math.sign(tx - b.x) * Math.min(hoverSpeed, Math.abs(tx - b.x));
@@ -5117,16 +5139,17 @@ function updateBossAI_hawk(b) {
                 b.pendingDoubleDive = (enc >= 3 && Math.random() < 0.45);
             } else if (enc >= 2 && Math.random() < 0.5) {
                 // 【2回目登場〜(R8+)】広角・高密度の羽根バースト（ほぼ水平まで広げて横に避けにくく隙間を突かせる。上向きにはしない）
-                spawnHawkFeathers(b, phase === 3 ? 11 : 9, Math.PI * 0.95);
-                b.spriteFrame = HAWK_FRAME_SHOOT;
-                b.spriteResetTimer = 20;
-                b.attackTimer = (phase === 3 ? 75 : 115);
+                // ⚠1.674: 即発射をやめ、点滅予告を挟んでから撃つ（発射間隔は予告ぶんを差し引いて据え置き＝手数は不変）。
+                b.featherWarn  = (phase === 3 ? HAWK_FEATHER_WARN_P3 : HAWK_FEATHER_WARN);
+                b.featherCount = (phase === 3 ? 11 : 9);
+                b.featherSpan  = Math.PI * 0.95;
+                b.featherNext  = (phase === 3 ? 75 : 115) - b.featherWarn;
             } else {
                 // 通常の羽根弾ばらまき（真下中心の扇）
-                spawnHawkFeathers(b, phase === 3 ? 7 : 5, Math.PI * 0.75);
-                b.spriteFrame = HAWK_FRAME_SHOOT;
-                b.spriteResetTimer = 20;
-                b.attackTimer = (phase === 3 ? 70 : 110);
+                b.featherWarn  = (phase === 3 ? HAWK_FEATHER_WARN_P3 : HAWK_FEATHER_WARN);
+                b.featherCount = (phase === 3 ? 7 : 5);
+                b.featherSpan  = Math.PI * 0.75;
+                b.featherNext  = (phase === 3 ? 70 : 110) - b.featherWarn;
             }
         }
         break;
@@ -5906,6 +5929,8 @@ function updateBossCollision_hawk(b) {
         b.stompCooldown = grounded ? 50 : 40;
         b.hawkMode = 'rise'; // 踏まれたら硬直/攻撃を解いて上昇へ
         b.stunTimer = 0;
+        b.featherWarn = 0;   // ⚠予告中に踏まれたら予約も消す（1.674）。残すと滞空に戻った瞬間に予告の残りだけで撃つ
+        b.attackTimer = Math.max(b.attackTimer || 0, 30);
         if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
         return;
     }

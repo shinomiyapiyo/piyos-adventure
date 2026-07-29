@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>1.674 点滅予告の見え方くらべ</title>
+<!--
+  闇のカラスの羽根弾 / 闇のフクロウの音波「点滅予告」の見え方を確認するための検証ページ（1.674）。
+  ⚠モックではなく**実物の描画コードを呼ぶ**: render.js の drawHawkFeatherWarn / drawOwlDarkness /
+    drawEggProjectiles / EFFECT_RENDERERS.boss_shockwave と、core-state.js の定数をそのまま使う。
+    背景も本番と同じ BOSS_SKY のグラデ＋ボス戦オーバーレイ(rgba(10,0,30,0.3))。
+  使い方: リポジトリ直下を http で配信して /tools/telegraph-preview.html を開く。
+  ⚠tools/ は build-www.mjs の SKIP 対象なのでアプリには同梱されない。
+-->
+<style>
+  body { margin: 0; padding: 18px 20px 26px; background: #14121a; color: #e8e4f0;
+         font-family: -apple-system, "Hiragino Sans", sans-serif; }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  .lead { font-size: 13px; color: #a9a2bd; margin: 0 0 16px; line-height: 1.6; }
+  h2 { font-size: 15px; margin: 18px 0 8px; padding-left: 9px; border-left: 4px solid #ff6a6a; }
+  h2.owl { border-left-color: #ffcc44; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  figure { margin: 0; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 6px; border: 1px solid #322c40; }
+  figcaption { font-size: 12px; margin-top: 6px; line-height: 1.5; color: #c9c2dd; }
+  .bad { color: #ff8a8a; font-weight: 700; }
+  .good { color: #8ce39a; font-weight: 700; }
+</style>
+<h1>Ver.1.674 「点滅予告」の見え方くらべ</h1>
+<p class="lead">
+  実物の描画コード（<code>render.js</code>）をそのまま呼んで描いています。背景・暗転・弾の色もすべて本番と同じ値です。<br>
+  予告は点滅するので、<b>いちばん明るい瞬間</b>と<b>いちばん暗い瞬間</b>の両方を並べました（実機ではこの2枚の間を約2〜3回/秒で往復します）。
+</p>
+
+<h2>① 闇のカラス：羽根弾（真下へ扇状に撃つ）</h2>
+<div class="grid">
+  <figure><canvas id="c1" width="820" height="450"></canvas>
+    <figcaption><b>いまの状態</b>：予告なしで即発射。弾は <code>#2a1840</code>＝ほぼ黒で、<span class="bad">背景に溶けて見えない</span>。</figcaption></figure>
+  <figure><canvas id="c2" width="820" height="450"></canvas>
+    <figcaption><b>予告あり（明）</b>：撃つ0.5秒前から、発射口の光と<span class="good">扇の向きを示す破線</span>が点滅。</figcaption></figure>
+  <figure><canvas id="c3" width="820" height="450"></canvas>
+    <figcaption><b>予告あり（暗）</b>：点滅の谷。消えきらないので「そこに居る」は分かる。</figcaption></figure>
+</div>
+
+<h2 class="owl">② 闇のフクロウ：音波（地上に居ると被弾＝ジャンプで回避）</h2>
+<div class="grid">
+  <figure><canvas id="c4" width="820" height="450"></canvas>
+    <figcaption><b>いまの状態</b>：手がかりは地面の衝撃波リングだけ。<span class="bad">暗転（濃さ0.98）の下に埋まって見えない</span>。</figcaption></figure>
+  <figure><canvas id="c5" width="820" height="450"></canvas>
+    <figcaption><b>予告あり（明）</b>：暗転の<b>上</b>に危険帯を描く。<span class="good">全幅</span>なのは判定が画面全体の地上だから。</figcaption></figure>
+  <figure><canvas id="c6" width="820" height="450"></canvas>
+    <figcaption><b>予告あり（暗）</b>：点滅の谷。着弾が近づくほど点滅が速く・濃くなる。</figcaption></figure>
+</div>
+
+<!-- ⚠core-state.js が `const canvas = document.getElementById('gameCanvas')` を実行するので、
+     スクリプトより前にこの1枚を置く（無いと canvas=null で core-state.js が途中で落ちる）。
+     実物の描画コードはすべてこの canvas に描き、結果を上の各パネルへ転写する。 -->
+<canvas id="gameCanvas" width="820" height="450" style="display:none"></canvas>
+<script src="../sprites.js"></script>
+<script src="../i18n.js"></script>
+<script src="../core-state.js"></script>
+<script src="../gameplay.js"></script>
+<script src="../render.js"></script>
+<script src="telegraph-preview-imgs.js"></script>
+<script src="telegraph-preview-main.js"></script>
+

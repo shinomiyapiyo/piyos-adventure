@@ -4088,6 +4088,30 @@ function drawOwlDarkness(b) {
         ctx.beginPath(); ctx.arc(exx, oy, 15, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+    // 音波(hoot)の点滅予告（1.674・ユーザー実機報告「真っ暗で何も見えず避けられない」）。
+    // ⚠**暗転の上に描く**のが肝。従来の手がかりは floatEffect の衝撃波リング(最大α0.5)だけで、
+    //   これはワールド描画＝暗転オーバーレイ(α最大0.98)の下に埋まる＝プレイヤーの至近以外では見えなかった。
+    // ⚠帯は**画面全幅**にする。実際の判定(updateBossAI_owl)は横を見ずに「足元が GROUND_Y-36 以下なら被弾」
+    //   ＝全画面攻撃なので、フクロウの真下だけを光らせると「そこを避ければ安全」と誤って伝わる。
+    // 着弾(owlTimer 14→8)が近いほど点滅が速く濃くなる＝「跳べ」のタイミングが読める。
+    if (b.owlMode === 'hoot') {
+        var hootP = 1 - Math.max(0, Math.min(1, (b.owlTimer - 8) / 26));   // 0(予告開始)→1(着弾)
+        var hootBlink = 0.35 + 0.65 * Math.abs(Math.sin(b.animFrame * (0.34 + hootP * 0.5)));
+        ctx.save();
+        ctx.globalAlpha = hootBlink * (0.30 + 0.40 * hootP);
+        var hg = ctx.createLinearGradient(0, GROUND_Y - 52, 0, GROUND_Y);
+        hg.addColorStop(0, 'rgba(255,170,0,0)');
+        hg.addColorStop(1, 'rgba(255,140,0,0.95)');
+        ctx.fillStyle = hg;
+        ctx.fillRect(0, GROUND_Y - 52, GAME_WIDTH, 52);
+        // 危険帯の上端＝実際の判定ライン(GROUND_Y-36)。ここより上に居れば当たらない
+        ctx.globalAlpha = hootBlink;
+        ctx.strokeStyle = '#ffcc44'; ctx.lineWidth = 3;
+        ctx.setLineDash([16, 10]);
+        ctx.beginPath(); ctx.moveTo(0, GROUND_Y - 36); ctx.lineTo(GAME_WIDTH, GROUND_Y - 36); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
     if (b.owlMode === 'aim') { // 横薙ぎ急襲の予告（明るい赤の水平線＋方向矢印）＝この高さに来る。見て高さをズラす
         var ly = b.swoopY + b.height / 2;
         var pulse = 0.5 + Math.sin(b.animFrame * 0.4) * 0.3;
@@ -4109,6 +4133,43 @@ function drawOwlDarkness(b) {
         ctx.moveTo(ax, ly - 9); ctx.lineTo(ax + axDir * 16, ly); ctx.lineTo(ax, ly + 9); ctx.closePath(); ctx.fill();
         ctx.restore();
     }
+}
+
+// 闇のカラスの羽根弾「予告」（screen座標・render()のボスオーバーレイから呼ぶ・1.674）。
+// ⚠弾そのもの(#2a1840のダート)は暗いボスアリーナでほぼ見えない＝出てから避けるのは無理（ユーザー実機報告）。
+//   そこで**撃つ前**に「ここから真下の扇へ撒く」を点滅で見せる。弾の見た目・速度・数は一切変えない。
+// ⚠オーバーレイ(暗紫α0.3)の**上**に描く＝背景の暗さに関係なく必ず読める。
+function drawHawkFeatherWarn(b) {
+    var w = b.featherWarn || 0;
+    if (w <= 0) return;
+    var cx = b.x + b.width / 2 - gameState.camera.x;
+    var cy = b.y + b.height * 0.55;
+    var span = b.featherSpan || Math.PI * 0.75;
+    // 発射が近いほど速く点滅（残り12フレームで倍速）＝「今来る」が伝わる
+    var blink = 0.40 + 0.60 * Math.abs(Math.sin(b.animFrame * (w < 12 ? 0.80 : 0.42)));
+    ctx.save();
+    // ① 撃つ範囲（真下中心の扇）を短い破線の光条で示す。画面半分を塗り潰さないよう長さは抑える
+    ctx.globalAlpha = blink * 0.85;
+    ctx.strokeStyle = '#ff6a6a';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([11, 8]);
+    for (var i = 0; i < 5; i++) {
+        var a = Math.PI * 0.5 + (i / 4 - 0.5) * span;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * 26, cy + Math.sin(a) * 26);
+        ctx.lineTo(cx + Math.cos(a) * 96, cy + Math.sin(a) * 96);
+        ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    // ② 発射口の光（カラスの位置＝弾の出どころ）。暗転が濃くてもここだけは浮かぶ
+    var gg = ctx.createRadialGradient(cx, cy, 2, cx, cy, 30);
+    gg.addColorStop(0, 'rgba(255,220,180,' + (0.95 * blink).toFixed(3) + ')');
+    gg.addColorStop(0.45, 'rgba(255,90,60,' + (0.55 * blink).toFixed(3) + ')');
+    gg.addColorStop(1, 'rgba(255,40,20,0)');
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
 }
 
 function render() {
@@ -4310,8 +4371,10 @@ function render() {
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
             ctx.globalAlpha = 1;
         }
-        // 闇のフクロウ: 暗転ギミック（プレイヤー周囲は見える vignette＋光る目/急襲予告を上から）
+        // 闇のフクロウ: 暗転ギミック（プレイヤー周囲は見える vignette＋光る目/急襲・音波の予告を上から）
         if (bossState.boss && bossState.boss.kind === 'owl' && bossState.phase >= 2) drawOwlDarkness(bossState.boss);
+        // 闇のカラス: 羽根弾の点滅予告（1.674）。暗いアリーナで弾が見えない問題への手当て
+        if (bossState.boss && bossState.boss.kind === 'hawk' && bossState.phase === 3) drawHawkFeatherWarn(bossState.boss);
     } else {
       var nightOverlay = BIOME_CONFIGS[3].overlay;
       var isNightInvolved = biomeState.current === 3 || biomeState.previous === 3;
