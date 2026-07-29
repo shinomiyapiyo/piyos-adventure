@@ -6096,8 +6096,23 @@ function updateBossCollision_scarecrow(b) {
                 b.stompCooldown = 32;
                 if (b.hp <= 0) { bossState.phase = 4; bossState.defeatedTimer = 0; }
             } else {
-                // 防御中（頭が光っていない）: 弾かれる（ダメージなし・「今は無駄」と伝える）
-                player.velY = JUMP_FORCE * 0.62;
+                // 防御中（頭が光っていない）: 弾かれる（ダメージなし・「今は無駄」と伝える）。
+                // ⚠1.673（✅ユーザー指定「闇の卵同様に横に弾かれるように」）＝**闇のタマゴの装甲と同じ挙動**にする。
+                //   真上へ跳ね返すだけだと頭の上で跳ね続けられる（1.648でタマゴに出たのと同じ形）。
+                //   頭の外へ押し出す＝跳ね返りを低くして横初速を与え、短い操作硬直で押し戻しを効かなくする。
+                //   ⚠壁際では逃げ場が無く弾き飛ばしが成立しない（1.650）ので、**抜けられる幅がある側**を選び直す。
+                //   カカシは定点(camera.x + GAME_WIDTH*0.60)なので普段は両側に余裕があるが、
+                //   アリーナ幅は端末のGAME_WIDTHで変わるため判定は残す。ダメージは足さない（踏みミスを罰しない）。
+                var _scx = player.x + player.width / 2;
+                var kdir = (_scx < (b.x + b.width / 2)) ? -1 : 1;
+                var _scWallL = Math.max(bossState.arenaLeft, gameState.camera.x + 25);
+                var _scWallR = Math.min(bossState.arenaRight, gameState.camera.x + GAME_WIDTH - 25);
+                var _scNeed = b.width / 2 + player.width / 2 + 16;   // 頭の外へ出るのに要る横距離
+                if (kdir < 0 && (_scx - _scWallL) < _scNeed) kdir = 1;
+                else if (kdir > 0 && (_scWallR - _scx) < _scNeed) kdir = -1;
+                player.velX = kdir * 9;
+                player.knockbackTimer = 16;   // 約0.27秒。この間だけ横入力を無効化（index.html updatePlayer）
+                player.velY = JUMP_FORCE * 0.42;
                 endSamuraiDiveOnBossStomp();
                 b.stompCooldown = 14;
                 floatEffects.push({ type: 'boss_shockwave', worldX: player.x + player.width / 2, worldY: b.y + b.height * 0.2, timer: 0, duration: 12 });
