@@ -38,6 +38,20 @@ function playStageBGM() {
     soundManager.playBGM(STAGE_BGM_CYCLE[(gameRound - 1) % STAGE_BGM_CYCLE.length]);
 }
 
+// ─── 共通ユーティリティ ───
+
+// 値を [lo, hi] の中へ**折り返して**収める（1.671）。撃破報酬のコインを「到達できる箱」に押し込む用。
+// ⚠端で丸める(clamp)と、はみ出したぶんが**全部きっかり同じ1点に重なる**＝25枚撒いたのに数枚に見える。
+//   折り返せば枚数も散らばり方も保てる。散らばりが箱より広くても無限ループしないよう、
+//   往復1周期(span*2)で畳んでから折り返す（三角波）。
+function reflectIntoRange(v, lo, hi) {
+    if (!(hi > lo)) return lo;
+    var span = hi - lo, period = span * 2;
+    var t = (v - lo) % period;
+    if (t < 0) t += period;
+    return lo + (t <= span ? t : period - t);
+}
+
 // ─────────────────────────────────────────────────────────────
 // 地底ステージ（R7/R14/R21…・正の仕様は SPEC_UNDERGROUND.md）
 // ⚠設計の肝: 土管ボーナス部屋（画面座標＋固定カメラ）とは別物で、**ワールド座標＋追従カメラ**。
@@ -95,7 +109,15 @@ function enterUnderground() {
     // ユーザー指定(1.545)＝**画面左端の、画面外の上から**落ちてくる。originX がレベル左端＝入場時の camera.x。
     // ⚠x は UG_PLAYER_MARGIN(24) より右にすること。左壁クランプに食い込むと着地前に横へ弾かれる。
     player.x = undergroundState.originX + UG_SPAWN_X;
-    player.y = -player.height - UG_SPAWN_Y_ABOVE;
+    // ⚠y は**部屋1の天井(topY)から**測ること（1.671）。1.670まで絶対座標 `-player.height - 90` で
+    //   書いていたが、部屋1の topY が -4 でないラウンド＝**R28「墜落坑」(topY=-516)** では
+    //   坑の378px下から出現していた＝天井の亀裂を抜けずに途中で湧き、その上にある落下線のコイン
+    //   2枚（行3/行7）が物理的に取れなかった（ユーザー実機報告「入場時のスポーンでコインが取れない」）。
+    //   カメラは ug.camY=rooms[0].camMinY から始まるので、topY 基準なら全ラウンドで
+    //   「画面上端の外から落ちてくる」絵になる。検証: `node tools/ug-spawn-coin-sim.mjs`
+    //   （R28: 旧3/5 → 新5/5。R7/R14/R21は topY=-4 なので出現位置の差は4pxだけ＝実質不変）。
+    var _ugTopY = (undergroundState.rooms[0] ? undergroundState.rooms[0].topY : 0);
+    player.y = _ugTopY - player.height - UG_SPAWN_Y_ABOVE;
     // ⚠出現位置を覚えておく（1.635）。地底モードのステージ間は白で覆っている最中にここへ置かれるので、
     //   白が明けるまで updateUnderground がこのyへ毎tick引き戻して落下を**始めさせない**（下の落下導入を参照）。
     undergroundState.spawnY = player.y;
@@ -1466,17 +1488,30 @@ function ugGrantPriestessRewards() {
     // ⚠**コインは床の近くに撒くこと**（1.571）。ボスのワールドYを基準にすると、浮遊高度(上端916)で
     //   倒した時にコインが y=876〜996 に散り、**跳んでも届かない高さ**になる（立位1132からの
     //   最高到達で頭が957・足元1005まで。876〜925のぶんは取れない）。20回踏んで得た報酬を
-    //   取り逃がさせないため、床から少し上に固定する。⚠横方向はボス中心のままでよい。
+    //   取り逃がさせないため、床から少し上に固定する。⚠横は1.671で箱へ折り返すようにした（下記）。
     var floorY = ch ? (ch.topY + 12 * UG_TILE) : (cy + 200);
+    // ⚠横も**到達できる箱へ折り返す**（1.671）。1.571は「横はボス中心のままでよい」としていたが、
+    //   巫女の左端(camera.x+80)＋分身の左スロットで倒すと散らばり(±130)の左端が camera.x+2 まで出る。
+    //   プレイヤーの体が届くのは [camera.x+24, camera.x+GAME_WIDTH-24] なので、残り数pxの重なりに
+    //   賭けている状態だった＝通常ボスで実際に出た「取れないコイン」と同じ罠。
+    var _ugMinX = gameState.camera.x + UG_PLAYER_MARGIN;
+    var _ugMaxX = gameState.camera.x + GAME_WIDTH - UG_PLAYER_MARGIN;
     for (var ci = 0; ci < UG_BOSS_COINS; ci++) {
-        coins.push({ x: cx + (Math.random() - 0.5) * 260, y: floorY - 52 - Math.random() * 96,
+        coins.push({ x: reflectIntoRange(cx - 16 + (Math.random() - 0.5) * 260, _ugMinX, _ugMaxX - 32),
+                     y: floorY - 52 - Math.random() * 96,
                      width: 32, height: 32, collected: false, animFrame: Math.random() * 20 });
     }
     // ハート3個（✅ユーザー決定・1.584）。⚠コインと同じく**床の近く**に撒くこと。
     //   ボスのワールドYを基準にすると浮遊高度(上端916)で倒した時に跳んでも届かない高さに散る（1.571の教訓）。
     //   形は spawnPowerUp と同一（updatePowerUps は type で分岐するだけ）。
+    // ⚠ハートは**等間隔の並び**なので1個ずつ折り返すと間隔が崩れる。並び全体を箱の中へ平行移動する
+    //   （箱に収まっている限り座標は1.584と完全に同じ）。
+    var _hRowW = (UG_BOSS_HEARTS - 1) * 96 + 36;
+    var _hRowL = cx - _hRowW / 2;
+    if (_hRowL < _ugMinX) _hRowL = _ugMinX;
+    if (_hRowL + _hRowW > _ugMaxX) _hRowL = _ugMaxX - _hRowW;
     for (var hi = 0; hi < UG_BOSS_HEARTS; hi++) {
-        powerUps.push({ x: cx + (hi - (UG_BOSS_HEARTS - 1) / 2) * 96 - 18, y: floorY - 96,
+        powerUps.push({ x: _hRowL + hi * 96, y: floorY - 96,
                         width: 36, height: 36, type: 'heart',
                         collected: false, animFrame: 0, floatOffset: hi * 1.4 });
     }
@@ -4853,10 +4888,24 @@ function updateBoss() {
         }
         // コイン散布 + スコア + ファンファーレ
         if (bossState.defeatedTimer === 90) {
+            // ⚠コインは**プレイヤーが到達できる箱の中**へ折り返して撒く（1.671・ユーザー実機報告
+            //   「ボス撃破時に画面端で倒すと移動可能領域の外にコインがドロップして取れない」）。
+            //   横: プレイヤーは updatePlayer の画面端クランプ＋アリーナ壁で x∈[aL, aR-幅] にしか立てない
+            //   ＝体が届くのは [aL, aR]。±125pxの散らばりは端で倒すと平気でこの外へ出ていた。
+            //   縦: 空を飛ぶボス（タカ/フクロウは hoverY=140/150）を上端で倒すと y=80 まで上がり、
+            //   地上から跳んだ頭の最高到達(y≈117)より**上**＝足場の無い x では絶対に届かない
+            //   ＝1.571で地底の巫女に出たのと同じ罠。⚠丸めずに折り返すこと（reflectIntoRange 参照）。
+            //   検証: `node tools/boss-coin-reach-sim.mjs`（updateBoss を実物のまま回す。
+            //   旧=端で倒すと1万枚中1168〜3576枚が範囲外 → 新=全ケース0枚）。
+            var _cMinX = Math.max(bossState.arenaLeft, gameState.camera.x + 25);
+            var _cMaxX = Math.min(bossState.arenaRight, gameState.camera.x + GAME_WIDTH - 25) - 32;
+            var _jumpTop = (GROUND_Y - player.height) - (JUMP_FORCE * JUMP_FORCE) / (2 * GRAVITY); // ≈117
+            var _cMinY = _jumpTop + 40;   // 頂点きっかりでなく余裕をもって触れる高さ
+            var _cMaxY = GROUND_Y - 32;   // 地面に埋めない
             for (var ci = 0; ci < BOSS_COINS_ON_DEFEAT; ci++) {
                 coins.push({
-                    x: b.x + b.width / 2 + (Math.random() - 0.5) * 250,
-                    y: b.y + (Math.random() - 0.5) * 120,
+                    x: reflectIntoRange(b.x + b.width / 2 - 16 + (Math.random() - 0.5) * 250, _cMinX, _cMaxX),
+                    y: reflectIntoRange(b.y + (Math.random() - 0.5) * 120, _cMinY, _cMaxY),
                     width: 32, height: 32,
                     collected: false, animFrame: Math.random() * 20
                 });
