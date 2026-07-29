@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.678";
+                content: "Ver.1.679";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -951,7 +951,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.678</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.679</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2911,9 +2911,17 @@ function applyRunSave(d) {
     gameRound = d.round;
     gameState.isFirstRun = !!d.isFirstRun;
     gameState.stageShiftM = d.stageShiftM || 0;
-    gameState.ugDistOffset = 0;                 // ⚠先に0にしてから warp する（testWarpToM が加算するため）
-    testWarpToM(d.distance);                    // 距離から世界を組み直す＝地形/敵は作り直し
+    // ⚠**warp より前に ugDistOffset を戻す**（1.679・ユーザー実機報告「しおりで再開したR8で店に入れない」）。
+    //   1.678まで「先に0にしてから warp」していたが、これは逆だった。
+    //   ・testWarpToM は `camera.x = m*10 + ugDistOffset` で世界を組む＝**offsetを込みで置くのが正しい姿**
+    //     （毎フレームの距離が `floor((camera.x - ugDistOffset)/10)`〈index.html:6475〉なので、
+    //      offset を 0 のまま置くと camera.x が offset のぶん手前になる）
+    //   ・その結果、地底を1回でも通ったセーブ（R7通過後は offset=12,000px）から再開すると
+    //     **距離が1,200m巻き戻り、世界が12,000px手前に組まれる**。おみせの建物Xはセーブ済みの
+    //     ワールド座標なので、扉だけが12,000px先に取り残されて**そのラウンドでは絶対に入店できない**
+    //     （実測: R8で扉まで2,016px → 再開後14,016px。次のR9は建物を新しく建て直すので直る＝報告どおり）。
     gameState.ugDistOffset = d.ugDistOffset || 0;
+    testWarpToM(d.distance);                    // 距離から世界を組み直す＝地形/敵は作り直し
     // ⚠**レベルは距離から出し直す**（1.634）。updateGameSpeed は floor(距離/SPEED_UP_INTERVAL)+1 と
     //   今の speedLevel を比べるので、resetGame 直後の 1 のままだと再開1フレーム目に
     //   「SPEED UP!」のテロップと効果音が鳴ってしまう（速度自体は正しい）。
