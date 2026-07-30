@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.687";
+                content: "Ver.1.688";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -978,7 +978,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.687</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.688</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2635,8 +2635,9 @@ var gameSettings = {
     activeSkin: '',        // 装備中スキン
     goldenEggs: 0,                // ゴールデンエッグ所持数（レア通貨）
     lastGoldenEggDate: '',        // 最後に日次エッグを取得した日付（記録用）
-    goldenEggDrawDate: '',        // 日次エッグの抽選を消費した日付（1日1回限りのゲート・1.455〜）
-    lastGoldenEggTimestamp: 0,    // 時計巻き戻しガード用
+    goldenEggDrawDate: '',        // **フィールド**の日次エッグ抽選を消費した日付（2,500m一次/7,300m救済の1日1回ゲート・1.455〜）
+    priestessEggDate: '',         // **闇の巫女**の撃破エッグを出した日付（1.688・巫女専用の日次枠＝フィールドとは別勘定）
+    lastGoldenEggTimestamp: 0,    // 時計巻き戻しガード用（フィールド/巫女の両方で共有＝時計を戻したらどちらも止める）
     zukan: { seen: {}, kills: {}, new: {}, claimed: {} }, // ずかん: seen[id]=1(発見済み)/kills[id]=撃破数/new[id]=1(未閲覧の新規=NEW!)/claimed[key]=1(コンプ報酬受取済み)
     pouchLevel: 0,                // まほうのポーチ所持数＝永続ストック枠の数（上から順に永続化）
     permaStock: [],               // 永続ストック枠のアイテムid配列（枠index順・''=未割当）
@@ -2708,6 +2709,7 @@ var gameSettings = {
             if (typeof parsed.goldenEggs === 'number') gameSettings.goldenEggs = parsed.goldenEggs;
             if (typeof parsed.lastGoldenEggDate === 'string') gameSettings.lastGoldenEggDate = parsed.lastGoldenEggDate;
             if (typeof parsed.goldenEggDrawDate === 'string') gameSettings.goldenEggDrawDate = parsed.goldenEggDrawDate;
+            if (typeof parsed.priestessEggDate === 'string') gameSettings.priestessEggDate = parsed.priestessEggDate; // 1.688
             if (typeof parsed.lastGoldenEggTimestamp === 'number') gameSettings.lastGoldenEggTimestamp = parsed.lastGoldenEggTimestamp;
             // ── ずかん（発見・撃破数）──
             if (parsed.zukan && typeof parsed.zukan === 'object') {
@@ -3198,6 +3200,17 @@ function canDrawDailyEggToday() {
     if (gameSettings.lastGoldenEggTimestamp && now < gameSettings.lastGoldenEggTimestamp) return false; // 時計巻き戻しガード
     return true;
 }
+// 闇の巫女の撃破エッグが今日まだ出せるか（1.688・ユーザー決定「巫女に専用の日次枠を持たせる」）。
+// ⚠**フィールドの枠(goldenEggDrawDate)とは別勘定**。1.588〜1.687は同じ枠を共有していたが、通常プレイで
+//   R7(12,018m)へ行くには必ず2,500mを通る＝到達時点で枠が消費済みになり、**最深部の報酬が事実上0**だった。
+//   これで「フィールドで最大1個＋巫女で1個＝1日最大2個」になる（巫女まで行ける人だけの上乗せ）。
+// ⚠1日1回のゲートは維持する（1.588の趣旨）＝同じ日にR14/R21/R28や地底モードで何体倒しても2個目は出ない。
+// ⚠時計巻き戻しガードは lastGoldenEggTimestamp をフィールドと共有（時計を戻したらどちらも止まる）。
+function canDrawPriestessEggToday() {
+    if (gameSettings.priestessEggDate === getDateString()) return false;   // 今日はもう出した
+    if (gameSettings.lastGoldenEggTimestamp && Date.now() < gameSettings.lastGoldenEggTimestamp) return false;
+    return true;
+}
 // 日次ゴールデンエッグを画面外(右)の平地に出す（穴の上を避ける）。一次抽選/救済抽選の両方から呼ぶ。
 // ⚠**地上専用**（y=240 と isFlatGroundAt は地上の地形が前提・GROUND_Y=348）。地底や入場土管の最中に呼ぶと
 //   届かない場所に湧いて当日の枠だけが消える（1.685で呼び出し側に `!undergroundState.active` を追加した）。
@@ -3216,7 +3229,7 @@ function spawnDailyGoldenEgg() {
 function collectGoldenEgg(isDaily) {
     markZukanSeen('item:golden_egg'); // ずかん: ゴールデンエッグ発見（フィールド/日次/土管部屋の全経路を集約）
     gameSettings.goldenEggs = (gameSettings.goldenEggs || 0) + 1;
-    if (isDaily) {                                 // 日次枠を消費した経路(2500m/R4救済/闇の巫女撃破)だけ日付を確定（土管部屋の1%は無制限・1.588）
+    if (isDaily) {                                 // 日次枠を使った経路(2,500m一次/7,300m救済/巫女撃破)だけ日付を確定（土管部屋の1%は無制限）
         gameSettings.lastGoldenEggDate = getDateString();
         gameSettings.lastGoldenEggTimestamp = Date.now();
     }
@@ -6332,6 +6345,8 @@ function manageObjects() {
     // 一次抽選(2,500m)を行った時点で当日の抽選を消費(goldenEggDrawDate)＝別ランでの再挑戦なし。救済はこのラン限定(per-run)。
     // 調整ノブ: 一次=2,500m/30% ・ 救済=**7,300m/50%**（位置は1.686で4,300m→7,300m、確率は1.687で80%→50%。どちらもユーザー指示）。
     //   1日にエッグが湧く率 = 30% + 70%×50% = **65%**（7,300mまで走れた場合／届かない日は30%）。
+    // ⚠この枠(goldenEggDrawDate)は**フィールド専用**（1.688）。闇の巫女は別枠(priestessEggDate)を持つので、
+    //   ここが消費済みでも巫女のエッグは出る＝1日の上限は「フィールド1個＋巫女1個」。土管部屋の1%は無制限（枠を消費しない）。
     //
     // ⚠**地上にいる時だけ抽選する**（1.685・下の `if (undergroundState.active) return;` より前にこのブロックが
     //   あるため、地底でも素通りしていた）。spawnDailyGoldenEgg は y=240＝**地上の高さ固定**なので、

@@ -1531,8 +1531,11 @@ function ugGrantPriestessRewards() {
     zukanAddKill('boss:priestess');                         // ずかん: 撃破時のみ登録（1.474の統一ルール）
     floatEffects.push({ type: 'boss_defeated_text', worldX: cx, worldY: cy, timer: 0, duration: 180, offsetY: 0 });
     floatEffects.push({ type: 'score_text', worldX: cx, worldY: cy - 40, timer: 0, duration: 90, offsetY: 0, score: UG_BOSS_SCORE });
-    // ゴールデンエッグ1個。⚠1日1回（1.588）＝2,500m日次エッグ/7,300m救済と同じ goldenEggDrawDate を消費する。
-    //   今日すでに枠を使っていたら（フィールドでも、別の周回の撃破でも）ここでは出さない＝スコア/コイン/ハートは通常どおり。
+    // ゴールデンエッグ1個。⚠**巫女専用の日次枠**（1.688・ユーザー決定「巫女に専用の日次枠を持たせる」）。
+    //   1.588〜1.687はフィールドと同じ枠(goldenEggDrawDate)を共有していたが、通常プレイでR7(12,018m)へ行くには
+    //   必ず2,500mを通る＝到達時点で枠が消費済み＝**最深部の報酬が事実上0**だった（1.687で実測）。
+    //   これで「フィールドで最大1個 ＋ 巫女で1個 ＝ 1日最大2個」になる（巫女まで行ける人だけの上乗せ）。
+    //   ⚠1日1回のゲートは維持（1.588の趣旨）＝同じ日にR14/R21/R28や地底モードで何体倒しても2個目は出ない。
     // ⚠**コイン/ハートと同じ「ドロップ」で出す**（1.686・ユーザー指示「コインやライフと一緒にドロップする形で
     //   出すのが望ましい」）。1.685までは所持数を直接+1してトースト（2.2秒で消える帯）で知らせるだけだったので、
     //   ①拾う手触りが無い ②他の報酬と出方が違う ③トーストを見落とすと貰った実感が無い、の3つが揃っていた。
@@ -1543,8 +1546,8 @@ function ugGrantPriestessRewards() {
     //   ハートの列は floorY-96 なので、エッグはその上（floorY-150）に置いて重ならないようにする。
     // ⚠日次枠は**ドロップした時点で**消費する（フィールドの一次抽選と同じ考え方＝「出したら消費」）。
     //   拾い逃しは UG_END_GRACE（静まってから3秒の猶予・1.595）とエッグマグネットで実質起きない。
-    if (typeof canDrawDailyEggToday === 'function' && canDrawDailyEggToday()) {
-        gameSettings.goldenEggDrawDate = getDateString();       // 日次枠を消費（フィールド抽選と共有）
+    if (typeof canDrawPriestessEggToday === 'function' && canDrawPriestessEggToday()) {
+        gameSettings.priestessEggDate = getDateString();         // 巫女専用の日次枠を消費（フィールドの枠は触らない）
         gameSettings.lastGoldenEggTimestamp = Date.now();
         saveSettings();
         var _eggX = Math.max(_ugMinX, Math.min(_ugMaxX - 40, cx - 20));
