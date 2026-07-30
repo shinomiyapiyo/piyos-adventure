@@ -1561,7 +1561,7 @@ function ugGrantPriestessRewards() {
         saveSettings();
         var _eggX = Math.max(_ugMinX, Math.min(_ugMaxX - 40, cx - 20));
         powerUps.push({ x: _eggX, y: floorY - 150,
-                        width: 40, height: 40, type: 'golden_egg', dailyEgg: true,
+                        width: 40, height: 40, type: 'golden_egg', eggSource: 'priestess',   // ⚠出どころ（1.693）
                         collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2 });
     }
 }
@@ -2711,7 +2711,7 @@ function updatePipeRoom() {
         } else if (it.type === 'shopitem') {
             if (addToStock(it.itemId)) { it.collected = true; markZukanSeen('item:' + it.itemId); if (soundManager) soundManager.playItem(); }
         } else if (it.type === 'golden_egg') {
-            it.collected = true; collectGoldenEgg(false);
+            it.collected = true; collectGoldenEgg('room');   // 部屋の1%は枠を使わない（1.693で引数を文字列化）
             spawnGoldenEggEffect(it.x + it.width / 2, it.y);
             if (soundManager) soundManager.playItem();
         }
