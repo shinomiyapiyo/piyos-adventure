@@ -6585,7 +6585,12 @@ function showGameOverScreen() {
             t(ugCleared ? 'ugmode_result_clear' : 'ugmode_result_reached', _sv) + '<br>' +
             t('gameover_score') + finalGameStats.score + t('ranking_unit_score') + '<br>' +
             t('gameover_kills') + finalGameStats.enemyKills + t('ranking_unit_kills') +
-            comboResultLine();
+            comboResultLine() +
+            // ⚠**このモードでは何も残らないことをここでも言う**（1.692・ユーザー指摘「今のままだと地底モードでも
+            //   ゴールデンエッグが手に入ると勘違いされる」）。遊び終わった直後が一番伝わる場所。
+            //   実装（貯金メニューを隠す1.629／エッグを出さない1.689）と表示を必ず揃えること。
+            '<div style="margin-top:6px; font-size:0.78em; color:rgba(255,255,255,0.62); line-height:1.4;">' +
+            escapeHtml(t('ugmode_result_note')) + '</div>';
     } else {
         statsEl.innerHTML =
             t('gameover_distance') + finalGameStats.distance + 'm<br>' +
