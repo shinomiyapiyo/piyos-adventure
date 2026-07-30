@@ -1546,7 +1546,16 @@ function ugGrantPriestessRewards() {
     //   ハートの列は floorY-96 なので、エッグはその上（floorY-150）に置いて重ならないようにする。
     // ⚠日次枠は**ドロップした時点で**消費する（フィールドの一次抽選と同じ考え方＝「出したら消費」）。
     //   拾い逃しは UG_END_GRACE（静まってから3秒の猶予・1.595）とエッグマグネットで実質起きない。
-    if (typeof canDrawPriestessEggToday === 'function' && canDrawPriestessEggToday()) {
+    // ⚠**地底モードでは絶対に出さない**（1.689・ユーザー厳命「あくまでR7の闇の巫女を倒した時の報酬であって、
+    //   地底モードの闇の巫女を倒した時にはゴールデンエッグを出してはならない」）。
+    //   理由は貯金を隠しているのと同じ（1.629）＝地底モードは**永続資産に変換できないサンドボックス**。
+    //   このモードは地上を走らずに数分で巫女へ届く＝出すと「12,000m走ってR7へ行く」より圧倒的に効率の良い
+    //   エッグ稼ぎ場になる。⚠**枠(priestessEggDate)も消費しない**＝モードで倒しても、その日の通常プレイの
+    //   R7報酬は普通に貰える（モードで遊んだせいで損をしない）。
+    //   ⚠新しい報酬をここへ足す時は「永続資産か？」を必ず確認すること（スコア/コイン/ハートはラン内で消える＝出してよい）。
+    //   ⚠早期 return ではなく**条件で弾く**こと（この下に報酬を足した人が黙って巻き込まれないように）。
+    var _ugModeRun = (typeof undergroundMode !== 'undefined' && undergroundMode.active);
+    if (!_ugModeRun && typeof canDrawPriestessEggToday === 'function' && canDrawPriestessEggToday()) {
         gameSettings.priestessEggDate = getDateString();         // 巫女専用の日次枠を消費（フィールドの枠は触らない）
         gameSettings.lastGoldenEggTimestamp = Date.now();
         saveSettings();
