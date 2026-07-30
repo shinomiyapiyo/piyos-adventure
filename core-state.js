@@ -499,6 +499,10 @@ var gameState = {
     goldenEggFieldSpawned: false,  // 2500m日次エッグの一次抽選をこのランで行ったか（per-run）
     goldenEggRescueArmed: false,   // 一次抽選(2500m/30%)を外し、R4での救済抽選(80%)が保留中か（per-run・1.455〜）
     goldenEggRescueDone: false,    // R4の救済抽選をこのランで行ったか（per-run・1.455〜）
+    // 抽選に当たったのに置ける平地が無くて持ち越している状態（per-run・1.695）。
+    // ⚠カリングの右境界より手前にしか置けないので、穴/高台の上では置けないことがある。
+    // 置けるまで毎フレーム試す＝「当たったのに何も出ない」を作らない。
+    goldenEggSpawnPending: false,
     // ふっかつやくをこのランで買った数（1.684・ユーザー指示）。値段は 20,000×(この数+1)＝買うたび+20,000。
     // ⚠**ラン単位**（resetGame で0／しおりで中断・再開しても保持）。1店1個の maxPerVisit とは別の数え。
     revivePotionBuys: 0,

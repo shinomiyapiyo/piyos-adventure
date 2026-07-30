@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.694";
+                content: "Ver.1.695";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -978,7 +978,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.694</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.695</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2881,6 +2881,7 @@ function buildRunSave() {
         // ── per-run の抽選フラグ（戻さないと日次エッグをもう一度引ける）──
         eggField: !!gameState.goldenEggFieldSpawned,
         eggArmed: !!gameState.goldenEggRescueArmed, eggDone: !!gameState.goldenEggRescueDone,
+        eggPending: !!gameState.goldenEggSpawnPending,   // 当たりの持ち越し（1.695・中断で当たりが消えないように）
         // ふっかつやくの累積購入数（1.684）。⚠これを運ばないと「しおりで中断→再開」で値段が20,000円に戻る＝抜け道になる
         potionBuys: gameState.revivePotionBuys || 0,
         // ── 広告復活を使ったか（ランキングの ↺ 判定に使う）──
@@ -2988,6 +2989,7 @@ function applyRunSave(d) {
     gameState.ugElixir = d.ugElixir || 0;
     gameState.goldenEggFieldSpawned = !!d.eggField;
     gameState.goldenEggRescueArmed = !!d.eggArmed; gameState.goldenEggRescueDone = !!d.eggDone;
+    gameState.goldenEggSpawnPending = !!d.eggPending;   // 1.695（旧しおりは false）
     gameState.revivePotionBuys = (typeof d.potionBuys === 'number' && d.potionBuys > 0) ? Math.floor(d.potionBuys) : 0; // 1.684（旧しおりは0＝20,000円から）
     if (typeof rewardAdState !== 'undefined') rewardAdState.reviveUsedThisRun = !!d.revived;
     // 持ち物（⚠used/temp/base をそのまま戻す＝これが「1ランに1回」を守る本体）
@@ -2997,6 +2999,20 @@ function applyRunSave(d) {
         stockState.perma.push(p ? { id: p.id || '', used: !!p.used, temp: !!p.temp, base: p.base || '' }
                                 : { id: '', used: false, temp: false, base: '' });
     }
+    // ⚠**枠の数を今の permaLevel() に必ず合わせる**（1.695・監査で発見）。しおりは「中断した時点の長さ」で
+    //   復元するので、中断中にポーチを買う/売ると `perma.length !== permaLevel()` のまま走り出していた。
+    //   ・足りない: 増えた金枠が addToStock / stockHasRoom / stockFreeCount から**見えない死に枠**になり、
+    //     さらに normalMaxSlots が減るぶん下の items が貯金へ半額換金される。空の金枠へドラッグすると
+    //     swapStockSlots が undefined を掴んで TypeError（実際に再現）。
+    //   ・多すぎる: セーブ削除後などに pouchLevel=0 なのに長い perma が残り、拾った品が見えない枠へ入る。
+    var _pl = (typeof permaLevel === 'function') ? permaLevel() : stockState.perma.length;
+    var _permaStock = gameSettings.permaStock || [];
+    while (stockState.perma.length < _pl) {
+        var _newBase = _permaStock[stockState.perma.length] || '';
+        // 新設の金枠は「ラン開始時に補充された姿」に揃える（所有品があれば入っている・無ければ空の金枠）
+        stockState.perma.push({ id: _newBase, used: false, temp: false, base: _newBase });
+    }
+    if (stockState.perma.length > _pl) stockState.perma.length = _pl;
     // ⚠**中断中に変わったポーチの所有は、今の permaStock を正とする**（1.653・監査で見つけた複製の対策）。
     //   セーブの base は「中断した時点の所有」の写しでしかなく、ラン終了の commitPermaStock がそれで
     //   permaStock を上書きするため、中断中に売ると「代金を得たまま品が戻る」複製ができていた。
@@ -3016,10 +3032,23 @@ function applyRunSave(d) {
     //   1.682以前のしおりには、全枠ポーチ時に買った ふっかつやく が枠数を超えて入っていることがある。
     //   はみ出したぶんは（拾った品が満杯だった時と同じ扱いで）貯金へ換算する＝払った代金が消えはしない。
     var _normMax = (typeof normalMaxSlots === 'function') ? normalMaxSlots() : stockState.maxSlots;
-    for (var j = 0; j < d.items.length; j++) {
-        if (!d.items[j] || !d.items[j].id) continue;
-        if (stockState.items.length < _normMax) stockState.items.push({ id: d.items[j].id });
-        else if (typeof convertItemToSavings === 'function') convertItemToSavings(d.items[j].id);
+    // ⚠**通常枠しか使えない品を先に置く**（1.695）。中断中にポーチを買うと通常枠が1つ減るので、
+    //   単純に保存順で詰めると「金枠に入れられる品が通常枠を占領し、金枠に入れられない ふっかつやくが
+    //   はみ出して半額で貯金化（20,000→10,000）」という一番損な形になっていた。
+    //   置く順番: ①金枠に入れられない品（PERMA_STOCK_EXCLUDE＝ふっかつやく）を通常枠へ
+    //            ②残りを addToStock へ（未割当/使用済みの金枠 → 通常枠の空き → どうしても無ければ貯金換算）
+    var _saved = [];
+    for (var j = 0; j < d.items.length; j++) if (d.items[j] && d.items[j].id) _saved.push(d.items[j].id);
+    var _permaNG = (typeof PERMA_STOCK_EXCLUDE !== 'undefined') ? PERMA_STOCK_EXCLUDE : [];
+    var _rest = [];
+    for (var j2 = 0; j2 < _saved.length; j2++) {
+        if (_permaNG.indexOf(_saved[j2]) !== -1 && stockState.items.length < _normMax) stockState.items.push({ id: _saved[j2] });
+        else _rest.push(_saved[j2]);
+    }
+    for (var j3 = 0; j3 < _rest.length; j3++) {
+        if (stockState.items.length < _normMax) { stockState.items.push({ id: _rest[j3] }); continue; }
+        if (typeof addToStock === 'function') addToStock(_rest[j3]);
+        else if (typeof convertItemToSavings === 'function') convertItemToSavings(_rest[j3]);
     }
     // 「1ラウンド1回」たち
     shopState.visited = !!d.shopVisited; shopState.deposited = !!d.shopDeposited;
@@ -3138,6 +3167,10 @@ function deleteSaveData() {
         showConfirmModal(t('settings_delete_confirm2')).then(function(ok2) {
             if (!ok2) return;
             try { localStorage.removeItem('piyo_settings'); } catch (_) {}
+            // ⚠**しおり(piyo_run)も一緒に消す**（1.695・監査で発見）。しおりは版数＋チェックサムで自己完結
+            //   しているため、設定だけ消しても「つづきから」が残り、距離・所持金・持ち物が復活していた
+            //   （＝「すべて消えます」という二段確認の説明と食い違う）。
+            if (typeof clearRunState === 'function') clearRunState();
             location.reload();
         });
     });
@@ -3181,6 +3214,9 @@ function showTransferImport() {
             msg.textContent = t('transfer_import_bad');
             return;
         }
+        // ⚠**取り込み時も しおり(piyo_run) を消す**（1.695）。持ち込んだセーブとこの端末のしおりは
+        //   別人の進行＝つなぐと持ち物やポーチ枠が噛み合わない（pouchLevel と perma の長さがズレる）。
+        if (typeof clearRunState === 'function') clearRunState();
         msg.style.color = '#8ee7a0';
         msg.textContent = t('transfer_import_done');
         if (soundManager) soundManager.playItem();
@@ -3241,16 +3277,23 @@ function canDrawPriestessEggToday() {
 // ⚠**地上専用**（y=240 と isFlatGroundAt は地上の地形が前提・GROUND_Y=348）。地底や入場土管の最中に呼ぶと
 //   届かない場所に湧いて当日の枠だけが消える（1.685で呼び出し側に `!undergroundState.active` を追加した）。
 //   ここを地底対応させる場合は「部屋の床を基準にしたY」を別途決める必要がある＝安易に呼ばないこと。
+// 戻り値: 置けたら true。⚠**置けなかったら false**（呼び出し側が「次のフレームで置き直す」ために使う）。
 function spawnDailyGoldenEgg() {
     var eggX = gameState.camera.x + GAME_WIDTH + 60;
-    var eggScanEnd = eggX + 400; // terrain生成範囲(+500)内で前方の平地を探す
+    // ⚠**カリングの右境界(camera.x + GAME_WIDTH + 200)より手前でしか置かない**（1.695・監査で発見）。
+    //   1.694までは平地を探して +460 まで前進していたが、manageObjects の cullByX は x >= +200 の powerUp を
+    //   **次のtickで削除**する（keep条件は o.x < near）。つまり画面右外に穴や高台があると、当たりを引いたのに
+    //   エッグが1フレームで消え、抽選回数だけ消費されていた（実コードの3,000回シミュレーションで13.9%）。
+    var eggScanEnd = gameState.camera.x + GAME_WIDTH + 180;   // 40px幅を足しても keep 条件の内側
     var eggFooting = function(x) { return isFlatGroundAt(x - 4) && isFlatGroundAt(x + 20) && isFlatGroundAt(x + 44); }; // エッグ幅+足場ぶんの平地
     while (eggX < eggScanEnd && !eggFooting(eggX)) eggX += 20;
+    if (!eggFooting(eggX)) return false;   // この窓には置けない＝呼び出し側が次フレームに持ち越す
     powerUps.push({
         x: eggX, y: 240,  // 画面外(右)から出してスクロールで入れる＋真下は平地（穴の上に出さない）
         width: 40, height: 40, type: 'golden_egg', eggSource: 'field',   // ⚠出どころ（1.693）＝拾った時の記録先が変わる
         collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2
     });
+    return true;
 }
 // エッグを1個手に入れた時の共通処理。source は**出どころ**（1.693で bool → 文字列に変更）:
 //   'field'     … 2,500m一次 / 7,300m救済（フィールドの日次枠）
@@ -4749,6 +4792,12 @@ function continueRunFromSave() {
     //   pendingStockItems を空にして配ってしまうが、その直後に applyRunSave が持ち物を
     //   セーブの中身で丸ごと置き換えるため、退避しないと**受け取った品が消える**。
     var pend = (gameSettings.pendingStockItems || []).slice();
+    // ⚠**退避したら「その場で空にする」**（1.695・監査で発見）。空にしないと resetGame の中の
+    //   flushPendingStockItems が先に配って commitPermaStock まで走り、permaStock が書き換わる。
+    //   すると下の applyRunSave の permaOwned 突き合わせが「中断中に所有が変わった枠」と誤認して復元し、
+    //   さらに退避ぶんをもう一度配る＝**ログボ1個がポーチに1個＋通常枠に1個の二重**になっていた。
+    //   ⚠saveSettings は呼ばない（メモリ上だけ空にする）＝ここで落ちても localStorage には残る。
+    gameSettings.pendingStockItems = [];
 
     tutorialState.active = false; tutorialState.forced = false;   // チュートリアルとは排他
     resetGame();
@@ -4973,6 +5022,7 @@ function resetGame() {
     gameState.goldenEggFieldSpawned = false;
     gameState.goldenEggRescueArmed = false;
     gameState.goldenEggRescueDone = false;
+    gameState.goldenEggSpawnPending = false;   // 当たりの持ち越し（1.695）
     gameState.revivePotionBuys = 0;   // ふっかつやくの値段は毎ラン 20,000円 から（1.684・ユーザー指示）
     pipeRoomState.active = false; pipeRoomState.visited = false;
     pipeRoomState.placed = false; pipeRoomState.x = 0; pipeRoomState.savedPlayer = null;
@@ -6392,7 +6442,8 @@ function manageObjects() {
         gameState.distance >= 2500 && !bossState.active && canDrawDailyEggToday()) {
         gameState.goldenEggFieldSpawned = true;
         consumeDailyEggDraw();                                // 当日の抽選を1回消費（1日2回まで・1.693）
-        if (Math.random() < 0.30) spawnDailyGoldenEgg();      // 一次抽選 30%
+        // 一次抽選 30%。⚠**当たりを引いたのに置けなかった時は持ち越す**（1.695）＝抽選だけ消費されるのを防ぐ
+        if (Math.random() < 0.30) { if (!spawnDailyGoldenEgg()) gameState.goldenEggSpawnPending = true; }
         else gameState.goldenEggRescueArmed = true;           // 外し→7,300mで救済抽選を保留（このランのみ）
     }
     // 救済抽選: 一次を外していたら **7,300m** で **50%**（このラン限定＝到達前に力尽きたら消失＝1日1回限り）。
@@ -6405,7 +6456,12 @@ function manageObjects() {
     if (gameState.goldenEggRescueArmed && !gameState.goldenEggRescueDone && !undergroundState.active &&
         !undergroundState.pipePlaced && gameState.distance >= 7300 && !bossState.active) {
         gameState.goldenEggRescueDone = true;
-        if (Math.random() < 0.50) spawnDailyGoldenEgg();      // 救済抽選 50%（1.687・調整ノブ）
+        if (Math.random() < 0.50) { if (!spawnDailyGoldenEgg()) gameState.goldenEggSpawnPending = true; }  // 救済抽選 50%（1.687・調整ノブ）
+    }
+    // ⚠当たりの持ち越し（1.695）: 置ける平地が画面右外に来るまで毎フレーム試す。地上に居る間だけ・ボス中は待つ。
+    //   これが無いと「当たったのに何も出ないまま抽選回数だけ減る」（1.685の別経路として監査で発見）。
+    if (gameState.goldenEggSpawnPending && !undergroundState.active && !undergroundState.pipePlaced && !bossState.active) {
+        if (spawnDailyGoldenEgg()) gameState.goldenEggSpawnPending = false;
     }
 
     // ボス戦中は通常スポーン停止

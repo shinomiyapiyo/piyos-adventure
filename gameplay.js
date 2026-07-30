@@ -4290,6 +4290,10 @@ function updateDiveBird(e) {
 //   ドラッグで temp が落ちる経路があり（gameplay.js swapStockSlots）永続品を上書きしていた。
 function commitPermaStock() {
     if (typeof tutorialState !== 'undefined' && tutorialState.active) return; // サンドボックス＝永続枠なし
+    // ⚠**地底モードもサンドボックス**（1.695・監査で発見）。貯金を隠している(1.629)のと同じ理由で、
+    //   このモードの路銀30,000円で買った品がポーチに定着すると、次の通常ランで無料補充される抜け道になる
+    //   （老婆の劇薬は stockItem＝addToStock の route 1 で未割当の金枠に base 定着する）。
+    if (typeof undergroundMode !== 'undefined' && undergroundMode.active) return;
     if (!gameSettings.permaStock) gameSettings.permaStock = [];
     for (var i = 0; i < stockState.perma.length; i++) {
         gameSettings.permaStock[i] = stockState.perma[i].base || '';
@@ -4473,8 +4477,18 @@ function useStockItem(displayIndex, confirmed) {
         //   ⚠その場で permaStock まで書き換えて保存する。commitPermaStock はゲームオーバーでしか走らないので、
         //     ここで永続化しないと「使う→リタイア→次ランで復活」の抜け道が残る。
         if (pItem.ugOnly) {
-            pslot.base = ''; pslot.id = ''; pslot.temp = false;
-            if (gameSettings.permaStock) { gameSettings.permaStock[displayIndex] = ''; saveSettings(); }
+            // ⚠**temp（今回かぎりの補充）の枠では所有(base)に触らない**（1.695・監査で発見。売却側は1.574で
+            //   同じ穴を塞いである）。地底の劇薬は addToStock の route 2 で「所有品が使用済みの金枠」へ
+            //   temp で入る。そこで base/permaStock を空にすると、**売った覚えも捨てた覚えも無いのに
+            //   その枠が本来持っていた永続品が恒久的に消える**（実際に node で再現）。
+            //   正しい後始末は executeSellItem と同じ＝枠を「temp が入る前の姿（使用済みの所有品）」に戻すだけ。
+            if (pslot.temp) {
+                var _ugBack = pslot.base || '';
+                stockState.perma[displayIndex] = { id: _ugBack, used: !!_ugBack, temp: false, base: _ugBack };
+            } else {
+                pslot.base = ''; pslot.id = ''; pslot.temp = false;
+                if (gameSettings.permaStock) { gameSettings.permaStock[displayIndex] = ''; saveSettings(); }
+            }
         }
         if (soundManager) soundManager.playItem();
         updateStockUI();
@@ -4551,6 +4565,10 @@ function swapStockSlots(a, b) {
     var pl = permaLevel();
     var maxN = stockState.maxSlots;
     if (a < 0 || b < 0 || a >= maxN || b >= maxN || a === b) return false;
+    // ⚠金枠の実体が無い index を触らない（1.695・監査で TypeError を再現）。しおり再開で perma の長さが
+    //   permaLevel() に足りない状態が作れてしまうため、下の snap/代入が undefined を掴んでいた。
+    //   長さ自体は applyRunSave 側で揃えるようにしたが、ドラッグは指の動きで任意の枠を指せるので二重で守る。
+    if ((a < pl && !stockState.perma[a]) || (b < pl && !stockState.perma[b])) return false;
     // 使用済みの永続枠はドラッグ元/先ともに不可（この操作で復活してしまうのを防ぐ）
     function isUsedPerma(idx) { return idx < pl && stockState.perma[idx] && stockState.perma[idx].id && stockState.perma[idx].used; }
     if (isUsedPerma(a) || isUsedPerma(b)) return false;
