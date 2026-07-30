@@ -56,6 +56,19 @@ grep -E "versionCode|versionName" android/app/build.gradle
 
 ## 1. 版数を上げる
 
+### ⚠上げ幅は固定（2026-07-31 ユーザー指示・確認不要）
+
+| 中身 | 上げ幅 | 例 |
+|---|---|---|
+| **明らかに新しい機能が増えた**（新ステージ／新キャラ／新モード／新画面＝遊べるものが増えた） | **0.1** | 1.6 → 1.7 |
+| **それ以外**（不具合修正・既存仕様の調整・バランス変更・UIの整理・演出の撤去 など） | **0.0.1** | 1.6 → 1.6.1 |
+
+- 既存アイテムの**入手経路や価格の調整**、**表示の追加**は「機能追加」に数えない（＝0.0.1）。
+- 内部番号（iOS `CURRENT_PROJECT_VERSION` / Android `versionCode`）は上げ幅に関係なく**毎回 +1**。
+- ⚠**必ずここで確定させる**。版数文字列は AAB と xcarchive に焼き込まれるので、ビルド後に変えると
+  **両方とも作り直し**になる（1.7 でビルドしてから 1.6.1 に付け替えた実例＝1.6.1）。
+  なお `www/` は無関係なので、版数だけの変更なら `build:web` / `cap sync` は不要。
+
 ```bash
 sed -i '' 's/MARKETING_VERSION = <旧>;/MARKETING_VERSION = <新>;/g; s/CURRENT_PROJECT_VERSION = <旧>;/CURRENT_PROJECT_VERSION = <新>;/g' ios/App/App.xcodeproj/project.pbxproj
 sed -i '' 's/versionCode <旧>$/versionCode <新>/; s/versionName "<旧>"/versionName "<新>"/' android/app/build.gradle
