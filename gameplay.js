@@ -2592,9 +2592,17 @@ function initPipeRoom() {
     if (!rt) rt = ROOM_TYPES[0];
     rt.build();
     // ゴールデンエッグ: 1%(1/100・部屋タイプに依存しない)。土管は1ラウンド1つ＝回数が多いので希少化(5%→2%→1% 1.455)。チュートリアルでは出さない（稼ぎ場防止）。
+    // ⚠**位置は中央から左へずらす（0.5→0.20）**（1.690・ユーザー決定）。中央だと**コインの間**の山型（頂点が
+    //   床上216px＝エッグの帯 床上175〜215px と同じ高さ）と重なり、1%の当たりがコインに埋もれて見えなかった
+    //   （実測: 中央だとコイン最大4枚がエッグの当たり判定に重なる。他4タイプは0）。拾えなくはないが気づけない。
+    // ⚠**なぜ「少しだけ」ではなく0.20なのか**: コインの山は f=0.26〜0.74 の広い範囲でエッグの帯より高いので、
+    //   0.42や0.38程度では重なりが消えない（実測 0.46/0.42/0.38=4枚・0.34=3枚・0.30=2枚・0.26=1枚・**0.22以下=0枚**）。
+    //   境界(0.22)ぎりぎりを避けて 0.20 にしてある。⚠コインの山（buildCoinRoom の -66/-150）を触ったら再測すること。
+    // ⚠左に寄せたのは入室が画面左上からの落下＝**最初に目に入る側**だから。右(0.82以上)も0枚だが、
+    //   出口土管と「→ でる」ヒントの近くで混み合う。高さ(床上215px)は変えていない＝ジャンプの届き方は不変。
     if (!tutorialState.active && Math.random() < 0.01) {
         var b = pipeRoomBounds();
-        bonusRoomItems.push({ type: 'golden_egg', x: b.left + b.span * 0.5, y: b.floorY - 215, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
+        bonusRoomItems.push({ type: 'golden_egg', x: b.left + b.span * 0.20, y: b.floorY - 215, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
     }
 }
 
