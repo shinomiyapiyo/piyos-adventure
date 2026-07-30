@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.690";
+                content: "Ver.1.691";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -978,7 +978,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.690</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.691</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -7740,9 +7740,7 @@ function updatePowerUps() {
         if (soundManager) soundManager.playItem();
 
         if (pu.type === 'heart') {
-            if (gameState.lives < 10) gameState.lives++;
-            else gainScore(1000);
-            spawnLifeUpEffect(pu.x + pu.width / 2, pu.y);
+            grantHeartOrScore(pu.x + pu.width / 2, pu.y);   // 満タンなら「らいふあっぷ！」ではなく +1,000点表示（1.691）
         } else if (pu.type === 'lemon_can') {
             gameState.puLemon = PU_DURATION.lemon;
         } else if (pu.type === 'shield') {

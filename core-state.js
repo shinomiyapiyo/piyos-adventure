@@ -250,6 +250,10 @@ var BOSS_ATTACK_RATES = {
     3: { flash: 0.15, rush: 0.30, egg: 0.50, jump: 0.65, flame: 0.85 }
 };
 
+// ライフ満タンでハートを取った時の代替スコア（1.691で定数化・調整ノブ）。
+// ⚠付与と**表示**は gameplay.js の grantHeartOrScore() に集約してある。増やす経路を足す時もそこを通すこと。
+const HEART_FULL_SCORE = 1000;
+
 // ─── パワーアップ持続時間（フレーム @60fps） ───
 var PU_DURATION = {
     lemon: 300,        // フィールド: レモン缶（5秒）

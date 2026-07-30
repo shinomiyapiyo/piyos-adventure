@@ -2557,8 +2557,7 @@ function openLuckyChest(chest) {
         grantStockReward(pool[Math.floor(Math.random() * pool.length)]);
     } else if (reward === 'heart') {
         spawnChestRewardEffect(cx, cy - 8, false);
-        if (gameState.lives < 10) gameState.lives++; else gainScore(1000);
-        spawnLifeUpEffect(cx, cy - 18);
+        grantHeartOrScore(cx, cy - 18);   // 満タンなら +1,000点表示（1.691）
         if (soundManager) soundManager.playItem();
     } else { // bigcoin
         spawnChestRewardEffect(cx, cy - 8, false);
@@ -2572,6 +2571,21 @@ function openLuckyChest(chest) {
         if (o.type === 'chest' && o !== chest && !o.opened) { o.vanishing = true; o.vanishTimer = 0; }
     }
     player.velY = JUMP_FORCE * 0.35; player.onGround = false; // 開封の小さなホップ（気持ちよさ）
+}
+
+// ハート取得の共通処理（1.691）: ライフ満タンなら回復せず +1,000点。⚠**表示も切り替える**こと。
+// 1.690までは満タンでも無条件に spawnLifeUpEffect（金色の「らいふあっぷ！」）を出していたので、
+// 実際にはスコアが入っているのに「ライフが増えた」と伝える表示になっていた（宝箱の「何も出ない」と同じ
+// 〈表示と実態がズレる〉系の傷）。**ハートを増やす経路を追加する時もこの関数を通すこと。**
+// x,y は演出の位置。本編＝ワールド座標／土管部屋＝画面座標（どちらも floatEffects の作法どおり）。
+function grantHeartOrScore(x, y) {
+    if (gameState.lives < 10) {
+        gameState.lives++;
+        spawnLifeUpEffect(x, y);
+    } else {
+        gainScore(HEART_FULL_SCORE);
+        floatEffects.push({ type: 'score_text', worldX: x, worldY: y - 4, timer: 0, duration: 70, offsetY: 0, score: HEART_FULL_SCORE });
+    }
 }
 
 // 入室時に部屋タイプを重み付き抽選（有効な weight>0 のみ）。将来、状態依存のフォールバックはここか各buildで。
@@ -2692,8 +2706,7 @@ function updatePipeRoom() {
             it.collected = true; gainScore(150); if (soundManager) soundManager.playCoin();
         } else if (it.type === 'heart') {
             it.collected = true;
-            if (gameState.lives < 10) gameState.lives++; else gainScore(1000);
-            spawnLifeUpEffect(it.x + it.width / 2, it.y);
+            grantHeartOrScore(it.x + it.width / 2, it.y);   // 満タンなら +1,000点表示（1.691）
             if (soundManager) soundManager.playItem();
         } else if (it.type === 'shopitem') {
             if (addToStock(it.itemId)) { it.collected = true; markZukanSeen('item:' + it.itemId); if (soundManager) soundManager.playItem(); }
