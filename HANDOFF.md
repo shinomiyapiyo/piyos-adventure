@@ -11,16 +11,15 @@
 | ゲーム本体 | **Ver.1.696** |
 | iOS | **1.7 / build 12 のアーカイブ完成**（`~/Library/Developer/Xcode/Archives/2026-07-30/PiyosAdventure-1.7-build12.xcarchive`） |
 | Android | **1.7 / versionCode 11 の AAB 完成**（`android/app/build/outputs/bundle/release/app-release.aab`・60.17MB） |
-| 前回提出 | 1.6（iOS build11 / Android vc10）＝**審査結果は未確認** |
+| 前回提出 | 1.6（iOS build11 / Android vc10）＝**両ストアともリリース済み**（2026-07-31 ユーザー確認） |
 
 ### 次セッションの手順（この順で）
 
-1. **iOS 1.6 の審査結果を確認**。⚠まだ審査中なら 1.7 は出せない（取り下げるか承認待ち）。
-2. Android 1.6 の状態を確認（クローズドテスト）。Android は iOS と無関係に 1.7 を出せる。
-3. `RELEASE-1.7.md` のリリースノート（ja 433字 / en 499字＝Playの500字以内）を使って提出。
-   手順の正は `RELEASE_PLAYBOOK.md` §5（Play）・§6（ASC）。
-4. ⚠**1.680〜1.696 は丸ごと実機未確認**。TestFlight build 12 で確認できる
-   （問題が出たら iOS は審査を取り下げて出し直し）。
+1. **1.7 を提出する**（1.6 は両ストアともリリース済み＝版数の判断は不要）。
+   `RELEASE-1.7.md` のリリースノート（ja 433字 / en 499字＝Play の1言語500字以内）をそのまま使う。
+   手順の正は `RELEASE_PLAYBOOK.md` §5（Play）・§6（ASC）。Claude がブラウザを操作して提出まで行う。
+2. ⚠**1.680〜1.696 は丸ごと実機未確認**（監査の修正20件を含む）。TestFlight build 12 で確認できる。
+   提出前に確認するか、提出と並行するかはユーザー判断（提出後に問題が出ると iOS は取り下げて出し直し）。
 
 ⚠**この版は監査（ultracode 12エージェント）の修正を大量に含む**。内容と未対応分は `AUDIT-1.694.md`。
 
