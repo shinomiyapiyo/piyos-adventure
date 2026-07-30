@@ -3589,6 +3589,11 @@ function buyStageItem(itemId) {
     // 永続アップグレード品（地底の主の加護・1.569）: effect() ではなく gameSettings.upgrades に積んで保存する。
     // ⚠applyUpgrades は**ラン開始時**にしか走らないので、その場で効かせたい値はここで直接触ること
     //   （加護は「次に地底へ入る時」に効くので、ここでは保存だけでよい）。
+    // ⚠⚠**買った瞬間に確定するのが正しい**（✅ユーザー確認・2026-07-30）。ポーチの品は「地底モードをクリアした時だけ
+    //   確定」（commitPermaStock）だが、**ラン中に買える永続アイテムはこの規則の外**＝クリアしなくても、
+    //   途中で力尽きても残る。**今後ラン中に買える永続アイテムを増やしても同じ扱いにすること。**
+    //   （監査でここを「地底モードの抜け道では？」と指摘されたが、仕様として正しい。塞がないこと。
+    //    参考: 地底モードで貯まる所持金の上限は実測 ≒137,400円で、加護の200,000円には届かない。）
     if (item.permaUpgrade) {
         gameSettings.upgrades = gameSettings.upgrades || {};
         gameSettings.upgrades[item.permaUpgrade] = 1;
@@ -4305,6 +4310,8 @@ function commitPermaStock(force) {
     //   ただし持ち帰れるのは**踏破した時だけ**＝途中で力尽きたら残らない。
     //   ⚠リタイアは resetGame へ直行して gameOver を通らない＝元から確定しない（index.html confirmRetire）。
     //   ⚠force はログボ配布用の例外（モードの金で買った物ではないので、クリア前でも確定してよい）。
+    // ⚠**ラン中に買える永続アイテム（地底の主の加護など）はここを通らない**＝購入時に直接 saveSettings する。
+    //   それで正しい（✅ユーザー確認・2026-07-30）。この関数が面倒を見るのは「ポーチ(金枠)の所有」だけ。
     if (!force && typeof undergroundMode !== 'undefined' && undergroundMode.active && !undergroundMode.cleared) return;
     if (!gameSettings.permaStock) gameSettings.permaStock = [];
     for (var i = 0; i < stockState.perma.length; i++) {
