@@ -89,22 +89,10 @@ function drawAll() {
         drawPlayer(player.x, player.y);
     });
 
-    // 予告あり: 明るい瞬間 / 暗い瞬間（animFrame で点滅位相を作る）
-    function hawkWarnPanel(warnLeft, animFrame) {
-        return function () {
-            drawStage();
-            bossState.eggs = [];
-            hawk.featherWarn = warnLeft; hawk.featherSpan = Math.PI * 0.95;
-            hawk.animFrame = animFrame;
-            hawk.spriteFrame = 3;
-            drawBossImg('hawk', hawk);
-            drawPlayer(player.x, player.y);
-            drawHawkFeatherWarn(hawk);
-        };
-    }
-    // 予告の開始直後（ゆっくり点滅）と、発射直前（残り12f未満＝倍速点滅）
-    panel('c2', hawkWarnPanel(28, Math.round((Math.PI / 2) / 0.42)));
-    panel('c3', hawkWarnPanel(6,  Math.round((Math.PI / 2) / 0.80)));
+    // ⚠**カラスの予告パネル(c2/c3)は撤去した**（1.696）。1.681で drawHawkFeatherWarn を
+    //   render.js から削除した（ユーザー判断「予告はダサい」）のに、このページは呼び出しを残していたため
+    //   drawAll() が ReferenceError で止まり、**残す仕様のフクロウ音波予告（c4〜c6）まで描かれていなかった**。
+    //   カラスは「弾そのものを明るくする」方式に変えたので、c1（＝今の見え方）だけで足りる。
 
     // ── ② 闇のフクロウ ────────────────────────────────────────
     var owl = makeBoss('owl', 430, GROUND_Y - BOSS_HEIGHT - 70);

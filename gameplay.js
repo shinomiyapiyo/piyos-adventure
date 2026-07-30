@@ -763,6 +763,12 @@ function ugHudVisible(on) {
         //   ⚠戻すのは on=true 側で updateStockUI に任せる（表示条件はあちらが持っている）。
         var ss = document.getElementById('stockSlots');
         if (ss && !on) ss.style.display = 'none';
+        // ⚠1.696: **ぴよフラッシュのゲージ(#specialMoveUI)も隠す**（監査で発見）。これも #ui でも #controlBar でも
+        //   ない独立要素（z-index:150）で、毎フレーム updateSpecialMoveUI が表示を戻すため一枚絵の上に残り、
+        //   押すと specialCutinTimer で世界が96F止まってテロップが進まなくなる（カットインは drawUgEnding に
+        //   覆われて見えず、ゲージだけ消える）。⚠戻すのは on=true 側で updateSpecialMoveUI に任せる。
+        var sm = document.getElementById('specialMoveUI');
+        if (sm && !on) { sm.style.display = 'none'; sm._shown = false; }
     } catch (_) {}
 }
 
@@ -1986,6 +1992,7 @@ function finishTutorial() {
 // スキップ（二度押し確認）: クリア扱い（報酬なし）にしてタイトルへ
 function tapTutorialSkip() {
     if (!tutorialState.active) return;
+    if (gameState.gamePaused) return;   // ⚠ポーズ中は押させない（1.696・きせかえ一覧の上に浮いてタップが通っていた）
     if (tutorialState.skipArmed > 0) {
         tutorialState.skipArmed = 0;
         tutorialState.active = false;
@@ -3126,7 +3133,9 @@ function renderStageShopItem(item, purchaseCount) {
     //   stockHasRoom を addToStock の受け入れ条件と1対1にしたので、表示と購入は必ず一致する。
     if (item.stockItem && !stockHasRoom(item.id)) canBuy = false;
     // ライフ上限チェック（回復薬はライフ10で買えない）
-    var isHpItem = (item.id === 'heal' || item.id === 'shortcake'); // 即時回復系（そば/いちごショート）
+    // 即時回復系（そば/いちごショート/極楽まんじゅう）。⚠**判定側(selectShopItem/buyStageItem)と同じ3件に保つこと**
+    //   （1.696・監査で発見。ug_manju だけ漏れていて、ライフ10でも白字＋価格のまま＝押しても拒否される表示になっていた）。
+    var isHpItem = (item.id === 'heal' || item.id === 'shortcake' || item.id === 'ug_manju');
     if (isHpItem && gameState.lives >= 10) canBuy = false;
     var soldOut = purchaseCount >= item.maxPerVisit;
     var hpFull = (isHpItem && gameState.lives >= 10);
@@ -4288,12 +4297,15 @@ function updateDiveBird(e) {
 //   temp=true の枠（＝所有品が使用済み/拾った品で埋まっている）は base が停まったままなので自動的に不変＝
 //   「今回かぎり」補充(1.477)は翌ランに残らない。1.575まではここで temp を見てスキップしていたが、
 //   ドラッグで temp が落ちる経路があり（gameplay.js swapStockSlots）永続品を上書きしていた。
-function commitPermaStock() {
+// force=true は「ラン中に拾った物ではない配布品（ログインボーナス）を確定する」呼び出し用。
+function commitPermaStock(force) {
     if (typeof tutorialState !== 'undefined' && tutorialState.active) return; // サンドボックス＝永続枠なし
-    // ⚠**地底モードもサンドボックス**（1.695・監査で発見）。貯金を隠している(1.629)のと同じ理由で、
-    //   このモードの路銀30,000円で買った品がポーチに定着すると、次の通常ランで無料補充される抜け道になる
-    //   （老婆の劇薬は stockItem＝addToStock の route 1 で未割当の金枠に base 定着する）。
-    if (typeof undergroundMode !== 'undefined' && undergroundMode.active) return;
+    // ⚠**地底モードは「モードをクリアした時だけ」確定する**（1.696・✅ユーザー仕様。1.695で全面除外にしたのは誤り）。
+    //   老婆の劇薬をポーチで持ち帰れるのは意図した設計（転売は sellPriceOverride=500 と老婆の買取拒否で塞いである）。
+    //   ただし持ち帰れるのは**踏破した時だけ**＝途中で力尽きたら残らない。
+    //   ⚠リタイアは resetGame へ直行して gameOver を通らない＝元から確定しない（index.html confirmRetire）。
+    //   ⚠force はログボ配布用の例外（モードの金で買った物ではないので、クリア前でも確定してよい）。
+    if (!force && typeof undergroundMode !== 'undefined' && undergroundMode.active && !undergroundMode.cleared) return;
     if (!gameSettings.permaStock) gameSettings.permaStock = [];
     for (var i = 0; i < stockState.perma.length; i++) {
         gameSettings.permaStock[i] = stockState.perma[i].base || '';
@@ -4342,7 +4354,7 @@ function isRevivePotion(itemId) { return itemId === 'revive_potion'; }
 // ⚠**トーストは1枚にまとめる**（1.694）。showRewardToast は毎回 left:50%/top:14% に出すので、
 //   ポーションの間で3個続けて拾うと**3枚が同じ位置に重なって最後の1枚しか読めなかった**。
 //   生きているトーストがあれば作り直さず、個数と合計額を書き換える＝「×3 → 合計10,000円」になる。
-var _convertToast = null;    // { el, count, total, timer }
+var _convertToast = null;    // { el, count, total }
 function convertItemToSavings(itemId) {
     var si = STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; });
     var amount = si ? Math.max(1, shopSellPrice(si)) : 0;
@@ -4351,19 +4363,17 @@ function convertItemToSavings(itemId) {
         saveSettings();
     }
     if (typeof showRewardToast !== 'function') return;
-    var now = Date.now();
-    if (_convertToast && _convertToast.el && _convertToast.el.parentNode && now - _convertToast.at < 2000) {
-        _convertToast.count++;
-        _convertToast.total += amount;
-        _convertToast.at = now;
-        _convertToast.el.innerHTML = escapeHtml(t('stock_full_savings_multi', { n: _convertToast.count, amount: _convertToast.total }));
-        return;
-    }
-    showRewardToast(escapeHtml(t('stock_full_savings', { amount: amount })),
-        'linear-gradient(180deg,#7ad0ff,#2a7fd0)', '#062a44');
-    // 直前に作られたトースト要素を掴んでおく（showRewardToast は body の末尾に append する）
-    var els = document.body.children;
-    _convertToast = { el: els[els.length - 1], count: 1, total: amount, at: now };
+    // ⚠集約は showRewardToast の key に任せる（1.696）。1.694は「2秒以内なら文字だけ書き換える」自前実装で、
+    //   トーストの寿命を延ばさないため 2.0〜2.2秒間隔で2枚重なり、2.2〜2.6秒では**通知が出ない**穴があった。
+    //   ここは「何個ぶん・合計いくら」を数えるだけにして、表示の寿命は通知側に一元化する。
+    var alive = _convertToast && _convertToast.el && _convertToast.el.parentNode;
+    var count = alive ? _convertToast.count + 1 : 1;
+    var total = alive ? _convertToast.total + amount : amount;
+    var html = (count > 1)
+        ? escapeHtml(t('stock_full_savings_multi', { n: count, amount: total }))
+        : escapeHtml(t('stock_full_savings', { amount: total }));
+    var el = showRewardToast(html, 'linear-gradient(180deg,#7ad0ff,#2a7fd0)', '#062a44', 'stock_full');
+    _convertToast = { el: el, count: count, total: total };
 }
 
 function addToStock(itemId) {
@@ -5264,7 +5274,10 @@ function updateBossAI_hawk(b) {
         var hoverSpeed = (phase === 3 ? 1.7 : phase === 2 ? 1.3 : 1.0) * angryMult;
         if (Math.abs(tx - b.x) > 1) b.x += Math.sign(tx - b.x) * Math.min(hoverSpeed, Math.abs(tx - b.x));
         b.facing = (b.x + b.width / 2 > player.x + player.width / 2) ? 'left' : 'right';
-        b.spriteFrame = HAWK_HOVER_CYCLE[Math.floor(b.animFrame / 4) % HAWK_HOVER_CYCLE.length];
+        // ⚠**外から立てたポーズ（発射/被弾）を上書きしない**（1.696・監査で発見）。ここは滞空中の毎フレーム
+        //   走るので、守らないと HAWK_FRAME_SHOOT / _DAMAGED が次フレームで消え、spriteResetTimer(20F)が空回りする
+        //   ＝発射・被弾の絵が1フレームしか出ない（実測 [3,5,5,9,9,...]）。
+        if ((b.spriteResetTimer || 0) <= 0) b.spriteFrame = HAWK_HOVER_CYCLE[Math.floor(b.animFrame / 4) % HAWK_HOVER_CYCLE.length];
 
         b.attackTimer--;
         if (b.attackTimer <= 0) {
@@ -5418,8 +5431,9 @@ function updateBossAI_mama(b) {
     var patrolSpeed = (phase === 1 ? 1.0 : phase === 2 ? 1.5 : 2.0) * speedMult;
     b.x += b.patrolDir * patrolSpeed;
     b.facing = b.x + b.width / 2 > player.x + player.width / 2 ? 'left' : 'right';
-    // 歩行アニメ: idle/walk を交互
-    b.spriteFrame = (Math.floor(b.animFrame / 12) % 2 === 0) ? BOSS_FRAME_IDLE : BOSS_FRAME_WALK;
+    // 歩行アニメ: idle/walk を交互。⚠こちらも spriteResetTimer で守る（1.696）＝踏まれた時の
+    //   BOSS_FRAME_DAMAGED が次フレームで歩行に戻ってしまい、被弾の絵が1フレームしか出なかった。
+    if ((b.spriteResetTimer || 0) <= 0) b.spriteFrame = (Math.floor(b.animFrame / 12) % 2 === 0) ? BOSS_FRAME_IDLE : BOSS_FRAME_WALK;
     // 壁で反転
     if (b.x <= bossState.arenaLeft) { b.x = bossState.arenaLeft; b.patrolDir = 1; }
     if (b.x + b.width >= bossState.arenaRight) { b.x = bossState.arenaRight - b.width; b.patrolDir = -1; }
@@ -6410,6 +6424,13 @@ function updateEggs() {
         //   （1.564でプレイヤーの弾に起きたのと同じ罠）。地上は camera.y=0 なので式の値は従来と完全に同じ。
         if (egg.y > gameState.camera.y + GAME_HEIGHT + 50 || egg.timer > 300 ||
             egg.x < gameState.camera.x - 50 || egg.x > gameState.camera.x + GAME_WIDTH + 50) {
+            bossState.eggs.splice(i, 1);
+            continue;
+        }
+        // ⚠**羽根弾は地面に刺さったら消す**（1.696・監査で発見）。弾は地形より後に描くので、地表(GROUND_Y)より
+        //   下へ潜ったぶんが**土の上に重なって見える**（実測で寿命39〜59fのうち19〜22f）。1.681で縁取りを
+        //   明るくしたぶん目立つようになった。⚠地上のカラス戦だけ＝地底は縦カメラで GROUND_Y が無意味なので触らない。
+        if (egg.isFeather && !undergroundState.active && egg.y > GROUND_Y) {
             bossState.eggs.splice(i, 1);
             continue;
         }

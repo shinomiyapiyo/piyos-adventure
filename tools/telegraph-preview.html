@@ -3,7 +3,7 @@
 <title>1.674 点滅予告の見え方くらべ</title>
 <!--
   闇のカラスの羽根弾 / 闇のフクロウの音波「点滅予告」の見え方を確認するための検証ページ（1.674）。
-  ⚠モックではなく**実物の描画コードを呼ぶ**: render.js の drawHawkFeatherWarn / drawOwlDarkness /
+  ⚠モックではなく**実物の描画コードを呼ぶ**: render.js の drawOwlDarkness /
     drawEggProjectiles / EFFECT_RENDERERS.boss_shockwave と、core-state.js の定数をそのまま使う。
     背景も本番と同じ BOSS_SKY のグラデ＋ボス戦オーバーレイ(rgba(10,0,30,0.3))。
   使い方: リポジトリ直下を http で配信して /tools/telegraph-preview.html を開く。
@@ -32,11 +32,8 @@
 <h2>① 闇のカラス：羽根弾（真下へ扇状に撃つ）</h2>
 <div class="grid">
   <figure><canvas id="c1" width="820" height="450"></canvas>
-    <figcaption><b>いまの状態</b>：予告なしで即発射。弾は <code>#2a1840</code>＝ほぼ黒で、<span class="bad">背景に溶けて見えない</span>。</figcaption></figure>
-  <figure><canvas id="c2" width="820" height="450"></canvas>
-    <figcaption><b>予告あり（明）</b>：撃つ0.5秒前から、発射口の光と<span class="good">扇の向きを示す破線</span>が点滅。</figcaption></figure>
-  <figure><canvas id="c3" width="820" height="450"></canvas>
-    <figcaption><b>予告あり（暗）</b>：点滅の谷。消えきらないので「そこに居る」は分かる。</figcaption></figure>
+    <figcaption><b>いまの状態（Ver.1.681〜）</b>：予告なしで即発射。弾は<span class="good">明るい縁取り＋明るい先端</span>で、暗いアリーナでも輪郭が読める。
+    ⚠1.674の点滅予告は<b>1.681で撤去</b>（ユーザー判断）。このページの予告パネル2枚も1.696で削除した。</figcaption></figure>
 </div>
 
 <h2 class="owl">② 闇のフクロウ：音波（地上に居ると被弾＝ジャンプで回避）</h2>

@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.695";
+                content: "Ver.1.696";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -535,7 +535,11 @@
              （1.615 の body.is-paused で実際に踏んだ罠と同じ構造なので、同じ集約先で面倒を見る）。 */
         body.pause-skin-open #ui,
         body.pause-skin-open #stockSlots,
-        body.pause-skin-open #specialMoveUI { display: none !important; }
+        body.pause-skin-open #specialMoveUI,
+        /* チュートリアル再プレイ中の「スキップ」も隠す（1.696・監査で発見）。position:fixed / z-index:60 で
+           ポーズ幕(z:20)より上にあり、全幅にした一覧の見出し行へ重なって**タップも通っていた**
+           （2回押すとランが終わり、きせかえ一覧を開いたままタイトルへ飛ぶ）。 */
+        body.pause-skin-open #tutorialSkipBtn { display: none !important; }
         /* ポーズ中の「きせかえ」だけカードを一覧向けに広げる（openPauseSkin が付け外しする）。
            ポーズ本体（再開/きせかえ/リタイア）は今までどおりの小さいカードのまま。 */
         /* ⚠padding は !important が要る。#pauseCard は inline style で padding を持っており、
@@ -978,7 +982,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.695</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.696</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1665,8 +1669,10 @@
                 <div id="missionList" style="display:flex; flex-direction:column; gap:5px;
                     overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto; min-height:0;"></div>
                 <!-- 戻る -->
-                <button class="game-button" id="missionBackBtn" data-i18n="btn_back" style="margin-top:7px; flex-shrink:0;
-                    min-height:40px; font-size:clamp(11px,2.4vw,16px);"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
+                <!-- ⚠1.696: head-btn を足してグレーの「戻る」に統一（1.682の対象8画面から漏れていた）。
+                     幅と余白はインラインで維持する（head-btn の min-width:auto は !important なので上書きされる）。 -->
+                <button class="game-button head-btn" id="missionBackBtn" data-i18n="btn_back" style="margin-top:7px; flex-shrink:0;
+                    min-height:40px !important; font-size:clamp(11px,2.4vw,16px); padding:8px 16px !important;"><img src="images/icon_back.png" class="ui-icon"> 戻る</button>
             </div>
         </div>
 
@@ -2713,6 +2719,12 @@ var gameSettings = {
             if (typeof parsed.goldenEggDrawDate === 'string') gameSettings.goldenEggDrawDate = parsed.goldenEggDrawDate;
             if (typeof parsed.goldenEggDrawCount === 'number') gameSettings.goldenEggDrawCount = parsed.goldenEggDrawCount;      // 1.693
             if (typeof parsed.lastGoldenEggFieldDate === 'string') gameSettings.lastGoldenEggFieldDate = parsed.lastGoldenEggFieldDate; // 1.693
+            // ⚠1.692以前のセーブには上の2キーが無い（1.696・監査で発見）。そのまま既定値(''/0)にすると、
+            //   **その日すでにエッグを取っていても更新した当日だけ抽選が復活**して2個目が取れてしまう。
+            //   旧仕様は「取得したら lastGoldenEggDate に当日が入る」だったので、それを移行の手掛かりに使う。
+            else if (typeof parsed.lastGoldenEggDate === 'string' && parsed.lastGoldenEggDate === getDateString()) {
+                gameSettings.lastGoldenEggFieldDate = parsed.lastGoldenEggDate;
+            }
             if (typeof parsed.priestessEggDate === 'string') gameSettings.priestessEggDate = parsed.priestessEggDate; // 1.688
             if (typeof parsed.lastGoldenEggTimestamp === 'number') gameSettings.lastGoldenEggTimestamp = parsed.lastGoldenEggTimestamp;
             // ── ずかん（発見・撃破数）──
@@ -3759,7 +3771,23 @@ function claimAchievement(id) {
     updateAchievementBadge();
 }
 // 報酬トースト共通（画面上部に約2.2秒表示）。html には信頼できるコンテンツのみ渡すこと
-function showRewardToast(html, bg, textColor) {
+// 画面上部の通知帯。⚠**key を渡すと「同じ種類の通知は1枚に集約」**（1.696で showRewardToast 側に移した）。
+//   集約は文字を書き換えるだけでなく**寿命(フェード/削除タイマー)を張り直す**のが肝。1.694は呼び出し側で
+//   文字だけ書き換えていたため、①2.0〜2.2秒間隔だと集約されず2枚が同じ座標に重なる ②2.2〜2.6秒だと
+//   既にフェード済みの要素を書き換えて**通知が出ない**、という穴があった（監査で発見）。
+var _liveToasts = {};
+function showRewardToast(html, bg, textColor, key) {
+    if (key && _liveToasts[key] && _liveToasts[key].el && _liveToasts[key].el.parentNode) {
+        var live = _liveToasts[key];
+        clearTimeout(live.fadeT); clearTimeout(live.killT);
+        live.el.innerHTML = html;
+        live.el.style.opacity = '1';
+        live.fadeT = setTimeout(function() {
+            live.el.style.opacity = '0';
+            live.killT = setTimeout(function() { if (live.el.parentNode) live.el.parentNode.removeChild(live.el); }, 400);
+        }, 2200);
+        return live.el;
+    }
     var d = document.createElement('div');
     d.innerHTML = html;
     d.style.cssText = 'position:fixed; left:50%; top:14%; transform:translateX(-50%); z-index:10000;' +
@@ -3769,7 +3797,13 @@ function showRewardToast(html, bg, textColor) {
         'opacity:0; transition:opacity 0.3s;';
     document.body.appendChild(d);
     requestAnimationFrame(function() { d.style.opacity = '1'; });
-    setTimeout(function() { d.style.opacity = '0'; setTimeout(function() { if (d.parentNode) d.parentNode.removeChild(d); }, 400); }, 2200);
+    var rec = { el: d };
+    rec.fadeT = setTimeout(function() {
+        d.style.opacity = '0';
+        rec.killT = setTimeout(function() { if (d.parentNode) d.parentNode.removeChild(d); }, 400);
+    }, 2200);
+    if (key) _liveToasts[key] = rec;
+    return d;
 }
 function showSkinUnlockToast() {
     showRewardToast('🎀 ' + escapeHtml(t('skin_unlocked_toast')), 'linear-gradient(180deg,#ff7ec7,#ff1493)', '#fff');
@@ -4941,7 +4975,9 @@ function flushPendingStockItems() {
     }
     gameSettings.pendingStockItems = [];
     // ログボ配布分は「ラン中に拾った品」ではないのでここで確定＝リタイアしても失われない(1.526)
-    commitPermaStock();
+    // ⚠force=true（1.696）。地底モードは「クリアした時だけ確定」に変えたので、force が無いと
+    //   モード開始時に配ったログボ品が確定されず、力尽きた時に**受け取ったはずの品が消える**。
+    commitPermaStock(true);
     saveSettings();
 }
 
@@ -5151,6 +5187,7 @@ function pauseGame() {
     var _psv = document.getElementById('pauseSkinView'); if (_psv) _psv.style.display = 'none';
     var _pc = document.getElementById('pauseCard'); if (_pc) _pc.classList.remove('pause-list-mode'); // 一覧向けの幅は必ず戻す（1.659）
     document.body.classList.remove('pause-skin-open'); // ポーズは常に「本体ビュー」から開く＝HUDを隠すクラスも落とす（1.682）
+    resetPauseViewToMain();   // 初回ポーズ（まだ閉じる処理を通っていない）でも きせかえボタンの出し分けを効かせる（1.696）
     document.getElementById('pauseScreen').classList.remove('hidden');
     // ⚠ここも showScreenEl を通らない。ポーズ内の「きせかえ」一覧がスクロールするので付与する（1.658）
     if (typeof scanScrollBars === 'function') scanScrollBars(document.getElementById('pauseScreen'));
@@ -5167,6 +5204,24 @@ function hidePauseScreenUI() {
     document.getElementById('pauseScreen').classList.add('hidden');
     document.body.classList.remove('is-paused');
     document.body.classList.remove('pause-skin-open'); // ⚠きせかえ一覧を開いたまま閉じても HUD/ストック枠を必ず戻す（1.682）
+    resetPauseViewToMain();   // ⚠次に開くポーズは必ず本体ビューから（1.696）
+}
+
+// ポーズ画面を「本体ビュー（再開/きせかえ/リタイア）」に戻す。
+// ⚠**開く経路が3つある**（pauseGame / pauseForInterrupt / checkOrientation）。1.695まではビューを戻すのが
+//   pauseGame だけだったので、割り込みポーズ（背景化・縦持ち）は**前回のきせかえ一覧のまま開き、
+//   「再開」ボタンが無いポーズ**になっていた（監査で発見）。閉じる時に必ず戻す＝どの経路で開いても本体から。
+function resetPauseViewToMain() {
+    var m = document.getElementById('pauseMainView'); if (m) m.style.display = 'block';
+    var v = document.getElementById('pauseSkinView'); if (v) v.style.display = 'none';
+    var c = document.getElementById('pauseCard'); if (c) c.classList.remove('pause-list-mode');
+    // ⚠チュートリアル中は「きせかえ」ボタンを出さない（1.696・監査で発見）。runActiveSkin() はチュートリアル中
+    //   '' を返す**意図仕様**（サンドボックス・1.421）なので、装備しても見た目も能力も変わらないのに
+    //   一覧だけ「そうび中」になる＝プレイヤーには壊れて見える。
+    //   ⚠**開く側(pauseGame)ではなく、必ず通る「戻す側」に置く**＝ pauseGame は既にポーズ中だと早期returnするので、
+    //     開く側に書くと一度隠れたまま戻らない状態を作れてしまう（実際に検証で踏んだ）。
+    var b = document.getElementById('pauseSkinButton');
+    if (b) b.style.display = (typeof tutorialState !== 'undefined' && tutorialState.active) ? 'none' : '';
 }
 
 // 復帰。⚠**呼んでよいのは再開ボタンだけ**（index.html の #resumeButton）。
@@ -7052,6 +7107,10 @@ function activateSpecialMove() {
     if (!gameState.gameStarted || gameState.gamePaused) return;
     if (pipeRoomState.active) return; // ボーナス部屋では使用不可（敵がいない＝ゲージ浪費＆カットインが退室後に遅延再生されるのを防ぐ）
     if (pipeRoomState.anim !== 'none') return; // 土管出入り演出中も使用不可
+    // ⚠一枚絵（真のエンディング）と地上復帰の白フェード中も使用不可（1.696）。UI側だけ隠しても、
+    //   将来ほかの入力経路（キーボード等）から呼ばれると同じ事故になるので発動側にも置く。
+    if (typeof undergroundState !== 'undefined' && undergroundState.ending) return;
+    if (typeof groundReturnFade !== 'undefined' && groundReturnFade.phase) return;
     gameState.specialGauge = 0;
     gameState.specialUses++;  // デイリーミッション(必殺技使用)用
     gameState.specialCutinActive = true;
@@ -7193,7 +7252,12 @@ function drawSpecialCutin() {
 function updateSpecialMoveUI() {
     var ui = document.getElementById('specialMoveUI');
     if (!ui) return;
-    var show = (gameState.specialMoveLevel || 0) > 0 && gameState.gameStarted && !gameState.gamePaused && !pipeRoomState.active && pipeRoomState.anim === 'none';
+    // ⚠地底の一枚絵（真のエンディング）と地上復帰の白フェード中は出さない（1.696・監査で発見）。
+    //   ending 中は gameStarted=true / gamePaused=false（ポーズ自体を禁止している）なので、
+    //   この2条件が無いと一枚絵の上にゲージが残って押せてしまう。
+    var _ugEnding = (typeof undergroundState !== 'undefined' && undergroundState.ending) ||
+                    (typeof groundReturnFade !== 'undefined' && groundReturnFade.phase);
+    var show = (gameState.specialMoveLevel || 0) > 0 && gameState.gameStarted && !gameState.gamePaused && !pipeRoomState.active && pipeRoomState.anim === 'none' && !_ugEnding;
     if (ui._shown !== show) { ui.style.display = show ? 'flex' : 'none'; ui._shown = show; }
     if (!show) return;
     var fill = document.getElementById('specialMoveGaugeFill');
