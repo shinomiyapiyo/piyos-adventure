@@ -1531,16 +1531,26 @@ function ugGrantPriestessRewards() {
     zukanAddKill('boss:priestess');                         // ずかん: 撃破時のみ登録（1.474の統一ルール）
     floatEffects.push({ type: 'boss_defeated_text', worldX: cx, worldY: cy, timer: 0, duration: 180, offsetY: 0 });
     floatEffects.push({ type: 'score_text', worldX: cx, worldY: cy - 40, timer: 0, duration: 90, offsetY: 0, score: UG_BOSS_SCORE });
-    // ゴールデンエッグ1個。⚠1日1回（1.588）＝2500m日次エッグ/R4救済と同じ goldenEggDrawDate を消費する。
+    // ゴールデンエッグ1個。⚠1日1回（1.588）＝2,500m日次エッグ/7,300m救済と同じ goldenEggDrawDate を消費する。
     //   今日すでに枠を使っていたら（フィールドでも、別の周回の撃破でも）ここでは出さない＝スコア/コイン/ハートは通常どおり。
+    // ⚠**コイン/ハートと同じ「ドロップ」で出す**（1.686・ユーザー指示「コインやライフと一緒にドロップする形で
+    //   出すのが望ましい」）。1.685までは所持数を直接+1してトースト（2.2秒で消える帯）で知らせるだけだったので、
+    //   ①拾う手触りが無い ②他の報酬と出方が違う ③トーストを見落とすと貰った実感が無い、の3つが揃っていた。
+    //   拾った時の演出（金色の「ゴールデンエッグ GET！」＋リング＋スパーク）は updatePowerUps が出すので、
+    //   ここでトーストは出さない（同じことを2重に伝えない）。
+    // ⚠**位置はコイン/ハートと同じ規律**＝床の近く＋プレイヤーが届く箱の中へ収める（1.571/1.671の教訓。
+    //   ボスのワールドYを基準にすると浮遊高度で倒した時に跳んでも届かない高さに出る）。
+    //   ハートの列は floorY-96 なので、エッグはその上（floorY-150）に置いて重ならないようにする。
+    // ⚠日次枠は**ドロップした時点で**消費する（フィールドの一次抽選と同じ考え方＝「出したら消費」）。
+    //   拾い逃しは UG_END_GRACE（静まってから3秒の猶予・1.595）とエッグマグネットで実質起きない。
     if (typeof canDrawDailyEggToday === 'function' && canDrawDailyEggToday()) {
         gameSettings.goldenEggDrawDate = getDateString();       // 日次枠を消費（フィールド抽選と共有）
         gameSettings.lastGoldenEggTimestamp = Date.now();
-        if (typeof collectGoldenEgg === 'function') collectGoldenEgg(true);
-        if (typeof showRewardToast === 'function') {
-            showRewardToast('<img src="images/item_golden_egg.png" width="22" height="22" style="image-rendering:pixelated; vertical-align:middle;"> ×1 ' +
-                            escapeHtml(t('ug_boss_egg_toast')), 'linear-gradient(180deg,#ffe07a,#ffb400)', '#5a3d00');
-        }
+        saveSettings();
+        var _eggX = Math.max(_ugMinX, Math.min(_ugMaxX - 40, cx - 20));
+        powerUps.push({ x: _eggX, y: floorY - 150,
+                        width: 40, height: 40, type: 'golden_egg', dailyEgg: true,
+                        collected: false, animFrame: 0, floatOffset: Math.random() * Math.PI * 2 });
     }
 }
 
