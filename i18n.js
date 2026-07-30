@@ -683,7 +683,8 @@ ja: {
     tshop_keeper_egg_pouch_max: 'もう これ以上は ふやせないよ（ストックのわく数まで）。',
     egg_perma_no_revive: 'ふっかつやくは いちどきりの きせき。まほうのポーチでも えいきゅうには しまえないんだ。',
     stock_perma_locked: 'ポーチの なかみは そとに だせないよ。ならべかえは ポーチどうし、てばなすのは おみせで。',
-    stock_full_savings: 'ストックが いっぱい！ {amount}円に かえたよ'
+    stock_full_savings: 'ストックが いっぱい！ {amount}円に かえたよ',
+    stock_full_savings_multi: 'ストックが いっぱい！ {n}こを ぜんぶで {amount}円に かえたよ'
 },
 en: {
     splash_warning: _ic('icon_warning.png') + ' Notice',
@@ -1316,7 +1317,8 @@ en: {
     tshop_keeper_egg_pouch_max: 'No more room to add pouches (up to your stock slots).',
     egg_perma_no_revive: 'The revival potion is a one-time miracle — even the magic pouch cannot hold it forever.',
     stock_perma_locked: 'Pouch items cannot leave the pouch. Rearrange within it, or sell one at the shop to let it go.',
-    stock_full_savings: 'Stock full! Converted to {amount} in savings'
+    stock_full_savings: 'Stock full! Converted to {amount} in savings',
+    stock_full_savings_multi: 'Stock full! {n} items converted to {amount} in savings'
 }
 };
 

@@ -2440,10 +2440,11 @@ function buildTreasureRoom() {
     var posL = b.left + b.span * 0.3, posC = b.left + b.span * 0.5, posR = b.left + b.span * 0.7;
     addRoomHeart(posL, b.floorY - 150);
     if (Math.random() < 0.12) addRoomHeart(posR, b.floorY - 150);
-    if (stockState.items.length < stockState.maxSlots) {
-        var pool = ['barrier', 'lemon_special', 'full_charge'];
-        bonusRoomItems.push({ type: 'shopitem', itemId: pool[Math.floor(Math.random() * pool.length)], x: posC, y: b.floorY - 152, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
-    }
+    // ⚠こちらも「持てるかどうか」で出し分けない（1.694・ポーションの間と同じ理由）。
+    //   1.693までは `items.length < maxSlots` で判定していたが、ポーチの中身を数えていないので
+    //   ポーチ勢では常に true＝結局いつも置いていた（＝表示上の挙動は変わらないが、条件が嘘だった）。
+    var pool = ['barrier', 'lemon_special', 'full_charge'];
+    bonusRoomItems.push({ type: 'shopitem', itemId: pool[Math.floor(Math.random() * pool.length)], x: posC, y: b.floorY - 152, width: 40, height: 40, collected: false, floatOffset: Math.random() * Math.PI * 2 });
 }
 
 // コインの間: 18〜22枚を山型（跳んで集める）。ハート/在庫なし＝合計価値はたからの間と同程度に寄せる。
@@ -2463,13 +2464,14 @@ function buildCoinRoom() {
 // ※取得は addToStock が満杯時 false を返す＝空き分しか取れないので、出す数を空き枠に合わせる。
 function buildPotionRoom() {
     var b = pipeRoomBounds();
-    var freeSlots = Math.max(0, stockState.maxSlots - stockState.items.length);
-    var nPotion = Math.min(3, freeSlots);
-    if (nPotion === 0) { // 在庫満杯 → コイン振替（15枚横一列）
-        var n = 15, x0 = b.left + 55, x1 = b.right - 25;
-        for (var c = 0; c < n; c++) addRoomCoin(x0 + (x1 - x0) * (c / (n - 1)), b.floorY - 72);
-        return;
-    }
+    // ⚠**中身は所持状況で変えない**（1.694・ユーザー決定「案2」）。1.693までは空き枠の数だけ並べ、
+    //   空きゼロなら「コイン15枚に振替」していた。しかしその空き枠の数え方が**ポーチを数えていなかった**ため、
+    //   ポーチ勢（＝長く遊んだ人）では振替に一度も入らず、入れられない品が3つ並んで**拾うと全部換金**されていた。
+    //   数え方を直す（stockFreeCount）だけだと、今度は満杯の人の貰える価値が下がる（換金 最大10,000円 → コイン15枚=2,250点）。
+    //   そこで「並べる数は常に3個・持てない品は拾うと貯金へ換金」に統一し、**拾う前からお金マークで分かる**ようにした
+    //   （マークは render.js の drawRoomShopItem が stockHasRoom を見て毎フレーム判定＝拾って埋まるほど増える）。
+    //   ⚠将来「持ち物を捨てて入れ替える」を入れる時も、この部屋の中身は変えずに済む（交換は拾う瞬間の話）。
+    var nPotion = 3;
     // 棚の上に在庫アイテムを重複なく配置
     var pool = ['barrier', 'lemon_special', 'full_charge', 'heal_stock'];
     for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp; }
@@ -4294,6 +4296,22 @@ function commitPermaStock() {
     }
 }
 
+// 今この瞬間「あと何個 持てるか」（1.694・部屋の中身を決めるのに使う）。
+// ⚠**ポーチ(金枠)を必ず数えること**。1.693まで部屋の build は `maxSlots - items.length` で数えていたが、
+//   `items` は**通常枠だけ**でポーチの中身は `perma` にある＝ポーチ勢の空きを大幅に過大評価していた
+//   （全枠ポーチだと「空き6」と誤判定し、入れられない品を3つ並べていた）。
+// ⚠数え方は stockHasRoom() と1対1に保つこと（route 1=未割当の金枠／route 2=所有品が不在の金枠／通常枠の空き）。
+function stockFreeCount(itemId) {
+    var permaExcluded = (PERMA_STOCK_EXCLUDE.indexOf(itemId) !== -1);
+    var n = 0;
+    for (var p = 0; p < stockState.perma.length; p++) {
+        var ps = stockState.perma[p];
+        if (!ps.base && !ps.id) { if (!permaExcluded) n++; continue; }  // route 1: 未割当の空き枠
+        if (ps.base && (ps.used || !ps.id)) n++;                        // route 2: 今回かぎりの補充ができる枠
+    }
+    return n + Math.max(0, normalMaxSlots() - stockState.items.length);
+}
+
 // itemId を今この瞬間ストックに入れる余地があるか（購入可否・満杯判定に使用）
 // ⚠**addToStock の受け入れ条件と1対1で対応させること**（ズレると「押せば買えるのにグレーアウト」
 //   1.679までの不具合が再発する。実際にユーザー実機報告で出た）。
@@ -4316,6 +4334,11 @@ function stockHasRoom(itemId) {
 function isRevivePotion(itemId) { return itemId === 'revive_potion'; }
 
 // ストック満杯時の入手品を貯金へ換算（損なし・売値=定価の半分）。永続化してsaveSettings。
+// ストック満杯時の入手品を貯金へ換算（損なし・売値=定価の半分）。永続化してsaveSettings。
+// ⚠**トーストは1枚にまとめる**（1.694）。showRewardToast は毎回 left:50%/top:14% に出すので、
+//   ポーションの間で3個続けて拾うと**3枚が同じ位置に重なって最後の1枚しか読めなかった**。
+//   生きているトーストがあれば作り直さず、個数と合計額を書き換える＝「×3 → 合計10,000円」になる。
+var _convertToast = null;    // { el, count, total, timer }
 function convertItemToSavings(itemId) {
     var si = STAGE_SHOP_ITEMS.find(function(s) { return s.id === itemId; });
     var amount = si ? Math.max(1, shopSellPrice(si)) : 0;
@@ -4323,10 +4346,20 @@ function convertItemToSavings(itemId) {
         gameSettings.savings = (gameSettings.savings || 0) + amount;
         saveSettings();
     }
-    if (typeof showRewardToast === 'function') {
-        showRewardToast(escapeHtml(t('stock_full_savings', { amount: amount })),
-            'linear-gradient(180deg,#7ad0ff,#2a7fd0)', '#062a44');
+    if (typeof showRewardToast !== 'function') return;
+    var now = Date.now();
+    if (_convertToast && _convertToast.el && _convertToast.el.parentNode && now - _convertToast.at < 2000) {
+        _convertToast.count++;
+        _convertToast.total += amount;
+        _convertToast.at = now;
+        _convertToast.el.innerHTML = escapeHtml(t('stock_full_savings_multi', { n: _convertToast.count, amount: _convertToast.total }));
+        return;
     }
+    showRewardToast(escapeHtml(t('stock_full_savings', { amount: amount })),
+        'linear-gradient(180deg,#7ad0ff,#2a7fd0)', '#062a44');
+    // 直前に作られたトースト要素を掴んでおく（showRewardToast は body の末尾に append する）
+    var els = document.body.children;
+    _convertToast = { el: els[els.length - 1], count: 1, total: amount, at: now };
 }
 
 function addToStock(itemId) {

@@ -3639,14 +3639,34 @@ var PU_HUD_DEFS = [
 ];
 
 // 土管部屋: ドロップした販売アイテム（アイコン画像）を描く
+// 土管部屋の在庫アイテム。⚠**持てない品には「拾うとお金になる」印を付ける**（1.694・ユーザー決定「案2」）。
+//   ストック（ポーチ含む）が満杯だと addToStock が貯金へ換金する＝損はしないが、1.693までは拾った後に
+//   小さなトーストが出るだけで、拾う前には何も分からなかった（ポーチを育てた人ほどこの状態になる）。
+//   ⚠判定は毎フレーム stockHasRoom を見る＝部屋の中で拾って埋まっていくほど、残りの品に印が増える。
 function drawRoomShopItem(it) {
     var img = roomItemImg[it.itemId];
     var fy = it.y + Math.sin(gameState.time * 0.1 + (it.floatOffset || 0)) * 3;
+    var toMoney = (typeof stockHasRoom === 'function') && !stockHasRoom(it.itemId);
+    ctx.save();
+    if (toMoney) ctx.globalAlpha = 0.72;            // 少し薄く＝「そのままは入らない」を色でも伝える
     if (img && img.complete && img.naturalWidth) {
         ctx.drawImage(img, it.x, fy, it.width, it.height);
     } else {
         ctx.fillStyle = '#88ccff'; ctx.fillRect(it.x, fy, it.width, it.height);
     }
+    ctx.restore();
+    if (!toMoney) return;
+    // 右下に金貨のバッジ（枠つき）＝「拾うと貯金に変わる」
+    var bx = it.x + it.width - 7, by = fy + it.height - 7, r = 9;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffcf3a'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(90,55,0,0.9)'; ctx.stroke();
+    ctx.fillStyle = '#5a3700';
+    ctx.font = "bold 12px 'DotGothic16', monospace";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('¥', bx, by + 1);
+    ctx.restore();
 }
 
 // ラッキーの間の宝箱（手続き描画・1.452〜）。閉=ぷかぷか＋グロー＋"?"、開=フタが後ろへ持ち上がり中身が光る、消滅=縮んでフェード。
