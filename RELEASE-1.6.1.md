@@ -1,4 +1,4 @@
-# Ver.1.7 リリース手順（2026-07-30 作成・**ビルドまで完了／提出は次セッション**）
+# Ver.1.6.1 リリース手順（2026-07-31 提出・**当初 1.7 でビルドしたものを 1.6.1 に付け替えた**）
 
 ⚠このファイルは `scripts/build-www.mjs` の denylist（`.md` は一律スキップ）でアプリには同梱されない。
 ⚠手順の正は `RELEASE_PLAYBOOK.md`。ここは**今回の実測値と文面**だけを残す。
@@ -7,27 +7,31 @@
 
 | | 前回提出 | **今回** |
 |---|---|---|
-| iOS | 1.6 / build 11（**承認・リリース済み**） | **1.7 / build 12** |
-| Android | 1.6 / versionCode 10（**クローズドテストへ配信済み**） | **1.7 / versionCode 11** |
+| iOS | 1.6 / build 11（**承認・リリース済み**） | **1.6.1 / build 12** |
+| Android | 1.6 / versionCode 10（**クローズドテストへ配信済み**） | **1.6.1 / versionCode 11** |
 | 同梱ゲーム | Ver.1.679 | **Ver.1.696** |
 
-## 提出前の状況（2026-07-31 時点）
+### ⚠なぜ 1.7 ではなく 1.6.1 なのか（2026-07-31 ユーザー判断）
 
-- **1.6 は両ストアともリリース済み**（iOS=承認・公開／Android=クローズドテストへ配信）。
-  → 版数の扱いに迷いは無い。**1.7 をそのまま新規バージョンとして出せる**。
-- ⚠**1.680〜1.696 は丸ごと実機未確認**（監査の修正20件を含む）。
-  TestFlight に build 12 が上がれば確認できる（⚠提出後に問題が出ると iOS は審査を取り下げて出し直し）。
-  → **先に TestFlight で確認してから提出**するか、**提出と並行して確認**するかはユーザー判断。
+当初は 1.7 でビルドしたが、**中身に新規追加が一つも無い**ため 1.6.1 に付け替えた。
+内訳＝監査バグ修正20件＋既存仕様の調整（エッグの供給ルール／ふっかつやくの値段カーブ／
+ストック枠の是正／表示とUIの統一）＋ 1.674 で入れた闇のカラス予告の**撤去**。新ステージ・新キャラ・
+新モードは無い。このリポジトリは修正中心の版を **1.4.1 / 1.4.2** で出した前例があり、それに合わせた。
+
+- 内部番号（iOS build 12 / Android versionCode 11）は**据え置き**。上げ直す必要は無い
+  （1.6.1 > 1.6 を満たすので、ストア側の版数条件はどちらも通る）。
+- 版数文字列は成果物に焼き込まれるため、**AAB と xcarchive は両方とも作り直した**（下記は作り直し後の実測値）。
+- `www/` は変更なし（同梱ゲームは Ver.1.696 のまま）＝ `build:web` / `cap sync` は不要だった。
 
 ## ビルド成果物（両方とも完成済み・実測で検証済み）
 
 ### Android
 `android/app/build/outputs/bundle/release/app-release.aab`
 
-- **60.17MB**（前回 60.15MB / +約20KB＝コード変更のみ。想定外の膨らみなし）
-- `clean` からビルド（BUILD SUCCESSFUL・145 tasks executed＝UP-TO-DATE ではない）
+- **60.16MB**（前回提出 1.6 が 60.15MB＝コード変更のみ。想定外の膨らみなし）
+- `clean` からビルド（BUILD SUCCESSFUL・146 tasks executed＝UP-TO-DATE ではない）
 - 解凍して確認: 同梱アセット **Ver.1.696** / 混入なし（xcarchive・tools・wall・node_modules・スクショ用いずれも無し）
-- マニフェストから実測: `versionName 1.7` / `versionCode 11`
+- マニフェストから実測: `versionName 1.6.1` / `versionCode 11`（protobuf の compiled value `0x0b`＝11）
 - 署名: `META-INF/UPLOAD.RSA`＝アップロード鍵で署名済み
 
 ```bash
@@ -35,12 +39,14 @@ cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/
 ```
 
 ### iOS
-`~/Library/Developer/Xcode/Archives/2026-07-30/PiyosAdventure-1.7-build12.xcarchive`
+`~/Library/Developer/Xcode/Archives/2026-07-31/PiyosAdventure-1.6.1-build12.xcarchive`
 
 - `xcodebuild archive` 済み（**ARCHIVE SUCCEEDED**・自動署名 Team 7LJ8QA6336）
-- Info.plist から実測: `CFBundleShortVersionString 1.7` / `CFBundleVersion 12`
+- Info.plist から実測: `CFBundleShortVersionString 1.6.1` / `CFBundleVersion 12`
 - 同梱アセット **Ver.1.696** / 混入なし / App.app は 59MB
 - ⚠アーカイブは**リポジトリの外**（Xcode の標準の場所）＝1.608 の同梱事故を避けるため
+- ⚠**7/30 に作った `PiyosAdventure-1.7-build12.xcarchive` は使わない**（版数が 1.7 のまま）。
+  Organizer には両方並ぶので、**名前で 1.6.1 のほうを選ぶ**こと。
 
 ---
 
@@ -124,5 +130,6 @@ open -R /Users/veriquest/dev/piyos-adventure/android/app/build/outputs/bundle/re
 
 - [ ] Play: 「審査中の変更」になっているか
 - [ ] ASC: 「審査待ち」になっているか／リリース方法（自動/手動）
-- [ ] `TODO_USER.md` の審査確認タスクを 1.7 に更新
-- [ ] TestFlight build 12 で実機確認（1.680〜1.696 が未確認）
+- [ ] `TODO_USER.md` の審査確認タスクを 1.6.1 に更新
+- [ ] TestFlight build 12 で実機確認（**1.680〜1.696 は未確認のまま提出した**＝2026-07-31 ユーザー判断）
+      ⚠ここで問題が見つかった場合、iOS は審査を取り下げて出し直しになる
