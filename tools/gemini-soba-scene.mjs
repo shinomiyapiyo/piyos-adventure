@@ -157,6 +157,86 @@ const VARIANTS = [
 //     箸立てと湯呑み・入口側に短い暖簾。⚠**立ち食いなので椅子は描かない**。
 //   ⚠**人は増やさない**（厨房も無人にする）。ユーザー指示「他に人は写り込みません」は継続。
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// --set=age — ⚠ユーザー指摘（2026-07-31）:
+//   「**退店時とたちぐいそばがどうみても同じ年齢には見えない。立ち食いそばは幼すぎる。
+//     退店時の画像を元にして、たちぐいそばの画像を再生成して**」
+//   「**粗さの波よりも、人間には絵のタッチ（画風）、同一人物、同一年齢に見えるかの方がはるかに重要**」
+//
+//   → **顔と年齢の正は `images/shop05.jpg`（退店の絵）**。参照①に置いて顔を寄せる。
+//     構図・部屋・小物（ステージショップ店内＋そばの丼）は現行の `soba_shop_scene.jpg`（参照②）を維持。
+//   ⚠1.705が幼く見えた原因（顔幅を揃えて並べて判明・`ART_STYLE.md`「👧年齢の正」に表で記載）:
+//     目が真円で大きい／目が顔の中央より下／目の間隔が広い／目からあごが短い／チークが大きい／輪郭が真円
+// ─────────────────────────────────────────────────────────────────────────────
+const AGE_FIX = [
+  'REFERENCE IMAGE 1 IS THE TRUTH FOR HER FACE AND HER APPARENT AGE. Study it and copy the construction of',
+  'that face exactly. She must look like the SAME PERSON AT THE SAME AGE as reference image 1 —',
+  'a young girl of about twelve to fourteen, NOT a small child and NOT a toddler.',
+  'Specifically match reference image 1 and avoid the mistakes of the current soba artwork:',
+  'her eyes are ALMOND-SHAPED and WIDER THAN THEY ARE TALL — not big perfect circles;',
+  'her eyes sit at the MIDDLE of her face or slightly above it, NOT low down on her face;',
+  'the gap between her eyes is fairly NARROW, about one eye width, not wide;',
+  'the distance from her eyes down to her chin is LONG, giving her a clear jaw and chin;',
+  'her face is a SLIGHTLY TALL OVAL, not a circle; her cheeks are less puffy;',
+  'and her blush is a SMALL neat oval on each cheek, not a wide patch covering half her cheek.',
+  'Keep her charming and sweet, but she must read as the same age as reference image 1.',
+].join(' ');
+
+const AGE_KEEP = [
+  'REFERENCE IMAGE 2 is the current version of this scene. KEEP from it: the room (the wooden item-shop interior',
+  'with shelves of colourful potion bottles, the counter, the stone wall with map and armour, the treasure chest,',
+  'the plank floor and the warm amber light), the steaming bowl of hot soba and the wooden chopsticks,',
+  'her costume, her position in the frame and the framing from the waist up.',
+  'THE ONLY PERSON IN THE PICTURE IS HER — no shopkeeper, no other customers, nobody in the background.',
+  'ART MEDIUM: match the pixel-art touch of REFERENCE IMAGE 1 — the same block size, the same amount of detail',
+  'and the same line weight as reference image 1.',
+].join(' ');
+
+const AGE_VARIANTS = [
+  { key: 'a', extra: 'She lifts a few noodles to her mouth with the chopsticks in her right hand, the bowl in her left, and smiles happily with her eyes open — the same open smile as reference image 1.' },
+  { key: 'b', extra: 'She holds the steaming bowl in both hands just below her chin and beams at the viewer, mouth slightly open in delight, exactly the expression of reference image 1.' },
+  { key: 'c', extra: 'She has just slurped a noodle and looks at the viewer with a happy closed-lip smile, one hand holding the bowl, the chopsticks resting across it.' },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// --set=age2 — ⚠**--set=age は失敗した**（2026-07-31 実測）。
+//   現行の `soba_shop_scene.jpg` を参照2に渡して「顔だけ直せ」と言うと、
+//   Gemini は**現行の顔をそのまま引き継ぐ**（3枚とも幼い顔のまま出た）。
+//   → **現行そばは参照から外す**。①`_raw/REF_shop05_face.png`（shop05の顔を切り出して拡大＝顔を大きく見せる）
+//     ②`images/shop01.jpg`（部屋とタッチ）だけを渡し、そばの芝居は言葉で組み立てる。
+//   ⚠**「直せ」ではなく「これで描け」**。作り直しの参照に旧版を混ぜてはいけない。
+// ─────────────────────────────────────────────────────────────────────────────
+const AGE2_FACE = [
+  'REFERENCE IMAGE 1 IS A CLOSE-UP OF HER FACE AND IT IS THE ABSOLUTE TRUTH for her face and her age.',
+  'Copy that face: the same ALMOND eye shape (clearly wider than tall, never big perfect circles),',
+  'the same eye size relative to her head, the eyes placed at the MIDDLE of her face, a NARROW gap between them,',
+  'the same LONG distance from eyes to chin with a visible jaw, the same slightly TALL OVAL face,',
+  'the same SMALL neat oval blush, the same dark reddish-brown irises with bright square highlights,',
+  'the same blunt straight bangs and purple-tinted charcoal hair.',
+  'She is a girl of about twelve to fourteen — NOT a small child, NOT a toddler, NOT a big-eyed baby face.',
+  'A viewer must instantly recognise her as THE SAME PERSON AT THE SAME AGE as reference image 1.',
+].join(' ');
+
+const AGE2_SCENE = [
+  'REFERENCE IMAGE 2 defines the ROOM and the ART TOUCH. Draw her inside that same wooden item shop:',
+  'shelves of colourful glass potion bottles and jars on the left, the thick wooden counter, the grey stone wall',
+  'with a hanging map and a suit of armour, a wooden treasure chest, plank floor, warm amber lamplight.',
+  'Use the SAME pixel-art touch as reference image 2 — the same block size, detail density and line weight.',
+  'SHE IS EATING HOT SOBA NOODLES: she stands at the counter holding a steaming brown noodle bowl and wooden',
+  'chopsticks, with white steam curling up, enjoying it happily. Framed from the WAIST UP so her face is large.',
+  'She wears the yellow-and-black frilled maid dress: white pointed collar with a yellow ribbon tie,',
+  'yellow ribbed bib with two dark buttons, black puff sleeves covering her shoulders with yellow frills,',
+  'black corset with two rows of gold studs, black cuffs with gold trim, and the bell-shaped yellow skirt',
+  'with cream chick appliques.',
+  'THE ONLY PERSON IN THE PICTURE IS HER — no shopkeeper, no other customers, nobody in the background.',
+].join(' ');
+
+const AGE2_VARIANTS = [
+  { key: 'a', extra: 'She lifts a few noodles to her mouth with the chopsticks, the bowl held in her other hand, smiling with her eyes open — the same open happy smile as reference image 1.' },
+  { key: 'b', extra: 'She holds the steaming bowl in both hands just below her chin and beams straight at the viewer, her mouth open in the same happy smile as reference image 1.' },
+  { key: 'c', extra: 'She has just slurped a noodle and looks at the viewer with a soft closed-lip smile, one hand under the bowl, chopsticks in the other.' },
+];
+
 const KEEP_GIRL = [
   'REFERENCE IMAGE 2 is an APPROVED drawing of the girl — her face, her hair, her costume, her pose with the',
   'steaming bowl and chopsticks, and the exact pixel-art touch are all correct and must be KEPT.',
@@ -238,7 +318,33 @@ const refPiyo  = await part(path.join(IMAGES_DIR, 'title.jpg'));   // ①顔・�
 const refTouch = await part(path.join(IMAGES_DIR, 'shop01.jpg'));  // ②タッチの正（1.704・ユーザー採用）
 console.log(`モデル: ${MODEL}`);
 
-if (SET === 'stageshop') {
+if (SET === 'age2') {
+  // ⚠旧版は参照に混ぜない（--set=age の失敗理由）。①shop05の顔の切り出し ②店内とタッチ
+  const refFace = await part(path.join(RAW_DIR, 'REF_shop05_face.png'));
+  const refRoom = await part(path.join(IMAGES_DIR, 'shop01.jpg'));
+  console.log('顔と年齢: _raw/REF_shop05_face.png ／ 部屋とタッチ: images/shop01.jpg');
+  for (const v of AGE2_VARIANTS) {
+    if (ONLY && ONLY !== v.key) continue;
+    const prompt = [AGE2_FACE, AGE2_SCENE, PIYO_FIX, PROPORTION, LAYOUT, v.extra, COMMON].join(' ');
+    console.log(`● soba_age2_${v.key}.png 生成中...`);
+    await fs.writeFile(path.join(RAW_DIR, `soba_age2_${v.key}.png`), await call(ai, [refFace, refRoom, { text: prompt }]));
+    console.log(`  ✓ tools/_raw/soba_age2_${v.key}.png`);
+  }
+  console.log('完了。⚠**shop05 と顔幅を揃えて並べ、同じ年齢に見えるか**を確認してから見せること（粒は後回し）。');
+} else if (SET === 'age') {
+  // ⚠参照①=shop05（顔と年齢と画風の正）／②=現行のそば（構図・部屋・小物の正）
+  const refAge  = await part(path.join(IMAGES_DIR, 'shop05.jpg'));
+  const refSoba = await part(path.join(IMAGES_DIR, 'soba_shop_scene.jpg'));
+  console.log('顔と年齢: images/shop05.jpg ／ 構図と部屋: images/soba_shop_scene.jpg');
+  for (const v of AGE_VARIANTS) {
+    if (ONLY && ONLY !== v.key) continue;
+    const prompt = [AGE_FIX, AGE_KEEP, PIYO_FIX, PROPORTION, LAYOUT, v.extra, COMMON].join(' ');
+    console.log(`● soba_age_${v.key}.png 生成中...`);
+    await fs.writeFile(path.join(RAW_DIR, `soba_age_${v.key}.png`), await call(ai, [refAge, refSoba, { text: prompt }]));
+    console.log(`  ✓ tools/_raw/soba_age_${v.key}.png`);
+  }
+  console.log('完了。⚠**shop05 と顔幅を揃えて並べ、同じ年齢に見えるか**を確認してから見せること（粒は後回し）。');
+} else if (SET === 'stageshop') {
   // ⚠参照の順番が意味を持つ: ①ステージショップの店内＝背景とタッチの正／②ぴよ氏の正
   const refGirl = await part(path.join(RAW_DIR, REF));
   console.log(`背景: images/shop01.jpg ／ ぴよ氏の参照: _raw/${REF}`);
