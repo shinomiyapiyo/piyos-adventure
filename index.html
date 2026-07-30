@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.686";
+                content: "Ver.1.687";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -978,7 +978,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.686</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.687</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6328,9 +6328,10 @@ function manageObjects() {
     cullByX(powerUps, lb, rb, false);
     cullByX(bullets, lb, rbEnemy, false);
 
-    // ゴールデンエッグ（日次・1日1回限りの一発抽選・1.455〜）: 2,500mで30% → 外したら7,300mで80%救済 → 両方外れたらその日は無し(farm不可)。
+    // ゴールデンエッグ（日次・1日1回限りの一発抽選・1.455〜）: 2,500mで30% → 外したら7,300mで50%救済 → 両方外れたらその日は無し(farm不可)。
     // 一次抽選(2,500m)を行った時点で当日の抽選を消費(goldenEggDrawDate)＝別ランでの再挑戦なし。救済はこのラン限定(per-run)。
-    // 調整ノブ: 一次=2,500m/30% ・ 救済=**7,300m**/80%（1.686でユーザー指示により 4,300m→7,300m。R4ボス7,200mの直後）。
+    // 調整ノブ: 一次=2,500m/30% ・ 救済=**7,300m/50%**（位置は1.686で4,300m→7,300m、確率は1.687で80%→50%。どちらもユーザー指示）。
+    //   1日にエッグが湧く率 = 30% + 70%×50% = **65%**（7,300mまで走れた場合／届かない日は30%）。
     //
     // ⚠**地上にいる時だけ抽選する**（1.685・下の `if (undergroundState.active) return;` より前にこのブロックが
     //   あるため、地底でも素通りしていた）。spawnDailyGoldenEgg は y=240＝**地上の高さ固定**なので、
@@ -6348,7 +6349,8 @@ function manageObjects() {
         if (Math.random() < 0.30) spawnDailyGoldenEgg();      // 一次抽選 30%
         else gameState.goldenEggRescueArmed = true;           // 外し→7,300mで救済抽選を保留（このランのみ）
     }
-    // 救済抽選: 一次を外していたら **7,300m** で 80%（このラン限定＝到達前に力尽きたら消失＝1日1回限り）。
+    // 救済抽選: 一次を外していたら **7,300m** で **50%**（このラン限定＝到達前に力尽きたら消失＝1日1回限り）。
+    // ⚠1.687でユーザー指示により 80%→50%（「中級者でもほぼ毎日手に入ってしまう」＝日次の供給を絞る）。
     // ⚠1.686でユーザー指示により 4,300m → 7,300m へ変更。7,300mは **R4ボス(7,200m)を倒した直後**の位置。
     //   ボスのトリガー距離ちょうどに置いてはいけない（1.491の教訓＝同フレームで setupBossArena が powerUps を
     //   全消去してエッグが取れなくなる）。7,300mはトリガー(7,200m)より100m先＋`!bossState.active` なので、
@@ -6357,7 +6359,7 @@ function manageObjects() {
     if (gameState.goldenEggRescueArmed && !gameState.goldenEggRescueDone && !undergroundState.active &&
         !undergroundState.pipePlaced && gameState.distance >= 7300 && !bossState.active) {
         gameState.goldenEggRescueDone = true;
-        if (Math.random() < 0.80) spawnDailyGoldenEgg();      // 救済抽選 80%
+        if (Math.random() < 0.50) spawnDailyGoldenEgg();      // 救済抽選 50%（1.687・調整ノブ）
     }
 
     // ボス戦中は通常スポーン停止
