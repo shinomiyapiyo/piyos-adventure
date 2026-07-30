@@ -3058,21 +3058,25 @@ function hideStageShopScreen() {
 }
 
 // ── ショップ背景差分切替 ──
-// shop01:入店(デフォルト) shop02/03:成功(交互) shop04:所持金不足 shop05:退店
+// shop01:入店(デフォルト) shop02:成功 shop04:所持金不足 shop05:退店
+// ⚠1.704で**3パターン（標準/成功/失敗）に集約**した（ユーザー決定・2026-07-31）。
+//   旧版は成功時に shop02/shop03 を交互に出していたが、一枚絵を作り直した際に
+//   「使うのは標準・成功・失敗の3枚」と確定したため **shop03.jpg は削除済み**。
+//   ⚠存在しない画像を指すと背景が消える（`setShopBg` は読み込み失敗を検知しない）ので、
+//   ここに 'shop03' を復活させてはいけない。
 var shopBgCurrent = 'shop01';
-var shopSuccessBgToggle = false; // 成功時にshop02/shop03を交互に切替
 function getSuccessShopBg() {
-    shopSuccessBgToggle = !shopSuccessBgToggle;
-    return shopSuccessBgToggle ? 'shop02' : 'shop03';
+    return 'shop02';
 }
 var shopBgTimer = null;
 var shopImgsPreloaded = false;
+var SHOP_BG_FILES = ['shop01', 'shop02', 'shop04', 'shop05'];  // ⚠shop03 は無い（上記コメント参照）
 function preloadShopImages() {
     if (shopImgsPreloaded) return;
     shopImgsPreloaded = true;
-    for (var i = 1; i <= 5; i++) {
+    for (var i = 0; i < SHOP_BG_FILES.length; i++) {
         var img = new Image();
-        img.src = 'images/shop0' + i + '.jpg';
+        img.src = 'images/' + SHOP_BG_FILES[i] + '.jpg';
     }
 }
 
