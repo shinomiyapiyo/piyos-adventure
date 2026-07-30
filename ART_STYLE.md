@@ -92,18 +92,31 @@
 
 ---
 
-## ⚠ 背面（後ろ姿）のデザインは**未定義**（2026-07-31 に発覚・要確定）
+## 背面（後ろ姿）— **確定仕様**（2026-07-31 ユーザー決定）
 
-**`title.jpg` は正面しか写っていないため、衣装の背中側がどうなっているかの正が存在しない。**
-そのため生成AIに後ろ向き・振り返りの構図を作らせると、**背中を黒い生地で埋めてくる**。
+⚠**`title.jpg` は正面しか写っていないので、背面の正はここにしか無い。** 後ろ向き・振り返りの構図を
+作る時は**必ずこの節をプロンプトに明記する**こと。書かないと、生成AIは**背中を黒い生地で埋めてくる**
+（正面が黄色主体なのに背面だけ黒主体になる＝衣装として辻褄が合わない・1.698 で実際に起きた）。
 
-⚠**それは誤り**（✅ユーザー判断・2026-07-31）。正面は**黄色いビブが主役**なのに、
-背面だけ**黒が主役**になるのは衣装として辻褄が合わない。**背面も黄色が主であるべき**。
+- **背中の身頃は、正面と対称の黄色**。正面のビブと同じ**縦リブの入ったレモンイエロー**が背中を覆う。
+  ＝**後ろから見ても黄色が主役**。
+- **黒コルセット**は腰をぐるりと回る。⚠ただし**背面には金の鋲を入れない**（✅ユーザー判断・2026-07-31）。
+  鋲やボタンが背中にあると**正面を向いているように見えてしまう**＝後ろ姿だと伝わらなくなる。背面のコルセットは無地。
+- **黒いパフスリーブ**と**黄色いフリルの肩当て**が肩を包む。
+- スカートは正面と同じ**釣鐘型の黄色**＋**黒と黄の段フリル**。
+- ❌**腰の大きなリボン（エプロン結び）は付けない**。
+- ❌**ひよこのアップリケは背面に入れない**（正面だけの飾り）。
+- 参考: 背中はツインテール（腰より下まで届く）でかなり隠れる。実際に見えるのは**肩まわり・脇・腰から下**。
 
-- 現状の `images/shop05.jpg`（1.698・退店）は**この問題を抱えたままの暫定採用**。
-  背面の意匠が決まったら作り直す。
-- 後ろ姿・振り返りの絵を作る時は、**背面のデザインを先に決めてからプロンプトに明記する**こと。
-  「参照画像どおり」だけでは、参照に無い面はモデルが勝手に埋める。
+**プロンプト用（英語）**
+> BACK OF THE COSTUME: the back mirrors the front — the same lemon-yellow bodice with fine vertical ribbing
+> covers her back, so yellow is the dominant colour from behind as well. The black corset continues around the
+> waist, but on the BACK it is PLAIN black — NO gold studs, NO buttons, NO lacing (studs on her back make her
+> read as if she were facing the viewer). Black puff sleeves and yellow frilled shoulder straps wrap over
+> the shoulders. Below, the same bell-shaped yellow skirt with black-and-yellow tiered ruffles.
+> Her upper back is fully covered by the yellow bodice — no bare back, no keyhole opening.
+> There is NO large bow or apron tie at the back, and NO chick applique on the back of the skirt.
+> Her back must NOT be black.
 
 ## 配色（`title.jpg` の実ピクセルから抽出）
 
@@ -141,7 +154,7 @@
 | `shop01.jpg` | 1.93px | ×1.46 | 2.81 CSSpx |
 | `shop03.jpg` | 1.85px | ×1.46 | 2.70 CSSpx |
 | ~~旧 `shop05.jpg`~~ | 2.99px | ×1.46 | ~~4.37 CSSpx~~ ❌ |
-| `shop05.jpg`（1.698） | 3.46px | ×0.79 | **2.72 CSSpx** ✅（顔=約29粒） |
+| `shop05.jpg`（1.699） | 5.57px | ×0.51 | **2.83 CSSpx** ✅（顔=約28粒） |
 
 **✅ 合格ライン＝画面上の粒 2.5〜2.9 CSSpx。** ファイル解像度は自由（拡大縮小しても画面上の見え方は変わらない）。
 効くのは「**表示される横幅に何粒並ぶか**」＝ショップなら **200〜210粒**。

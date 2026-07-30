@@ -45,10 +45,26 @@ const CHARACTER = [
   'large dark reddish-brown eyes with a small white highlight, a tiny single-curve smile, oval pink blush,',
   'pale cream skin, and the yellow-and-black frilled maid dress:',
   'white pointed collar with a yellow ribbon tie, yellow bib with two small buttons, black puff sleeves with yellow frill,',
-  'black corset with two rows of small gold studs, bell-shaped yellow skirt with cream chick appliques,',
+  'black corset with two rows of small gold studs AT THE FRONT ONLY, bell-shaped yellow skirt with cream chick appliques,',
   'black-and-yellow tiered ruffles at the hem, black thigh-high socks with gold bows, black shoes with gold toe bows.',
   'Her palette is essentially two colours — lemon yellow and purple-tinted charcoal — with white, gold and pink accents only.',
   'A soft pale-pink rim light traces her whole silhouette, separating her from the background.',
+].join(' ');
+
+// ⚠背面は title.jpg に写っていない＝ここが唯一の正（2026-07-31 ユーザー決定・ART_STYLE.md と同文）。
+//   明記しないとモデルが背中を黒生地で埋める（1.698 で実際に起きた）。
+const BACK = [
+  'BACK OF THE COSTUME (important — the reference photo only shows her front, so follow this exactly):',
+  'the back MIRRORS the front — the same lemon-yellow bodice with fine vertical ribbing covers her back,',
+  'so yellow is the dominant colour from behind as well.',
+  'The black corset continues around the waist, but on the BACK it is PLAIN black —',
+  'NO gold studs, NO buttons, NO lacing and no fastenings of any kind on the back of the corset.',
+  '(Studs or buttons on her back make her read as if she were facing the viewer, which ruins the shot.)',
+  'Black puff sleeves and yellow frilled shoulder straps wrap over the shoulders.',
+  'Below, the same bell-shaped yellow skirt with black-and-yellow tiered ruffles.',
+  'There is NO large bow or apron tie at the back, and NO chick applique on the back of the skirt.',
+  'Her upper back is fully covered by the yellow bodice — no bare back, no keyhole opening.',
+  'Her back must NOT be black.',
 ].join(' ');
 
 // 🚫 頭身。アップ構図でも体型が崩れないよう、頭と肩・胴の比で縛る。
@@ -85,36 +101,47 @@ const COMMON = [
   'No text, no logo, no watermark, no border, no UI, no speech bubble, no signature.',
 ].join(' ');
 
+// ⚠**現行の images/shop05.jpg を3枚目の参照として渡し、その構図をそのまま再現する**（2026-07-31）。
+//   ユーザー評「まだ05には勝てない／全く同じ構図が望ましい」。顔を同倍率で並べた比較で分かった差:
+//     ・目 … 現行=丸く大きい／新案=縦長で細く大人っぽい
+//     ・ハイライト … 現行=大きな四角2つがはっきり／新案=小さい
+//     ・輪郭 … 現行=丸くあごが小さい／新案=細くシャープ
+//     ・口 … 現行=小さめで丸い／新案=大きく横に広い
+//     ・顔の向き … 現行=ほぼ正面で両目が同じ大きさ／新案=斜めで奥の目が小さい
+//   ＝「肩越しに振り返る」と書くと顔が斜めになり可愛さが落ちる。**顔はほぼ正面**が正解。
+const POSE = [
+  'REFERENCE IMAGE 3 is the EXACT shot to reproduce. Copy it faithfully:',
+  'the same camera framing and zoom, the same body pose, the same arm and hand positions,',
+  'the same head angle, the same face, the same expression, and the same shop layout behind her.',
+  'Her body is turned away toward the wooden door on the right so her BACK faces the viewer,',
+  'but HER FACE IS TURNED BACK ALMOST FULLY TOWARD THE CAMERA — nearly frontal, both eyes the same size,',
+  'NOT a three-quarter over-the-shoulder angle.',
+  '',
+  'FACE — this is what makes her endearing, follow it exactly:',
+  'LARGE ROUND eyes (round, not narrow ovals) with a big iris and TWO large bright square white highlights;',
+  'a soft ROUND face with full cheeks and a small chin; a SMALL rounded open smile (not a wide grin, no gums);',
+  'clear oval pink blush under each eye; almost no nose — a tiny dot at most.',
+  '',
+  'ONLY ONE THING CHANGES from reference image 3:',
+  'in reference image 3 the back of her dress is wrongly BLACK. Replace it with the yellow ribbed bodice',
+  'described above, and make the corset at her back plain black with no studs. Change NOTHING else.',
+].join(' ');
+
 const SCENES = [
   {
-    key: 'a', out: 'shop05_gem_a.png',
-    prompt: [
-      CHARACTER, PROPORTION, GRAIN, SHOP,
-      'SCENE: she is LEAVING the shop. Framed from mid-thigh up, she stands beside the shop\'s heavy wooden door',
-      'on the right of the frame, turned back toward the viewer over her shoulder, smiling and raising one hand in a cheerful goodbye wave.',
-      'Her other hand rests near the iron door handle. The shop interior fills the rest of the frame behind her.',
-      COMMON,
-    ].join(' '),
+    key: 'a', out: 'shop05d_gem_a.png',
+    prompt: [ CHARACTER, BACK, PROPORTION, GRAIN, SHOP, POSE,
+      '', COMMON ].join(' '),
   },
   {
-    key: 'b', out: 'shop05_gem_b.png',
-    prompt: [
-      CHARACTER, PROPORTION, GRAIN, SHOP,
-      'SCENE: she is LEAVING the shop. Framed from the knees up, centred slightly right, she has just pulled the heavy wooden door open;',
-      'a soft shaft of warm daylight falls in from outside and catches her from the side. She looks back at the viewer with a small happy smile,',
-      'one hand on the door edge, the other holding the strap of her small pouch. The shop shelves and counter are behind her.',
-      COMMON,
-    ].join(' '),
+    key: 'b', out: 'shop05d_gem_b.png',
+    prompt: [ CHARACTER, BACK, PROPORTION, GRAIN, SHOP, POSE,
+      'Keep the composition identical; just render it once more.', COMMON ].join(' '),
   },
   {
-    key: 'c', out: 'shop05_gem_c.png',
-    prompt: [
-      CHARACTER, PROPORTION, GRAIN, SHOP,
-      'SCENE: she is LEAVING the shop. Framed from the waist up, standing in front of the closed wooden door,',
-      'facing the viewer directly, both hands clasped happily in front of her, giving a bright parting smile and a small bow of the head.',
-      'The warm shop interior with its potion shelves is visible on both sides behind her.',
-      COMMON,
-    ].join(' '),
+    key: 'c', out: 'shop05d_gem_c.png',
+    prompt: [ CHARACTER, BACK, PROPORTION, GRAIN, SHOP, POSE,
+      'Keep the composition identical; make her eyes and highlights a touch larger and rounder still.', COMMON ].join(' '),
   },
 ];
 
@@ -146,11 +173,12 @@ const ai = new GoogleGenAI({ apiKey });
 console.log(`モデル: ${MODEL}`);
 const refChar = await fileToInlinePart(path.join(IMAGES_DIR, 'title.jpg'));   // ① キャラの正
 const refShop = await fileToInlinePart(path.join(IMAGES_DIR, 'shop01.jpg'));  // ② 店内と粒の正
+const refPose = await fileToInlinePart(path.join(IMAGES_DIR, 'shop05.jpg'));  // ③ 再現する構図・顔・表情（現行1.698）
 
 for (const sc of SCENES) {
   if (ONLY.length && !ONLY.includes(sc.key)) continue;
-  console.log(`● ${sc.out} 生成中（title.jpg + shop01.jpg 参照）...`);
-  const raw = await callModel(ai, [ refChar, refShop, { text: sc.prompt } ]);
+  console.log(`● ${sc.out} 生成中（title.jpg + shop01.jpg + 現行shop05.jpg 参照）...`);
+  const raw = await callModel(ai, [ refChar, refShop, refPose, { text: sc.prompt } ]);
   await fs.writeFile(path.join(RAW_DIR, sc.out), raw);
   console.log(`  ✓ tools/_raw/${sc.out}`);
 }
