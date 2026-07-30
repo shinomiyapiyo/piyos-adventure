@@ -128,6 +128,24 @@ const COMMON = [
   'No text, no lettering, no signboard writing, no numbers, no logo, no watermark, no border, no UI, no signature.',
 ].join(' ');
 
+// ─────────────────────────────────────────────────────────────────────────────
+// --set=hairfix — ⚠ユーザー指摘（2026-07-31）:「**成功時の髪の色が違うのが気になる**」
+//   実測でも `shop02` だけ**髪の明部が赤茶**に寄っていた（他は紫みのチャコール）:
+//     基準 title #4e3f4d (B-G=14/R-B= 1) ／ shop01 #4f434f (12/ 0) ／ shop04 #573f4d (14/10)
+//     ❌shop02 #5e4146 (B-G= 5 / **R-B=24**)
+//   → **ポーズと表情は採用済みのまま**（両手を胸の前で合わせて喜ぶ）、髪の色だけ直す。
+//   参照 ①`images/shop01.jpg`＝髪の色とタッチの正／②`images/shop02.jpg`＝芝居の正
+// ─────────────────────────────────────────────────────────────────────────────
+const HAIR_FIX = [
+  'REFERENCE IMAGE 2 is the APPROVED artwork for this scene: keep her POSE, her EXPRESSION (happily holding both',
+  'hands together in front of her chest), the framing, the room and every prop EXACTLY as they are there.',
+  'FIX ONLY ONE THING — HER HAIR COLOUR. In reference image 2 the highlights in her hair are too WARM and',
+  'BROWN-RED. Her hair must be a DARK PURPLE-TINTED CHARCOAL exactly like REFERENCE IMAGE 1:',
+  'the mid tones around #40323C and the sheen/highlights around #4F434F — a cool violet-grey sheen,',
+  'NEVER a warm brown or reddish-brown sheen, and never pure black.',
+  'Every other colour in the picture stays the same.',
+].join(' ');
+
 // ── 失敗時（所持金不足＝shop04 相当）の表情と芝居 ──
 // ⚠採用済みの標準時（shop_gem_a）を参照2に渡して、部屋・店員・カメラ距離・画風を固定する。
 //   変えるのは**ぴよ氏の表情とポーズ、店員の表情だけ**。
@@ -185,7 +203,17 @@ const ai = new GoogleGenAI({ apiKey });
 const refPiyo = await part(path.join(IMAGES_DIR, 'title.jpg'));    // ①顔・衣装・頭身の正
 console.log(`モデル: ${MODEL}`);
 
-if (SET === 'fail') {
+if (SET === 'hairfix') {
+  const refShop02 = await part(path.join(IMAGES_DIR, 'shop02.jpg'));  // ②芝居の正（採用済み）
+  for (const key of ['a', 'b', 'c']) {
+    if (ONLY && ONLY !== key) continue;
+    const prompt = [HAIR_FIX, PIYO, PIYO_FIX, PIYO_FACE, PROPORTION, GRAIN_MATCH, COMMON].join(' ');
+    console.log(`● shop02_hair_${key}.png 生成中...`);
+    await fs.writeFile(path.join(RAW_DIR, `shop02_hair_${key}.png`), await call(ai, [refPiyo, refShop02, { text: prompt }]));
+    console.log(`  ✓ tools/_raw/shop02_hair_${key}.png`);
+  }
+  console.log('完了。⚠髪の明部の B-G / R-B を実測して shop01 と揃ったかを見てから見せること。');
+} else if (SET === 'fail') {
   // 失敗時＝採用済みの標準時（shop_gem_a）を参照2にして、表情だけ差し替える
   const refBase = await part(path.join(RAW_DIR, 'shop_gem_a.png'));
   for (const v of FAIL_VARIANTS) {
