@@ -4,14 +4,16 @@
 
 ---
 
-## 🆕 Ver.1.696 — **1.6.1 として提出**（当初 1.7 → ユーザー判断で 1.6.1 に付け替え）
+## 🆕 Ver.1.696 — **1.6.1 として両ストアへ提出済み**（2026-07-31）
 
 | | 状態 |
 |---|---|
 | ゲーム本体 | **Ver.1.696** |
-| iOS | **1.6.1 / build 12**（`~/Library/Developer/Xcode/Archives/2026-07-31/PiyosAdventure-1.6.1-build12.xcarchive`） |
-| Android | **1.6.1 / versionCode 11**（`android/app/build/outputs/bundle/release/app-release.aab`・60.16MB） |
+| iOS | **1.6.1 / build 12 → 審査待ち**（承認後は**自動リリース**） |
+| Android | **1.6.1 / versionCode 11 → 審査中の変更**（クローズドテスト Alpha・完全公開100%） |
 | 前回提出 | 1.6（iOS build11 / Android vc10）＝**両ストアともリリース済み**（2026-07-31 ユーザー確認） |
+
+提出の実測記録（画面で確認した値・踏んだ罠）は `RELEASE-1.6.1.md` の「提出の記録」。
 
 ### ⚠版数を 1.7 → 1.6.1 に変更した（2026-07-31 ユーザー判断）
 
