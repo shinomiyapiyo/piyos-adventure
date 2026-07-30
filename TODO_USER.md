@@ -8,6 +8,13 @@ Claude が代行できないもの＝**実機・管理画面・本人確認・�
 
 ## 🔴 いま止まっているもの（着手待ち）
 
+### 0-A. 【最優先】1.7 の提出（ビルドは完成済み・次セッションでブラウザ操作）
+- **Claude がやる**: Play Console と App Store Connect の操作＝提出まで（`RELEASE_PLAYBOOK.md`）。
+- **あなたにしかできない**: ①両ストアへのログイン ②AAB のファイル選択 ③iOS ビルドのアップロード
+  （Xcode ▸ Window ▸ Organizer → `PiyosAdventure-1.7-build12` → Distribute App ▸ App Store Connect ▸ Upload）。
+- ⚠**先に 1.6 の審査結果を確認する**。iOS がまだ審査中なら 1.7 は出せない（取り下げるか承認待ち）。
+- 成果物と文面は `RELEASE-1.7.md` に全部ある。
+
 ### 0. 【最優先】1.6 の審査結果を確認する（iOS / Android）
 - **状態**: 2026-07-30 に両ストアへ提出。iOS=**審査待ち**（1.6 / build 11・承認後は自動リリース）、
   Android=**審査中の変更**（1.6 / versionCode 10・クローズドテスト Alpha）。
