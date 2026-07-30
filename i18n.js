@@ -684,7 +684,15 @@ ja: {
     egg_perma_no_revive: 'ふっかつやくは いちどきりの きせき。まほうのポーチでも えいきゅうには しまえないんだ。',
     stock_perma_locked: 'ポーチの なかみは そとに だせないよ。ならべかえは ポーチどうし、てばなすのは おみせで。',
     stock_full_savings: 'ストックが いっぱい！ {amount}円に かえたよ',
-    stock_full_savings_multi: 'ストックが いっぱい！ {n}こを ぜんぶで {amount}円に かえたよ'
+    stock_full_savings_multi: 'ストックが いっぱい！ {n}こを ぜんぶで {amount}円に かえたよ',
+    // ── 満杯時の交換ダイアログ（1.697・土管ボーナス部屋だけ） ──
+    stock_swap_title: 'もちものが いっぱい！',
+    stock_swap_ask: 'どれと かえる？',
+    stock_swap_sell: 'そのまま おかねにする',
+    stock_swap_sell_all: 'この へやは ぜんぶ おかねに',
+    stock_swap_pouch_hint: '↩ の ついた 金のわくの品は、てばなしても つぎの ぼうけんで もどってくるよ',
+    stock_swap_sold: '{out}を {amount}円に かえて {in}を もらったよ',
+    stock_swap_kept: '{out}は つぎの ぼうけんで もどるよ。{in}を もらった！'
 },
 en: {
     splash_warning: _ic('icon_warning.png') + ' Notice',
@@ -1318,7 +1326,15 @@ en: {
     egg_perma_no_revive: 'The revival potion is a one-time miracle — even the magic pouch cannot hold it forever.',
     stock_perma_locked: 'Pouch items cannot leave the pouch. Rearrange within it, or sell one at the shop to let it go.',
     stock_full_savings: 'Stock full! Converted to {amount} in savings',
-    stock_full_savings_multi: 'Stock full! {n} items converted to {amount} in savings'
+    stock_full_savings_multi: 'Stock full! {n} items converted to {amount} in savings',
+    // ── Swap dialog when the stock is full (1.697 / bonus pipe room only) ──
+    stock_swap_title: 'Your pockets are full!',
+    stock_swap_ask: 'Trade it for which one?',
+    stock_swap_sell: 'Just turn it into money',
+    stock_swap_sell_all: 'Money for the rest of this room',
+    stock_swap_pouch_hint: 'Items marked ↩ sit in your pouch — let one go and it comes back next adventure',
+    stock_swap_sold: 'Sold {out} for {amount} and took {in}',
+    stock_swap_kept: '{out} comes back next adventure. Took {in}!'
 }
 };
 

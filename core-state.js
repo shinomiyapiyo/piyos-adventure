@@ -432,6 +432,10 @@ var BACK_HANDLERS = [
     // データ引き継ぎの発行/入力オーバーレイ(z:20000・動的生成)。従来は未登録で、下の設定画面が先に閉じていた
     { isOpen: function() { return !!document.querySelector('.transferOverlay'); },
       onBack: function() { var o = document.querySelector('.transferOverlay'); if (o) o.remove(); } },
+    // 満杯時の交換ダイアログ(1.697・動的生成)。**部屋より先に**閉じる＝戻るは「そのまま おかねにする」扱い
+    // （ここを登録しないと、戻るで部屋ごと退室してダイアログだけが画面に残る）
+    { isOpen: function() { return !!document.querySelector('.stockSwapOverlay'); },
+      onBack: function() { if (typeof window._stockSwapClose === 'function') window._stockSwapClose(); } },
     { isOpen: function() { return pipeRoomState.active; }, onBack: function() { exitPipeRoom(); } },
     { isOpen: function() { return shopState.active; }, onBack: function() { stageShopOnBack(); } },
     { isOpen: function() { var el = document.getElementById('storeScreen'); return !!el && el.style.display !== 'none'; },
@@ -2316,6 +2320,7 @@ var pipeRoomState = {
     introTimer: 0,       // 入場時「BONUS!」演出の残りフレーム
     roomType: 'treasure', // 部屋タイプ（1.450〜・入室時に重み付き抽選）: 'treasure'|'coin'|…（背景色/小物/報酬が変わる。エッグ抽選1%は全タイプ共通・部屋タイプ非依存）
     chestPicked: false,   // ラッキーの間（1.452〜）: このラン入室で宝箱を1つ開封済みか（3択を1回に制限・入室毎にinitPipeRoomでfalse）
+    autoSell: false,      // 満杯時の交換ダイアログ（1.697）で「この へやは ぜんぶ おかねに」を選んだか。入室毎に false（SPEC §12.1）
     // ── マリオ風 出入り演出（1.408）──
     anim: 'none',        // 'none'|'in'(本編:土管へ沈む)|'outRoom'(部屋:横土管へ歩き込む)|'outWorld'(本編:土管から上昇)
     animTimer: 0,        // 演出の経過フレーム

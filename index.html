@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.696";
+                content: "Ver.1.697";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -982,7 +982,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.696</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.697</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4308,6 +4308,102 @@ function confirmRetire() {
         if (yes) {
             resetGame();
         }
+    });
+}
+
+// ── 満杯時の交換ダイアログ（1.697・仕様は SPEC.md §12.1）──
+// 土管ボーナス部屋で持ち物が満杯の時に、いま持っている物と引き換えるか選ばせる。
+// ⚠**画面右のストック枠は選択対象にしない**（✅ユーザー決定）。枠をタップ＝アイテム使用なので、
+//   選択モードに切り替える実装だと誤タップで消費してしまう事故が残る。ここで自前のアイコンを並べる。
+// ⚠全画面モーダルにしない＝部屋のテンポを切らないため、背景は薄い暗幕で部屋が透けて見える状態にする。
+// candidates: [{ index: <表示インデックス>, id, owned }] （owned=手放しても翌ランで戻る＝換金されない）
+// resolve: { action:'swap', index } | { action:'sell' } | { action:'sellAll' }
+function showStockSwapDialog(newItemId, candidates) {
+    return new Promise(function(resolve) {
+        var itemOf = function(id) { return STAGE_SHOP_ITEMS.find(function(x) { return x.id === id; }); };
+        var iconHtml = function(id) {
+            var s = itemOf(id);
+            return s && s.iconImg
+                ? '<img src="' + s.iconImg + '" style="width:76%;height:76%;object-fit:contain;image-rendering:pixelated;" alt="">'
+                : '<span style="font-size:3vh;">?</span>';
+        };
+        var nameOf = function(id) { var s = itemOf(id); return s ? t(s.nameKey) : id; };
+        var hasOwned = candidates.some(function(c) { return c.owned; });
+
+        var ov = document.createElement('div');
+        ov.className = 'stockSwapOverlay';
+        ov.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh;' +
+            'background:rgba(0,0,0,0.55); display:flex; justify-content:center; align-items:center;' +
+            'z-index:500000; padding:2vh; box-sizing:border-box;' +
+            "font-family:'M PLUS Rounded 1c', sans-serif; color:#fff;";
+
+        var picks = '';
+        for (var i = 0; i < candidates.length; i++) {
+            var c = candidates[i];
+            picks += '<button class="swapPick" data-i="' + i + '" style="' +
+                'position:relative; width:11vh; height:11vh; flex:none; padding:0; cursor:pointer;' +
+                'display:flex; align-items:center; justify-content:center;' +
+                'border-radius:12px; border:2px solid ' + (c.owned ? 'rgba(255,215,106,0.9)' : 'rgba(255,255,255,0.35)') + ';' +
+                'background:' + (c.owned ? 'linear-gradient(180deg,#5a4410,#2e2206)' : 'linear-gradient(180deg,#3a2258,#1d1030)') + ';">' +
+                iconHtml(c.id) +
+                // ↩＝「手放しても翌ランで戻る」印。小さいと読めないので暗い円を敷いて浮かせる
+                (c.owned ? '<span style="position:absolute; top:-0.8vh; right:-0.8vh; width:2.6vh; height:2.6vh;' +
+                    'display:flex; align-items:center; justify-content:center; border-radius:50%;' +
+                    'background:#1a1206; border:1px solid rgba(255,215,106,0.9);' +
+                    'font-size:1.8vh; line-height:1; color:#ffd76a;">↩</span>' : '') +
+                '</button>';
+        }
+
+        ov.innerHTML =
+            '<div style="background:linear-gradient(160deg,#2a1540 0%,#1a0a2e 45%,#120820 100%);' +
+                'border:2px solid rgba(255,105,180,0.5); border-radius:16px; padding:2vh 3vh;' +
+                'box-shadow:0 8px 32px rgba(255,20,147,0.25); text-align:center; max-width:94vw;' +
+                'display:flex; flex-direction:column; gap:1.2vh; align-items:center;">' +
+                '<div style="font-size:2.8vw; color:#ffd76a;">' + escapeHtml(t('stock_swap_title')) + '</div>' +
+                '<div style="display:flex; align-items:center; gap:1.6vh;">' +
+                    '<div style="width:11vh;height:11vh;flex:none;display:flex;align-items:center;justify-content:center;' +
+                        'border-radius:12px;border:2px solid rgba(120,255,180,0.9);background:linear-gradient(180deg,#134a33,#07281b);">' +
+                        iconHtml(newItemId) + '</div>' +
+                    '<div style="font-size:3.4vw;color:#8effc0;">&#8646;</div>' +
+                    '<div style="display:flex; gap:1vh; flex-wrap:wrap; justify-content:center; max-width:56vw;">' + picks + '</div>' +
+                '</div>' +
+                '<div style="font-size:2.2vw; opacity:0.85;">' + escapeHtml(t('stock_swap_ask')) + '</div>' +
+                (hasOwned ? '<div style="font-size:1.8vw; color:#ffd76a; opacity:0.9;">' + escapeHtml(t('stock_swap_pouch_hint')) + '</div>' : '') +
+                '<div style="display:flex; gap:1.2vh; flex-wrap:wrap; justify-content:center;">' +
+                    '<button class="swapSell" style="font-size:2.2vw; padding:1.2vh 2.2vh; border-radius:10px; cursor:pointer;' +
+                        'border:2px solid rgba(255,255,255,0.25); background:linear-gradient(180deg,#7ad0ff,#2a7fd0); color:#062a44;">' +
+                        escapeHtml(t('stock_swap_sell')) + '</button>' +
+                    '<button class="swapSellAll" style="font-size:2.2vw; padding:1.2vh 2.2vh; border-radius:10px; cursor:pointer;' +
+                        'border:2px solid rgba(255,255,255,0.2); background:linear-gradient(180deg,#666,#444); color:#fff;">' +
+                        escapeHtml(t('stock_swap_sell_all')) + '</button>' +
+                '</div>' +
+            '</div>';
+
+        document.body.appendChild(ov);
+
+        var done = false;
+        function finish(result) {
+            if (done) return;                       // 二重発火防止（touchend→click や連打）
+            done = true;
+            window._stockSwapClose = null;
+            if (ov.parentNode) ov.parentNode.removeChild(ov);
+            resolve(result);
+        }
+        // touchend は preventDefault で合成clickを止める（下のキャンバスへ貫通させない）
+        function bind(el, result) {
+            el.addEventListener('click', function() { finish(result); });
+            el.addEventListener('touchend', function(e) { e.preventDefault(); finish(result); });
+        }
+        var pickEls = ov.querySelectorAll('.swapPick');
+        for (var k = 0; k < pickEls.length; k++) {
+            bind(pickEls[k], { action: 'swap', index: candidates[parseInt(pickEls[k].getAttribute('data-i'), 10)].index });
+        }
+        bind(ov.querySelector('.swapSell'), { action: 'sell' });
+        bind(ov.querySelector('.swapSellAll'), { action: 'sellAll' });
+        // 暗幕そのものを押した時は何もしない（誤タップで勝手に換金されないように＝必ずボタンで決めさせる）
+        ov.addEventListener('touchend', function(e) { if (e.target === ov) e.preventDefault(); });
+        // Android戻る(BACK_HANDLERS)＝「そのまま おかねにする」扱いで正規に閉じる
+        window._stockSwapClose = function() { finish({ action: 'sell' }); };
     });
 }
 

@@ -2546,10 +2546,12 @@ function openLuckyChest(chest) {
     //   ・ふっかつやくが別枠カウンタへ入った（route ⓪・1.683）
     //   のどれでも通常枠の数は変わらない＝**リング演出と音だけで、何を得たのか一切出ない**状態だった。
     //   ポーチを埋めている（=長く遊んだ）プレイヤーほど当たるので、ハズレだと誤解されていた。
+    // ⚠1.697: 宝箱の中身も満杯なら交換ダイアログを出す（✅ユーザー決定・SPEC §12.1）。
+    //   アイコンは**先に出す**＝「宝箱から何が出たか」はダイアログの奥で見えていてよく、
+    //   行き先（持つ／お金にする）だけを後から選ぶ形にする。
     function grantStockReward(id) {
-        var ok = addToStock(id);
+        var ok = takeRoomStockItem(id);
         if (ok) {
-            markZukanSeen('item:' + id);
             floatEffects.push({ type: 'chest_item', worldX: cx, worldY: cy - 28, timer: 0, duration: 80, itemId: id });
         }
         if (soundManager) soundManager.playItem();
@@ -2610,6 +2612,7 @@ function pickPipeRoomType() {
 function initPipeRoom() {
     bonusRoomItems.length = 0;
     pipeRoomState.chestPicked = false; // ラッキーの間の3択を毎入室リセット
+    pipeRoomState.autoSell = false;    // 「この へやは ぜんぶ おかねに」は部屋ごと（1.697・SPEC §12.1）
     var rt = null;
     for (var i = 0; i < ROOM_TYPES.length; i++) { if (ROOM_TYPES[i].id === pipeRoomState.roomType) { rt = ROOM_TYPES[i]; break; } }
     if (!rt) rt = ROOM_TYPES[0];
@@ -2649,6 +2652,9 @@ function updatePipeRoom() {
         }
         return;
     }
+    // 満杯時の交換ダイアログ中は部屋ごと止める（1.697）。止めないと、読んでいる間に歩いて
+    // 別の品に触れる／出口ゲージが溜まる＝「選ばせるための停止」で別の事故を作ることになる。
+    if (stockSwapState.open) { player.velX = 0; player.velY = 0; return; }
     var accel = 1.2, fric = 0.85;
     if (gameState.input.left) { player.velX = Math.max(player.velX - accel, -MOVE_SPEED); player.facing = 'left'; }
     else if (gameState.input.right) { player.velX = Math.min(player.velX + accel, MOVE_SPEED); player.facing = 'right'; }
@@ -2718,7 +2724,13 @@ function updatePipeRoom() {
             grantHeartOrScore(it.x + it.width / 2, it.y);   // 満タンなら +1,000点表示（1.691）
             if (soundManager) soundManager.playItem();
         } else if (it.type === 'shopitem') {
-            if (addToStock(it.itemId)) { it.collected = true; markZukanSeen('item:' + it.itemId); if (soundManager) soundManager.playItem(); }
+            // 1.697: 満杯なら交換ダイアログ（SPEC §12.1）。takeRoomStockItem が true を返した時点で
+            // その品は消費済み＝先に部屋から消す（ダイアログ中に同じ品へ触れ続けて多重に開くのを防ぐ）。
+            if (takeRoomStockItem(it.itemId)) {
+                it.collected = true;
+                if (soundManager) soundManager.playItem();
+                if (stockSwapState.open) break; // ダイアログが開いた＝このフレームで2個目に触れない
+            }
         } else if (it.type === 'golden_egg') {
             it.collected = true; collectGoldenEgg('room');   // 部屋の1%は枠を使わない（1.693で引数を文字列化）
             spawnGoldenEggEffect(it.x + it.width / 2, it.y);
@@ -4381,6 +4393,114 @@ function convertItemToSavings(itemId) {
         : escapeHtml(t('stock_full_savings', { amount: total }));
     var el = showRewardToast(html, 'linear-gradient(180deg,#7ad0ff,#2a7fd0)', '#062a44', 'stock_full');
     _convertToast = { el: el, count: count, total: total };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 満杯時の交換（1.697・仕様は SPEC.md §12.1）
+// ═══════════════════════════════════════════════════════════════════
+// 持ち物が満杯のとき、いま持っている物と引き換えて受け取れるようにする。
+// ⚠**土管ボーナス部屋の中だけ**。本編は時間が進む＝ダイアログを読んでいる間に死ぬので、
+//   従来どおり自動換金（convertItemToSavings）のまま。
+var stockSwapState = { open: false };
+
+// 交換に出せる持ち物（表示インデックス＝updateStockUI / useStockItem と同じ採番: 0..pl-1=金枠、pl..=通常枠）。
+// owned=true は「この枠が所有していて**翌ランで戻ってくる**中身」＝手放しても換金しない対象。
+function stockSwapCandidates() {
+    var out = [], pl = permaLevel();
+    for (var i = 0; i < pl; i++) {
+        var ps = stockState.perma[i];
+        // 使用済み／空の金枠はそもそも stockHasRoom が true＝満杯でない＝ここへ来ない。保険で弾く。
+        if (!ps || !ps.id || ps.used) continue;
+        out.push({ index: i, id: ps.id, owned: isPermaOwnedContent(ps) });
+    }
+    for (var n = 0; n < stockState.items.length; n++) {
+        if (pl + n >= stockState.maxSlots) break; // 保険のオーバーフロー分は出さない（枠として見えていないため）
+        var it = stockState.items[n];
+        if (it && it.id) out.push({ index: pl + n, id: it.id, owned: false });
+    }
+    return out;
+}
+
+// 「この金枠の中身は翌ランで戻ってくるか」＝ commitPermaStock が書き出す base そのものか。
+// ⚠**戻ってくる品を換金してはいけない**。毎ラン無料で補充される品を毎ラン売れる＝お金が無限に増える
+//   （ポーチ転売対策 1.526 と同じ穴。swapStockSlots が所有品の持ち出しを拒否しているのも同じ理由）。
+//   temp フラグではなく **base と id の一致**で見るのが肝＝フラグが壊れていても換金側へ倒れない。
+function isPermaOwnedContent(ps) { return !!(ps && ps.base && ps.id === ps.base); }
+
+// いま交換ダイアログを出せるか
+function canOfferStockSwap(itemId) {
+    if (!pipeRoomState.active || pipeRoomState.autoSell) return false;
+    if (tutorialState.active) return false;                      // サンドボックス＝従来どおり拾えずその場に残す
+    if (stockHasRoom(itemId)) return false;                      // 入るなら聞かない
+    if (typeof showStockSwapDialog !== 'function') return false; // 保険（未ロード環境）
+    return stockSwapCandidates().length > 0;
+}
+
+// 選んだ枠の中身を手放して itemId を受け取る
+function applyStockSwap(displayIndex, itemId) {
+    var pl = permaLevel();
+    if (displayIndex < pl) {
+        var ps = stockState.perma[displayIndex];
+        if (!ps || !ps.id || ps.used) return false;
+        var removedId = ps.id, keep = isPermaOwnedContent(ps);
+        // ⚠**base は触らない**＝所有はその枠に停めたまま（addToStock の route 2＝「今回かぎりの補充」と同じ扱い）。
+        //   これで翌ランのポーチは元通りになり、ふっかつやく(PERMA_STOCK_EXCLUDE)もここへ入れてよい（1.683）。
+        stockState.perma[displayIndex] = { id: itemId, used: false, temp: true, base: ps.base };
+        _finishStockSwap(removedId, itemId, keep);
+        return true;
+    }
+    var ni = displayIndex - pl;
+    var itm = stockState.items[ni];
+    if (!itm || !itm.id) return false;
+    var removed = itm.id;
+    stockState.items[ni] = { id: itemId };
+    _finishStockSwap(removed, itemId, false);
+    return true;
+}
+
+// 交換の後始末（換金の可否・通知・図鑑・UI）
+function _finishStockSwap(removedId, itemId, keepsComingBack) {
+    var nameOf = function(id) {
+        var s = STAGE_SHOP_ITEMS.find(function(x) { return x.id === id; });
+        return s ? t(s.nameKey) : id;
+    };
+    if (keepsComingBack) {
+        if (typeof showRewardToast === 'function') {
+            showRewardToast(escapeHtml(t('stock_swap_kept', { out: nameOf(removedId), in: nameOf(itemId) })),
+                'linear-gradient(180deg,#ffd76a,#d09a1a)', '#3a2600', 'stock_swap');
+        }
+    } else {
+        var si = STAGE_SHOP_ITEMS.find(function(x) { return x.id === removedId; });
+        var amount = si ? Math.max(1, shopSellPrice(si)) : 0;
+        if (amount > 0) { gameSettings.savings = (gameSettings.savings || 0) + amount; saveSettings(); }
+        if (typeof showRewardToast === 'function') {
+            showRewardToast(escapeHtml(t('stock_swap_sold', { out: nameOf(removedId), amount: amount, in: nameOf(itemId) })),
+                'linear-gradient(180deg,#7ad0ff,#2a7fd0)', '#062a44', 'stock_swap');
+        }
+    }
+    markZukanSeen('item:' + itemId);
+    updateStockUI();
+    if (soundManager) soundManager.playItem();
+}
+
+// 部屋での在庫アイテム入手を一元化（床の品も宝箱の中身もここを通る）。
+// 戻り値 true = その品は消費された（部屋から消してよい）。false はチュートリアルで満杯の時だけ＝その場に残す。
+function takeRoomStockItem(itemId) {
+    if (canOfferStockSwap(itemId)) { openStockSwapDialog(itemId); return true; }
+    if (addToStock(itemId)) { markZukanSeen('item:' + itemId); return true; }
+    return false;
+}
+
+function openStockSwapDialog(itemId) {
+    if (stockSwapState.open) return;
+    stockSwapState.open = true;
+    showStockSwapDialog(itemId, stockSwapCandidates()).then(function(res) {
+        stockSwapState.open = false;
+        if (res && res.action === 'swap' && applyStockSwap(res.index, itemId)) return;
+        if (res && res.action === 'sellAll') pipeRoomState.autoSell = true;
+        addToStock(itemId);                  // 満杯 → 貯金換算（従来どおり。トーストは convertItemToSavings が出す）
+        markZukanSeen('item:' + itemId);
+    });
 }
 
 function addToStock(itemId) {

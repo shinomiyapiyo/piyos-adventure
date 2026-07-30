@@ -538,7 +538,7 @@
 - ストック対象: バリア、レモンスペシャル、フルチャージ、回復薬（持ち帰り）、リバイブポーション
 - ログインボーナスのアイテム報酬は `pendingStockItems` に保存され、次回ゲーム開始時にストックへ追加
 
-### 12.1 満杯時の交換ダイアログ（**仕様確定・未実装**／2026-07-31 ユーザー決定）
+### 12.1 満杯時の交換ダイアログ（**Ver.1.697 で実装済み**／仕様は 2026-07-31 ユーザー決定）
 
 **目的**: 土管ボーナス部屋で持ち物が満杯のとき、いま持っている物と**引き換えて**受け取れるようにする。
 現状（1.694〜）は満杯の品に触れると**自動で貯金へ換金**（売値＝定価の半分）されるだけで、選択肢が無い。
@@ -580,6 +580,17 @@
   ＝既存の「今回かぎりの補充」（`addToStock` の route 2）と同じ経路に乗せる。翌ランのポーチは元通り。
 - ふっかつやく（`PERMA_STOCK_EXCLUDE`）もこの経路なら入れてよい（1.683 で確立済み）。
 - 受け取った品は `markZukanSeen('item:<id>')` する（拾った時と同じ）。
+
+#### 実装の要点（1.697）
+| 場所 | 役割 |
+|---|---|
+| `index.html showStockSwapDialog()` | パネルのDOM。resolve = `{action:'swap',index}` / `{action:'sell'}` / `{action:'sellAll'}` |
+| `gameplay.js takeRoomStockItem()` | 部屋での入手の入口（床の品も宝箱もここを通る）。戻り値 true=消費した |
+| `gameplay.js isPermaOwnedContent()` | **`base === id` で判定**。temp フラグではなく実体で見る＝フラグが壊れても換金側へ倒れない |
+| `gameplay.js applyStockSwap()` | 枠の入れ替え。金枠は `base` を触らず `temp=true` |
+| `updatePipeRoom()` 冒頭 | ダイアログ中は部屋ごと停止（歩いて別の品に触れる／出口ゲージが溜まるのを防ぐ） |
+| `pipeRoomState.autoSell` | 「ぶん おかねに」。`initPipeRoom` で毎入室 false |
+| `BACK_HANDLERS`（core-state.js） | Android戻る＝「そのまま おかねにする」。**部屋のエントリより前**に置く |
 
 ---
 
