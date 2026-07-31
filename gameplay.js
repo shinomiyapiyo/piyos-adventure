@@ -3418,14 +3418,13 @@ function selectShopItem(itemId) {
     shopHighlightedItem = itemId;
     var bought = shopState.purchaseCounts[itemId] || 0;
     var blockKey = null;
-    var moneyBg = false;
-    if (bought >= item.maxPerVisit) { blockKey = 'shop_keeper_sold_out'; moneyBg = true; }
+    if (bought >= item.maxPerVisit) { blockKey = 'shop_keeper_sold_out'; }
     // ⚠1.577で ug_manju を追加。極楽まんじゅう(HP+3)だけこの判定から漏れていて、ライフ満タンでも
     //   購入ダイアログが開き、9,000円払って効果ゼロ（lives は Math.min(...,10) で頭打ち）だった。
     //   老婆の専用セリフ ug_shop_keeper_heal_maxhp「まだ 元気だろう。もったいない。」はこの品のために
     //   書かれているのに、条件に入っていないため一度も再生されない状態でもあった。
     else if ((item.id === 'heal' || item.id === 'shortcake' || item.id === 'ug_manju') && gameState.lives >= 10) { blockKey = 'shop_keeper_heal_maxhp'; }
-    else if (gameState.score < stageItemPrice(item)) { blockKey = 'shop_keeper_no_money'; moneyBg = true; } // ⚠値段は stageItemPrice（ふっかつやくは累積値上げ・1.684）
+    else if (gameState.score < stageItemPrice(item)) { blockKey = 'shop_keeper_no_money'; } // ⚠値段は stageItemPrice（ふっかつやくは累積値上げ・1.684）
     else if (item.stockItem && !stockHasRoom(item.id)) { blockKey = 'shop_keeper_stock_full'; }
     if (blockKey) {
         shopConfirmingItem = null;
@@ -3436,7 +3435,12 @@ function selectShopItem(itemId) {
         //   ug_shop_keeper_no_money / _sold_out / _heal_maxhp は1.569から存在するのに一度も表示されていない。
         if (blockEl) blockEl.textContent = t(item.descKey) + '\n' + t(keeperKey(blockKey)); // 説明は見せつつ買えない理由を添える
         if (soundManager) soundManager.playDamage();
-        if (moneyBg) setShopBg('shop04', 1200);
+        // ⚠**買えなかった理由に関わらず失敗の絵（shop04）を出す**（1.708・ユーザー実機報告
+        //   「ストックがいっぱいで買えない時に失敗のグラフィックにならない」）。
+        //   旧版は moneyBg フラグで「お金不足」と「売り切れ」だけに出していたため、
+        //   **ストック満杯とHP満タンでは絵が変わらなかった**（buyStageItem 側には4件とも入っているが、
+        //   ここで return するので届かない＝死にコードだった）。理由が何であれプレイヤー体験は「買えなかった」。
+        setShopBg('shop04', 1200);
         updateStageShopUI();
         return;
     }

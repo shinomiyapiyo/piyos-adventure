@@ -146,6 +146,40 @@ const HAIR_FIX = [
   'Every other colour in the picture stays the same.',
 ].join(' ');
 
+// ─────────────────────────────────────────────────────────────────────────────
+// --set=success — ⚠ユーザー指摘（2026-07-31）:
+//   「**通常時と成功時が少し左右にズレているので差分になっていない**」
+//   「**髪の毛の色も完全に一致させていないと不自然**」
+//   → 方針: 「**shop01 を参照元にして shop02 を作る。表情の変化が少なかったのでニッコリ笑顔に**」
+//
+// 📏 なぜ shop01 を参照にするのか（1.708 の実測で確定）
+//   ・`shop04`（失敗）は **shop01 と dx=dy=0・残差3〜6＝背景が画素レベルで一致**していた。
+//     理由は **shop_fail_b を shop01 参照で生成したから**（ユーザーも「失敗時の差分は違和感がない」と確認）
+//   ・一方 `shop02` は独立生成だったため、**平行移動では合わないズレ**が出ていた:
+//       左端 dx=-41 ／ 中央 dx=-22 ／ 右端 dx=-5 ＝ **部屋が横に約3.8%大きい**（カメラのズームが違う）
+//   ⚠**教訓: 差分の絵（同じ部屋の別カット）は必ず「採用済みの絵」を参照に生成する。**
+//     プロンプトが同じでも、別々に生成した絵は画角が揃わない＝差分として使えない
+// ─────────────────────────────────────────────────────────────────────────────
+const SUCCESS_MOOD = [
+  'CHANGE ONLY HER FACE AND HER POSE — she has just bought the item she wanted and she is delighted.',
+  'GIVE HER A BIG BEAMING SMILE: the corners of her mouth lifted high in a wide happy smile,',
+  'her cheeks warm with pink blush, and her eyes WIDE OPEN AND SPARKLING with the two large square white',
+  'highlights (do NOT squeeze her eyes shut into happy curves, and do NOT stretch her mouth so wide that',
+  'teeth and gums show). Her whole face must read as clearly happier than in reference image 2 —',
+  'the difference has to be obvious at a glance, because these two pictures are shown one after the other.',
+].join(' ');
+
+const SUCCESS_KEEPER = [
+  'THE SHOPKEEPER is pleased too: the same brown-haired, braided, brown-aproned woman standing behind the counter',
+  'in exactly the same place as in reference image 2, smiling warmly at her.',
+].join(' ');
+
+const SUCCESS_VARIANTS = [
+  { key: 'a', extra: 'She holds both hands together in front of her chest and beams with delight. No props in her hands.' },
+  { key: 'b', extra: 'She has one hand raised beside her face in a small happy gesture, the other at her side, beaming. No props in her hands.' },
+  { key: 'c', extra: 'She keeps the same relaxed stance as reference image 2 with one hand resting on the counter, but her face lights up in a big beaming smile.' },
+];
+
 // ── 失敗時（所持金不足＝shop04 相当）の表情と芝居 ──
 // ⚠採用済みの標準時（shop_gem_a）を参照2に渡して、部屋・店員・カメラ距離・画風を固定する。
 //   変えるのは**ぴよ氏の表情とポーズ、店員の表情だけ**。
@@ -203,7 +237,29 @@ const ai = new GoogleGenAI({ apiKey });
 const refPiyo = await part(path.join(IMAGES_DIR, 'title.jpg'));    // ①顔・衣装・頭身の正
 console.log(`モデル: ${MODEL}`);
 
-if (SET === 'hairfix') {
+if (SET === 'success') {
+  // ⚠shop04 が shop01 と画素一致したのと**同じ渡し方**にする＝①title.jpg ②shop01.jpg
+  const refShop01 = await part(path.join(IMAGES_DIR, 'shop01.jpg'));
+  console.log('参照: ①images/title.jpg（キャラの正） ②images/shop01.jpg（部屋・画角・髪の色・タッチの正）');
+  for (const v of SUCCESS_VARIANTS) {
+    if (ONLY && ONLY !== v.key) continue;
+    const prompt = [
+      'REFERENCE IMAGE 2 is the ADOPTED artwork of this exact scene. Redraw that same picture:',
+      'the same shop interior, the same props, the same shopkeeper, the SAME CAMERA DISTANCE AND FRAMING,',
+      'the same position and the same SIZE of the heroine on the right in front of the counter,',
+      'the same colours and the same lighting. Do NOT zoom in or out and do NOT shift the room sideways —',
+      'these two pictures are shown one after the other in the game, so the room must not move at all.',
+      'HER HAIR COLOUR must be identical to reference image 2: a dark purple-tinted charcoal with a cool',
+      'violet-grey sheen (mid tones near #40323C, highlights near #4F434F) — never a warm or brown sheen.',
+      PIYO, PIYO_FIX, PIYO_FACE, PROPORTION, GRAIN_MATCH,
+      SUCCESS_MOOD, SUCCESS_KEEPER, v.extra, COMMON,
+    ].join(' ');
+    console.log(`● shop02_new_${v.key}.png 生成中...`);
+    await fs.writeFile(path.join(RAW_DIR, `shop02_new_${v.key}.png`), await call(ai, [refPiyo, refShop01, { text: prompt }]));
+    console.log(`  ✓ tools/_raw/shop02_new_${v.key}.png`);
+  }
+  console.log('完了。⚠**shop01 との背景残差（dx=dy=0で3〜6なら一致）**と髪の明部を測ってから見せること。');
+} else if (SET === 'hairfix') {
   const refShop02 = await part(path.join(IMAGES_DIR, 'shop02.jpg'));  // ②芝居の正（採用済み）
   for (const key of ['a', 'b', 'c']) {
     if (ONLY && ONLY !== key) continue;

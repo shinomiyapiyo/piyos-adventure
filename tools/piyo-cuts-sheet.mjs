@@ -30,7 +30,7 @@ const CUTS = [
   { f: 'shop05.jpg',           label: 'shop05 exit  1.699',       face: [330, 110, 270, 270] },
   { f: 'ug_shop01.jpg',        label: 'ug_shop01 crone  1.701',   face: [720, 230, 330, 330] },
   { f: 'manju_scene.jpg',      label: 'manju  1.702',             face: [520, 240, 360, 360] },
-  { f: 'soba_shop_scene.jpg',  label: 'soba  1.705',              face: [530, 175, 270, 270] },
+  { f: 'soba_shop_scene.jpg',  label: 'soba  1.707',              face: [495, 105, 310, 310] },
   { f: 'shortcake_scene.jpg',  label: 'shortcake  1.700 (casual)',face: [545, 190, 230, 230] },
   { f: 'tutorial_clear.jpg',   label: 'tutorial_clear  1.700 (casual)', face: [570, 155, 175, 175] },
   { f: 'ug_ending.jpg',        label: 'ug_ending  (back view)',   face: [395, 405, 120, 120] },
