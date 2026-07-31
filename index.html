@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.711";
+                content: "Ver.1.712";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -533,6 +533,16 @@
            ⚠クラスを外すのは closePauseSkin だけでは足りない。ポーズ画面を閉じる全経路（hidePauseScreenUI）と
              ポーズを開く時（pauseGame）にも外す＝外し忘れるとランに戻った後もHUDが消えたままになる
              （1.615 の body.is-paused で実際に踏んだ罠と同じ構造なので、同じ集約先で面倒を見る）。 */
+        /* ⚠1.712: **ポーズ中は常に隠す**（ユーザー実機報告「ポーズ中のメニューのさらに上に HUD やアイテムが
+           表示されるのはおかしい」）。1.682 では きせかえ一覧を開いた時だけ隠していたが、原因（z-index:100 が
+           ポーズ幕 z:20 より上）はポーズ画面そのものでも同じなので、`body.is-paused` に広げた。
+           ⚠z-index を下げて幕の裏に回す手もあるが、幕は backdrop-filter:blur を持つので
+             **ぼやけた幽霊UIが残って余計に汚くなる**。隠すのが正しい。
+           ⚠クラスの付け外しは pauseGame / pauseForInterrupt / checkOrientation の3経路 ↔ hidePauseScreenUI に
+             集約済み（1.615）。ここに追加するだけで外し忘れは起きない。 */
+        body.is-paused #ui,
+        body.is-paused #stockSlots,
+        body.is-paused #specialMoveUI,
         body.pause-skin-open #ui,
         body.pause-skin-open #stockSlots,
         body.pause-skin-open #specialMoveUI,
@@ -982,7 +992,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.711</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.712</span>
                 </div>
 
                 <!-- クレジット：右下 -->
