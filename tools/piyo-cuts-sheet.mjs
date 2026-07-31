@@ -23,18 +23,18 @@ const RAW_DIR    = path.resolve(__dirname, '_raw');
 // label は SVG に流すので ASCII のみ（日本語フォントの有無に依存させない）
 const CUTS = [
   { f: 'title.jpg',            label: 'title  BASE',              face: [468,  95, 220, 220] },
-  { f: 'title_shop.jpg',       label: 'title_shop  1.706 (C)',        face: [125,  55, 200, 200] },
+  { f: 'title_shop.jpg',       label: 'title_shop  1.710',        face: [185,  40, 340, 340] },
   { f: 'shop01.jpg',           label: 'shop01 default  1.704',    face: [790, 180, 160, 160] },
   { f: 'shop02.jpg',           label: 'shop02 success  1.706',    face: [745, 195, 165, 165] },
   { f: 'shop04.jpg',           label: 'shop04 no-money  1.704',   face: [760, 185, 165, 165] },
   { f: 'shop05.jpg',           label: 'shop05 exit  1.699',       face: [330, 110, 270, 270] },
   { f: 'ug_shop01.jpg',        label: 'ug_shop01 crone  1.701',   face: [720, 230, 330, 330] },
   { f: 'manju_scene.jpg',      label: 'manju  1.702',             face: [520, 240, 360, 360] },
-  { f: 'soba_shop_scene.jpg',  label: 'soba  1.707',              face: [495, 105, 310, 310] },
+  { f: 'soba_shop_scene.jpg',  label: 'soba  1.710',              face: [495, 105, 310, 310] },
   { f: 'shortcake_scene.jpg',  label: 'shortcake  1.700 (casual)',face: [545, 190, 230, 230] },
   { f: 'tutorial_clear.jpg',   label: 'tutorial_clear  1.700 (casual)', face: [570, 155, 175, 175] },
   { f: 'ug_ending.jpg',        label: 'ug_ending  (back view)',   face: [395, 405, 120, 120] },
-  { f: 'special_cutin.png',    label: 'special_cutin (piyo flash)', face: [408, 100, 130, 130] },
+  { f: 'special_cutin.png',    label: 'special_cutin  1.709', face: [540, 100, 240, 240] },
   { f: 'eyes_closeup.png',     label: 'eyes_closeup (piyo flash)', face: [180,  40, 660, 500] },
   { f: 'icon-1024.png',        label: 'icon-1024 (app icon)',     face: [230, 150, 620, 620] },
 ];
