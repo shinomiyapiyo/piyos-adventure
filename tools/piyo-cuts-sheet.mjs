@@ -35,7 +35,7 @@ const CUTS = [
   { f: 'tutorial_clear.jpg',   label: 'tutorial_clear  1.700 (casual)', face: [570, 155, 175, 175] },
   { f: 'ug_ending.jpg',        label: 'ug_ending  (back view)',   face: [395, 405, 120, 120] },
   { f: 'special_cutin.png',    label: 'special_cutin  1.709', face: [540, 100, 240, 240] },
-  { f: 'eyes_closeup.png',     label: 'eyes_closeup (piyo flash)', face: [180,  40, 660, 500] },
+  { f: 'eyes_closeup.jpg',     label: 'eyes_closeup 1.711',        face: [180,  40, 660, 500] },
   { f: 'icon-1024.png',        label: 'icon-1024 (app icon)',     face: [230, 150, 620, 620] },
 ];
 
