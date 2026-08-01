@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.714";
+                content: "Ver.1.715";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -992,7 +992,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.714</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.715</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6520,7 +6520,9 @@ function spawnFlyingEnemy() {
     // R11以降だけ、一部が急降下してくる攻撃型「アカバネ」に（1.527）。
     // 見た目は全バイオーム共通の赤スプライト＝「赤いやつは突っ込んでくる」と学習できる。
     // チュートリアルはサンドボックス（R1固定）なので構造的に出ない。
-    if (gameRound >= DIVE_BIRD_ROUND && Math.random() < DIVE_BIRD_RATE) {
+    // ⚠1.715: 率は固定値ではなく **diveBirdRate()**（R11=30% → 地上ラウンドごとに緩やかに上げ R38=60%で頭打ち）。
+    //   固定 DIVE_BIRD_RATE に戻すと「R11以降まったく難しくならない」状態に逆戻りする（core-state.js の根拠を参照）。
+    if (gameRound >= DIVE_BIRD_ROUND && Math.random() < diveBirdRate()) {
         e.type = 'dive_bird';
         e.flySprite = 'dive_bird_fly';
         e.diveState = 'fly';   // fly=通常飛行 → warn=予告 → dive=急降下 → leave=跳ねて離脱
