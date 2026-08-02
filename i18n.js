@@ -435,6 +435,9 @@ ja: {
     tshop_keeper_sell_odd: 'な…なんなのだ\nこのまがまがしいくすりは…。\n{price}円ならひきとるのだ…。',
     tshop_keeper_sold: '{item}を売ったのだ！\n+{price}円 貯金に入れたのだ',
     tshop_sell_empty: '売れるアイテムが ないのだ',
+    // ⚠1.716: しおりで中断中は売却を止める（中断中はライブの持ち物が「次に さいしょから を始めた時の中身」に
+    //   なっており、ランで使い終えた永続品まで「未使用」として売れてしまうため）
+    tshop_sell_suspended: 'ぼうけんの とちゅうでは かいとりできないのだ',
     tshop_keeper_sell_greet: '何を 売るのだ？',
     tshop_keeper_buy_greet: '何を 買うのだ？',
     tshop_egg_owned: 'こうかん済み',
@@ -1114,6 +1117,7 @@ en: {
     tshop_keeper_sell_odd: 'W-what even is this...\nthis sinister-looking potion...?\nI\'ll take it for {price}, then...',
     tshop_keeper_sold: 'Sold {item}!\n+{price} to your savings',
     tshop_sell_empty: 'Nothing to sell',
+    tshop_sell_suspended: 'I cannot buy things back while your adventure is paused',
     tshop_keeper_sell_greet: 'What would you like to sell?',
     tshop_keeper_buy_greet: 'What would you like to buy?',
     tshop_egg_owned: 'Owned',

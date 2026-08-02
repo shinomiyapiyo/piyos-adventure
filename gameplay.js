@@ -3773,6 +3773,12 @@ function selectTshopItem(upgradeId) {
             setTshopKeeperText('tshop_keeper_buy_greet');
             updateTitleShopUI();
         } else if (upgradeId === '_tmenu_sell') {
+            // ⚠1.716: 中断中は売らせない。理由を出す（黙って弾くと「押しても反応しない不具合」に見える）
+            if (tshopSuspendedView()) {
+                setTshopKeeperText('tshop_sell_suspended');
+                if (soundManager) soundManager.playDamage();
+                return;
+            }
             if (!tshopHasSellable()) { // 売れるものが無ければメニューのまま案内
                 setTshopKeeperText('tshop_sell_empty');
                 if (soundManager) soundManager.playDamage();
@@ -3863,9 +3869,48 @@ function renderTshopSellList() {
 }
 // 売れるものが1つでもあるか（ポーチ=永続枠 or 通常ストック）。売るメニューの可否判定に使用。
 function tshopHasSellable() {
+    if (tshopSuspendedView()) return false;   // ⚠中断中は売らせない（1.716・下記）
     var pl = permaLevel(), ps = gameSettings.permaStock || [];
     for (var i = 0; i < pl; i++) { if (ps[i]) return true; }
     return stockState.items.length > 0;
+}
+
+// ─── しおりで中断中のタイトルショップ用ビュー（1.716） ───
+// ⚠ユーザー実機報告:「中断してその間にタイトルショップへ行くと、実際に持っているアイテムと全然違うアイテムが出る」
+// 原因: `interruptRunWithShiori` → `showStartScreen` → **resetGame** が
+//   `buildPermaSlots()`（used を全部 false に戻す）＋`stockState.items = []`＋`flushPendingStockItems()` を走らせるため、
+//   タイトルショップに出ていたのは「**次に『さいしょから』を選んだ場合の持ち物**」だった。
+// ⚠表示が嘘なだけでなく**お金の複製の穴**でもあった: 売却の対象判定は「中身があり かつ **未使用**」なので、
+//   used が false に戻ることで**ランで使い終えた永続品まで売れる**（使った効果は残したまま代金だけ得られる）。
+//   1.526 のポーチ転売・1.697 のポーチ品換金と同じ種類の穴。
+// 対策（案1・ユーザー選択）:
+//   ①中断中は**しおりの中身を読み取り専用で表示**する（ライブの stockState は**絶対に触らない**。
+//     触ると used が戻って「しおりが復活して無限に中断できる」罠を踏む）
+//   ②中断中は**売却そのものを止める**（買うのは従来どおり可＝`permaOwned` の突き合わせが 1.653 で入っている）
+// ⚠戻り値は毎回作り直す（キャッシュしない）。中断中にポーチを買うと枠数が変わるため。
+function tshopSuspendedView() {
+    if (gameState.gameStarted) return null;                       // ラン中は関係ない
+    if (typeof hasRunSave !== 'function' || !hasRunSave()) return null;
+    var d = (typeof loadRunState === 'function') ? loadRunState() : null;
+    if (!d) return null;                                          // 壊れたしおり＝従来どおりの表示に戻す
+    var perma = [];
+    for (var i = 0; i < (d.perma || []).length; i++) {
+        var p = d.perma[i];
+        perma.push(p ? { id: p.id || '', used: !!p.used } : { id: '', used: false });
+    }
+    var items = [];
+    for (var j = 0; j < (d.items || []).length; j++) {
+        if (d.items[j] && d.items[j].id) items.push({ id: d.items[j].id });
+    }
+    return { perma: perma, items: items };
+}
+
+// タイトルショップ内でストック表示を更新する時は**必ずこれを通す**（1.716）。
+// ⚠`updateStockUI()` を素で呼ぶとライブの stockState が出る＝中断中は「次に さいしょから を始めた時の
+//   持ち物」に戻ってしまう。`tshopSuspendedView()` は中断していなければ null を返すので、
+//   通常時は従来どおりの動作になる。
+function refreshTshopStockUI() {
+    updateStockUI(tshopSuspendedView());
 }
 // メニュー項目（買う/売る/広告/出る）を1行描画（ステージショップの renderShopMenuItem 相当・data-tshop-id版）
 function renderTshopMenuItem(id, icon, text) {
@@ -3934,7 +3979,7 @@ function confirmTshopSell(key) {
     if (soundManager) soundManager.playItem();
     setTshopKeeperText('tshop_keeper_sold', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });
     updateTitleShopUI();
-    updateStockUI();
+    refreshTshopStockUI();
 }
 
 // ── エッグこうかん（タイトルショップ内・ゴールデンエッグ払い） ──
@@ -4026,7 +4071,7 @@ function confirmEggBuy(itemId) {
     setTshopKeeperText(item.type === 'pouch' ? 'tshop_keeper_egg_bought_pouch'
         : item.type === 'upgrade' ? 'tshop_keeper_egg_bought_upgrade' : 'tshop_keeper_egg_bought');
     updateTitleShopUI();
-    if (item.type === 'pouch') updateStockUI(); // 永続枠（金枠）の表示を更新
+    if (item.type === 'pouch') refreshTshopStockUI(); // 永続枠（金枠）の表示を更新（⚠中断中はしおりの中身で出す）
 }
 
 function previewTshopItem(upgradeId) {
@@ -4068,8 +4113,16 @@ function showTitleShop() {
     var tshopAdBtnEl = document.getElementById('tshopRewardAdBtn');
     if (tshopAdBtnEl) tshopAdBtnEl.style.display = 'none';
     updateTitleShopUI();
-    buildPermaSlots(); // ゲーム未開始でも permaStock から永続枠を構築（返却プレイヤーが初回プレイ前にショップを開いた時の表示ズレ防止）
-    updateStockUI(); // タイトルショップでもストック(枠＋所持アイテム)を表示＝拡張アイテム購入の参考に
+    // ⚠1.716: **しおりで中断中は buildPermaSlots() を呼ばない**（ユーザー実機報告の対応）。
+    //   呼ぶとライブの永続枠が used:false で作り直され、①表示が「次に さいしょから を始めた時の持ち物」に
+    //   なって嘘をつく ②**ランで使い終えた永続品が「未使用」として売れる**（お金の複製）。
+    //   中断中は**しおりの中身を読み取り専用のビューとして表示する**（ライブは触らない）。
+    if (tshopSuspendedView()) {
+        refreshTshopStockUI();
+    } else {
+        buildPermaSlots(); // ゲーム未開始でも permaStock から永続枠を構築（返却プレイヤーが初回プレイ前にショップを開いた時の表示ズレ防止）
+        updateStockUI(); // タイトルショップでもストック(枠＋所持アイテム)を表示＝拡張アイテム購入の参考に
+    }
     if (soundManager) soundManager.playBGM('shop');
 }
 
@@ -4774,9 +4827,18 @@ function swapStockSlots(a, b) {
     return true;
 }
 
-function updateStockUI() {
+// ⚠1.716: 表示元を差し替えられるようにした（引数なし＝従来どおりライブの stockState）。
+//   きっかけ＝ユーザー実機報告「**中断してその間にタイトルショップへ行くと、実際に持っているアイテムと
+//   全然違うアイテムが出てくる**」。原因は `interruptRunWithShiori` → `showStartScreen` → **resetGame** が
+//   `buildPermaSlots()`（used を全部 false に戻す）＋`items=[]`＋`flushPendingStockItems()` を走らせるため、
+//   タイトルショップが「**次に『さいしょから』を選んだ場合の持ち物**」を映していたこと。
+//   ⚠ここで**ライブの stockState をしおりの中身で上書きしてはいけない**（used が戻る＝しおりが復活して
+//   無限に中断できる罠・index.html の continueRunFromSave のコメント参照）。だから**表示だけ**差し替える。
+function updateStockUI(viewSrc) {
     var container = document.getElementById('stockSlots');
     if (!container) return;
+    // 表示に使う持ち物。既定はライブ。viewSrc は { perma:[], items:[] } の読み取り専用ビュー
+    var view = viewSrc || stockState;
     // ⚠1.604: 真のエンディング（一枚絵＋テロップ）の間は**常に隠す**。ugHudVisible(false) で一度隠しても、
     //   ポーズ等でこの関数が呼ばれると下の display='flex' で復活してしまい、一枚絵の上に枠が戻っていた
     //   （ユーザー実機報告のスクショで確認）。表示条件より先に判定する。
@@ -4811,11 +4873,11 @@ function updateStockUI() {
     //   max(maxSlots, pl + items.length) で、全枠ポーチ時に買ったふっかつやくのぶん**何段でも下に伸び**、
     //   画面下のジャンプ領域（footer）に重なっていた。ふっかつやくは別枠カウンタ＋左HUD表示へ移設済み。
     //   保険のオーバーフロー（swapStockSlots 参照）が万一起きても、枠の高さは maxSlots で止める。
-    var _slotCount = stockState.maxSlots;
+    var _slotCount = stockState.maxSlots;   // 枠の数は今の設定が正（しおり表示中も枠数は現在のポーチ枚数で出す）
     for (var i = 0; i < _slotCount; i++) {
         if (i < pl) {
             // ── 永続枠（まほうのポーチ・金枠＋スロット番号バッジ） ──
-            var pslot = stockState.perma[i] || { id: '', used: false };
+            var pslot = view.perma[i] || { id: '', used: false };
             var badge = '<span class="perma-badge">' + (i + 1) + '</span>';
             if (pslot.id && !pslot.used) {
                 // 使用可能な永続アイテム: タップ=使用／長押し=つかむ→ドラッグで入替（1.597）
@@ -4834,8 +4896,8 @@ function updateStockUI() {
         } else {
             // ── 通常枠 ──
             var ni = i - pl;
-            if (ni < stockState.items.length) {
-                var itm = stockState.items[ni];
+            if (ni < view.items.length) {
+                var itm = view.items[ni];
                 if (readOnly) {
                     // ショップ/部屋中: アイコンは見せるが操作不可（pointer-events:none）
                     html += '<div class="stock-slot stock-slot-readonly">' + iconFor(itm.id) + '</div>';
