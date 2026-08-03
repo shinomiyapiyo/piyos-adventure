@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.716";
+                content: "Ver.1.717";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -992,7 +992,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.716</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.717</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4979,9 +4979,30 @@ function startNewRunFromMenu() {
 // **地上ステージの生成を挟まずに**ステージ1へ落下スポーンする。
 // ⚠パス（300,000円の永続アンロック）を持っていなければ入れない。ボタン側でもグレーアウトしているが、
 //   ここでも弾く＝将来ほかの入口が増えても穴が開かない。
+// ⚠戻り値: 実際に始めたか（false=弾いた）。ゲームオーバー後の「もう一度」が
+//   弾かれた時に真っ暗な画面へ落ちないよう、呼び出し側でタイトルへ戻すために使う。
 function startUndergroundMode() {
-    if (!hasUndergroundPass()) { if (soundManager) soundManager.playDamage(); return; }
-    if (isInTransitionCooldown()) return;
+    if (!hasUndergroundPass()) { if (soundManager) soundManager.playDamage(); return false; }
+    // ── 1.717: しおりで中断中は始めさせない（案A・✅ユーザー決定・根拠は SPEC.md §15）──
+    // ⚠**「ランは同時に1本」という前提**を守るための門。ここが無いと、中断したランと地底モードの
+    //   ランが同時に存在し、1.716（中断中のタイトルショップ）とまったく同じ穴が開く:
+    //     ①持ち物欄が「しおりの中身」ではなく permaStock から作り直した**未使用の金枠**になる（表示が嘘）
+    //     ②中断前に使った金枠が used:false で戻る＝**同じ消耗品を何度でも使える**
+    //       （地底モードは commitPermaStock がクリア時しか走らないので permaStock は無傷のまま）
+    //     ③resetGame → flushPendingStockItems が pendingStockItems を空にする＝
+    //       **しおりを再開した時に受け取るはずのログボ品が消える**
+    //     ④③の中の commitPermaStock(**true**) は force なので地底モードの除外ガードを迂回し、
+    //       permaStock を書き換える＝再開時の permaOwned 突き合わせ（1.653）が誤作動しうる
+    // ⚠「さいしょから」は startNewRunFromMenu が確認ダイアログ＋clearRunState() を通すので元から安全。
+    //   **地底モードだけがその入口を持っていなかった**のが今回の原因。
+    // ⚠チュートリアルは startGame を直接呼ぶが、サンドボックス判定（buildPermaSlots が0枠・
+    //   flushPendingStockItems と commitPermaStock が即return）で①〜④が起きない＝門は不要。
+    if (typeof hasRunSave === 'function' && hasRunSave()) {
+        if (soundManager) soundManager.playDamage();
+        showGameModal(t('menu_ug_mode_suspended'));
+        return false;
+    }
+    if (isInTransitionCooldown()) return false;
     markScreenTransition();
     if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) requestFullscreen();
 
@@ -5001,6 +5022,7 @@ function startUndergroundMode() {
 
     enterGameScreenUI();
     updateUgModeHud();
+    return true;
 }
 
 // 地底モードのHUD切り替え（1.629）: 距離とレベルを消して「地底 N/4」を出す。

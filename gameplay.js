@@ -6994,7 +6994,11 @@ function retryGame() {
         showAd('interstitial', function () {
             hideGameOverScreen();
             resetGame();
-            if (wasUgMode) startUndergroundMode();   // 失敗時はステージ1から（ユーザー決定・途中再開はしない）
+            // 失敗時はステージ1から（ユーザー決定・途中再開はしない）
+            // ⚠1.717: startUndergroundMode は「しおりで中断中」だと弾いて false を返す。
+            //   その時にここで何もしないと、hideGameOverScreen + resetGame の後で**真っ暗な画面**に落ちる。
+            //   （地底モード中はしおりを作れない＝canSaveRun が false なので通常は起きないが、保険）
+            if (wasUgMode) { if (!startUndergroundMode()) showStartScreen(); }
             else startGame();
         });
     });

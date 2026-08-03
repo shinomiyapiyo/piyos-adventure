@@ -26,6 +26,9 @@ ja: {
     menu_start_over: 'さいしょから',
     menu_new_run_confirm: 'しおりを はさんだ ぼうけんが\nのこっています。\nさいしょから はじめると\nその つづきは きえます。\nよろしいですか？',
     menu_ug_mode: '地底モード',
+    // ⚠1.717: しおりで中断中は地底モードに入れない（案A・✅ユーザー決定・SPEC §15）。
+    //   黙って弾くと「押しても反応しない不具合」に見えるので、必ず理由を出す（1.716 と同じ扱い）。
+    menu_ug_mode_suspended: 'しおりを はさんだ ぼうけんが\nのこっています。\n「つづきから」か「さいしょから」を\nさきに えらんでください。',
     menu_back: 'もどる',
     title_zukan: 'ずかん',
     // ポーズ
@@ -710,6 +713,7 @@ en: {
     menu_start_over: 'NEW ADVENTURE',
     menu_new_run_confirm: 'You have a bookmarked adventure.\nStarting a new one will\nerase that saved progress.\nAre you sure?',
     menu_ug_mode: 'UNDERGROUND',
+    menu_ug_mode_suspended: 'You have a bookmarked adventure.\nPlease choose CONTINUE or\nNEW ADVENTURE first.',
     menu_back: 'Back',
     title_zukan: 'LIBRARY',
     pause_title: _ic('icon_pause.png') + ' Paused',
