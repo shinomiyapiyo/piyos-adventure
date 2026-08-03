@@ -463,6 +463,11 @@ var BACK_HANDLERS = [
           if (typeof window._gameModalClose === 'function') { window._gameModalClose(); }
           else { document.getElementById('gameModal').style.display = 'none'; }
       } },
+    // ⚠1.718: 自社紹介カード(z:2147483000・全画面の最前面)。従来は未登録で、戻ると下の
+    //   gameOverScreen の onBack（＝goToTitle）が当たり、**カードだけが最前面に残っていた**（監査で発見）。
+    //   出口が「受け取る」しか無いカードなので、押すと復活処理が走る。モーダルの次＝2番目に置く。
+    { isOpen: function() { return isScreenVisible('houseAdScreen'); },
+      onBack: function() { if (typeof closeHouseAd === 'function') closeHouseAd(); } },
     // データ引き継ぎの発行/入力オーバーレイ(z:20000・動的生成)。従来は未登録で、下の設定画面が先に閉じていた
     { isOpen: function() { return !!document.querySelector('.transferOverlay'); },
       onBack: function() { var o = document.querySelector('.transferOverlay'); if (o) o.remove(); } },
@@ -490,7 +495,13 @@ var BACK_HANDLERS = [
     //   showStartScreen() が markScreenTransition→resetGame→hideGameOverScreen まで一括で面倒を見る。
     //   pendingRunEndAction も捨てる＝記録フローを中断した以上、後から遷移が暴発しないように。
     { isOpen: function() { return isScreenVisible('nameInputScreen'); },
-      onBack: function() { hideNameInputDirect(); pendingRunEndAction = null; showStartScreen(); } },
+      // ⚠1.718: `pendingRunEndAction = null` ではなく**何もしない関数**を入れる（監査で発見）。
+      //   null にすると、後から通信が着弾した時に `runPendingRunEndAction` の
+      //   `if (act) act(); else showGameOverScreen();` の **else に落ちて、タイトルの上に
+      //   前のランの GAME OVER が復活する**（resetGame が reviveUsedThisRun を戻しているので
+      //   「広告を見て復活」も再点灯し、押すとタイトルの裏でランが走り出す）。
+      //   送信は最大8秒＋順位取得6秒かかるので、その間に戻れば普通に踏める。
+      onBack: function() { hideNameInputDirect(); pendingRunEndAction = function() {}; showStartScreen(); } },
     { isOpen: function() { return isScreenVisible('gameOverScreen'); }, onBack: function() { goToTitle(); } },
     { isOpen: function() { return isScreenVisible('rankingScreen'); }, onBack: function() { hideRanking(); } },
     // タイトルメニュー（P4）: 上に重ねて開く各画面より後＝最後に閉じる。
@@ -531,6 +542,13 @@ var gameState = {
     maxCombo: 0,             // このランの最高コンボ（1.656・計測用。resetGameで戻す／中断セーブでも保つ）
     revivesLeft: 0, revivalFlashTimer: 0,
     hasRecordedHighScore: false,
+    // ⚠1.718: **ランの通し番号**（監査で発見）。resetGame のたびに +1 する。
+    //   リワード広告のコールバックは「要求してから最大60秒後」に届きうるのに、どのランから
+    //   要求されたかを一切見ていなかった。そのため、待っている間にリトライ／タイトルへ移ると
+    //   **別のラン（あるいはタイトル画面）に対して復活処理が走る**（gameStarted=true にされ、
+    //   タイトルの裏でリセット済みのランが動き出す＝1.573 で名前入力に塞いだのと同じ穴）。
+    //   要求時にこの値を控え、コールバックで一致しなければ**黙って捨てる**。
+    runToken: 0,
     resumedThisRun: false,   // ぼうけんのしおりで中断→再開したランか（1.636・ランキングの🔖。resetGameで戻す）
     missionCountedDistance: 0, missionCountedKills: 0, missionPlayCounted: false,
     coinsCollected: 0, bossKills: 0, specialUses: 0,

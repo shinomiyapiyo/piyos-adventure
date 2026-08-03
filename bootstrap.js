@@ -648,6 +648,12 @@ function isNativeApp() {
 // 直接ポーズ状態にして確実に止める。ラン開始/再開の直後に背景化すると「止まらず生存→復帰時に被弾」になる問題を防ぐ（監査M-13/LOW）。再開は通常のポーズ画面から。
 function pauseForInterrupt() {
     if (!gameState.gameStarted || gameState.gamePaused) return;
+    // ⚠1.718: **真エンディング中はポーズさせない**（監査で発見）。`pauseGame` は
+    //   `isOutroInvulnerable()` で弾いているのに、割り込みポーズ（背景化・縦持ち）だけが素通りしていた。
+    //   ここが開くと「エンディング中にリタイア」できてしまい、`confirmRetire` は resetGame へ直行して
+    //   `exitUnderground()` を通らないので `undergroundState.ending` が次のランへ残る（無敵＋ポーズ不能）。
+    //   resetGame 側でも落とすようにしたが、**そもそも開かせない**のが筋。
+    if (typeof isOutroInvulnerable === 'function' && isOutroInvulnerable()) return;
     gameState.gamePaused = true;
     var ps = document.getElementById('pauseScreen'); if (ps) ps.classList.remove('hidden');
     var pb = document.getElementById('pauseButton'); if (pb) pb.innerHTML = _ic('icon_play.png');

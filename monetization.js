@@ -636,7 +636,13 @@ function adRevive() {
     if (typeof window.isRewardReady === 'function' && !window.isRewardReady()) {
         if (typeof showRewardToast === 'function') showRewardToast(t('ad_preparing'), 'linear-gradient(180deg,#888,#555)', '#fff');
     }
+    // ⚠1.718: **要求したランを控える**（監査で発見・core-state.js の runToken 参照）。
+    //   リワードは未ロードだと最大60秒待つことがあり、その間にリトライ／タイトルへ移れてしまう。
+    //   後から解決したコールバックが別のランに効くと、**タイトル画面の裏でリセット済みのランが走り出す**
+    //   （resetGame が reviveUsedThisRun を戻すので冒頭ガードも効かない）。
+    var _reqRun = gameState.runToken;
     showAd('reward', function(success, info) {
+        if (gameState.runToken !== _reqRun) return;   // 別のランのコールバック＝黙って捨てる
         // 消費(reviveUsedThisRun)は成功時のみ＝失敗したら何度でも押し直せる（1.646で文言だけ整理）
         if (!success) { if (typeof showRewardToast === 'function') showRewardToast(t((info && info.shown) ? 'ad_reward_missed' : 'ad_load_failed'), 'linear-gradient(180deg,#666,#333)', '#fff'); return; }
         rewardAdState.reviveUsedThisRun = true;
@@ -667,7 +673,11 @@ function adShopBonus() {
     if (typeof window.isRewardReady === 'function' && !window.isRewardReady()) {
         setKeeperText('ad_preparing');
     }
+    // ⚠1.718: adRevive と同じ理由でランを控える。報酬は gameState.score（＝ランの所持金）に入るので、
+    //   別のランに着弾させてはいけない。UI更新（updateStageShopUI）も閉じた店に対して走ってしまう。
+    var _reqRun = gameState.runToken;
     showAd('reward', function(success, info) {
+        if (gameState.runToken !== _reqRun) return;   // 別のランのコールバック＝黙って捨てる
         // ⚠1.646: 消費は「**ボーナスを実際に受け取れた時**」だけ（旧: 広告が表示されたら消費）。
         //   旧仕様だと、広告は流れたのに報酬イベントが届かなかった場合（プラグイン側の取りこぼし・
         //   途中終了扱い）に機会だけ消えてメニュー項目が消滅し、二度と押せなくなっていた＝ユーザー報告。

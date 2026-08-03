@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.718";
+                content: "Ver.1.719";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -992,7 +992,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.718</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.719</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -5092,6 +5092,11 @@ function showStartScreen() {
     // ショップ表示中にタイトルへ戻る経路（例: チュートリアルショップでスキップ）でショップ画面が残り表示崩れになるのを防ぐ。
     // resetGame は shopState.active=false にするが DOM 画面は隠さないため、ここで明示的に隠す（既に非表示なら無害）。
     if (typeof hideScreenEl === 'function') { hideScreenEl('stageShopScreen'); hideScreenEl('titleShopScreen'); }
+    // ⚠1.718: **自社紹介カードも畳む**（監査で発見）。z-index 2147483000 で全画面の最前面に出るうえ
+    //   閉じる×が無く、出口は「受け取る」だけ。実広告の在庫が無い時に出るので、そのまま戻る／リタイアで
+    //   タイトルへ抜けると**カードだけが最前面に残り、押すと復活処理が走る**（runToken で捨てるようにしたが、
+    //   そもそも残さない）。タイマーも一緒に止める。
+    if (typeof closeHouseAd === 'function') closeHouseAd();
     updateMissionBadge();
     updateAchievementBadge();
     updateZukanBadge();
@@ -5196,6 +5201,8 @@ function resetGame() {
     gameState.revivesLeft = 0;
     gameState.revivalFlashTimer = 0;
     gameState.hasRecordedHighScore = false;
+    // ⚠1.718: ランの通し番号を進める。遅れて届いた広告のコールバックを捨てるための印（core-state.js の定義参照）
+    gameState.runToken = (gameState.runToken || 0) + 1;
     gameState.resumedThisRun = false;    // 🔖（しおり再開）はランごと。⚠つづきからは resetGame の**後**に立てる（1.636）
     // 前ランの送信を打ち切ったまま再送しなかった場合の枠を捨てる（1.572）。
     // 残したままだと次ランの送信が前ランと同じキーへ書き、2ラン分が1エントリに潰れる。
@@ -5226,6 +5233,18 @@ function resetGame() {
     //   ボス距離が壊れたまま**になり、ゴールデンエッグも土管のたびに手に入ってしまう。
     undergroundState.pipeAnim = false;
     undergroundState.originX = 0; undergroundState.endX = 0; undergroundState.introTimer = 0;
+    // ⚠1.718: **真エンディングの残骸も必ず落とす**（監査で発見）。
+    //   `ending` が次のランへ持ち越されると `isOutroInvulnerable()` が常に true になり、
+    //   ①被弾も落下死もしない ②`updateStockUI` が冒頭 return して**アイテム欄が消え消耗品を使えない**
+    //   ③`pauseGame` が早期 return して**ポーズもリタイアもできない** ④必殺技ゲージも出ない
+    //   ＝アプリを再起動するまで直らない。踏む筋道＝R28/地底モード4面目の真エンディング中に
+    //   背景化（pauseForInterrupt は ending を見ないのでポーズが開く）→ リタイア。
+    //   `confirmRetire` は resetGame へ直行し `exitUnderground()` も `ugModeClear()` も通らないので、
+    //   **落とせるのはここだけ**。
+    undergroundState.endCalm = 0; undergroundState.ending = 0;
+    undergroundState.endLine = 0; undergroundState.endLineTimer = 0;
+    undergroundState.endTapped = 0; undergroundState.endOut = 0;
+    if (typeof ugEndTapOff === 'function') ugEndTapOff();
     groundReturnFade.phase = ''; groundReturnFade.timer = 0;   // 白フェードの残留防止（1.588）
     bonusRoomItems.length = 0;
     gameState.bossKills = 0;

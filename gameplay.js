@@ -6817,6 +6817,19 @@ function finishHouseAd() {
     if (cb) cb(true);
 }
 
+// 自社紹介カードを「受け取らずに」閉じる（1.718・監査で発見）。
+// ⚠このカードは z-index 2147483000 で全画面の最前面に出るのに**閉じる×が無く**、出口が「受け取る」だけだった。
+//   実広告の在庫が無い時に出るので、戻るキーやリタイアでタイトルへ抜けると**カードだけが最前面に残る**。
+//   戻るハンドラ（core-state.js BACK_HANDLERS）と showStartScreen の両方からこれを呼ぶ。
+//   ⚠**報酬は渡さない**（cb(false)）＝見ていないので当然。タイマーも必ず止める（残すと閉じた後も回り続ける）。
+function closeHouseAd() {
+    if (houseAdTimer) { clearInterval(houseAdTimer); houseAdTimer = null; }
+    if (typeof isScreenVisible === 'function' && !isScreenVisible('houseAdScreen') && !houseAdDoneCb) return;
+    hideScreenEl('houseAdScreen');
+    var cb = houseAdDoneCb; houseAdDoneCb = null;
+    if (cb) cb(false);
+}
+
 function openExternalUrl(url) {
     try {
         if (typeof isNativeApp === 'function' && isNativeApp()) window.open(url, '_system');
