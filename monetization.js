@@ -172,12 +172,19 @@
 
     function prepareInterstitial() {
         if (!AdMob) return;
+        // ⚠1.719: **同意が取れていないなら事前ロードもしない**（監査で発見）。
+        //   1.655 の方針「同意が得られていないなら事前ロードしない」は showAd 側の2箇所でしか
+        //   見ておらず、ここと prepareReward は素通りだった。起動時オフラインで問い合わせが
+        //   10秒タイムアウト（consentFailed=true）した端末で、広告ボタンを1回押すと
+        //   以後セッション中ずっと実広告が読み込まれる経路になっていた。
+        if (!adsAllowed()) return;
         AdMob.prepareInterstitial({ adId: adUnit('interstitial'), npa: true }) // npa=非パーソナライズ広告（トラッキングなし方針）
             .then(function () { interReady = true; })
             .catch(function () { interReady = false; });
     }
     function prepareReward() {
         if (!AdMob) return;
+        if (!adsAllowed()) return;   // ⚠1.719: prepareInterstitial と同じ（1.655 の方針をロード側にも効かせる）
         AdMob.prepareRewardVideoAd({ adId: adUnit('reward'), npa: true }) // npa=非パーソナライズ広告（トラッキングなし方針）
             .then(function () { setRewardReady(true); })
             .catch(function () { setRewardReady(false); scheduleRewardReload(); });

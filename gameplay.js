@@ -3975,6 +3975,10 @@ function confirmTshopSell(key) {
         buildPermaSlots();
     } else {                                                  // 通常ストック: 消費
         stockState.items.splice(parseInt(key.slice(7), 10), 1);
+        saveSettings();   // ⚠1.719: 貯金の増分をここでも保存する（監査で発見）。
+                          //   ポーチ側だけ保存していたので、通常枠を売った代金がメモリ上だけになり、
+                          //   他に保存が走らないままアプリを落とすと消えていた。
+                          //   他の貯金加算はすべて直後に保存している＝ここだけ作法から外れていた。
     }
     if (soundManager) soundManager.playItem();
     setTshopKeeperText('tshop_keeper_sold', { item: t(shopItem.nameKey), price: formatTshopPrice(sellPrice) });

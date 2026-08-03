@@ -549,6 +549,11 @@
         /* チュートリアル再プレイ中の「スキップ」も隠す（1.696・監査で発見）。position:fixed / z-index:60 で
            ポーズ幕(z:20)より上にあり、全幅にした一覧の見出し行へ重なって**タップも通っていた**
            （2回押すとランが終わり、きせかえ一覧を開いたままタイトルへ飛ぶ）。 */
+        /* ⚠1.719: `body.is-paused` にも同じ指定が要る（監査で発見）。1.696 でチュートリアル中は
+           「きせかえ」ボタンを隠したため `pause-skin-open` はチュートリアル中に成立せず、
+           上の行は**実質死んでいた**。結果、チュートリアル再プレイ中にポーズすると
+           z-index 60 のスキップボタンだけがポーズ幕(z:20)の上に浮いて残る（1.712 の HUD 隠し対応からの漏れ）。 */
+        body.is-paused #tutorialSkipBtn,
         body.pause-skin-open #tutorialSkipBtn { display: none !important; }
         /* ポーズ中の「きせかえ」だけカードを一覧向けに広げる（openPauseSkin が付け外しする）。
            ポーズ本体（再開/きせかえ/リタイア）は今までどおりの小さいカードのまま。 */
@@ -2986,6 +2991,10 @@ function applyRunSave(d) {
     //   「SPEED UP!」のテロップと効果音が鳴ってしまう（速度自体は正しい）。
     gameState.speedLevel = Math.floor(gameState.distance / SPEED_UP_INTERVAL) + 1;
     gameState.lastSpeedUpDistance = (gameState.speedLevel - 1) * SPEED_UP_INTERVAL;
+    // ⚠1.719: **ぴよフラッシュのゲージ基準点も距離から入れ直す**（監査で発見）。
+    //   0 のままだと再開1フレーム目に「今の距離 - 0」が一気にゲージへ入る（900m中断なら72/100）。
+    //   speedLevel を距離から出し直しているのと同じ理屈。
+    gameState.gaugeDistMark = gameState.distance;
     // ⚠**バイオームも合わせておく**（1.634）。地形は testWarpToM が再開地点のバイオームで作るのに、
     //   biomeState は resetGame の 0（草原）のままなので、揃えないと再開直後に
     //   「草原のパレットで砂漠の地形」が出て、そこから2秒かけて遷移する絵になる。
@@ -5203,6 +5212,7 @@ function resetGame() {
     gameState.hasRecordedHighScore = false;
     // ⚠1.718: ランの通し番号を進める。遅れて届いた広告のコールバックを捨てるための印（core-state.js の定義参照）
     gameState.runToken = (gameState.runToken || 0) + 1;
+    gameState.gaugeDistMark = 0;   // ⚠1.719: ぴよフラッシュのゲージ基準点（core-state.js の定義参照）
     gameState.resumedThisRun = false;    // 🔖（しおり再開）はランごと。⚠つづきからは resetGame の**後**に立てる（1.636）
     // 前ランの送信を打ち切ったまま再送しなかった場合の枠を捨てる（1.572）。
     // 残したままだと次ランの送信が前ランと同じキーへ書き、2ラン分が1エントリに潰れる。
@@ -6234,6 +6244,16 @@ function submitScore() {
 }
 
 function skipSubmit() {
+    // ⚠1.719: **スキップも TESTモードでは送信しない**（監査で発見）。
+    //   保険②「ランキング送信を封じる」が submitScore（登録ボタン）にしか無く、
+    //   スキップは「名無しのぴよ氏」で本番DBへ直行していた＝12,000mスタートの水増し記録が公開される。
+    //   ⚠プレイヤーには到達経路が無い（出荷物はすべて false）。開発者が自分で踏む罠なので、
+    //   モーダルは出さずに黙って遷移だけする（テスト中に毎回モーダルを閉じるのは邪魔なため）。
+    if (typeof TEST_START_AFTER_R6 !== 'undefined' && TEST_START_AFTER_R6) {
+        hideNameInputDirect();
+        runPendingRunEndAction();   // 送信せずに本来の遷移（リトライ/タイトル）へ
+        return;
+    }
     // 二重タップ防止（登録側も同時に封じる）＋キーボードを先に閉じる（iOSビューポート対策）
     var skipBtnEl = document.getElementById('skipBtn');
     if (skipBtnEl && skipBtnEl.disabled) return;
@@ -6344,7 +6364,13 @@ function hideNameInputDirect() {
 }
 
 function checkHighScore(stats) {
-    if (!database) { return Promise.resolve(true); }
+    // ⚠1.719: 通信できない時は **false**（＝名前入力を出さない）。監査で発見。
+    //   従来は true を返していたので、機内モードや圏外で起動すると Firebase SDK が CDN から
+    //   読めず database=null になり、**距離が何mでも毎ラン「ハイスコア！」が出て、登録は必ず
+    //   弾かれ、スキップしないと先へ進めない**（実測: 87m でも名前入力が開く）。
+    //   同じ関数の打ち切り分岐（下の setTimeout）は「圏外ではどのみち送信できない」として
+    //   false を返しており、方針が真逆だった。そちらに揃える。
+    if (!database) { return Promise.resolve(false); }
     var categories = ['score', 'distance', 'enemyKills', 'speedLevel'];
     var queries = categories.map(function(cat) {
         return database.ref('scores').orderByChild(cat).limitToLast(20).once('value').then(function(snapshot) {
