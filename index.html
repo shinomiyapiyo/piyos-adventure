@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.717";
+                content: "Ver.1.718";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -992,7 +992,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.717</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.718</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -4776,7 +4776,30 @@ function testWarpToM(m) {
     gameState.lastTerrainX = gameState.camera.x - 200;
     gameState.lastHoleX = null;
     while (gameState.lastTerrainX < gameState.camera.x + GAME_WIDTH + 500) generateTerrain();
-    player.x = gameState.camera.x + 150; player.y = GROUND_Y - player.height;
+    // ⚠1.718: **穴の上に湧かせない**（監査で発見・ブラウザで実測）。
+    //   従来は camera.x+150 に無条件で置いていたので、そこが穴だと**再開した瞬間に落ちてライフを1つ失う**
+    //   （実測: m=107 で 26フレーム＝約0.4秒後に lives が減る。resetGame が isInvincible/isRespawning を
+    //   false にしているので落下死の免除分岐も通らない）。しおりは applyRunSave の直後に clearRunState()
+    //   されるため、**ライフ1で中断していた場合はその場でゲームオーバー＝取り返しがつかない**。
+    //   発生率は実測で 0.3〜1.0%（バイオーム0が最大）と低いが、代償が大きいので塞ぐ。
+    //   ⚠`resetPlayerPosition` は同じ問題を「穴でない足場を600px探索」で既に解いている（そちらは
+    //     y=-50 から落として物理に任せる）。ここは**再開時に落下演出を出したくない**ので、
+    //     見つけた足場の天面に直接立たせる。
+    var _sx = gameState.camera.x + 150, _sy = GROUND_Y - player.height;
+    var _best = null;
+    for (var _cx = _sx; _cx < _sx + 800; _cx += 20) {
+        for (var _ti = 0; _ti < terrain.length; _ti++) {
+            var _t = terrain[_ti];
+            if (_t.type === 'hole') continue;
+            if (_cx < _t.x || _cx > _t.x + _t.width) continue;
+            // 地面の高さ（GROUND_Y）の足場を最優先。高台しか無ければそれを使う
+            if (_t.y >= GROUND_Y - 1) { _best = { x: _cx, y: _t.y }; break; }
+            if (!_best) _best = { x: _cx, y: _t.y };
+        }
+        if (_best && _best.y >= GROUND_Y - 1) break;
+    }
+    if (_best) { _sx = _best.x; _sy = _best.y - player.height; }
+    player.x = _sx; player.y = _sy;
     player.velX = 0; player.velY = 0; player.onGround = true;
 }
 
@@ -6935,6 +6958,12 @@ function updatePlayer() {
             timer: 0, duration: 22 + Math.floor(Math.random() * 12), size: 2 + Math.random() * 2, hue: 278 + Math.floor(Math.random() * 44) });
     }
 
+    // ⚠1.718: **このフレームの移動前の x を控える**（監査で発見）。
+    //   下の地形衝突は「前フレームの位置」を `player.x - player.velX` で復元しているが、
+    //   急降下斬り（侍ぴよ）は velX を使わず直接 x を足すので**復元が合わず、壁をすり抜ける**。
+    //   縦(velY)は実移動量で正しく止まっているのに横だけ食い違っていた。1.464 で動く床に入れた
+    //   `prevFeetY` と同じ作法で、実移動量を持ち回る形に揃える。
+    var _prevX = player.x;
     player.x += player.velX;
     player.y += player.velY;
     // 侍ぴよ急降下斬り（1.515/1.517/1.518）: 向いている方向へ滑りながら降下。カメラ前進(gameSpeed)を足して
@@ -6982,9 +7011,13 @@ function updatePlayer() {
             else if (gt === 'ice_elevated') gt = 'ice';
             player.groundType = gt;
             if (gameState.isRespawning) gameState.isRespawning = false;
-        } else if (player.velX > 0 && player.x + player.width - player.velX <= t.x) {
+        // ⚠1.718: 横の壁判定は **velX ではなく _prevX（このフレームの実移動前の x）** で復元する。
+        //   急降下斬りは velX を経由せず x を直接足すため、velX 基準だと「前フレームは壁の手前にいた」が
+        //   成立せず**岩をすり抜けていた**（地底は SAMURAI_DIVE_UG_MULT=2 で毎フレーム14px動くので
+        //   32px 厚の壁を5〜6フレームで貫通し、部屋の天井の上に乗って画面外を歩けた）。
+        } else if (player.x > _prevX && _prevX + player.width <= t.x) {
             player.x = t.x - player.width; player.velX = 0;
-        } else if (player.velX < 0 && player.x - player.velX >= t.x + t.width) {
+        } else if (player.x < _prevX && _prevX >= t.x + t.width) {
             player.x = t.x + t.width; player.velX = 0;
         } else if (player.velY < 0 && player.y - player.velY >= t.y + t.height) {
             player.y = t.y + t.height; player.velY = 0;

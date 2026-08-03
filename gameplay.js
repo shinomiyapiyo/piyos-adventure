@@ -4838,7 +4838,18 @@ function updateStockUI(viewSrc) {
     var container = document.getElementById('stockSlots');
     if (!container) return;
     // 表示に使う持ち物。既定はライブ。viewSrc は { perma:[], items:[] } の読み取り専用ビュー
-    var view = viewSrc || stockState;
+    // ⚠1.718: **引数なしで呼ばれても、タイトルショップを開いていて中断中ならしおりのビューに落とす。**
+    //   1.716 は「タイトルショップ内では必ず refreshTshopStockUI() を通す」という**規約**で守っていたが、
+    //   `confirmTshopBuy` → `applyUpgrades()`（末尾に素の updateStockUI がある）という間接呼び出しが漏れ、
+    //   **中断中に何か買うと表示が「次に さいしょから を選んだ場合の持ち物」へ戻っていた**（監査で発見）。
+    //   規約は増えるほど漏れるので、**呼ばれた側で面倒を見る**形に変えて一網打尽にする。
+    //   ⚠あくまで**表示だけ**（ライブの stockState は触らない＝used が戻ると しおりが復活する罠は 1.716 のまま）。
+    var view = viewSrc;
+    if (!view && typeof isScreenVisible === 'function' && isScreenVisible('titleShopScreen')
+        && typeof tshopSuspendedView === 'function') {
+        view = tshopSuspendedView();   // 中断していなければ null が返る＝従来どおりライブ
+    }
+    view = view || stockState;
     // ⚠1.604: 真のエンディング（一枚絵＋テロップ）の間は**常に隠す**。ugHudVisible(false) で一度隠しても、
     //   ポーズ等でこの関数が呼ばれると下の display='flex' で復活してしまい、一枚絵の上に枠が戻っていた
     //   （ユーザー実機報告のスクショで確認）。表示条件より先に判定する。
