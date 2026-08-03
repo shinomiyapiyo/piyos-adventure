@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.719";
+                content: "Ver.1.720";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -997,7 +997,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.719</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.720</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -7558,7 +7558,25 @@ function updateEnemyPhysics(e) {
         var look = (beh === 'turnHole') ? MAMA_HOLE_LOOKAHEAD : ENEMY_LOOKAHEAD;
         var lead = (dir < 0) ? e.x - look : e.x + e.width + look;
         var topAhead = terrainTopAt(lead);
-        var holeAhead = (topAhead === null);                           // 地面なし=穴
+        // ⚠1.720: 穴の判定は **足元より下の地形**で見る（監査で発見）。
+        //   terrainTopAt は「一番高い地形」を返すが、**地底の terrain には天井も入っている**
+        //   （行0-1 が全幅の '#'）ため、790列すべてで非nullになり `holeAhead` が**絶対に true にならない**。
+        //   結果「穴の手前で引き返す」設計が地底では一度も成立せず、設計上そこに居るはずの地上敵が
+        //   プレイヤー到着前に落ちて消えていた。1.571 でアカバネの落下先について同じ罠を
+        //   `terrainTopBelow` で直しているのに、地上敵の先読みだけ差し替えられていなかった。
+        // ⚠**溶岩も穴として扱う**。溶岩は isSolid=false で terrain に入らないが、その下に床があると
+        //   「地面あり」と判定されて敵が溶岩へ歩き込む（fallDeath 相当で消える）。
+        var _feetY = e.y + e.height;
+        var _floorAhead = (typeof undergroundState !== 'undefined' && undergroundState.active)
+            ? terrainTopBelow(lead, _feetY - 1) : topAhead;
+        var holeAhead = (_floorAhead === null);                        // 地面なし=穴
+        if (!holeAhead && typeof undergroundState !== 'undefined' && undergroundState.active) {
+            var _lv = undergroundState.lava || [];
+            for (var _li = 0; _li < _lv.length; _li++) {
+                var _L = _lv[_li];
+                if (lead >= _L.x && lead <= _L.x + _L.width && _L.y >= _feetY - 1) { holeAhead = true; break; }
+            }
+        }
         var wallH = (topAhead !== null) ? (e.y + e.height - topAhead) : 0; // 前方地形が高い分＝壁の高さ
         if (beh === 'jumpClear') {
             // シマエナガ: 穴 or 越えられる高さの壁(30〜ENEMY_JUMP_CLEAR)なら飛ぶ。それ以上高い壁は跳ばない→壁当たりで引き返す
@@ -7597,6 +7615,27 @@ function updateEnemyPhysics(e) {
             e.velX = -e.velX;
         }
     }
+    // ⚠1.720: **片道足場（'='/'M'）にも着地させる**（監査で発見）。
+    //   地底の '=' と 'M' は `platforms` にしか入らず、この関数は `terrain` しか見ていなかったため、
+    //   「下の足場に乗る」前提で置かれたシャレコが底まで落ちてカリングされていた
+    //   （core-state.js のレイアウト注記「シャレコ（下の足場に乗る）」と実装が食い違っていた）。
+    //   ⚠**片道**なので「落下中（velY>0）かつ前フレームの足元が天面より上」の時だけ乗せる
+    //     ＝下からは通り抜ける。横からの押し戻しもしない（すり抜けるのが片道足場の仕様）。
+    //   ⚠**地底に限定する**。地上の platforms（動く床・浮遊足場）に敵が乗れないのは長年の挙動で、
+    //     そこを変えると難度が変わる。今回直すのは「地底のレベルデザインが前提にしている着地」だけ。
+    if (!e.onGround && e.velY > 0 && typeof platforms !== 'undefined'
+        && typeof undergroundState !== 'undefined' && undergroundState.active) {
+        for (var pi = 0; pi < platforms.length; pi++) {
+            var p = platforms[pi];
+            if (!p || p.width <= 0) continue;
+            if (e.x + e.width <= p.x || e.x >= p.x + p.width) continue;
+            if (e.y + e.height - e.velY > p.y) continue;                  // 前フレームで既に天面より下＝通り抜け中
+            if (e.y + e.height < p.y) continue;                           // まだ届いていない
+            e.y = p.y - e.height; e.velY = 0; e.onGround = true;
+            if (e.leaping) { e.velX = e.walkVX; e.leaping = false; }
+            break;
+        }
+    }
     // 段差スナップ（横から高台へ乗り移る時のめり込み落下を防ぐ・プレイヤーと同ロジック）
     if (!e.onGround && e.velY >= 0) {
         var feetY = e.y + e.height, snapTop = Infinity;
@@ -7625,7 +7664,9 @@ function updateEnemies() {
             updateEnemyPhysics(e);                  // 通常フィールド: 重力＋地形＋穴落下
             // ⚠地底は部屋ごとに床の高さが違う（下の部屋の床は y=1180）。画面座標(570)で刈ると
             //   **床の上に立っている敵がその場で消える**。地底ではワールドの死亡ラインで判定する。
-            var _cullY = undergroundState.active ? ugDeathY() + 200 : GAME_HEIGHT + 120;
+            // ⚠1.720: **その敵がいる部屋**の落下線で切る（監査で発見・gameplay.js ugDeathY 参照）。
+            //   引数なしだと「プレイヤーのいる部屋」基準になり、隣の深い部屋の敵が湧いた瞬間に消えていた。
+            var _cullY = undergroundState.active ? ugDeathY(e.x + e.width / 2) + 200 : GAME_HEIGHT + 120;
             if (e.y > _cullY) { enemies.splice(i, 1); continue; } // 穴に落ちて画面外→除去
         }
 

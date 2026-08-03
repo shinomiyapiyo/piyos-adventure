@@ -495,8 +495,15 @@ function ugRoomIndexAt(x) {
     return rs.length - 1;
 }
 // 現在の部屋の落下死ライン（ワールド座標）。地底でないときは画面座標の従来値を返す
-function ugDeathY() {
-    var rs = undergroundState.rooms, i = undergroundState.roomIdx;
+// ⚠1.720: 引数 x を渡すと**その x の部屋**の落下線を返す（監査で発見）。
+//   引数なしは従来どおり「プレイヤーが今いる部屋」＝プレイヤーの落下死判定はこれで正しい。
+//   ⚠**敵のカリング線に引数なしを使ってはいけない。** 部屋ごとに床の高さが違う（y=380 の部屋も
+//   y=-164 の部屋もある）ので、浅い部屋にいる間に隣の深い縦穴の敵が湧くと、
+//   **自分の床の上に立っているのに湧いた同じフレームで消される**。
+function ugDeathY(x) {
+    var rs = undergroundState.rooms;
+    var i = (typeof x === 'number' && typeof ugRoomIndexAt === 'function')
+        ? ugRoomIndexAt(x) : undergroundState.roomIdx;
     return (rs && rs[i]) ? rs[i].deathY : GAME_HEIGHT + 100;
 }
 
