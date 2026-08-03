@@ -6850,6 +6850,9 @@ function openExternalUrl(url) {
 
 function showGameOverScreen() {
     markScreenTransition();
+    // ⚠1.721: 出ているトーストを片付ける（監査で発見）。寿命が実時間なので、直前に出た
+    //   ミッション達成やストック満杯の通知が結果画面(z:25)の**上**に残ってしまう。
+    if (typeof clearRewardToasts === 'function') clearRewardToasts();
     // ─── 地底モード（1.637・ユーザー実機報告「クリアしたのに通常のゲームオーバー画面」）───
     //   このモードは「4つの地底を全部越える」ことが目的で、越えた先に地上が無いので gameOver() を通る。
     //   ⚠ undergroundMode.active / .cleared は resetGame まで生きているので、ここで見分けられる。
@@ -6968,7 +6971,7 @@ function buildResultCard() {
             // タイトル
             c.fillStyle = '#ffffff';
             c.font = 'bold 72px "M PLUS Rounded 1c", sans-serif';
-            c.fillText('ぴよ氏の冒険', 540, 196);
+            c.fillText(t('share_card_title'), 540, 196);   // ⚠1.721: 日本語ベタ書きだった（監査で発見）
             // 距離（大）
             c.fillStyle = '#ffd84d';
             c.font = 'bold 150px "M PLUS Rounded 1c", sans-serif';
@@ -6986,7 +6989,7 @@ function buildResultCard() {
             // ハッシュタグ
             c.fillStyle = 'rgba(255,255,255,0.92)';
             c.font = 'bold 42px "M PLUS Rounded 1c", sans-serif';
-            c.fillText('#ぴよ氏の冒険', 540, 984);
+            c.fillText(t('share_card_hashtag'), 540, 984); // ⚠1.721: 同上
             cv.toBlob(function(b) { resolve(b); }, 'image/png');
         } catch (_) { resolve(null); }
     });

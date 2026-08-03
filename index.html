@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.720";
+                content: "Ver.1.721";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -555,6 +555,9 @@
            z-index 60 のスキップボタンだけがポーズ幕(z:20)の上に浮いて残る（1.712 の HUD 隠し対応からの漏れ）。 */
         body.is-paused #tutorialSkipBtn,
         body.pause-skin-open #tutorialSkipBtn { display: none !important; }
+        /* ⚠1.721: 報酬トースト(z:10000・動的生成)もポーズ中は隠す。名指し方式の漏れ（監査で発見）。 */
+        body.is-paused .rewardToast,
+        body.pause-skin-open .rewardToast { display: none !important; }
         /* ポーズ中の「きせかえ」だけカードを一覧向けに広げる（openPauseSkin が付け外しする）。
            ポーズ本体（再開/きせかえ/リタイア）は今までどおりの小さいカードのまま。 */
         /* ⚠padding は !important が要る。#pauseCard は inline style で padding を持っており、
@@ -997,7 +1000,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.720</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.721</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -3808,6 +3811,11 @@ function showRewardToast(html, bg, textColor, key) {
         return live.el;
     }
     var d = document.createElement('div');
+    // ⚠1.721: **クラスを付ける**（監査の死角チェックで発見）。z-index:10000 で `.overlay`(z:20) の
+    //   ずっと上に出るのに、1.712 の `body.is-paused` は `#ui`/`#stockSlots`/`#specialMoveUI` を
+    //   **名指しで**隠す方式だったため、id もクラスも無かったこの動的 div は対象外だった
+    //   ＝ポーズカードや GAME OVER の上に浮いたまま残る（チュートリアルのスキップボタンと同じ家族）。
+    d.className = 'rewardToast';
     d.innerHTML = html;
     d.style.cssText = 'position:fixed; left:50%; top:14%; transform:translateX(-50%); z-index:10000;' +
         'background:' + bg + '; color:' + textColor + '; font-weight:800;' +
@@ -3823,6 +3831,23 @@ function showRewardToast(html, bg, textColor, key) {
     }, 2200);
     if (key) _liveToasts[key] = rec;
     return d;
+}
+// 出ているトーストを全部その場で消す（1.721・監査の死角チェックで発見）。
+// ⚠トーストの寿命は**実時間の setTimeout(2200)** なので、ポーズ中も裏で進み、
+//   GAME OVER や名前入力へ遷移した先にも残り続ける（z:10000 で全画面の最前面）。
+//   CSS で `body.is-paused` の時は隠すようにしたが、**幕を使わない画面遷移**（結果画面・
+//   名前入力・タイトル）はクラスが付かないので、遷移側からこれを呼んで確実に片付ける。
+function clearRewardToasts() {
+    for (var k in _liveToasts) {
+        var r = _liveToasts[k];
+        if (!r) continue;
+        clearTimeout(r.fadeT); clearTimeout(r.killT);
+        if (r.el && r.el.parentNode) r.el.parentNode.removeChild(r.el);
+        delete _liveToasts[k];
+    }
+    // key 無しで出したぶん（大多数）は _liveToasts に載らないので DOM から直接消す
+    var list = document.querySelectorAll('.rewardToast');
+    for (var i = 0; i < list.length; i++) if (list[i].parentNode) list[i].parentNode.removeChild(list[i]);
 }
 function showSkinUnlockToast() {
     showRewardToast('🎀 ' + escapeHtml(t('skin_unlocked_toast')), 'linear-gradient(180deg,#ff7ec7,#ff1493)', '#fff');
@@ -5106,6 +5131,17 @@ function showStartScreen() {
     //   タイトルへ抜けると**カードだけが最前面に残り、押すと復活処理が走る**（runToken で捨てるようにしたが、
     //   そもそも残さない）。タイマーも一緒に止める。
     if (typeof closeHouseAd === 'function') closeHouseAd();
+    if (typeof clearRewardToasts === 'function') clearRewardToasts();   // ⚠1.721: 残ったトーストを片付ける
+    // ⚠1.721: **タイトルへ戻るたびにログインボーナスを見直す**（監査の死角チェックで発見）。
+    //   checkLoginBonus の呼び出しは startApp（スプラッシュをタップした時）の1箇所だけだったので、
+    //   アプリを常駐させたまま日付をまたぐ（23:50に遊んで00:10に戻る）と、
+    //   **エッグ枠とミッションだけ新しい日になり、ログボは前日のまま**＝コールドスタートするまで貰えない
+    //   （canDrawDailyEggToday は毎回 getDateString を読む／checkDailyMissions はラン終了時に走る）。
+    //   ⚠checkLoginBonus は「今日はもう受け取り済みなら即return」＋巻き戻し検知＋7回/週の上限を
+    //     内蔵しているので、何度呼んでも二重取りにはならない。報酬は staged されるだけで、
+    //     ポップアップは下の loginBonusPending 判定で出す。
+    if (typeof checkLoginBonus === 'function') checkLoginBonus();
+    if (loginBonusPending) setTimeout(function() { showLoginBonusPopup(); }, 400);
     updateMissionBadge();
     updateAchievementBadge();
     updateZukanBadge();

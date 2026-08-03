@@ -106,6 +106,11 @@ ja: {
     gameover_ad_revive: _ic('icon_retry.png') + ' 広告を見て復活',
     share_button: '📤 シェア',
     share_text: '{distance}m走破！スコア{score}点でした🐤 #ぴよ氏の冒険',
+    // ⚠1.721: シェア画像のタイトルとハッシュタグも辞書へ（監査で発見）。
+    //   すぐ隣の share_card_score は t() を通っていたのに、この2つだけ日本語ベタ書きで、
+    //   英語プレイヤーが SNS に貼る画像に日本語が載っていた（ストア名は "Piyo's Adventure"）。
+    share_card_title: 'ぴよ氏の冒険',
+    share_card_hashtag: '#ぴよ氏の冒険',
     share_card_score: 'スコア',
     share_card_kills: '撃破',
     // リワード広告
@@ -767,7 +772,9 @@ en: {
     submit_rank_suffix: '!',
     gameover_title: 'Game Over',
     ugmode_clear_title: _ic('icon_ug_pass.png') + ' UNDERGROUND CLEARED!',
-    ugmode_result_clear: 'All {total} depths conquered!',
+    // ⚠1.721: `{stage}` を補った（監査で発見）。日本語は「地底 {stage}/{total} を すべて制覇！」なのに
+    //   英語だけプレースホルダが欠けていた。629キーを全数照合して不一致はこの1件だけ。
+    ugmode_result_clear: 'All {stage}/{total} depths conquered!',
     ugmode_result_reached: 'Fell at depth {stage}/{total}',
     ugmode_result_note: '*Time trial: savings, records and eggs are not kept',
     gameover_distance: 'Distance: ',
@@ -784,6 +791,8 @@ en: {
     gameover_ad_revive: _ic('icon_retry.png') + ' Watch Ad to Revive',
     share_button: '📤 Share',
     share_text: 'I ran {distance}m! Score {score} 🐤 #PiyoAdventure',
+    share_card_title: "Piyo's Adventure",
+    share_card_hashtag: '#PiyosAdventure',
     share_card_score: 'Score',
     share_card_kills: 'Kills',
     reward_ad_shop_money: 'Watch Ad for Bonus',
