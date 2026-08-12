@@ -767,9 +767,15 @@ function ugHudVisible(on) {
         // ⚠1.601: **アイテム欄も必ず隠す**（ユーザー報告「一枚絵の裏でアイテムを消費しないか心配」）。
         //   #stockSlots は #ui でも #controlBar でもない**独立した要素**なので、上の2つを消しても
         //   残って前面(z-index:100)に居座り、一枚絵の上からタップで使用できてしまっていた。
-        //   ⚠戻すのは on=true 側で updateStockUI に任せる（表示条件はあちらが持っている）。
+        //   ⚠**戻す時はここから updateStockUI() を呼ぶこと**（1.722・ユーザー実機報告「地底をクリアして
+        //   地上に戻ると最初はアイテムの表示が消えている」）。1.601〜1.721 は「戻すのは updateStockUI に任せる」
+        //   としていたが、updateStockUI は**毎フレームは呼ばれない**（アイテムの取得/使用・ショップ開閉など
+        //   状態が動いた時だけ）ため、白フェードが明けても display:none のまま取り残されていた。
+        //   #specialMoveUI が同じ書き方で無事なのは、updateSpecialMoveUI が毎フレーム走るから＝こちらだけ穴だった。
+        //   ⚠表示条件（ゲーム中か／エンディング中か等）は updateStockUI が持っているので、直に flex を入れない。
         var ss = document.getElementById('stockSlots');
         if (ss && !on) ss.style.display = 'none';
+        if (on && typeof updateStockUI === 'function') updateStockUI();
         // ⚠1.696: **ぴよフラッシュのゲージ(#specialMoveUI)も隠す**（監査で発見）。これも #ui でも #controlBar でも
         //   ない独立要素（z-index:150）で、毎フレーム updateSpecialMoveUI が表示を戻すため一枚絵の上に残り、
         //   押すと specialCutinTimer で世界が96F止まってテロップが進まなくなる（カットインは drawUgEnding に

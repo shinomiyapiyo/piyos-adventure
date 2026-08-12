@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.721";
+                content: "Ver.1.722";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1000,7 +1000,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.721</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.722</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6753,8 +6753,12 @@ function manageObjects() {
         if (spawnDailyGoldenEgg()) gameState.goldenEggSpawnPending = false;
     }
 
-    // ボス戦中は通常スポーン停止
-    if (bossState.active && bossState.phase >= 2) return;
+    // ボス戦中は通常スポーン停止。⚠**phase 1（WARNING演出）も含める**（1.722・ユーザー実機報告
+    //   「WARNINGの時だけ雑魚敵が出現する」）。旧 `phase >= 2` だと WARNING の120フレームだけ穴が開く。
+    //   しかも isInSafeZone() は `!bossState.active` を条件に持つので、トリガーした瞬間に安全地帯の
+    //   判定が false へ落ちて inSafe による抑止まで同時に外れる＝**WARNING中だけ湧く**という見え方になる。
+    //   （setupBossArena が enemies を一掃するので、湧いた雑魚は演出明けに消える＝一瞬だけ見える）
+    if (bossState.active) return;
 
     // チュートリアルは台本配置のみ＝ランダム湧きなし（敵/飛行敵/足場/コイン/アイテム）
     if (tutorialState.active) return;
