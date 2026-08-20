@@ -496,7 +496,7 @@ ja: {
     tshop_combo_master: 'コンボマスター',
     tshop_combo_master_desc: 'コンボ受付時間を延長',
     tshop_revival_feather: 'ふっかつマシーン',
-    tshop_revival_feather_desc: '死亡時にHP1で復活（1ランN回）',
+    tshop_revival_feather_desc: '死亡時にHP2で復活（1ランN回）',
     tshop_swift_feet: 'はやあし',
     tshop_swift_feet_desc: '横移動の速度が1.3倍になる',
     // ── 共通 ──
@@ -1117,7 +1117,7 @@ en: {
     tshop_combo_master: 'Combo Master',
     tshop_combo_master_desc: 'Longer combo window',
     tshop_revival_feather: 'Revival Feather',
-    tshop_revival_feather_desc: 'Revive with 1HP on death (N per run)',
+    tshop_revival_feather_desc: 'Revive with 2HP on death (N per run)',
     tshop_swift_feet: 'Swift Feet',
     tshop_swift_feet_desc: '1.3x horizontal move speed',
     // ── Title Shop Keeper ──

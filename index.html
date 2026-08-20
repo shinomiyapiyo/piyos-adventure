@@ -76,7 +76,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.722";
+                content: "Ver.1.723";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1000,7 +1000,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.722</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.723</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -7953,7 +7953,7 @@ function drawWeatherParticles() {
 }
 
 // ── 復活判定 ──
-// 優先順: 1.復活薬(ストック,HP2) → 2.復活の羽(永続,HP1) → 3.ゲームオーバー
+// 優先順: 1.復活薬(ストック,HP2) → 2.ふっかつマシーン(永続,HP2) → 3.ゲームオーバー
 function tryRevive() {
     // 1. ストックの ふっかつやく を探す。⚠**通常枠とポーチ(金枠)の両方を見る**（1.683）。
     //    1.682までは通常枠(items)だけを見ていたが、ふっかつやくは「所有を作らない一時補充(route 2)」で
@@ -7986,7 +7986,9 @@ function tryRevive() {
     // 2. 復活の羽（永続スキル）
     if (gameState.revivesLeft > 0) {
         gameState.revivesLeft--;
-        gameState.lives = 1;
+        // ⚠1.723: HP1 → HP2（ユーザー指示）。ふっかつやく（HP2）と揃える。
+        //   1体ぶんも耐えられない HP1 復活は、復活した直後にまた倒れて実質意味が無かった。
+        gameState.lives = 2;
         gameState.isInvincible = true;
         gameState.invincibleTimer = INVINCIBLE_FRAMES;
         gameState.revivalFlashTimer = 90;
