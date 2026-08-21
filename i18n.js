@@ -551,6 +551,7 @@ ja: {
     ug_ad_reward_missed: 'ふぉっふぉ、しくじったねぇ。\nもう一度 やってみるかい。',
     shop_item_revive_desc: 'たおれたとき\nライフ2で ふっかつする（1回）\n※買うたび 2万円ずつ 高くなる',
     revive_auto_hint: 'ふっかつやくは たおれたときに じどうで はつどうするよ！',
+    gamepad_connected: 'コントローラーを けんしゅつしました！',
     // ── ログインボーナス ──
     login_bonus_title: 'ログインボーナス',
     login_bonus_day: '{day}日目のボーナス！',
@@ -1201,6 +1202,7 @@ en: {
     ug_ad_reward_missed: 'Heh heh, that failed.\nCare to try once more?',
     shop_item_revive_desc: 'Auto-revive with 2 life\nwhen defeated (1 use)\n*Price +20,000 each time',
     revive_auto_hint: 'The revival potion activates automatically when you fall.',
+    gamepad_connected: 'Controller detected!',
     // ── Login Bonus ──
     login_bonus_title: 'Login Bonus',
     login_bonus_day: 'Day {day} Bonus!',

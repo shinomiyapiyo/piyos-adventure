@@ -24,6 +24,10 @@ function gameLoop(timestamp) {
     // 異常値ガード（タブ復帰時など）
     if (delta > 200) delta = FIXED_DT;
 
+    // 物理コントローラー（1.724）。⚠Gamepad API はイベントではなくポーリングなので毎フレーム読む。
+    //   ⚠固定ステップの while の**外**で呼ぶこと（中だと1フレームに複数回走り、押した瞬間の判定が壊れる）。
+    if (typeof pollGamepad === 'function') pollGamepad();
+
     accumulator += delta;
 
     frameSteps = 0;
@@ -577,6 +581,30 @@ function bindTapDelegate(container, attrName, handler) {
 
     // （デバッグモードの配線=ポーズタイトル連打/BOSS FIGHT/SHOP WARP はネイティブ提出前に撤去済み — Ver.1.461）
 
+    // ── 押した瞬間/離した瞬間の処理（キーボードと物理コントローラーで共有・1.724） ──
+    // ⚠**下方向だけは「押した瞬間にしかできないこと」がある**（土管への入室・急降下斬り）ので、
+    //   真偽値を立てるだけでは足りない。コントローラー側で同じ処理を書き写すと必ずズレるため、
+    //   ここに1本化して両方から呼ぶ。
+    function pressDown() {
+        if (pipeRoomState.active) return;                 // 部屋内では下入力の特殊動作なし（タッチと同等）
+        if (getEnterablePipe()) { enterPipeRoom(); return; } // 土管の上なら入室（タッチの下スワイプと同等）
+        if (isOnPlatform()) {
+            gameState.input.down = true;
+            gameState.downSwipeActive = true;
+            gameState.downSwipeTimer = DOWN_SWIPE_FRAMES;
+        } else if (typeof startSamuraiDive === 'function') {
+            startSamuraiDive(); // 侍ぴよ（1.509）: 空中の下=急降下斬り
+        }
+    }
+    function releaseDown() {
+        gameState.input.down = false;
+        gameState.downSwipeActive = false;
+        gameState.downSwipeTimer = 0;
+    }
+    // ⚠ジャンプは up も同時に立てる（up はおみせへの入店判定に使われる＝checkShopTrigger）。
+    function pressJump() { gameState.input.jump = true; gameState.input.up = true; }
+    function releaseJump() { gameState.input.jump = false; gameState.input.up = false; }
+
     window.addEventListener('keydown', function(e) {
         // ⚠1.613: Esc/P は**ポーズ専用**にした（pauseGame はトグルをやめた）。Space での復帰も撤去。
         //   復帰は「再開」ボタンだけ（ユーザー指示「再開ボタン以外で復帰は禁止」）。
@@ -585,21 +613,9 @@ function bindTapDelegate(container, attrName, handler) {
         switch (e.key) {
             case 'ArrowLeft': case 'a': case 'A': gameState.input.left = true; break;
             case 'ArrowRight': case 'd': case 'D': gameState.input.right = true; break;
-            case 'ArrowDown': case 's': case 'S':
-                if (pipeRoomState.active) break; // 部屋内では下入力の特殊動作なし（タッチと同等）
-                // 土管の上なら入室（タッチの下スワイプと同等・判定は寛容版=水平±12px）
-                if (getEnterablePipe()) { enterPipeRoom(); break; }
-                if (isOnPlatform()) {
-                    gameState.input.down = true;
-                    gameState.downSwipeActive = true;
-                    gameState.downSwipeTimer = DOWN_SWIPE_FRAMES;
-                } else if (typeof startSamuraiDive === 'function') {
-                    startSamuraiDive(); // 侍ぴよ（1.509）: 空中の下キー=急降下斬り（タッチの空中下スワイプと同等）
-                }
-                break;
+            case 'ArrowDown': case 's': case 'S': pressDown(); break;
             case ' ': case 'ArrowUp': case 'w': case 'W':
-                gameState.input.jump = true;
-                gameState.input.up = true;
+                pressJump();
                 e.preventDefault(); break;
         }
     });
@@ -608,17 +624,103 @@ function bindTapDelegate(container, attrName, handler) {
         switch (e.key) {
             case 'ArrowLeft': case 'a': case 'A': gameState.input.left = false; break;
             case 'ArrowRight': case 'd': case 'D': gameState.input.right = false; break;
-            case 'ArrowDown': case 's': case 'S':
-                gameState.input.down = false;
-                gameState.downSwipeActive = false;
-                gameState.downSwipeTimer = 0;
-                break;
-            case ' ': case 'ArrowUp': case 'w': case 'W':
-                gameState.input.jump = false;
-                gameState.input.up = false;
-                break;
+            case 'ArrowDown': case 's': case 'S': releaseDown(); break;
+            case ' ': case 'ArrowUp': case 'w': case 'W': releaseJump(); break;
         }
     });
+
+    // ─────────────────────────────────────────────────────────────
+    // 物理コントローラー（Gamepad API・1.724）
+    // ⚠**ゲーム本体には一切手を入れない。** タッチ/キーボードと同じ gameState.input を立てるだけ。
+    //   ⚠iOS(WKWebView)・Android(Chromium WebView) とも Gamepad API が使える。Xbox / DualSense は
+    //   `mapping === 'standard'` で返るのでボタン番号は W3C 標準配置に揃う。
+    //   標準でない機種のために、方向は**十字キーとスティックの両方**を見る（どちらかが効けば動く）。
+    // ⚠**イベントではなくポーリング**（Gamepad API の仕様）。gameLoop から毎フレーム pollGamepad() を呼ぶ。
+    // ⚠押しっぱなしを毎フレーム「押した瞬間」と誤認しないよう、前フレームの状態と比較する（prevBtn）。
+    // ─────────────────────────────────────────────────────────────
+    var GP_DEADZONE = 0.35;   // スティックの遊び。小さすぎるとドリフトで勝手に歩く（調整ノブ）
+    var GP = { A: 0, B: 1, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 }; // W3C standard mapping
+    var prevBtn = {};         // 前フレームで押されていたか（押した瞬間の検出用）
+    var gpConnectedId = null; // 接続中のコントローラー名（重複トースト防止も兼ねる）
+
+    function gpPressed(pad, idx) {
+        var b = pad.buttons[idx];
+        if (!b) return false;
+        return (typeof b === 'object') ? (b.pressed || b.value > 0.5) : (b > 0.5);
+    }
+    function gpAxis(pad, idx) {
+        var v = pad.axes[idx];
+        return (typeof v === 'number' && isFinite(v)) ? v : 0;
+    }
+
+    function pollGamepad() {
+        if (!navigator.getGamepads) return;
+        var pads;
+        try { pads = navigator.getGamepads(); } catch (_) { return; }
+        if (!pads) return;
+        var pad = null, i;
+        for (i = 0; i < pads.length; i++) { if (pads[i] && pads[i].connected) { pad = pads[i]; break; } }
+
+        if (!pad) {
+            if (gpConnectedId !== null) {   // 切断: 押しっぱなしが残らないように必ず落とす
+                gpConnectedId = null; prevBtn = {};
+                gameState.input.left = false; gameState.input.right = false;
+                releaseJump(); releaseDown();
+            }
+            return;
+        }
+        if (gpConnectedId !== pad.id) {     // 接続を検出（機種名はトーストに出す＝実機で何が繋がったか分かる）
+            gpConnectedId = pad.id;
+            prevBtn = {};
+            try {
+                if (typeof showRewardToast === 'function') {
+                    showRewardToast(escapeHtml(t('gamepad_connected')), 'linear-gradient(180deg,#8ad1ff,#3a7bd0)', '#fff');
+                }
+            } catch (_) {}
+        }
+
+        // ⚠ポーズは**ゲーム中かどうかに関係なく**先に見る（キーボードの Esc と同じ扱い）。
+        //   ⚠pauseGame はトグルではない（1.613）＝ここから復帰はさせない。復帰は「再開」ボタンだけ。
+        var startNow = gpPressed(pad, GP.START);
+        if (startNow && !prevBtn[GP.START]) { try { pauseGame(); } catch (_) {} }
+        prevBtn[GP.START] = startNow;
+
+        if (!gameState.gameStarted || gameState.gamePaused) {
+            // プレイ中でなければ入力は落としておく（メニュー中に押しっぱなしが残るのを防ぐ）
+            gameState.input.left = false; gameState.input.right = false;
+            prevBtn[GP.A] = gpPressed(pad, GP.A);
+            prevBtn[GP.UP] = gpPressed(pad, GP.UP);
+            prevBtn[GP.DOWN] = gpPressed(pad, GP.DOWN);
+            return;
+        }
+
+        // ── 左右（十字キー / 左スティック の両対応・同時なら十字キーを優先） ──
+        var ax = gpAxis(pad, 0);
+        var left  = gpPressed(pad, GP.LEFT)  || ax < -GP_DEADZONE;
+        var right = gpPressed(pad, GP.RIGHT) || ax >  GP_DEADZONE;
+        if (left && right) { left = false; right = false; }   // 同時入力は打ち消す（歩き続ける事故を防ぐ）
+        gameState.input.left = left;
+        gameState.input.right = right;
+
+        // ── ジャンプ（A ボタン / 十字キー上）＝キーボードの Space・↑ と同じ ──
+        // ⚠**スティック上はジャンプに割り当てない**。走りながら少し上へ倒しただけで跳ぶのは事故になる。
+        var jumpNow = gpPressed(pad, GP.A) || gpPressed(pad, GP.UP);
+        if (jumpNow && !prevBtn._jump) pressJump();
+        else if (!jumpNow && prevBtn._jump) releaseJump();
+        prevBtn._jump = jumpNow;
+
+        // ── 下（十字キー下 / B ボタン / 左スティック下）＝キーボードの ↓ と同じ ──
+        // 押した瞬間にだけ土管入室・急降下斬りが走る（pressDown が面倒を見る）
+        var downNow = gpPressed(pad, GP.DOWN) || gpPressed(pad, GP.B) || gpAxis(pad, 1) > GP_DEADZONE;
+        if (downNow && !prevBtn._down) pressDown();
+        else if (!downNow && prevBtn._down) releaseDown();
+        prevBtn._down = downNow;
+    }
+    window.pollGamepad = pollGamepad;
+
+    // 接続/切断のイベントは**検出の補助**（実際の読み取りは毎フレームのポーリング）。
+    window.addEventListener('gamepadconnected', function() { /* 次のpollで拾う */ });
+    window.addEventListener('gamepaddisconnected', function() { /* 次のpollで落とす */ });
 })();
 
 // ─── グローバルイベント ───
