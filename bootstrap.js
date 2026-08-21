@@ -26,7 +26,13 @@ function gameLoop(timestamp) {
 
     // 物理コントローラー（1.724）。⚠Gamepad API はイベントではなくポーリングなので毎フレーム読む。
     //   ⚠固定ステップの while の**外**で呼ぶこと（中だと1フレームに複数回走り、押した瞬間の判定が壊れる）。
-    if (typeof pollGamepad === 'function') pollGamepad();
+    //   ⚠**必ず try で囲む**（1.728）。ここは requestAnimationFrame(gameLoop) より前なので、
+    //     素で呼んで例外が出ると**次のフレームが二度と回らずゲームが完全停止する**。
+    //     コントローラーは機種ごとに報告内容が違う＝想定外の形が来ても本編は絶対に止めない。
+    if (typeof pollGamepad === 'function') {
+        try { pollGamepad(); }
+        catch (e) { if (!gameLoop._gpErr) { gameLoop._gpErr = true; try { console.error('gamepad', e); } catch (_) {} } }
+    }
 
     accumulator += delta;
 
@@ -652,6 +658,23 @@ function bindTapDelegate(container, attrName, handler) {
         var v = pad.axes[idx];
         return (typeof v === 'number' && isFinite(v)) ? v : 0;
     }
+    // ⚠標準配置(standard)でない機種の保険（1.728）。十字キーが**ボタン12〜15ではなく軸(hat)**で
+    //   来る機種があり、その場合 GP.UP/DOWN/LEFT/RIGHT が一切反応しない（メニューが動かせない）。
+    //   ⚠standard の機種では余計な軸を読まない（axes[9]は存在しないか0のまま）＝挙動を変えない。
+    //   hat は -1..1 に8方向を詰めた値。厳密な機種別対応はせず、**上下左右が取れれば十分**とする。
+    function gpHat(pad, dir) {
+        if (pad.mapping === 'standard') return false;
+        var h = pad.axes[9];
+        if (typeof h !== 'number' || !isFinite(h) || h > 1.2 || h < -1.2) return false;
+        var a = (h + 1) * 3.5;              // 0..7（上から時計回り）。無入力は範囲外の値で来る
+        if (a < -0.2 || a > 7.2) return false;
+        var i = Math.round(a) % 8;
+        if (dir === 'up')    return i === 0 || i === 1 || i === 7;
+        if (dir === 'right') return i === 1 || i === 2 || i === 3;
+        if (dir === 'down')  return i === 3 || i === 4 || i === 5;
+        if (dir === 'left')  return i === 5 || i === 6 || i === 7;
+        return false;
+    }
 
     // ─── メニュー操作（1.726・ユーザー要望「ショップ内やメニュー画面も操作したい」） ───
     // ⚠**画面ごとに項目表を持たない。** 表示中の画面から押せる要素をその場で拾う＝
@@ -813,10 +836,10 @@ function bindTapDelegate(container, attrName, handler) {
             gpSetFocus((pref && gpVisible(pref)) ? pref : items[0]);
         }
         var ax = gpAxis(pad, 0), ay = gpAxis(pad, 1);
-        var L = gpPressed(pad, GP.LEFT)  || ax < -GP_DEADZONE;
-        var R = gpPressed(pad, GP.RIGHT) || ax >  GP_DEADZONE;
-        var U = gpPressed(pad, GP.UP)    || ay < -GP_DEADZONE;
-        var D = gpPressed(pad, GP.DOWN)  || ay >  GP_DEADZONE;
+        var L = gpPressed(pad, GP.LEFT)  || ax < -GP_DEADZONE || gpHat(pad, 'left');
+        var R = gpPressed(pad, GP.RIGHT) || ax >  GP_DEADZONE || gpHat(pad, 'right');
+        var U = gpPressed(pad, GP.UP)    || ay < -GP_DEADZONE || gpHat(pad, 'up');
+        var D = gpPressed(pad, GP.DOWN)  || ay >  GP_DEADZONE || gpHat(pad, 'down');
         // ⚠押した瞬間だけ動かす（押しっぱなしで一覧を突き抜けないように）
         if (L && !prevBtn._mL) gpMove(items, -1, 0);
         if (R && !prevBtn._mR) gpMove(items,  1, 0);
@@ -863,7 +886,13 @@ function bindTapDelegate(container, attrName, handler) {
             prevBtn = {};
             try {
                 if (typeof showRewardToast === 'function') {
-                    showRewardToast(escapeHtml(t('gamepad_connected')), 'linear-gradient(180deg,#8ad1ff,#3a7bd0)', '#fff');
+                    // ⚠1.728: **機種名と mapping をそのまま出す**。標準配置(standard)でない機種は
+                    //   ボタン番号がずれるため、実機で何が繋がったのかを本人が読めないと原因が特定できない
+                    //   （PS4のサードパーティ製で「まったく操作できない」報告あり）。
+                    var _gpName = String(pad.id || '').slice(0, 40);
+                    var _gpMap = pad.mapping ? pad.mapping : 'non-standard';
+                    showRewardToast(escapeHtml(t('gamepad_connected') + ' [' + _gpMap + '] ' + _gpName),
+                        'linear-gradient(180deg,#8ad1ff,#3a7bd0)', '#fff');
                 }
             } catch (_) {}
         }
@@ -891,8 +920,8 @@ function bindTapDelegate(container, attrName, handler) {
 
         // ── 左右（十字キー / 左スティック の両対応・同時なら十字キーを優先） ──
         var ax = gpAxis(pad, 0);
-        var left  = gpPressed(pad, GP.LEFT)  || ax < -GP_DEADZONE;
-        var right = gpPressed(pad, GP.RIGHT) || ax >  GP_DEADZONE;
+        var left  = gpPressed(pad, GP.LEFT)  || ax < -GP_DEADZONE || gpHat(pad, 'left');
+        var right = gpPressed(pad, GP.RIGHT) || ax >  GP_DEADZONE || gpHat(pad, 'right');
         if (left && right) { left = false; right = false; }   // 同時入力は打ち消す（歩き続ける事故を防ぐ）
         gameState.input.left = left;
         gameState.input.right = right;
@@ -906,11 +935,12 @@ function bindTapDelegate(container, attrName, handler) {
         // ── 上＝おみせに入る（十字キー上 / 左スティック上）＝タッチの上スワイプと同じ ──
         // ⚠スティックの縦軸は**上が負**（W3C standard）。十字キーと連動させる（1.725・ユーザー指摘）。
         //   ⚠up はジャンプを兼ねない＝走行中に少し上へ倒しても跳ばない。
-        gameState.input.up = gpPressed(pad, GP.UP) || gpAxis(pad, 1) < -GP_DEADZONE;
+        gameState.input.up = gpPressed(pad, GP.UP) || gpAxis(pad, 1) < -GP_DEADZONE || gpHat(pad, 'up');
 
         // ── 下（十字キー下 / B ボタン / 左スティック下）＝キーボードの ↓ と同じ ──
         // 押した瞬間にだけ土管入室・急降下斬りが走る（pressDown が面倒を見る）
-        var downNow = gpPressed(pad, GP.DOWN) || gpPressed(pad, GP.B) || gpAxis(pad, 1) > GP_DEADZONE;
+        var downNow = gpPressed(pad, GP.DOWN) || gpPressed(pad, GP.B) || gpAxis(pad, 1) > GP_DEADZONE
+            || gpHat(pad, 'down');
         if (downNow && !prevBtn._down) pressDown();
         else if (!downNow && prevBtn._down) releaseDown();
         prevBtn._down = downNow;
