@@ -706,6 +706,9 @@ function bindTapDelegate(container, attrName, handler) {
         + ' [data-zid], [data-zcat], [data-skin-equip], [data-mission-claim], [data-mission-bonus],'
         + ' [data-ach-claim], .dq-confirm-opt, input, select';
     var gpFocusEl = null;      // いまカーソルが当たっている要素
+    // 画面ごとに「最後にカーソルが居た場所」を覚える（1.733）。⚠戻ってきた時に毎回先頭へ飛ぶと、
+    //   メニュー→設定→戻る のたびに一番上まで巻き戻って**押し直しが増える**（ユーザー報告の一種）。
+    var gpMemory = (typeof WeakMap === 'function') ? new WeakMap() : null;
     var gpFocusScreen = null;  // その要素が属する画面（切り替わったら選び直す）
 
     function gpVisible(el) {
@@ -784,69 +787,107 @@ function bindTapDelegate(container, attrName, handler) {
             try { gpFocusEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (_) {}
         }
     }
-    // 方向キーで「その向きにある一番近い要素」へ移す。⚠並び順(DOM順)ではなく**見た目の位置**で選ぶ＝
-    //   図鑑のような格子でも、横並びのボタン列でも、同じ関数で自然に動く。
-    // 2つの区間の隙間（重なっていれば0）。⚠**横ずれは中心どうしの距離では測らない**（1.732）。
-    //   幅いっぱいの「地底モード」から下を押すと、中心が真ん中にあるせいで下の段の**真ん中の項目**
-    //   （ずかん/ランキング）へ飛んでいた。ユーザー報告「地底モードから下は設定に来てほしい」。
-    //   重なっている候補は横ずれ0＝**同点になり、先に見つかった＝DOM順で先頭**が選ばれる（＝左端の設定）。
+    // ─── 方向キーでカーソルを動かす（1.733 で作り直し） ───
+    // ⚠**「進む向きに重なっている候補」を絶対優先する。** 重なりを見ずに距離だけで選ぶと、
+    //   右を押した時に「少し上にある幅いっぱいのボタン」のように**中心が少し右にあるだけの別の段**が
+    //   選ばれる（ユーザー実機報告: ずかんで右を押すと地底モードへ飛ぶ）。
+    //   重なりが無い候補は**誰も重なっていない時の保険**としてだけ使う＝カーソルが行き止まりにならない。
+    // 2つの区間の隙間（重なっていれば0）
     function gpSpan(a1, a2, b1, b2) { return Math.max(0, Math.max(a1 - b2, b1 - a2)); }
-    function gpPick(items, dx, dy, sameParentOnly) {
+    function gpPick(items, dx, dy) {
         var c = gpCenter(gpFocusEl), rc = gpFocusEl.getBoundingClientRect();
-        var best = null, bestScore = Infinity, i, t, rt, v, along, across, score;
+        var best = null, bestScore = Infinity;   // 重なっている候補（第一候補）
+        var alt = null, altScore = Infinity;     // 重なっていない候補（保険）
+        var i, t, rt, along, gap;
         for (i = 0; i < items.length; i++) {
             if (items[i] === gpFocusEl) continue;
-            if (sameParentOnly && items[i].parentElement !== gpFocusEl.parentElement) continue;
             t = gpCenter(items[i]);
             rt = items[i].getBoundingClientRect();
-            v = { x: t.x - c.x, y: t.y - c.y };
-            along  = dx ? v.x * dx : v.y * dy;           // 進みたい向きの成分
-            across = dx ? gpSpan(rc.top, rc.bottom, rt.top, rt.bottom)
-                        : gpSpan(rc.left, rc.right, rt.left, rt.right); // 横ずれ（重なっていれば0）
-            if (along <= 4) continue;                    // その向きに無いものは対象外
-            // ⚠**進んだ距離を最優先**にする（1.729）。横ずれの重みが大きすぎると、
-            //   すぐ下の行より「真下だが遠い行」を選んでしまい、間の項目を飛び越える
-            //   （タイトルメニューで「さいしょから」から最下段の「もどる」へ飛んだ）。
-            //   along を強く効かせ、across は同距離の候補を捌くための補助に留める。
-            score = along * 3 + across;
-            if (score < bestScore) { bestScore = score; best = items[i]; }
+            along = dx ? (t.x - c.x) * dx : (t.y - c.y) * dy;   // 進みたい向きの成分（中心どうし）
+            if (along <= 4) continue;                            // その向きに無いものは対象外
+            gap = dx ? gpSpan(rc.top, rc.bottom, rt.top, rt.bottom)
+                     : gpSpan(rc.left, rc.right, rt.left, rt.right);
+            if (gap === 0) {
+                // 重なっている＝同じ列/同じ行。**近い順**だけで決める。
+                // ⚠同点（幅いっぱいのボタンから下の段へ落ちる時など）は**先に見つかった＝DOM順で先頭**が残る
+                //   ＝左端の項目に来る（ユーザー要望「地底モードから下は設定に来てほしい」）。
+                if (along < bestScore) { bestScore = along; best = items[i]; }
+            } else if (gap * 4 + along < altScore) {
+                altScore = gap * 4 + along; alt = items[i];
+            }
         }
-        return best ? { el: best, score: bestScore } : null;   // 距離も返す（一覧優先の判断に使う）
+        return best || alt;
     }
-    // 同じ親に「一覧」と呼べるだけの項目があるか。⚠**2個しか無い親は一覧ではない**（1.729）。
-    //   タイトルメニューの外枠は「さいしょから」と「もどる」の2個しか直接持たず、8個のボタンは
-    //   内側の別の枠にある。ここで同じ親を優先すると**8個を丸ごと飛び越して「もどる」へ落ちる**。
-    function gpIsList(el, items) {
-        var n = 0;
-        for (var i = 0; i < items.length; i++) if (items[i].parentElement === el.parentElement) n++;
-        return n >= 3;
-    }
+    // 動いたら true。⚠**動けたかどうかを返す**＝動けない時にスクロールへ回すため（1.733）
     function gpMove(items, dx, dy) {
-        if (!gpFocusEl) { gpSetFocus(items[0]); return; }
-        // ⚠一覧（同じ親に3つ以上）の中に居る時は、**その一覧の中を優先**する。
-        //   商品一覧を上下に辿る途中で脇に浮いた「でる」ボタンへ飛ぶのを防ぐため（実測で発生）。
-        var best = gpPick(items, dx, dy, false);
-        if (gpIsList(gpFocusEl, items)) {
-            var inList = gpPick(items, dx, dy, true);
-            // ⚠**ただし画面全体の候補のほうが明らかに近いなら、そちらを採る**（1.732）。
-            //   タイトルメニューの外枠は「つづきから/地底モード/もどる」の3つを直接持つ＝**一覧と判定される**ため、
-            //   地底モードから下を押すと、すぐ下の「設定」を飛び越して最下段の「もどる」へ落ちていた
-            //   （ユーザー実機報告）。1.6倍までなら一覧の並びを尊重し、それより遠ければ近い方を選ぶ。
-            if (inList && (!best || inList.score <= best.score * 1.6)) best = inList;
-        }
-        if (best) gpSetFocus(best.el);
+        if (!gpFocusEl) { gpSetFocus(items[0]); return true; }
+        var best = gpPick(items, dx, dy);
+        if (!best || best === gpFocusEl) return false;
+        gpSetFocus(best);
+        return true;
     }
+
+    // ─── スクロールする画面をコントローラーで送る（1.733・ユーザー実機報告） ───
+    // ⚠遊び方やランキングのように**押せる物が「戻る」しか無い画面**は、カーソルが動かない＝
+    //   本文を最後まで読めなかった。カーソルが動かせなかった時は、その画面のスクロール箱を送る。
+    function gpCanScroll(el) {
+        if (!el || el.nodeType !== 1) return false;
+        var st = window.getComputedStyle(el), oy = st.overflowY;
+        if (oy !== 'auto' && oy !== 'scroll') return false;
+        return el.scrollHeight - el.clientHeight > 8;
+    }
+    function gpScrollHost(root) {
+        var el = gpFocusEl, i, all;
+        while (el && el !== root) {                 // カーソルが入っている箱を優先
+            if (gpCanScroll(el)) return el;
+            el = el.parentElement;
+        }
+        if (gpCanScroll(root)) return root;
+        all = root.querySelectorAll('div, ul, section');
+        for (i = 0; i < all.length; i++) { if (gpCanScroll(all[i])) return all[i]; }
+        return null;
+    }
+    function gpScroll(root, dir) {
+        var host = gpScrollHost(root);
+        if (!host) return false;
+        var before = host.scrollTop;
+        host.scrollTop = before + dir * Math.max(90, host.clientHeight * 0.55);
+        return host.scrollTop !== before;
+    }
+
+    // ─── 効果音（1.733・ユーザー要望「決定時や動かした時に効果音も欲しい」） ───
+    // ⚠**押した先が自分で音を鳴らす画面がある**（画面を開く関数が playConfirmSelect を鳴らす）。
+    //   素直に鳴らすと二重に鳴るので、**クリック中に音が鳴ったかを数えて、鳴っていない時だけ**鳴らす。
+    var gpSfxCount = 0;
+    function gpHookSfx() {
+        if (!window.soundManager || soundManager.__gpHooked) return;
+        var orig = soundManager._playSE;
+        if (typeof orig !== 'function') return;
+        soundManager._playSE = function() { gpSfxCount++; return orig.apply(this, arguments); };
+        soundManager.__gpHooked = true;
+    }
+    function gpSe(name) {
+        try { if (window.soundManager && soundManager[name]) soundManager[name](); } catch (_) {}
+    }
+    // クリックを実行し、その間に音が鳴らなければ name の音を鳴らす
+    function gpClickWithSe(el, name) {
+        gpHookSfx();
+        var before = gpSfxCount;
+        try { el.click(); } catch (_) {}
+        if (gpSfxCount === before) gpSe(name);
+    }
+    // 「戻る」に当たる要素。⚠**初期カーソルの除外にも使う**（1.733）＝開いた直後に A で閉じないように。
+    var GP_BACK_SEL = '[data-i18n="btn_back"], .head-btn, [id$="BackBtn"], [id$="CloseBtn"], [id$="Back"], [id$="Close"]';
     function gpBack(root) {
         // 「もどる」に相当するボタンを探して押す。⚠無ければ何もしない（勝手に画面を閉じない）
         // ⚠**id の命名規則も見る**。「> お店を出る」のように data-i18n="btn_back" を持たない戻るボタンがあり、
         //   クラスだけの判定では タイトルショップ で B が効かなかった（実測）。
-        var cand = root.querySelectorAll(
-            '[data-i18n="btn_back"], .head-btn, [id$="BackBtn"], [id$="CloseBtn"], [id$="Back"], [id$="Close"]');
-        for (var i = 0; i < cand.length; i++) { if (gpVisible(cand[i])) { cand[i].click(); return true; } }
+        var cand = root.querySelectorAll(GP_BACK_SEL);
+        for (var i = 0; i < cand.length; i++) { if (gpVisible(cand[i])) { gpClickWithSe(cand[i], 'playCursorMove'); return true; } }
         // ⚠ショップは「お店を出る」が**ボタンではなく一覧の行**（同名のボタンは display:none で存在する）。
         //   行の識別子で拾う（gameplay.js の _menu_leave / _tmenu_leave と対で維持すること）。
         var leave = root.querySelector('[data-item-id="_menu_leave"], [data-tshop-id="_tmenu_leave"]');
-        if (leave && gpVisible(leave)) { leave.click(); return true; }
+        if (leave && gpVisible(leave)) { gpClickWithSe(leave, 'playCursorMove'); return true; }
         return false;
     }
 
@@ -862,7 +903,13 @@ function bindTapDelegate(container, attrName, handler) {
                        : (root.id === 'startScreen')  ? showTitleMenu : null;
         if (tapThrough) {
             var aT = gpPressed(pad, GP.A);
-            if (aT && !prevBtn._mA) { try { tapThrough(); } catch (_) {} }
+            if (aT && !prevBtn._mA) {
+                // ⚠ここもクリック相当＝音が鳴らない画面なら決定音を足す（1.733）
+                gpHookSfx();
+                var beforeSfx = gpSfxCount;
+                try { tapThrough(); } catch (_) {}
+                if (gpSfxCount === beforeSfx) gpSe('playConfirmSelect');
+            }
             prevBtn._mA = aT;
             // タイトルは言語切替(JA|EN)も押せるので、項目があればカーソルは出す。無ければここで終わり。
             if (root.id === 'splashScreen') { gpSetFocus(null); return true; }
@@ -881,6 +928,25 @@ function bindTapDelegate(container, attrName, handler) {
             || items.indexOf(gpFocusEl) < 0) {
             gpFocusScreen = root;
             var pref = root.querySelector('#resumeButton');
+            // ⚠ポーズだけは必ず「再開」から（1.613）。それ以外は前回の位置を復元する。
+            if ((!pref || !gpVisible(pref)) && gpMemory) {
+                var mem = gpMemory.get(root);
+                if (mem && root.contains(mem) && gpVisible(mem) && items.indexOf(mem) >= 0) pref = mem;
+            }
+            // ⚠**見出しの「戻る」を初期位置にしない**（1.733）。DOM順の先頭は見出し行の戻るなので、
+            //   そのままだと画面を開いた直後に A を押すと閉じてしまう。中身がある画面は中身の先頭から。
+            if (!pref || !gpVisible(pref)) {
+                // ⚠見出し行(.head-row)の中身も飛ばす（1.733）。ランキングの見出しには「通報」があり、
+                //   そこから始まると**開いた直後の A が通報**になってしまう。中身の先頭から始める。
+                for (var fi = 0; fi < items.length; fi++) {
+                    var skip = false;
+                    try {
+                        skip = (items[fi].matches && items[fi].matches(GP_BACK_SEL))
+                            || (items[fi].closest && !!items[fi].closest('.head-row'));
+                    } catch (_) {}
+                    if (!skip) { pref = items[fi]; break; }
+                }
+            }
             gpSetFocus((pref && gpVisible(pref)) ? pref : items[0]);
         }
         var ax = gpAxis(pad, 0), ay = gpAxis(pad, 1);
@@ -889,15 +955,17 @@ function bindTapDelegate(container, attrName, handler) {
         var U = gpPressed(pad, GP.UP)    || ay < -GP_DEADZONE || gpHat(pad, 'up');
         var D = gpPressed(pad, GP.DOWN)  || ay >  GP_DEADZONE || gpHat(pad, 'down');
         // ⚠押した瞬間だけ動かす（押しっぱなしで一覧を突き抜けないように）
-        if (L && !prevBtn._mL) gpMove(items, -1, 0);
-        if (R && !prevBtn._mR) gpMove(items,  1, 0);
-        if (U && !prevBtn._mU) gpMove(items, 0, -1);
-        if (D && !prevBtn._mD) gpMove(items, 0,  1);
+        // ⚠**動けなかった上下は画面のスクロールに回す**（1.733）。遊び方やランキングのように
+        //   「戻る」しか押せる物が無い画面でも、本文を最後まで読めるようにするため。
+        if (L && !prevBtn._mL) { if (gpMove(items, -1, 0)) gpSe('playCursorMove'); }
+        if (R && !prevBtn._mR) { if (gpMove(items,  1, 0)) gpSe('playCursorMove'); }
+        if (U && !prevBtn._mU) { if (gpMove(items, 0, -1)) gpSe('playCursorMove'); else if (gpScroll(root, -1)) gpSe('playCursorMove'); }
+        if (D && !prevBtn._mD) { if (gpMove(items, 0,  1)) gpSe('playCursorMove'); else if (gpScroll(root,  1)) gpSe('playCursorMove'); }
         prevBtn._mL = L; prevBtn._mR = R; prevBtn._mU = U; prevBtn._mD = D;
 
         if (!tapThrough) {   // スプラッシュ/タイトルは上で処理済み（二重に発火させない）
             var a = gpPressed(pad, GP.A);
-            if (a && !prevBtn._mA && gpFocusEl) { try { gpFocusEl.click(); } catch (_) {} }
+            if (a && !prevBtn._mA && gpFocusEl) gpClickWithSe(gpFocusEl, 'playConfirmSelect');
             prevBtn._mA = a;
         }
 
@@ -905,6 +973,7 @@ function bindTapDelegate(container, attrName, handler) {
         if (b && !prevBtn._mB) gpBack(root);
         prevBtn._mB = b;
 
+        if (gpMemory && gpFocusEl && root.contains(gpFocusEl)) gpMemory.set(root, gpFocusEl);
         return true;
     }
 
