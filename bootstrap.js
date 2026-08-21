@@ -639,7 +639,7 @@ function bindTapDelegate(container, attrName, handler) {
     // ⚠押しっぱなしを毎フレーム「押した瞬間」と誤認しないよう、前フレームの状態と比較する（prevBtn）。
     // ─────────────────────────────────────────────────────────────
     var GP_DEADZONE = 0.35;   // スティックの遊び。小さすぎるとドリフトで勝手に歩く（調整ノブ）
-    var GP = { A: 0, B: 1, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 }; // W3C standard mapping
+    var GP = { A: 0, B: 1, X: 2, L1: 4, R1: 5, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 }; // W3C standard mapping
     var prevBtn = {};         // 前フレームで押されていたか（押した瞬間の検出用）
     var gpConnectedId = null; // 接続中のコントローラー名（重複トースト防止も兼ねる）
 
@@ -658,6 +658,9 @@ function bindTapDelegate(container, attrName, handler) {
     //   画面が増えても勝手に効く（図鑑やきせかえのように中身が動的に作られる画面にも対応できる）。
     // ⚠重なり順は z-index ではなく**この配列の順**で決める（同じ z-index の画面が複数あるため）。
     //   先頭ほど手前。表示中で最初に見つかったものを操作対象にする。
+    // ⚠**動的に作られるモーダル**（DOMに後から差し込まれる）。固定idの画面より必ず手前にある。
+    //   これを入れておかないと、ラン中に枠が満杯でアイテムを拾った瞬間に操作不能になる（実測で発覚）。
+    var GP_MODALS = ['.stockSwapOverlay', '#gameModal'];
     var GP_SCREENS = [
         'nameInputScreen', 'houseAdScreen', 'tutorialClearScreen', 'guideScreen', 'tutorialScreen',
         'pauseSkinView', 'settingsScreen', 'skinScreen', 'zukanScreen', 'rankingScreen',
@@ -682,10 +685,53 @@ function bindTapDelegate(container, attrName, handler) {
         return st.display !== 'none' && st.visibility !== 'hidden' && parseFloat(st.opacity || '1') > 0.05;
     }
     function gpTopScreen() {
-        for (var i = 0; i < GP_SCREENS.length; i++) {
+        var i, el;
+        for (i = 0; i < GP_MODALS.length; i++) {
+            el = document.querySelector(GP_MODALS[i]);
+            if (el && gpVisible(el)) return el;
+        }
+        for (i = 0; i < GP_SCREENS.length; i++) {
             if (isScreenVisible(GP_SCREENS[i])) return document.getElementById(GP_SCREENS[i]);
         }
         return null;
+    }
+
+    // ─── 持ち物（ストック枠）の操作（1.727・ユーザー決定: □=使用 / L・R=切替） ───
+    // ⚠**枠の数は可変**（既定3・ストック拡張で最大6）。先頭が まほうのポーチ の金枠。
+    //   使用の入口は useStockItem(表示index) の1本＝タップと完全に同じ経路を通す（挙動をズラさない）。
+    var gpStockIdx = 0;
+    function gpSlotFilled(i) {
+        var pl = (typeof permaLevel === 'function') ? permaLevel() : 0;
+        if (i < pl) { var p = stockState.perma[i]; return !!(p && p.id && !p.used); }
+        var ni = i - pl;
+        return ni >= 0 && ni < stockState.items.length;
+    }
+    // 中身のある枠だけを巡る。⚠空き枠を選ばせない＝押しても何も起きない位置で止まらないように。
+    function gpStockStep(dir) {
+        var n = stockState.maxSlots, i, idx;
+        for (i = 1; i <= n; i++) {
+            idx = ((gpStockIdx + dir * i) % n + n) % n;
+            if (gpSlotFilled(idx)) { gpStockIdx = idx; return true; }
+        }
+        return false;   // 持ち物が空
+    }
+    // 選択中の枠が空になったら（使った/売った）、隣の中身のある枠へ寄せる
+    function gpStockNormalize() {
+        if (gpSlotFilled(gpStockIdx)) return;
+        var n = stockState.maxSlots, i;
+        for (i = 0; i < n; i++) { if (gpSlotFilled(i)) { gpStockIdx = i; return; } }
+        gpStockIdx = 0;
+    }
+    // 選択枠の光らせ方。⚠updateStockUI は innerHTML を作り直すのでクラスが消える＝毎フレーム当て直す。
+    //   （querySelector 2回だけなので負荷は無視できる。当たっていれば何もしない）
+    function gpApplySlotMark(on) {
+        var cont = document.getElementById('stockSlots');
+        if (!cont) return;
+        var cur = cont.querySelector('.gp-slot');
+        var want = on ? cont.querySelector('[data-idx="' + gpStockIdx + '"]') : null;
+        if (cur === want) return;
+        if (cur) cur.classList.remove('gp-slot');
+        if (want) want.classList.add('gp-slot');
     }
     function gpItems(root) {
         var all = root.querySelectorAll(GP_FOCUS_SEL), out = [], i;
@@ -808,6 +854,7 @@ function bindTapDelegate(container, attrName, handler) {
                 gameState.input.jump = false; gameState.input.up = false;
                 releaseDown();
                 gpSetFocus(null); gpFocusScreen = null;
+                gpApplySlotMark(false);
             }
             return;
         }
@@ -835,6 +882,7 @@ function bindTapDelegate(container, attrName, handler) {
             releaseDown();
             // 押しっぱなしがゲーム復帰の瞬間に暴発しないよう、ゲーム側の前回値も更新しておく
             prevBtn._down = gpPressed(pad, GP.DOWN) || gpPressed(pad, GP.B) || gpAxis(pad, 1) > GP_DEADZONE;
+            gpApplySlotMark(false);
             gpMenuMode(pad);
             return;
         }
@@ -866,6 +914,19 @@ function bindTapDelegate(container, attrName, handler) {
         if (downNow && !prevBtn._down) pressDown();
         else if (!downNow && prevBtn._down) releaseDown();
         prevBtn._down = downNow;
+
+        // ── 持ち物: L / R で選択、□(X) で使用（1.727・ユーザー決定） ──
+        gpStockNormalize();
+        var l1 = gpPressed(pad, GP.L1), r1 = gpPressed(pad, GP.R1);
+        if (l1 && !prevBtn._l1) { if (gpStockStep(-1) && soundManager) { try { soundManager.playCursorMove(); } catch (_) {} } }
+        if (r1 && !prevBtn._r1) { if (gpStockStep(1)  && soundManager) { try { soundManager.playCursorMove(); } catch (_) {} } }
+        prevBtn._l1 = l1; prevBtn._r1 = r1;
+        var x = gpPressed(pad, GP.X);
+        // ⚠**タップと同じ useStockItem を呼ぶ**。確認が要る品は向こうが確認モーダルを出す（gameModal は
+        //   GP_MODALS に入れてあるので、そのままコントローラーで答えられる）。
+        if (x && !prevBtn._x && gpSlotFilled(gpStockIdx)) { try { useStockItem(gpStockIdx); } catch (_) {} }
+        prevBtn._x = x;
+        gpApplySlotMark(true);
     }
     window.pollGamepad = pollGamepad;
 
