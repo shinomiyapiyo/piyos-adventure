@@ -53,6 +53,33 @@
             -webkit-touch-callout: none;
         }
 
+        /* ─── 物理コントローラーのカーソル（1.730） ───
+           ⚠**絶対に @media(orientation: portrait) の中へ入れないこと。** 本作は横持ち専用なので
+             縦向きのメディアクエリは実機で一度も適用されない＝カーソルが永久に見えない
+             （1.726〜1.729 で実際にこれをやり、ユーザーから「どれが選択されているか一切わからない」と報告された）。
+           ⚠タッチ操作には一切影響しない＝クラスが付くのはコントローラーで操作している間だけ。 */
+        /* ⚠**outline に頼らない**（1.730）。この画面のボタンには outline を上書きする指定があり、
+           !important を付けても効かなかった（実測: computed が 1.5px white のまま）。
+           box-shadow は確実に効くので、**リングは box-shadow で描く**。 */
+        .gp-focus {
+            box-shadow:
+                0 0 0 3px rgba(0,0,0,0.75),
+                0 0 0 7px #ffe14d,
+                0 0 20px 6px rgba(255,225,77,0.9) !important;
+            filter: brightness(1.2) !important;
+            position: relative !important;
+            z-index: 20 !important;
+        }
+        /* 選択中の持ち物枠。⚠プレイ中ずっと出るのでメニューのカーソルより控えめにする */
+        .stock-slot.gp-slot {
+            box-shadow:
+                0 0 0 2px rgba(0,0,0,0.7),
+                0 0 0 5px #7dffb0,
+                0 0 14px 4px rgba(125,255,176,0.9) !important;
+            position: relative !important;
+            z-index: 20 !important;
+        }
+
         /* --- 縦画面警告 (修正済み) --- */
         @media screen and (orientation: portrait) {
             body::before {
@@ -75,23 +102,8 @@
                 justify-content: center;
                 box-sizing: border-box;
             }
-            /* 物理コントローラーのカーソル（1.726）。⚠タッチ操作には一切影響しない＝
-               クラスが付くのはコントローラーで操作している間だけ（bootstrap.js gpSetFocus）。 */
-            .gp-focus {
-                outline: 3px solid #ffd83d !important;
-                outline-offset: 2px;
-                box-shadow: 0 0 12px rgba(255,216,61,0.9) !important;
-                border-radius: 6px;
-            }
-            /* コントローラーで選択中の持ち物枠（1.727）。⚠メニューのカーソル(.gp-focus)より控えめにする＝
-               プレイ中ずっと出るので、強すぎると視界の邪魔になる。 */
-            .stock-slot.gp-slot {
-                outline: 3px solid #7dffb0 !important;
-                outline-offset: 1px;
-                box-shadow: 0 0 10px rgba(125,255,176,0.85) !important;
-            }
             body::after {
-                content: "Ver.1.729";
+                content: "Ver.1.730";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1015,7 +1027,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.729</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.730</span>
                 </div>
 
                 <!-- クレジット：右下 -->
