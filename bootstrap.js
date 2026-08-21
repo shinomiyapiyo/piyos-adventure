@@ -653,6 +653,146 @@ function bindTapDelegate(container, attrName, handler) {
         return (typeof v === 'number' && isFinite(v)) ? v : 0;
     }
 
+    // ─── メニュー操作（1.726・ユーザー要望「ショップ内やメニュー画面も操作したい」） ───
+    // ⚠**画面ごとに項目表を持たない。** 表示中の画面から押せる要素をその場で拾う＝
+    //   画面が増えても勝手に効く（図鑑やきせかえのように中身が動的に作られる画面にも対応できる）。
+    // ⚠重なり順は z-index ではなく**この配列の順**で決める（同じ z-index の画面が複数あるため）。
+    //   先頭ほど手前。表示中で最初に見つかったものを操作対象にする。
+    var GP_SCREENS = [
+        'nameInputScreen', 'houseAdScreen', 'tutorialClearScreen', 'guideScreen', 'tutorialScreen',
+        'pauseSkinView', 'settingsScreen', 'skinScreen', 'zukanScreen', 'rankingScreen',
+        'achievementScreen', 'badgeScreen', 'missionScreen', 'storeScreen',
+        'titleShopScreen', 'stageShopScreen', 'titleMenuScreen', 'pauseScreen',
+        'gameOverScreen', 'startScreen'
+    ];
+    // ⚠一覧の行は button ではなく **data-* 属性つきの div**（bindTapDelegate で委譲している）。
+    //   委譲は click でも効くので、行を .click() すればタップと同じ経路を通る。
+    //   ⚠新しい一覧を作る時はここに属性を足すこと（足し忘れるとその画面だけ操作できなくなる）。
+    var GP_FOCUS_SEL = 'button, [onclick], [data-idx], [data-slot], [data-item-id], [data-tshop-id],'
+        + ' [data-zid], [data-zcat], [data-skin-equip], [data-mission-claim], [data-mission-bonus],'
+        + ' [data-ach-claim], .dq-confirm-opt, input, select';
+    var gpFocusEl = null;      // いまカーソルが当たっている要素
+    var gpFocusScreen = null;  // その要素が属する画面（切り替わったら選び直す）
+
+    function gpVisible(el) {
+        if (!el || el.disabled) return false;
+        var r = el.getBoundingClientRect();
+        if (r.width < 6 || r.height < 6) return false;               // 0サイズ・飾りは除外
+        var st = window.getComputedStyle(el);
+        return st.display !== 'none' && st.visibility !== 'hidden' && parseFloat(st.opacity || '1') > 0.05;
+    }
+    function gpTopScreen() {
+        for (var i = 0; i < GP_SCREENS.length; i++) {
+            if (isScreenVisible(GP_SCREENS[i])) return document.getElementById(GP_SCREENS[i]);
+        }
+        return null;
+    }
+    function gpItems(root) {
+        var all = root.querySelectorAll(GP_FOCUS_SEL), out = [], i;
+        for (i = 0; i < all.length; i++) {
+            // ⚠画面そのもの（onclick付きの外枠）は拾わない＝画面全体が1項目になってしまう
+            if (all[i] === root) continue;
+            if (gpVisible(all[i])) out.push(all[i]);
+        }
+        return out;
+    }
+    function gpCenter(el) { var r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
+    function gpSetFocus(el) {
+        if (gpFocusEl === el) return;
+        if (gpFocusEl) gpFocusEl.classList.remove('gp-focus');
+        gpFocusEl = el || null;
+        if (gpFocusEl) {
+            gpFocusEl.classList.add('gp-focus');
+            // ⚠スクロールする画面（図鑑・きせかえ・ショップ）ではカーソルが画面外に出るので必ず追う
+            try { gpFocusEl.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (_) {}
+        }
+    }
+    // 方向キーで「その向きにある一番近い要素」へ移す。⚠並び順(DOM順)ではなく**見た目の位置**で選ぶ＝
+    //   図鑑のような格子でも、横並びのボタン列でも、同じ関数で自然に動く。
+    function gpPick(items, dx, dy, sameParentOnly) {
+        var c = gpCenter(gpFocusEl), best = null, bestScore = Infinity, i, t, v, along, across, score;
+        for (i = 0; i < items.length; i++) {
+            if (items[i] === gpFocusEl) continue;
+            if (sameParentOnly && items[i].parentElement !== gpFocusEl.parentElement) continue;
+            t = gpCenter(items[i]);
+            v = { x: t.x - c.x, y: t.y - c.y };
+            along  = dx ? v.x * dx : v.y * dy;           // 進みたい向きの成分
+            across = dx ? Math.abs(v.y) : Math.abs(v.x); // 横ずれ
+            if (along <= 4) continue;                    // その向きに無いものは対象外
+            score = along + across * 2;                  // 真っ直ぐ近いものを優先（横ずれは2倍の重み）
+            if (score < bestScore) { bestScore = score; best = items[i]; }
+        }
+        return best;
+    }
+    function gpMove(items, dx, dy) {
+        if (!gpFocusEl) { gpSetFocus(items[0]); return; }
+        // ⚠**まず同じ一覧の中**（親要素が同じ＝同じリスト/同じボタン列）から探す。
+        //   一覧の行を上下に辿る途中で、脇に浮いている「でる」ボタン等へ飛ぶのを防ぐ（実測で発生した）。
+        //   同じ一覧に行き先が無ければ、画面全体から探して一覧の外へ出る。
+        var best = gpPick(items, dx, dy, true) || gpPick(items, dx, dy, false);
+        if (best) gpSetFocus(best);
+    }
+    function gpBack(root) {
+        // 「もどる」に相当するボタンを探して押す。⚠無ければ何もしない（勝手に画面を閉じない）
+        // ⚠**id の命名規則も見る**。「> お店を出る」のように data-i18n="btn_back" を持たない戻るボタンがあり、
+        //   クラスだけの判定では タイトルショップ で B が効かなかった（実測）。
+        var cand = root.querySelectorAll(
+            '[data-i18n="btn_back"], .head-btn, [id$="BackBtn"], [id$="CloseBtn"], [id$="Back"], [id$="Close"]');
+        for (var i = 0; i < cand.length; i++) { if (gpVisible(cand[i])) { cand[i].click(); return true; } }
+        // ⚠ショップは「お店を出る」が**ボタンではなく一覧の行**（同名のボタンは display:none で存在する）。
+        //   行の識別子で拾う（gameplay.js の _menu_leave / _tmenu_leave と対で維持すること）。
+        var leave = root.querySelector('[data-item-id="_menu_leave"], [data-tshop-id="_tmenu_leave"]');
+        if (leave && gpVisible(leave)) { leave.click(); return true; }
+        return false;
+    }
+
+    // メニュー画面をコントローラーで操作する。操作対象があれば true（＝ゲーム側の入力は動かさない）
+    function gpMenuMode(pad) {
+        var root = gpTopScreen();
+        if (!root) { gpSetFocus(null); gpFocusScreen = null; return false; }
+        var items = gpItems(root);
+        // ⚠「はい/いいえ」の確認が出ている間は**それだけ**を対象にする。
+        //   背後の商品一覧にカーソルが取られると、決定したつもりで別の物を買ってしまう。
+        var confirm = [], ci, allC = root.querySelectorAll('.dq-confirm-opt');
+        for (ci = 0; ci < allC.length; ci++) if (gpVisible(allC[ci])) confirm.push(allC[ci]);
+        if (confirm.length) items = confirm;
+        if (!items.length) { gpSetFocus(null); return true; }   // 画面はあるが押せる物が無い＝操作は吸収する
+        // 画面が変わった / カーソルが消えた場合は先頭へ。
+        // ⚠ポーズ画面は「再開」を初期位置にする（1.613「再開ボタン以外で復帰は禁止」を守ったまま
+        //   コントローラーから復帰できるようにするため。A で押されるのは再開ボタンそのもの）
+        if (gpFocusScreen !== root || !gpFocusEl || !root.contains(gpFocusEl) || !gpVisible(gpFocusEl)
+            || items.indexOf(gpFocusEl) < 0) {
+            gpFocusScreen = root;
+            var pref = root.querySelector('#resumeButton');
+            gpSetFocus((pref && gpVisible(pref)) ? pref : items[0]);
+        }
+        var ax = gpAxis(pad, 0), ay = gpAxis(pad, 1);
+        var L = gpPressed(pad, GP.LEFT)  || ax < -GP_DEADZONE;
+        var R = gpPressed(pad, GP.RIGHT) || ax >  GP_DEADZONE;
+        var U = gpPressed(pad, GP.UP)    || ay < -GP_DEADZONE;
+        var D = gpPressed(pad, GP.DOWN)  || ay >  GP_DEADZONE;
+        // ⚠押した瞬間だけ動かす（押しっぱなしで一覧を突き抜けないように）
+        if (L && !prevBtn._mL) gpMove(items, -1, 0);
+        if (R && !prevBtn._mR) gpMove(items,  1, 0);
+        if (U && !prevBtn._mU) gpMove(items, 0, -1);
+        if (D && !prevBtn._mD) gpMove(items, 0,  1);
+        prevBtn._mL = L; prevBtn._mR = R; prevBtn._mU = U; prevBtn._mD = D;
+
+        var a = gpPressed(pad, GP.A);
+        if (a && !prevBtn._mA) {
+            // ⚠タイトル（startScreen）だけは「画面のどこをタップでもメニューが開く」作りで、
+            //   押す対象のボタンが存在しない。A でメニューを開く＝タップと同じ入口をコントローラーにも用意する。
+            if (root.id === 'startScreen' && typeof showTitleMenu === 'function') showTitleMenu();
+            else if (gpFocusEl) { try { gpFocusEl.click(); } catch (_) {} }
+        }
+        prevBtn._mA = a;
+
+        var b = gpPressed(pad, GP.B);
+        if (b && !prevBtn._mB) gpBack(root);
+        prevBtn._mB = b;
+        return true;
+    }
+
     function pollGamepad() {
         if (!navigator.getGamepads) return;
         var pads;
@@ -667,6 +807,7 @@ function bindTapDelegate(container, attrName, handler) {
                 gameState.input.left = false; gameState.input.right = false;
                 gameState.input.jump = false; gameState.input.up = false;
                 releaseDown();
+                gpSetFocus(null); gpFocusScreen = null;
             }
             return;
         }
@@ -686,13 +827,19 @@ function bindTapDelegate(container, attrName, handler) {
         if (startNow && !prevBtn[GP.START]) { try { pauseGame(); } catch (_) {} }
         prevBtn[GP.START] = startNow;
 
-        if (!gameState.gameStarted || gameState.gamePaused) {
-            // プレイ中でなければ入力は落としておく（メニュー中に押しっぱなしが残るのを防ぐ）
+        // ⚠メニュー/ショップ/ポーズが出ている間は**そちらの操作を優先**し、ゲーム側の入力は動かさない。
+        //   （プレイ中でも おみせ や ポーズ は開くので、gameStarted だけでは判定できない）
+        if (!gameState.gameStarted || gameState.gamePaused || gpTopScreen()) {
             gameState.input.left = false; gameState.input.right = false;
             gameState.input.jump = false; gameState.input.up = false;
+            releaseDown();
+            // 押しっぱなしがゲーム復帰の瞬間に暴発しないよう、ゲーム側の前回値も更新しておく
             prevBtn._down = gpPressed(pad, GP.DOWN) || gpPressed(pad, GP.B) || gpAxis(pad, 1) > GP_DEADZONE;
+            gpMenuMode(pad);
             return;
         }
+        // ゲームに戻ったらカーソルは消す
+        if (gpFocusEl) { gpSetFocus(null); gpFocusScreen = null; }
 
         // ── 左右（十字キー / 左スティック の両対応・同時なら十字キーを優先） ──
         var ax = gpAxis(pad, 0);

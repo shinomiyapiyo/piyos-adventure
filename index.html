@@ -75,8 +75,16 @@
                 justify-content: center;
                 box-sizing: border-box;
             }
+            /* 物理コントローラーのカーソル（1.726）。⚠タッチ操作には一切影響しない＝
+               クラスが付くのはコントローラーで操作している間だけ（bootstrap.js gpSetFocus）。 */
+            .gp-focus {
+                outline: 3px solid #ffd83d !important;
+                outline-offset: 2px;
+                box-shadow: 0 0 12px rgba(255,216,61,0.9) !important;
+                border-radius: 6px;
+            }
             body::after {
-                content: "Ver.1.725";
+                content: "Ver.1.726";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1000,7 +1008,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.725</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.726</span>
                 </div>
 
                 <!-- クレジット：右下 -->
