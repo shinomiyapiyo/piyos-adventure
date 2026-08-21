@@ -685,10 +685,18 @@ function bindTapDelegate(container, attrName, handler) {
     //   これを入れておかないと、ラン中に枠が満杯でアイテムを拾った瞬間に操作不能になる（実測で発覚）。
     var GP_MODALS = ['.stockSwapOverlay', '#gameModal'];
     var GP_SCREENS = [
+        // ⚠**splashScreen を必ず入れる**（1.729）。スプラッシュ表示中は startScreen が display:none なので、
+        //   入れていないと操作対象がゼロ＝「Please Tap から先に進めない」（ユーザー実機報告）。
+        'splashScreen',
         'nameInputScreen', 'houseAdScreen', 'tutorialClearScreen', 'guideScreen', 'tutorialScreen',
-        'pauseSkinView', 'settingsScreen', 'skinScreen', 'zukanScreen', 'rankingScreen',
+        'pauseSkinView',
+        // ⚠**ポーズはショップより手前**（1.729）。ショップを開いたままポーズすると、順番を誤ると
+        //   ショップ側が操作対象になり「A を押しても再開できない」（実測で発生）。
+        //   ポーズ幕はどの画面の上にも出るので、サブ画面(pauseSkinView)の次に置く。
+        'pauseScreen',
+        'settingsScreen', 'skinScreen', 'zukanScreen', 'rankingScreen',
         'achievementScreen', 'badgeScreen', 'missionScreen', 'storeScreen',
-        'titleShopScreen', 'stageShopScreen', 'titleMenuScreen', 'pauseScreen',
+        'titleShopScreen', 'stageShopScreen', 'titleMenuScreen',
         'gameOverScreen', 'startScreen'
     ];
     // ⚠一覧の行は button ではなく **data-* 属性つきの div**（bindTapDelegate で委譲している）。
@@ -788,17 +796,31 @@ function bindTapDelegate(container, attrName, handler) {
             along  = dx ? v.x * dx : v.y * dy;           // 進みたい向きの成分
             across = dx ? Math.abs(v.y) : Math.abs(v.x); // 横ずれ
             if (along <= 4) continue;                    // その向きに無いものは対象外
-            score = along + across * 2;                  // 真っ直ぐ近いものを優先（横ずれは2倍の重み）
+            // ⚠**進んだ距離を最優先**にする（1.729）。横ずれの重みが大きすぎると、
+            //   すぐ下の行より「真下だが遠い行」を選んでしまい、間の項目を飛び越える
+            //   （タイトルメニューで「さいしょから」から最下段の「もどる」へ飛んだ）。
+            //   along を強く効かせ、across は同距離の候補を捌くための補助に留める。
+            score = along * 3 + across;
             if (score < bestScore) { bestScore = score; best = items[i]; }
         }
         return best;
     }
+    // 同じ親に「一覧」と呼べるだけの項目があるか。⚠**2個しか無い親は一覧ではない**（1.729）。
+    //   タイトルメニューの外枠は「さいしょから」と「もどる」の2個しか直接持たず、8個のボタンは
+    //   内側の別の枠にある。ここで同じ親を優先すると**8個を丸ごと飛び越して「もどる」へ落ちる**。
+    function gpIsList(el, items) {
+        var n = 0;
+        for (var i = 0; i < items.length; i++) if (items[i].parentElement === el.parentElement) n++;
+        return n >= 3;
+    }
     function gpMove(items, dx, dy) {
         if (!gpFocusEl) { gpSetFocus(items[0]); return; }
-        // ⚠**まず同じ一覧の中**（親要素が同じ＝同じリスト/同じボタン列）から探す。
-        //   一覧の行を上下に辿る途中で、脇に浮いている「でる」ボタン等へ飛ぶのを防ぐ（実測で発生した）。
-        //   同じ一覧に行き先が無ければ、画面全体から探して一覧の外へ出る。
-        var best = gpPick(items, dx, dy, true) || gpPick(items, dx, dy, false);
+        // ⚠一覧（同じ親に3つ以上）の中に居る時だけ、**その一覧の中を優先**する。
+        //   商品一覧を上下に辿る途中で脇に浮いた「でる」ボタンへ飛ぶのを防ぐため（実測で発生）。
+        //   一覧でなければ最初から画面全体を見る＝入れ子の枠をまたいで自然に動く。
+        var best = null;
+        if (gpIsList(gpFocusEl, items)) best = gpPick(items, dx, dy, true);
+        if (!best) best = gpPick(items, dx, dy, false);
         if (best) gpSetFocus(best);
     }
     function gpBack(root) {
@@ -819,6 +841,19 @@ function bindTapDelegate(container, attrName, handler) {
     function gpMenuMode(pad) {
         var root = gpTopScreen();
         if (!root) { gpSetFocus(null); gpFocusScreen = null; return false; }
+        // ⚠**押す対象が無い画面を先に片づける**（1.729）。スプラッシュとタイトルは
+        //   「画面のどこをタップでも進む」作りで、押せる要素が0件になる。
+        //   ⚠これを items の件数チェックより**前**に置くこと。後ろに置くと0件の早期returnに阻まれて
+        //   A が一切効かない（「Please Tap から進めない」の直接原因だった）。
+        var tapThrough = (root.id === 'splashScreen') ? startApp
+                       : (root.id === 'startScreen')  ? showTitleMenu : null;
+        if (tapThrough) {
+            var aT = gpPressed(pad, GP.A);
+            if (aT && !prevBtn._mA) { try { tapThrough(); } catch (_) {} }
+            prevBtn._mA = aT;
+            // タイトルは言語切替(JA|EN)も押せるので、項目があればカーソルは出す。無ければここで終わり。
+            if (root.id === 'splashScreen') { gpSetFocus(null); return true; }
+        }
         var items = gpItems(root);
         // ⚠「はい/いいえ」の確認が出ている間は**それだけ**を対象にする。
         //   背後の商品一覧にカーソルが取られると、決定したつもりで別の物を買ってしまう。
@@ -847,18 +882,30 @@ function bindTapDelegate(container, attrName, handler) {
         if (D && !prevBtn._mD) gpMove(items, 0,  1);
         prevBtn._mL = L; prevBtn._mR = R; prevBtn._mU = U; prevBtn._mD = D;
 
-        var a = gpPressed(pad, GP.A);
-        if (a && !prevBtn._mA) {
-            // ⚠タイトル（startScreen）だけは「画面のどこをタップでもメニューが開く」作りで、
-            //   押す対象のボタンが存在しない。A でメニューを開く＝タップと同じ入口をコントローラーにも用意する。
-            if (root.id === 'startScreen' && typeof showTitleMenu === 'function') showTitleMenu();
-            else if (gpFocusEl) { try { gpFocusEl.click(); } catch (_) {} }
+        if (!tapThrough) {   // スプラッシュ/タイトルは上で処理済み（二重に発火させない）
+            var a = gpPressed(pad, GP.A);
+            if (a && !prevBtn._mA && gpFocusEl) { try { gpFocusEl.click(); } catch (_) {} }
+            prevBtn._mA = a;
         }
-        prevBtn._mA = a;
 
         var b = gpPressed(pad, GP.B);
         if (b && !prevBtn._mB) gpBack(root);
         prevBtn._mB = b;
+
+        // ⚠【一時的な診断・出荷前に必ず削除する（1.729）】
+        //   実機でコントローラーが効かない時に、何が起きているかを本人が読めるようにするための窓。
+        //   SELECT(8) を押すと「対象画面 / 拾えた項目数 / カーソル / 押されているボタン番号」を出す。
+        //   ⚠通常プレイでは押されないボタンだが、**ストア版に残さないこと**（デバッグ表示は撤去が方針）。
+        var sel = gpPressed(pad, 8);
+        if (sel && !prevBtn._mSel) {
+            var pressed = [];
+            for (var bi = 0; bi < pad.buttons.length; bi++) if (gpPressed(pad, bi)) pressed.push(bi);
+            var info = 'screen=' + (root.id || '?') + ' items=' + items.length
+                + ' focus=' + (gpFocusEl ? (gpFocusEl.id || gpFocusEl.tagName) : 'none')
+                + ' btn=[' + pressed.join(',') + ']';
+            try { showRewardToast(escapeHtml(info), 'linear-gradient(180deg,#ffd83d,#c79a00)', '#000'); } catch (_) {}
+        }
+        prevBtn._mSel = sel;
         return true;
     }
 
