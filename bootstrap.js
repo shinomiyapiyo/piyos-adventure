@@ -665,7 +665,8 @@ function bindTapDelegate(container, attrName, handler) {
             if (gpConnectedId !== null) {   // 切断: 押しっぱなしが残らないように必ず落とす
                 gpConnectedId = null; prevBtn = {};
                 gameState.input.left = false; gameState.input.right = false;
-                releaseJump(); releaseDown();
+                gameState.input.jump = false; gameState.input.up = false;
+                releaseDown();
             }
             return;
         }
@@ -688,9 +689,8 @@ function bindTapDelegate(container, attrName, handler) {
         if (!gameState.gameStarted || gameState.gamePaused) {
             // プレイ中でなければ入力は落としておく（メニュー中に押しっぱなしが残るのを防ぐ）
             gameState.input.left = false; gameState.input.right = false;
-            prevBtn[GP.A] = gpPressed(pad, GP.A);
-            prevBtn[GP.UP] = gpPressed(pad, GP.UP);
-            prevBtn[GP.DOWN] = gpPressed(pad, GP.DOWN);
+            gameState.input.jump = false; gameState.input.up = false;
+            prevBtn._down = gpPressed(pad, GP.DOWN) || gpPressed(pad, GP.B) || gpAxis(pad, 1) > GP_DEADZONE;
             return;
         }
 
@@ -702,12 +702,16 @@ function bindTapDelegate(container, attrName, handler) {
         gameState.input.left = left;
         gameState.input.right = right;
 
-        // ── ジャンプ（A ボタン / 十字キー上）＝キーボードの Space・↑ と同じ ──
-        // ⚠**スティック上はジャンプに割り当てない**。走りながら少し上へ倒しただけで跳ぶのは事故になる。
-        var jumpNow = gpPressed(pad, GP.A) || gpPressed(pad, GP.UP);
-        if (jumpNow && !prevBtn._jump) pressJump();
-        else if (!jumpNow && prevBtn._jump) releaseJump();
-        prevBtn._jump = jumpNow;
+        // ── ジャンプ（A ボタン）──
+        // ⚠1.725: **ジャンプと入店は分ける**（ユーザー指摘）。タッチ操作でも
+        //   「タップ＝ジャンプ／上スワイプ＝入店」と別のジェスチャーになっており、そちらが正。
+        //   ⚠キーボード（Space/↑ が jump+up 兼用）とは意図的に挙動を変えている。触らないこと。
+        gameState.input.jump = gpPressed(pad, GP.A);
+
+        // ── 上＝おみせに入る（十字キー上 / 左スティック上）＝タッチの上スワイプと同じ ──
+        // ⚠スティックの縦軸は**上が負**（W3C standard）。十字キーと連動させる（1.725・ユーザー指摘）。
+        //   ⚠up はジャンプを兼ねない＝走行中に少し上へ倒しても跳ばない。
+        gameState.input.up = gpPressed(pad, GP.UP) || gpAxis(pad, 1) < -GP_DEADZONE;
 
         // ── 下（十字キー下 / B ボタン / 左スティック下）＝キーボードの ↓ と同じ ──
         // 押した瞬間にだけ土管入室・急降下斬りが走る（pressDown が面倒を見る）
