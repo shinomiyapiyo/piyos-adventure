@@ -645,7 +645,7 @@ function bindTapDelegate(container, attrName, handler) {
     // ⚠押しっぱなしを毎フレーム「押した瞬間」と誤認しないよう、前フレームの状態と比較する（prevBtn）。
     // ─────────────────────────────────────────────────────────────
     var GP_DEADZONE = 0.35;   // スティックの遊び。小さすぎるとドリフトで勝手に歩く（調整ノブ）
-    var GP = { A: 0, B: 1, X: 2, L1: 4, R1: 5, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 }; // W3C standard mapping
+    var GP = { A: 0, B: 1, X: 2, Y: 3, L1: 4, R1: 5, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 }; // W3C standard mapping
     var prevBtn = {};         // 前フレームで押されていたか（押した瞬間の検出用）
     var gpConnectedId = null; // 接続中のコントローラー名（重複トースト防止も兼ねる）
 
@@ -786,15 +786,23 @@ function bindTapDelegate(container, attrName, handler) {
     }
     // 方向キーで「その向きにある一番近い要素」へ移す。⚠並び順(DOM順)ではなく**見た目の位置**で選ぶ＝
     //   図鑑のような格子でも、横並びのボタン列でも、同じ関数で自然に動く。
+    // 2つの区間の隙間（重なっていれば0）。⚠**横ずれは中心どうしの距離では測らない**（1.732）。
+    //   幅いっぱいの「地底モード」から下を押すと、中心が真ん中にあるせいで下の段の**真ん中の項目**
+    //   （ずかん/ランキング）へ飛んでいた。ユーザー報告「地底モードから下は設定に来てほしい」。
+    //   重なっている候補は横ずれ0＝**同点になり、先に見つかった＝DOM順で先頭**が選ばれる（＝左端の設定）。
+    function gpSpan(a1, a2, b1, b2) { return Math.max(0, Math.max(a1 - b2, b1 - a2)); }
     function gpPick(items, dx, dy, sameParentOnly) {
-        var c = gpCenter(gpFocusEl), best = null, bestScore = Infinity, i, t, v, along, across, score;
+        var c = gpCenter(gpFocusEl), rc = gpFocusEl.getBoundingClientRect();
+        var best = null, bestScore = Infinity, i, t, rt, v, along, across, score;
         for (i = 0; i < items.length; i++) {
             if (items[i] === gpFocusEl) continue;
             if (sameParentOnly && items[i].parentElement !== gpFocusEl.parentElement) continue;
             t = gpCenter(items[i]);
+            rt = items[i].getBoundingClientRect();
             v = { x: t.x - c.x, y: t.y - c.y };
             along  = dx ? v.x * dx : v.y * dy;           // 進みたい向きの成分
-            across = dx ? Math.abs(v.y) : Math.abs(v.x); // 横ずれ
+            across = dx ? gpSpan(rc.top, rc.bottom, rt.top, rt.bottom)
+                        : gpSpan(rc.left, rc.right, rt.left, rt.right); // 横ずれ（重なっていれば0）
             if (along <= 4) continue;                    // その向きに無いものは対象外
             // ⚠**進んだ距離を最優先**にする（1.729）。横ずれの重みが大きすぎると、
             //   すぐ下の行より「真下だが遠い行」を選んでしまい、間の項目を飛び越える
@@ -803,7 +811,7 @@ function bindTapDelegate(container, attrName, handler) {
             score = along * 3 + across;
             if (score < bestScore) { bestScore = score; best = items[i]; }
         }
-        return best;
+        return best ? { el: best, score: bestScore } : null;   // 距離も返す（一覧優先の判断に使う）
     }
     // 同じ親に「一覧」と呼べるだけの項目があるか。⚠**2個しか無い親は一覧ではない**（1.729）。
     //   タイトルメニューの外枠は「さいしょから」と「もどる」の2個しか直接持たず、8個のボタンは
@@ -815,13 +823,18 @@ function bindTapDelegate(container, attrName, handler) {
     }
     function gpMove(items, dx, dy) {
         if (!gpFocusEl) { gpSetFocus(items[0]); return; }
-        // ⚠一覧（同じ親に3つ以上）の中に居る時だけ、**その一覧の中を優先**する。
+        // ⚠一覧（同じ親に3つ以上）の中に居る時は、**その一覧の中を優先**する。
         //   商品一覧を上下に辿る途中で脇に浮いた「でる」ボタンへ飛ぶのを防ぐため（実測で発生）。
-        //   一覧でなければ最初から画面全体を見る＝入れ子の枠をまたいで自然に動く。
-        var best = null;
-        if (gpIsList(gpFocusEl, items)) best = gpPick(items, dx, dy, true);
-        if (!best) best = gpPick(items, dx, dy, false);
-        if (best) gpSetFocus(best);
+        var best = gpPick(items, dx, dy, false);
+        if (gpIsList(gpFocusEl, items)) {
+            var inList = gpPick(items, dx, dy, true);
+            // ⚠**ただし画面全体の候補のほうが明らかに近いなら、そちらを採る**（1.732）。
+            //   タイトルメニューの外枠は「つづきから/地底モード/もどる」の3つを直接持つ＝**一覧と判定される**ため、
+            //   地底モードから下を押すと、すぐ下の「設定」を飛び越して最下段の「もどる」へ落ちていた
+            //   （ユーザー実機報告）。1.6倍までなら一覧の並びを尊重し、それより遠ければ近い方を選ぶ。
+            if (inList && (!best || inList.score <= best.score * 1.6)) best = inList;
+        }
+        if (best) gpSetFocus(best.el);
     }
     function gpBack(root) {
         // 「もどる」に相当するボタンを探して押す。⚠無ければ何もしない（勝手に画面を閉じない）
@@ -892,20 +905,6 @@ function bindTapDelegate(container, attrName, handler) {
         if (b && !prevBtn._mB) gpBack(root);
         prevBtn._mB = b;
 
-        // ⚠【一時的な診断・出荷前に必ず削除する（1.729）】
-        //   実機でコントローラーが効かない時に、何が起きているかを本人が読めるようにするための窓。
-        //   SELECT(8) を押すと「対象画面 / 拾えた項目数 / カーソル / 押されているボタン番号」を出す。
-        //   ⚠通常プレイでは押されないボタンだが、**ストア版に残さないこと**（デバッグ表示は撤去が方針）。
-        var sel = gpPressed(pad, 8);
-        if (sel && !prevBtn._mSel) {
-            var pressed = [];
-            for (var bi = 0; bi < pad.buttons.length; bi++) if (gpPressed(pad, bi)) pressed.push(bi);
-            var info = 'screen=' + (root.id || '?') + ' items=' + items.length
-                + ' focus=' + (gpFocusEl ? (gpFocusEl.id || gpFocusEl.tagName) : 'none')
-                + ' btn=[' + pressed.join(',') + ']';
-            try { showRewardToast(escapeHtml(info), 'linear-gradient(180deg,#ffd83d,#c79a00)', '#000'); } catch (_) {}
-        }
-        prevBtn._mSel = sel;
         return true;
     }
 
@@ -1003,6 +1002,13 @@ function bindTapDelegate(container, attrName, handler) {
         //   GP_MODALS に入れてあるので、そのままコントローラーで答えられる）。
         if (x && !prevBtn._x && gpSlotFilled(gpStockIdx)) { try { useStockItem(gpStockIdx); } catch (_) {} }
         prevBtn._x = x;
+
+        // ── ひっさつわざ「ぴよフラッシュ」: Y（PSは △）（1.732・ユーザー要望） ──
+        // ⚠**画面上のボタンと同じ activateSpecialMove を呼ぶだけ**（発動条件はあちらが全部見ている＝
+        //   ゲージ未満/未購入/土管の部屋/カットイン中などは向こうで弾かれる）。
+        var yb = gpPressed(pad, GP.Y);
+        if (yb && !prevBtn._y) { try { activateSpecialMove(); } catch (_) {} }
+        prevBtn._y = yb;
         gpApplySlotMark(true);
     }
     window.pollGamepad = pollGamepad;

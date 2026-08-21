@@ -61,8 +61,16 @@
         /* ⚠**outline に頼らない**（1.730）。この画面のボタンには outline を上書きする指定があり、
            !important を付けても効かなかった（実測: computed が 1.5px white のまま）。
            box-shadow は確実に効くので、**リングは box-shadow で描く**。 */
-        .gp-focus {
+        /* ⚠**`.head-btn` に負けていた**（1.731 で発覚）。同じ詳細度(0,1,0)の
+           `.head-btn { box-shadow: ... !important }` が後ろに書かれているため、
+           全画面の「戻る」にカーソルが乗るとリングが一切描かれなかった（実測: computed が
+           .head-btn の影のまま）。**詳細度で勝つセレクタを併記する**（書く位置に依存しない）。 */
+        /* ⚠**内側にもリングを描く**（1.732・ユーザー実機報告「お店でカーソルが最上部にあると分かりにくい」）。
+           お店の一覧は幅いっぱいの行で、外側のリングが枠に切られて**上下の線しか見えない**＝
+           どの行を選んでいるのか読めなかった。inset は要素の内側に描かれるので絶対に切られない。 */
+        .gp-focus, .head-btn.gp-focus {
             box-shadow:
+                inset 0 0 0 3px #ffe14d,
                 0 0 0 3px rgba(0,0,0,0.75),
                 0 0 0 7px #ffe14d,
                 0 0 20px 6px rgba(255,225,77,0.9) !important;
@@ -103,7 +111,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.730";
+                content: "Ver.1.732";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1027,7 +1035,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.730</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.732</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1277,6 +1285,20 @@
                     padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
                     <span data-i18n="settings_howtoplay" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">遊び方</span>
                     <button id="howToPlayBtn" onclick="showGuide()" style="
+                        min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
+                        font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
+                        font-family: 'M PLUS Rounded 1c', sans-serif;
+                        background: linear-gradient(180deg, #44bb77, #228855);
+                        color: #fff; transition: background 0.15s ease;
+                        -webkit-tap-highlight-color: transparent;">▶</button>
+                </div>
+
+                <!-- コントローラーの操作方法（1.731）。中身は「遊び方」の章として持っているので、
+                     ここからは その章まで飛ばすだけにする（説明を2か所に書いて食い違わせない） -->
+                <div style="display: flex; justify-content: space-between; align-items: center;
+                    padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
+                    <span data-i18n="settings_gamepad" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">コントローラー</span>
+                    <button id="gamepadGuideBtn" onclick="showGuide('gamepad')" style="
                         min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
                         font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                         font-family: 'M PLUS Rounded 1c', sans-serif;
@@ -6059,7 +6081,8 @@ function selectZukanEntry(id) {
     detail.appendChild(desc);
 }
 
-function showGuide() {
+// 引数 focusSection: 開いた直後にその章のカードまでスクロールする（設定の「コントローラー」行から使う）
+function showGuide(focusSection) {
     if (isInTransitionCooldown()) return;
     markScreenTransition();
     showScreenEl('guideScreen');
@@ -6067,12 +6090,12 @@ function showGuide() {
     // ガイド内容を動的に生成（言語切替対応）
     // ⚠新しい章を足したらこの配列にも入れること（i18n に guide_<名前>_title / _body が要る）
     // 地底は「おまけのモード」ではなく **R7 で必ず来る本編**なので、ボス戦の直後に置く（1.664）
-    var sections = ['controls', 'items', 'stock', 'pouch', 'special', 'boss', 'underground', 'bonus', 'money', 'shop', 'savings', 'titleshop', 'egg', 'avatar', 'datasave', 'tips'];
+    var sections = ['controls', 'gamepad', 'items', 'stock', 'pouch', 'special', 'boss', 'underground', 'bonus', 'money', 'shop', 'savings', 'titleshop', 'egg', 'avatar', 'datasave', 'tips'];
     var html = '';
     for (var i = 0; i < sections.length; i++) {
         var s = sections[i];
         // 章ごとにカード化（1.663）。1本の長文だと現在地が分からないうえ、横が余っていても縦に伸び続ける
-        html += '<div style="background:rgba(0,0,40,0.55);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:8px 10px;">' +
+        html += '<div id="guideCard_' + s + '" style="background:rgba(0,0,40,0.55);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:8px 10px;">' +
             '<div style="color:#ffd700;font-weight:bold;font-size:clamp(11px,2.2vw,16px);margin-bottom:4px;">' + t('guide_' + s + '_title') + '</div>' +
             '<div style="color:#ddd;font-size:clamp(10px,1.8vw,14px);white-space:pre-line;line-height:1.5;">' + escapeHtml(t('guide_' + s + '_body')) + '</div>' +
             '</div>';
@@ -6080,6 +6103,13 @@ function showGuide() {
     var contentEl = document.getElementById('guideContent');
     contentEl.innerHTML = html;
     contentEl.scrollTop = 0;
+    // ⚠innerHTML を入れ直した直後は高さが未確定なことがあるので、次のフレームで寄せる
+    if (focusSection) {
+        requestAnimationFrame(function() {
+            var card = document.getElementById('guideCard_' + focusSection);
+            if (card) { try { card.scrollIntoView({ block: 'start' }); } catch (_) {} }
+        });
+    }
     // スクロールヒント表示制御。⚠1.663 で #guideScrollHint は撤去済み（常時バーと役目が重複し
     //   カードに重なっていた）＝下は実行されない。復活させたくなった時のために残してある。
     var hint = document.getElementById('guideScrollHint');
