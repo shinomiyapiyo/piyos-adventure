@@ -819,12 +819,28 @@ function bindTapDelegate(container, attrName, handler) {
         return best || alt;
     }
     // 動いたら true。⚠**動けたかどうかを返す**＝動けない時にスクロールへ回すため（1.733）
-    function gpMove(items, dx, dy) {
+    // ⚠**スクロールする一覧の中に居る間は、その一覧の中を優先する**（1.736・ユーザー実機報告
+    //   「おみせで下を押すとエッグ交換の欄を無視して"もどる"にカーソルが合う」）。
+    //   一覧の続き（＝スクロールして初めて見える行）は画面の外にあるので、**枠の外にある
+    //   「もどる」の方が距離では必ず近くなる**＝素直に距離で選ぶと一覧を最後まで辿れない。
+    //   ⚠その向きに一覧の中の候補が無い時だけ外へ出る＝一番下まで行けば「もどる」へ抜けられる。
+    function gpMove(items, dx, dy, root) {
         if (!gpFocusEl) { gpSetFocus(items[0]); return true; }
-        var best = gpPick(items, dx, dy);
+        var best = null, box = root ? gpScrollBoxOf(gpFocusEl, root) : null;
+        if (box) {
+            var inBox = [], i;
+            for (i = 0; i < items.length; i++) if (box.contains(items[i])) inBox.push(items[i]);
+            if (inBox.length > 1) best = gpPick(inBox, dx, dy);
+        }
+        if (!best) best = gpPick(items, dx, dy);
         if (!best || best === gpFocusEl) return false;
         gpSetFocus(best);
         return true;
+    }
+    // カーソルが入っているスクロール箱（画面の直下まで遡って探す。無ければ null）
+    function gpScrollBoxOf(el, root) {
+        while (el && el !== root) { if (gpCanScroll(el)) return el; el = el.parentElement; }
+        return null;
     }
 
     // ─── スクロールする画面をコントローラーで送る（1.733・ユーザー実機報告） ───
@@ -957,10 +973,10 @@ function bindTapDelegate(container, attrName, handler) {
         // ⚠押した瞬間だけ動かす（押しっぱなしで一覧を突き抜けないように）
         // ⚠**動けなかった上下は画面のスクロールに回す**（1.733）。遊び方やランキングのように
         //   「戻る」しか押せる物が無い画面でも、本文を最後まで読めるようにするため。
-        if (L && !prevBtn._mL) { if (gpMove(items, -1, 0)) gpSe('playCursorMove'); }
-        if (R && !prevBtn._mR) { if (gpMove(items,  1, 0)) gpSe('playCursorMove'); }
-        if (U && !prevBtn._mU) { if (gpMove(items, 0, -1)) gpSe('playCursorMove'); else if (gpScroll(root, -1)) gpSe('playCursorMove'); }
-        if (D && !prevBtn._mD) { if (gpMove(items, 0,  1)) gpSe('playCursorMove'); else if (gpScroll(root,  1)) gpSe('playCursorMove'); }
+        if (L && !prevBtn._mL) { if (gpMove(items, -1, 0, root)) gpSe('playCursorMove'); }
+        if (R && !prevBtn._mR) { if (gpMove(items,  1, 0, root)) gpSe('playCursorMove'); }
+        if (U && !prevBtn._mU) { if (gpMove(items, 0, -1, root)) gpSe('playCursorMove'); else if (gpScroll(root, -1)) gpSe('playCursorMove'); }
+        if (D && !prevBtn._mD) { if (gpMove(items, 0,  1, root)) gpSe('playCursorMove'); else if (gpScroll(root,  1)) gpSe('playCursorMove'); }
         prevBtn._mL = L; prevBtn._mR = R; prevBtn._mU = U; prevBtn._mD = D;
 
         if (!tapThrough) {   // スプラッシュ/タイトルは上で処理済み（二重に発火させない）
