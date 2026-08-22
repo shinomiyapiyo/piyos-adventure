@@ -85,7 +85,7 @@ function simulate(round, mode) {
 
 const argRound = process.argv[2] ? Number(process.argv[2]) : null;
 const argMode = process.argv[3] || null;
-const ROUNDS = argRound ? [argRound] : [7, 14, 21, 28];
+const ROUNDS = argRound ? [argRound] : [7, 14, 21, 28, 35];
 const MODES = argMode ? [argMode] : ['fixed', 'room'];
 
 let bad = 0;

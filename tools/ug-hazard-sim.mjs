@@ -142,7 +142,7 @@ function analyse(round) {
     return { findings, tightestAll };
 }
 
-const want = process.argv[2] ? [Number(process.argv[2])] : [7, 14, 21, 28];
+const want = process.argv[2] ? [Number(process.argv[2])] : [7, 14, 21, 28, 35];
 console.log('\n=== 地底「被弾せずに抜けられるか」シミュレーション ===');
 console.log(`1周期 ${T}フレーム / 歩行 3.0px/f（1タイル${WALK_F}f） / 滞空 ${JUMP_F}f / 当たり判定は実機と同じ寛容さ\n`);
 let bad = 0;

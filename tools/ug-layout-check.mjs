@@ -350,7 +350,7 @@ function checkRound(round, rooms, overlaps, out) {
 
 // ─────────────────────────────────────────────────────────────────
 const { forRound, overlaps } = loadRooms();
-const want = process.argv[2] ? [Number(process.argv[2])] : [7, 14, 21, 28];
+const want = process.argv[2] ? [Number(process.argv[2])] : [7, 14, 21, 28, 35];
 const out = { errors: [], warns: [], stats: {} };
 
 // 例外指定（落下線の上のコインを許す列範囲・追加の床ライン）
@@ -358,6 +358,7 @@ const EXTRA = {
     fall:    { dropCols: [0, 4] },                                 // R7/R14 の落下部屋
     shaft:   { dropCols: [0, 4] },                                 // R21 の落下部屋
     plummet: { dropCols: [0, 4] },                                 // R28 の落下部屋
+    plunge:  { dropCols: [0, 4] },                                 // R35 の落下部屋
     rift:    { dropCols: [44, 49], extraFloor: { row: 12, from: 0, to: 43 } }, // R21 の落下口＋中段の桟道
     // R28 の分水嶺: 中段の通路(行32・入口側)と上ルートのトンネル床(行11)も穴が無いことを確かめる。
     // ⚠上ルートの床に穴があると「上から下へ落ちられる」＝この面の前提が崩れるので、ここは必ず見る。

@@ -353,7 +353,7 @@ if (process.argv[2] === '--selftest') {
 }
 
 // ── 実行 ──
-const want = process.argv[2] ? [Number(process.argv[2])] : [7, 14, 21, 28];
+const want = process.argv[2] ? [Number(process.argv[2])] : [7, 14, 21, 28, 35];
 console.log('\n═══ 地底「ギミックが重なる場所で 100%被弾しないか」 ═══');
 console.log(`絶対時間 ${WINDOW}f(100秒)を1フレームずつ / バー286f・火の玉 f=211f e=152f（周期が互いに素なので総当たりでなく実時間で回す）`);
 console.log('判定式は実機の updateUndergroundHazards と同一。跳躍中も判定する。\n');
