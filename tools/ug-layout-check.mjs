@@ -273,8 +273,8 @@ function checkRound(round, rooms, overlaps, out) {
         });
 
         // ── 「上から下へ絶対に落ちられない」床（R28の分水嶺の上ルート）に穴が1マスも無いか ──
-        if (room.sealedFloor) {
-            const { row, from, to, thick = 32 } = room.sealedFloor;   // ⚠深いマグマを掘っても下の岩で塞がっていればよい
+        for (const sealed of (room.sealedFloors || (room.sealedFloor ? [room.sealedFloor] : []))) {
+            const { row, from, to, thick = 32 } = sealed;   // ⚠深いマグマを掘っても下の岩で塞がっていればよい
             // ⚠**帯のどこか1行でも岩なら塞がっている**。最上行を溶岩にして「マグマの池」を作っても
             //   下の行が岩なら落下は起きない（1.613で上ルートに溶岩を入れたため、単一行判定から変更）。
             for (let c = from; c <= to; c++) {
@@ -364,9 +364,23 @@ const EXTRA = {
     // ⚠上ルートの床に穴があると「上から下へ落ちられる」＝この面の前提が崩れるので、ここは必ず見る。
     divide:  { extraFloor: { row: 32, from: 0, to: 39 }, sealedFloor: { row: 11, from: 60, to: 145 } }
 };
+// ⚠**同じ部屋名を別のレイアウトが使う**（R28とR35の 'divide'）。ラウンド別の指定はこちらが勝つ。
+const EXTRA_BY_ROUND = {
+    // R35 の分水嶺: 中段の通路(行33・入口側)に穴が無いか＋**3本の仕切りが抜けていないか**。
+    //   上ルートの床(行12)と中ルートの床(行33)は、並走区間で1マスでも抜けると下のルートへ
+    //   落ちられてしまう＝この面の前提（ルートを移れない）が崩れる。
+    35: {
+        divide: {
+            extraFloor:   { row: 33, from: 0, to: 39 },
+            sealedFloors: [{ row: 12, from: 64, to: 175, thick: 11 },
+                           { row: 33, from: 64, to: 175, thick: 11 }]
+        }
+    }
+};
 
 for (const r of want) {
-    const rooms = forRound(r).map((room) => Object.assign({}, room, EXTRA[room.key] || {}));
+    const byRound = EXTRA_BY_ROUND[r] || {};
+    const rooms = forRound(r).map((room) => Object.assign({}, room, EXTRA[room.key] || {}, byRound[room.key] || {}));
     checkRound(r, rooms, [], out);
 }
 // ⚠ugRow の部品どうしの重なり（＝先に書いたものが黙って消える）。ファイル全体で1回だけ集計される。
