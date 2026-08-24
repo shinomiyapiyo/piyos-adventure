@@ -783,6 +783,24 @@ function bindTapDelegate(container, attrName, handler) {
         }
         return false;   // 持ち物が空
     }
+    // つかんだ品を隣の枠へ移す（＝入れ替え）。⚠**空き枠へも動かせる**ようにする
+    //   （並べ替えは「空いている所へ寄せる」操作が本体なので、中身のある枠だけを巡ってはいけない）。
+    //   ⚠端では止める（回り込ませない）。⚠入れ替えが**断られた時は理由を出す**＝
+    //   黙って動かないと「コントローラーが効かない」に見える（ドラッグ側と同じ考え方）。
+    function gpStockMove(dir) {
+        var to = gpStockIdx + dir;
+        if (to < 0 || to >= stockState.maxSlots) return false;
+        var ok = false;
+        try { ok = swapStockSlots(gpStockIdx, to); } catch (_) { ok = false; }
+        if (ok) {
+            gpStockIdx = to;
+            gpSe('playCursorMove');
+            return true;
+        }
+        // 断られた＝ポーチの所有品を外へ出そうとした等。理由はタッチと同じ出し方に任せる
+        try { if (typeof rejectPermaOutToast === 'function') rejectPermaOutToast(); } catch (_) {}
+        return false;
+    }
     // 選択中の枠が空になったら（使った/売った）、隣の中身のある枠へ寄せる
     function gpStockNormalize() {
         if (gpSlotFilled(gpStockIdx)) return;
@@ -792,14 +810,35 @@ function bindTapDelegate(container, attrName, handler) {
     }
     // 選択枠の光らせ方。⚠updateStockUI は innerHTML を作り直すのでクラスが消える＝毎フレーム当て直す。
     //   （querySelector 2回だけなので負荷は無視できる。当たっていれば何もしない）
+    // ⚠**つかみ（並べ替え）**（1.742・ユーザー要望「コントローラーでできない操作を一つも無くしたい」）。
+    //   タッチは「長押しでつかむ→ドラッグ」なので、コントローラーも **X長押しでつかむ→L/Rで入れ替え** に揃える。
+    var gpGrab = false;      // 持ち物をつかんでいるか
+    var gpXFrames = 0;       // X を押している長さ（短押し=使う／長押し=つかむ の判定用）
+    var GP_GRAB_FRAMES = 20; // つかむまでの長押し（約0.33秒）
     function gpApplySlotMark(on) {
         var cont = document.getElementById('stockSlots');
         if (!cont) return;
-        var cur = cont.querySelector('.gp-slot');
         var want = on ? cont.querySelector('[data-idx="' + gpStockIdx + '"]') : null;
-        if (cur === want) return;
-        if (cur) cur.classList.remove('gp-slot');
-        if (want) want.classList.add('gp-slot');
+        // 選択の緑リング
+        var cur = cont.querySelector('.gp-slot');
+        var wantSel = (on && !gpGrab) ? want : null;
+        if (cur !== wantSel) {
+            if (cur) cur.classList.remove('gp-slot');
+            if (wantSel) wantSel.classList.add('gp-slot');
+        }
+        // つかみ中の橙リング。⚠**選択の緑とは同時に出さない**（どっちの状態か迷わせない）
+        var curG = cont.querySelector('.gp-grab');
+        var wantGrab = (on && gpGrab) ? want : null;
+        if (curG !== wantGrab) {
+            if (curG) curG.classList.remove('gp-grab');
+            if (wantGrab) wantGrab.classList.add('gp-grab');
+        }
+    }
+    // つかみを解除する（画面が変わった・コントローラーが抜けた等でも必ず戻す）
+    function gpReleaseGrab() {
+        if (!gpGrab) return;
+        gpGrab = false; gpXFrames = 0;
+        gpSe('playConfirmSelect');
     }
     function gpItems(root) {
         var all = root.querySelectorAll(GP_FOCUS_SEL), out = [], i;
@@ -1040,6 +1079,7 @@ function bindTapDelegate(container, attrName, handler) {
         if (!pad) {
             if (gpConnectedId !== null) {   // 切断: 押しっぱなしが残らないように必ず落とす
                 gpConnectedId = null; prevBtn = {};
+                gpGrab = false; gpXFrames = 0;      // ⚠つかんだままにしない（1.742）
                 gameState.input.left = false; gameState.input.right = false;
                 gameState.input.jump = false; gameState.input.up = false;
                 releaseDown();
@@ -1076,6 +1116,7 @@ function bindTapDelegate(container, attrName, handler) {
             gameState.input.left = false; gameState.input.right = false;
             gameState.input.jump = false; gameState.input.up = false;
             releaseDown();
+            gpGrab = false; gpXFrames = 0;         // ⚠メニュー/ポーズへ移ったらつかみは落とす（1.742）
             // 押しっぱなしがゲーム復帰の瞬間に暴発しないよう、ゲーム側の前回値も更新しておく
             prevBtn._down = gpPressed(pad, GP.DOWN) || gpPressed(pad, GP.B) || gpAxis(pad, 1) > GP_DEADZONE;
             gpApplySlotMark(false);
@@ -1113,16 +1154,44 @@ function bindTapDelegate(container, attrName, handler) {
         prevBtn._down = downNow;
 
         // ── 持ち物: L / R で選択、□(X) で使用（1.727・ユーザー決定） ──
-        gpStockNormalize();
+        if (!gpGrab) gpStockNormalize();    // ⚠つかみ中は寄せない（掴んだ枠から勝手に離れてしまう）
         var l1 = gpPressed(pad, GP.L1), r1 = gpPressed(pad, GP.R1);
-        if (l1 && !prevBtn._l1) { if (gpStockStep(-1) && soundManager) { try { soundManager.playCursorMove(); } catch (_) {} } }
-        if (r1 && !prevBtn._r1) { if (gpStockStep(1)  && soundManager) { try { soundManager.playCursorMove(); } catch (_) {} } }
+        // つかみ中は L/R が「隣の枠と入れ替え」になる。⚠**入れ替えは swapStockSlots に通す**＝
+        //   永続枠の所有・使用済みロック・ポーチ品の持ち出し禁止が、ドラッグと完全に同じ規則で効く。
+        //   ⚠つかみ中は端で止める（回り込ませない）＝どこへ動かしたのかを見失わせない。
+        if (l1 && !prevBtn._l1) {
+            if (gpGrab) gpStockMove(-1);
+            else if (gpStockStep(-1)) gpSe('playCursorMove');
+        }
+        if (r1 && !prevBtn._r1) {
+            if (gpGrab) gpStockMove(1);
+            else if (gpStockStep(1)) gpSe('playCursorMove');
+        }
         prevBtn._l1 = l1; prevBtn._r1 = r1;
-        var x = gpPressed(pad, GP.X);
+        // ── X: 短押し=使う ／ **長押し=つかむ（並べ替えへ）** ／ つかみ中の短押し=はなす（1.742）──
         // ⚠**タップと同じ useStockItem を呼ぶ**。確認が要る品は向こうが確認モーダルを出す（gameModal は
         //   GP_MODALS に入れてあるので、そのままコントローラーで答えられる）。
-        if (x && !prevBtn._x && gpSlotFilled(gpStockIdx)) { try { useStockItem(gpStockIdx); } catch (_) {} }
+        // ⚠押した瞬間には使わない＝長押しかどうかが確定するまで待つ（使ってから掴む、を防ぐ）。
+        var x = gpPressed(pad, GP.X);
+        if (x) {
+            gpXFrames++;
+            if (!gpGrab && gpXFrames === GP_GRAB_FRAMES && gpSlotFilled(gpStockIdx)) {
+                gpGrab = true;                       // つかんだ
+                gpSe('playCursorMove');
+            }
+        } else {
+            if (prevBtn._x && gpXFrames < GP_GRAB_FRAMES) {      // 短押しだった
+                if (gpGrab) gpReleaseGrab();                     // つかみ中 → はなす
+                else if (gpSlotFilled(gpStockIdx)) { try { useStockItem(gpStockIdx); } catch (_) {} }
+            }
+            gpXFrames = 0;
+        }
         prevBtn._x = x;
+        // B でもつかみを解除できる（ゲーム中の B は下入力も兼ねるので、解除だけ拾う）
+        if (gpGrab && gpPressed(pad, GP.B) && !prevBtn._gB) gpReleaseGrab();
+        prevBtn._gB = gpPressed(pad, GP.B);
+        // ⚠中身が無くなった/枠が減った時はつかみを落とす（持てない物を持ったままにしない）
+        if (gpGrab && !gpSlotFilled(gpStockIdx)) gpGrab = false;
 
         // ── ひっさつわざ「ぴよフラッシュ」: Y（PSは △）（1.732・ユーザー要望） ──
         // ⚠**画面上のボタンと同じ activateSpecialMove を呼ぶだけ**（発動条件はあちらが全部見ている＝
