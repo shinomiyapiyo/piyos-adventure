@@ -683,7 +683,12 @@ function bindTapDelegate(container, attrName, handler) {
     //   先頭ほど手前。表示中で最初に見つかったものを操作対象にする。
     // ⚠**動的に作られるモーダル**（DOMに後から差し込まれる）。固定idの画面より必ず手前にある。
     //   これを入れておかないと、ラン中に枠が満杯でアイテムを拾った瞬間に操作不能になる（実測で発覚）。
-    var GP_MODALS = ['.stockSwapOverlay', '#gameModal'];
+    // ⚠**後からDOMに差し込まれる全画面の幕はすべてここに入れる**（z-indexの高い順＝手前から）。
+    //   入れ忘れると、その幕が出ている間 A が**背後の画面**に届く＝**幕が閉じないままゲームが進む**。
+    //   1.737でログインボーナス(#loginBonusPopup)が実際にこれになった（ユーザー実機報告
+    //   「ログインボーナスが受け取れない／ダイアログが開いたまま裏でステージが始まる」）。
+    //   ⚠下の gpStrayOverlay() が保険として拾うが、**新しい幕を作ったらここにも足すこと**。
+    var GP_MODALS = ['#gameModal', '.stockSwapOverlay', '#sobaScene', '#loginBonusPopup', '.transferOverlay'];
     var GP_SCREENS = [
         // ⚠**splashScreen を必ず入れる**（1.729）。スプラッシュ表示中は startScreen が display:none なので、
         //   入れていないと操作対象がゼロ＝「Please Tap から先に進めない」（ユーザー実機報告）。
@@ -718,12 +723,41 @@ function bindTapDelegate(container, attrName, handler) {
         var st = window.getComputedStyle(el);
         return st.display !== 'none' && st.visibility !== 'hidden' && parseFloat(st.opacity || '1') > 0.05;
     }
+    // ⚠**保険**（1.737）: 名簿に無い全画面の幕を拾う。position:fixed で画面の6割以上を覆い、
+    //   z-index が 9000 以上の可視要素は「幕」とみなす。⚠名簿への入れ忘れは
+    //   **「幕が閉じられないのに裏の画面が進む」**という最悪の壊れ方をするので、機械的にも拾う。
+    //   ⚠既知の画面（GP_SCREENS）と、それを内側に持つ入れ物は対象外＝並び順の設計を壊さない。
+    //   ⚠トースト・TESTバッジのような小さい固定要素は面積の条件で外れる。
+    function gpStrayOverlay() {
+        var kids = document.body.children, vw = window.innerWidth, vh = window.innerHeight;
+        var i, j, el, st, r, z, best = null, bestZ = -1, skip;
+        for (i = 0; i < kids.length; i++) {
+            el = kids[i];
+            if (el.id && GP_SCREENS.indexOf(el.id) >= 0) continue;
+            skip = false;
+            for (j = 0; j < GP_SCREENS.length && !skip; j++) {
+                try { if (el.querySelector('#' + GP_SCREENS[j])) skip = true; } catch (_) {}
+            }
+            if (skip) continue;
+            st = window.getComputedStyle(el);
+            if (st.position !== 'fixed' || st.display === 'none' || st.visibility === 'hidden') continue;
+            if (parseFloat(st.opacity || '1') < 0.05) continue;
+            z = parseInt(st.zIndex, 10);
+            if (!isFinite(z) || z < 9000) continue;
+            r = el.getBoundingClientRect();
+            if (r.width < vw * 0.6 || r.height < vh * 0.6) continue;
+            if (z > bestZ) { bestZ = z; best = el; }
+        }
+        return best;
+    }
     function gpTopScreen() {
         var i, el;
         for (i = 0; i < GP_MODALS.length; i++) {
             el = document.querySelector(GP_MODALS[i]);
             if (el && gpVisible(el)) return el;
         }
+        el = gpStrayOverlay();
+        if (el) return el;
         for (i = 0; i < GP_SCREENS.length; i++) {
             if (isScreenVisible(GP_SCREENS[i])) return document.getElementById(GP_SCREENS[i]);
         }
@@ -915,8 +949,10 @@ function bindTapDelegate(container, attrName, handler) {
         //   「画面のどこをタップでも進む」作りで、押せる要素が0件になる。
         //   ⚠これを items の件数チェックより**前**に置くこと。後ろに置くと0件の早期returnに阻まれて
         //   A が一切効かない（「Please Tap から進めない」の直接原因だった）。
+        // ⚠幕そのものをタップして進む作りの画面は、A でその幕を押す（1.737でそばの演出を追加）
         var tapThrough = (root.id === 'splashScreen') ? startApp
-                       : (root.id === 'startScreen')  ? showTitleMenu : null;
+                       : (root.id === 'startScreen')  ? showTitleMenu
+                       : (root.id === 'sobaScene')    ? function () { root.click(); } : null;
         if (tapThrough) {
             var aT = gpPressed(pad, GP.A);
             if (aT && !prevBtn._mA) {
