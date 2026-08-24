@@ -111,7 +111,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.740";
+                content: "Ver.1.741";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1035,7 +1035,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.740</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.741</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6550,6 +6550,12 @@ function generateTerrain() {
     if (highSpeed) {
         holeChance = 0.10;                  // 高速でも一定確率で短穴を許可
         holeMin = 70; holeVar = 45;         // 短い穴 70〜115px（速くても跳べる）
+        // ⚠**R36以降は上限を少し広げる**（1.741・ユーザー指示＝上位ランカー向けの難度調整）。
+        //   短穴に絞っていたのは「高速では避けようがない落下」を減らすためだったが、
+        //   この段階まで残る人は今後ほぼ永久に生き残れてしまうので、その保護を段階的に外す。
+        //   ⚠**通常速度の上限(220px)は超えない**＝理不尽にはしない。跳べるかどうかではなく
+        //   「反応の余裕」を削るのが狙いなので、幅だけを動かし、確率と1画面1つ制限は据え置く。
+        if (gameRound >= WIDE_HOLE_ROUND) { holeMin = 90; holeVar = 70; }   // R36〜 90〜160px
     }
     // 高速時のみ1画面1つ制限: 直近の穴から1画面(GAME_WIDTH)以上離れていなければ穴を作らない
     var holeAllowed = !highSpeed || gameState.lastHoleX == null ||
@@ -6835,10 +6841,17 @@ function manageObjects() {
     gameState.flyingEnemySpawnTimer++;
     gameState.powerUpSpawnTimer++;
 
-    if (!inSafe && gameState.enemySpawnTimer > 90 && Math.random() < 0.4) {
+    // ⚠**R43以降は湧く間隔を詰める**（1.741・ユーザー指示＝上位ランカー向けの難度調整）。
+    //   敵の速度は上限に張り付いていて上げられないので、ここから先は"数"で難度を作る。
+    var _dense = gameRound >= DENSE_ENEMY_ROUND;
+    var _eCool = _dense ? ENEMY_COOL_DENSE : ENEMY_COOL_BASE;
+    var _eProb = _dense ? ENEMY_PROB_DENSE : ENEMY_PROB_BASE;
+    var _fCool = _dense ? FLY_COOL_DENSE   : FLY_COOL_BASE;
+    var _fProb = _dense ? FLY_PROB_DENSE   : FLY_PROB_BASE;
+    if (!inSafe && gameState.enemySpawnTimer > _eCool && Math.random() < _eProb) {
         enemies.push(spawnEnemy()); gameState.enemySpawnTimer = 0;
     }
-    if (!inSafe && gameState.flyingEnemySpawnTimer > 180 && Math.random() < 0.15) {
+    if (!inSafe && gameState.flyingEnemySpawnTimer > _fCool && Math.random() < _fProb) {
         flyingEnemies.push(spawnFlyingEnemy()); gameState.flyingEnemySpawnTimer = 0;
     }
     if (gameState.platformSpawnTimer > 120 && Math.random() < 0.6) {
@@ -6997,6 +7010,7 @@ function updatePlayer() {
     // カメラ・距離
     // 地底はオートスクロールしない＝camera.x は updateUnderground がプレイヤー追従で進める（距離は同じ式で自動加算）
     if (!undergroundState.active) gameState.camera.x += gameState.gameSpeed;
+    if (!undergroundState.active) updateSurfaceCameraY();   // 縦カメラ（1.741・上だけ追う）
     // ⚠式そのものは不変（camera.x 由来の単一情報源・単調増加）。地底ぶんの加算だけを圧縮するため
     //   ugDistOffset（地底でカメラが進んだ量の (1-UG_DIST_SCALE) 倍が積まれる）を差し引く。
     //   地上では offset が増えないので、地上の距離の増え方は完全に従来どおり。updateUnderground 参照。
@@ -8107,6 +8121,27 @@ function takeDamage() {
     if (gameState.lives <= 0) {
         if (!tryRevive()) gameOver();
     }
+}
+
+// ─── 地上の縦カメラ（1.741・ユーザー指示）───────────────────────────────
+// ジャンプで画面上端より高い位置に居る間、これまではカメラが追わず**滞空が無敵ゾーン**になっていた
+// （敵も弾も画面に入らないので事実上どこからも当たらない）。上へ**半画面ぶんまで**追う。
+// ⚠**下へは動かさない**（camera.y は常に 0 以下）＝地面より下を見せる必要はないし、
+//   地上のあらゆる描画は camera.y=0 を基準に組まれている。
+// ⚠**復活中(isRespawning)は追わない**＝「上から無敵で降ってくる」演出をそのまま残す（ユーザー指定）。
+// ⚠落下死ライン・敵の除去ライン・弾/エッグの消去は**ワールド座標**で書かれているので、
+//   カメラを上げても判定は一切変わらない（地底対応の時に整理済み）。
+function updateSurfaceCameraY() {
+    var target = 0;
+    if (gameState.gameStarted && !gameState.isRespawning) {
+        // player.y は頭の位置。画面上端から SURF_CAM_UP_MARGIN の余裕を残して追い始める
+        target = Math.min(0, Math.max(-SURF_CAM_UP_MAX, player.y - SURF_CAM_UP_MARGIN));
+    }
+    var cy = gameState.camera.y;
+    var k = (target < cy) ? SURF_CAM_UP_LERP : SURF_CAM_DOWN_LERP;
+    cy += (target - cy) * k;
+    if (Math.abs(cy) < 0.5) cy = 0;             // 微小な残りは 0 に落として従来と同一の絵にする
+    gameState.camera.y = cy;
 }
 
 function fallDeath() {

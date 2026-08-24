@@ -4213,17 +4213,24 @@ function render() {
         ctx.globalAlpha = 1;
     }
 
+    // ⚠**縦の視差**（1.741）。地上の背景は translate の外＝画面固定で描いているので、
+    //   縦カメラを入れると**地面だけ下がって地平線が分離する**。層ごとに追従率を変えてつなぐ。
+    //   ⚠木は地面のすぐ後ろにあるので**ほぼ1:1**で追わせる（ここが離れると宙に浮いて見える）。
+    var _camYs = -gameState.camera.y;            // 上に上がると正
+    var _mtnShift = _camYs * 0.5, _treeShift = _camYs * 0.9, _cloudShift = _camYs * 0.2;
     if (biomeState.current === 5) {
         // 地底（1.542）: 遠景=岩壁と石柱・中景=鍾乳石/石筍・底=溶岩の照り返し（山/木/雲の代わり）
         drawCaveBackdrop();
     } else if (biomeState.current === 4) {
         // はじまりの地（街）: 遠景=家並み・中景=街灯（山/木の代わり・チュートリアル専用）
-        drawTownSkyline(biMtnAlpha);
-        drawTownStreet(biTreeAlpha);
+        // ⚠こちらにも縦の視差を掛ける（1.741）。掛けないと縦カメラで**街だけ画面に貼り付いて**
+        //   地面から切り離される。層ごとの追従率は山/木と同じにして見え方を揃える。
+        ctx.save(); ctx.translate(0, _mtnShift);  drawTownSkyline(biMtnAlpha); ctx.restore();
+        ctx.save(); ctx.translate(0, _treeShift); drawTownStreet(biTreeAlpha); ctx.restore();
     } else {
     // パララックス: 遠景山 (0.15x速度)
     var mountainDispW = 160, mountainDispH = 100;
-    var mountainY = GAME_HEIGHT - mountainDispH - 74;
+    var mountainY = GAME_HEIGHT - mountainDispH - 74 + _mtnShift;
     ctx.globalAlpha = biMtnAlpha;
     for (var mi = 0; mi < 8; mi++) {
         var mx = (mi * mountainDispW - gameState.camera.x * 0.15) % (mountainDispW * 8);
@@ -4235,7 +4242,7 @@ function render() {
 
     // パララックス: 中景木 (0.25x速度)
     var treeDispW = 64, treeDispH = 96;
-    var treeY = GAME_HEIGHT - treeDispH - 45;
+    var treeY = GAME_HEIGHT - treeDispH - 45 + _treeShift;
     ctx.globalAlpha = biTreeAlpha;
     for (var ti = 0; ti < 12; ti++) {
         var treeX = (ti * treeDispW * 2.5 - gameState.camera.x * 0.25) % (treeDispW * 30);
@@ -4255,7 +4262,7 @@ function render() {
         var cx = (i * 280 - gameState.camera.x * 0.3 + gameState.time * 0.2) % (GAME_WIDTH + 200);
         if (cx < -cloudDispW) cx += GAME_WIDTH + 200;
         if (cx > GAME_WIDTH) continue; // B-3: 画面外(右)はスキップ
-        var cy = 30 + Math.sin(i * 0.7 + gameState.time * 0.01) * 40;
+        var cy = 30 + Math.sin(i * 0.7 + gameState.time * 0.01) * 40 + _cloudShift;
         spriteManager.draw(ctx, 'bg_cloud', 0, cx, cy, cloudDispW, cloudDispH, false);
     }
     ctx.globalAlpha = 1;
