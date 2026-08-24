@@ -325,6 +325,17 @@
     //   window.__adDiag に置くだけにして、テストモード時だけトーストで読める（下の adDiagToast）。
     var adDiag = { consentFailed: false, lastLoadFail: null, lastShowFail: null, lastAllowed: null, prepares: 0 };
     window.__adDiag = adDiag;
+    // ⚠**押した瞬間の状態**を出す（1.739）。要求すらしていない時は失敗イベントが来ない＝
+    //   エラーだけ見ていても「何も起きない」としか分からないため、可否そのものを読めるようにする。
+    //   ⚠テストモード(TEST_START_AFTER_R6=true)の時だけ表示＝ストア版には出ない。
+    function adDiagState(tag) {
+        if (window.TEST_START_AFTER_R6 !== true) return;
+        var msg = tag + ' allowed=' + adsAllowed() + ' ready=' + rewardReady
+                + ' consentFail=' + consentFailed + ' status=' + (consentInfo ? consentInfo.status : 'none')
+                + ' canReq=' + (consentInfo ? consentInfo.canRequestAds : '-') + ' req=' + adDiag.prepares;
+        try { if (typeof showRewardToast === 'function')
+            showRewardToast(msg, 'linear-gradient(180deg,#ffd83d,#c79a00)', '#000'); } catch (_) {}
+    }
     function adDiagNote(kind, err) {
         var msg = '';
         try { msg = (err && (err.message || err.code || err.error || JSON.stringify(err))) || ''; } catch (_) { msg = String(err); }
@@ -514,6 +525,7 @@
         lateReward = null;                  // ⚠1.603: 前回ぶんの救済枠は破棄（古いcbを新しい視聴で誤爆させない）
         rewardEverShown = false;            // ⚠1.606: この視聴要求で広告が実際に出たか（前回の値を持ち越さない）
         pendingReward = callback || function () {};
+        adDiagState('REWARD押下');
         if (rewardReady) { presentReward(); return; }
         // 未ロード: 準備してロード完了(rewLoaded)で表示。時間内に用意できなければ失敗解決（無音で失敗しない）。
         // ⚠1.606: 6秒 → REWARD_LOAD_WAIT_MS(10秒) に延長。**1本目を見た直後の2本目**は、消費済みの広告を
