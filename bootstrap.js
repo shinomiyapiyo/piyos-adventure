@@ -791,15 +791,25 @@ function bindTapDelegate(container, attrName, handler) {
     function gpStockMove(dir) {
         var to = gpStockIdx + dir;
         if (to < 0 || to >= stockState.maxSlots) return false;
+        // ⚠**swapStockSlots が自分で理由を出した時は、こちらから重ねない**（1.746）。
+        //   1.742 はここで無条件に rejectPermaOutToast() を足していたので、
+        //   実測で**トーストが2つ出て被弾音も2回**鳴っていた:
+        //     ・ポーチの所有品を外へ → 同じ文言が2回
+        //     ・復活薬を金枠へ      → 「ポーチには入れられない」の直後に「外に出せない」＝**内容が食い違う**
+        //   ⚠ここで数えるのは**トースト**（swapStockSlots 側の音は playDamage で、
+        //     gpSfxCount が数えている _playSE を通らないため音では判定できない）。
+        var before = gpToastCount;
         var ok = false;
-        try { ok = swapStockSlots(gpStockIdx, to); } catch (_) { ok = false; }
+        try { gpHookToast(); ok = swapStockSlots(gpStockIdx, to); } catch (_) { ok = false; }
         if (ok) {
             gpStockIdx = to;
             gpSe('playCursorMove');
             return true;
         }
-        // 断られた＝ポーチの所有品を外へ出そうとした等。理由はタッチと同じ出し方に任せる
-        try { if (typeof rejectPermaOutToast === 'function') rejectPermaOutToast(); } catch (_) {}
+        // 断られたのに何も言われなかった時だけ、こちらで理由を出す（黙って動かないと「効かない」に見える）
+        if (gpToastCount === before) {
+            try { if (typeof rejectPermaOutToast === 'function') rejectPermaOutToast(); } catch (_) {}
+        }
         return false;
     }
     // 選択中の枠が空になったら（使った/売った）、隣の中身のある枠へ寄せる
@@ -948,6 +958,16 @@ function bindTapDelegate(container, attrName, handler) {
     // ─── 効果音（1.733・ユーザー要望「決定時や動かした時に効果音も欲しい」） ───
     // ⚠**押した先が自分で音を鳴らす画面がある**（画面を開く関数が playConfirmSelect を鳴らす）。
     //   素直に鳴らすと二重に鳴るので、**クリック中に音が鳴ったかを数えて、鳴っていない時だけ**鳴らす。
+    // トーストが出たかを数える（1.746）。⚠rejectPermaToast/rejectPermaOutToast は playDamage を使い、
+    //   これは _playSE を通らない＝gpSfxCount では拾えない。出典が違うので別に数える。
+    var gpToastCount = 0;
+    function gpHookToast() {
+        if (typeof window.showRewardToast !== 'function' || window.showRewardToast.__gpHooked) return;
+        var orig = window.showRewardToast;
+        var wrapped = function() { gpToastCount++; return orig.apply(this, arguments); };
+        wrapped.__gpHooked = true;
+        window.showRewardToast = wrapped;
+    }
     var gpSfxCount = 0;
     function gpHookSfx() {
         if (!window.soundManager || soundManager.__gpHooked) return;

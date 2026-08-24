@@ -163,7 +163,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.745";
+                content: "Ver.1.746";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1087,7 +1087,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.745</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.746</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6432,6 +6432,11 @@ function fetchAllRanks(scoreData) {
         { key: 'maxCombo',   label: t('rank_label_combo'),   unit: t('ranking_unit_combo') }
     ];
     var queries = categories.map(function(cat) {
+        // ⚠**そのランで0だった部門の順位は出さない**（1.746）。順位は「その値より上が何人いるか」で
+        //   出しているので、記録が少ない部門では**0点でも上位の番号が付いてしまう**。
+        //   実測（コンボの記録が6件しか無い状態）: コンボ0のランに「コンボ 第7位！」と表示された。
+        //   ⚠撃破0のランにも同じことが起こりうる（記録が20件未満の部門ならどれでも）。
+        if ((Number(scoreData[cat.key]) || 0) <= 0) return Promise.resolve(null);
         return database.ref('scores').orderByChild(cat.key).once('value').then(function(snapshot) {
             var data = snapshot.val();
             if (!data) return { key: cat.key, label: cat.label, unit: cat.unit, rank: 1 };
@@ -6452,7 +6457,7 @@ function fetchAllRanks(scoreData) {
     // 「何も押せない」状態になる（iPhone実機報告）→ 6秒で必ず打ち切って空ランクで先へ進める
     var timeout = new Promise(function(resolve) { setTimeout(function() { resolve([]); }, 6000); });
     return Promise.race([Promise.all(queries), timeout]).then(function(results) {
-        return results;
+        return (results || []).filter(Boolean);   // 0点で外した部門(null)を落とす（1.746）
     }).catch(function() { return []; });
 }
 
