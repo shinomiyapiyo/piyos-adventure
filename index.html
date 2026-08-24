@@ -163,7 +163,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.743";
+                content: "Ver.1.744";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1087,7 +1087,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.743</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.744</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6233,22 +6233,28 @@ function showGuide(focusSection) {
 //   （tools/gemini-gamepad-guide.mjs）。SVG の viewBox を絵の実寸に合わせるので、
 //   下の座標は**絵のピクセル**そのまま＝拡大縮小しても文字と線がズレない。
 // ⚠**絵を差し替えたら座標を測り直す**こと（グリッドを重ねて読むのが早い）。
-var GP_ART = { w: 900, h: 611 };
+// ⚠1.744 で絵を作り直したので**全部測り直してある**（旧: 900x611 の版）。
+//   作り直した理由＝ユーザー指摘。前の絵は左右の肩ボタンの間に**実物に無い平らな板**が
+//   渡してあった。部分的に削る修正も試したが継ぎ目が残ったため、
+//   「上端中央はへこませ、そこに何も描かない」と指示して生成し直した。
+var GP_ART = { w: 900, h: 566 };
 // フェイスボタン（絵には文字が描かれていないので、ここで A/B/X/Y を乗せる）
+// ⚠位置はボタンの色の重心を数えて出した実測値（目分量ではない）
 var GP_FACE = [
-    { ch: 'A', d: 'gp_d_a', x: 76.9, y: 44.2, color: '#7bc043' },
-    { ch: 'B', d: 'gp_d_b', x: 84.1, y: 32.7, color: '#e04747' },
-    { ch: 'X', d: 'gp_d_x', x: 69.9, y: 32.6, color: '#3d8fe8' },
-    { ch: 'Y', d: 'gp_d_y', x: 76.9, y: 22.3, color: '#f2c230' }
+    { ch: 'A', d: 'gp_d_a', x: 77.7, y: 44.4, color: '#7bc043' },
+    { ch: 'B', d: 'gp_d_b', x: 85.0, y: 32.5, color: '#e04747' },
+    { ch: 'X', d: 'gp_d_x', x: 70.4, y: 32.9, color: '#3d8fe8' },
+    { ch: 'Y', d: 'gp_d_y', x: 77.9, y: 21.5, color: '#f2c230' }
 ];
 // 番号バッジ: b* = バッジを置く場所 / t* = 引き出し線の先（どのパーツを指すか）。単位はどれも%
+// ⚠バッジの場所は**本体に重なっていないこと**を透明度で確認済み
 var GP_CALL = [
-    { n: 1, lbl: 'gp_lbl_stick',  d: 'gp_d_stick',  bx: -7, by: 20, tx: 17, ty: 30 },
-    { n: 2, lbl: 'gp_lbl_dpad',   d: 'gp_d_dpad',   bx: -7, by: 68, tx: 31, ty: 57 },
-    { n: 3, lbl: 'gp_lbl_l',      d: 'gp_d_l',      bx: 6,  by: -7, tx: 21, ty: 5.5 },
-    { n: 4, lbl: 'gp_lbl_r',      d: 'gp_d_r',      bx: 94, by: -7, tx: 77, ty: 5.5 },
-    { n: 5, lbl: 'gp_lbl_start',  d: 'gp_d_start',  bx: 46, by: -7, tx: 57, ty: 32.5 },
-    { n: 6, lbl: 'gp_lbl_rstick', d: 'gp_d_rstick', bx: 50, by: 92, tx: 63, ty: 57 }
+    { n: 1, lbl: 'gp_lbl_stick',  d: 'gp_d_stick',  bx: -7, by: 22, tx: 17,   ty: 31 },
+    { n: 2, lbl: 'gp_lbl_dpad',   d: 'gp_d_dpad',   bx: -7, by: 68, tx: 30,   ty: 56 },
+    { n: 3, lbl: 'gp_lbl_l',      d: 'gp_d_l',      bx: 6,  by: -7, tx: 24.7, ty: 3.5 },
+    { n: 4, lbl: 'gp_lbl_r',      d: 'gp_d_r',      bx: 94, by: -7, tx: 75.3, ty: 3.5 },
+    { n: 5, lbl: 'gp_lbl_start',  d: 'gp_d_start',  bx: 46, by: -7, tx: 57,   ty: 33.5 },
+    { n: 6, lbl: 'gp_lbl_rstick', d: 'gp_d_rstick', bx: 50, by: 92, tx: 61.5, ty: 57 }
 ];
 
 function gpArtX(pct) { return (pct / 100 * GP_ART.w).toFixed(1); }

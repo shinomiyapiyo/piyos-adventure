@@ -47,6 +47,12 @@ const LAYOUT = [
   'top edge = two SHOULDER BUTTONS (one at each upper corner of the body) and,',
   'just behind them, two TRIGGERS peeking over the top edge.',
   'Two grips angle down and outward at the bottom.',
+  // ⚠1.744 ユーザー指摘: 初回の生成は**左右の肩ボタンの間に平らな板を渡して**しまい、
+  //   実物に無い「棚」が出来ていた。ここを言い切っておかないと再発する。
+  'IMPORTANT: between the two shoulder buttons, the TOP EDGE of the body DIPS DOWN',
+  'in a smooth shallow curve. There must be NO flat bar, ledge, plank, shelf or bridge',
+  'spanning across the top centre, and NOTHING may be drawn above that dipped edge —',
+  'that area is empty background.',
 ].join(' ');
 
 const RULES = [
@@ -145,6 +151,12 @@ async function chromaKey(buf) {
   for (let i = 0; i < W * H; i++) if (data[i * 4 + 3] === 0) { data[i*4]=0; data[i*4+1]=0; data[i*4+2]=0; }
   return sharp(data, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
 }
+// ⚠1.744: 初回の生成は**左右の肩ボタンの間に平らな板を渡して**しまい、実物に無い「棚」が
+//   できていた（ユーザー指摘）。画像を後から削る修正も書いて試したが、切り欠きの名残が
+//   短い棒として残り、それを塗ると今度はバンパーの輪郭が欠けた＝**継ぎ目が必ず残る**。
+//   結局 LAYOUT の "IMPORTANT: ... DIPS DOWN ... NO flat bar" を足して**生成し直すのが早い**。
+//   採用したのはその2回目の候補2。削る側のコードは残さない（使わないうえ、正しい絵に当てると壊す）。
+
 async function toDiagram(buf) {
   // ⚠fillHoles は使わない。背景を「外周からつながった緑」で決めているので内側に穴は出来ない。
   const keyed = await chromaKey(buf);
