@@ -111,7 +111,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.737";
+                content: "Ver.1.738";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1035,7 +1035,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.737</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.738</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -6962,7 +6962,13 @@ function updatePlayer() {
     // 降下クールダウン: 「60px落下」または「どこかに着地（前フレームで接地）」したら解除。
     // 60px則だけだと、貫通後に高台/低い雲へ着地して60px落ちきれない時にフラグが固着し、
     // 以後 index.html の platform衝突(if recentlyDropped continue) で全ての雲に乗れなくなるバグを防ぐ。
-    if (gameState.recentlyDropped && (player.y > gameState.dropFromY + 60 ||
+    // ⚠**上へ動き出したら即解除する**（1.738・ユーザー実機報告「ボス戦で中央ブロックから↓で降りて
+    //   空中敵を踏む→2段ジャンプ→ブロックに乗れない」）。すり抜けは「降りている間」だけの状態なのに、
+    //   旧条件は「60px落ちる」か「どこかに着地する」しか解除の口が無かった。
+    //   踏んで跳ね返る/ジャンプすると**60px落ちきる前に上昇に転じる**ため、フラグが立ったまま残り、
+    //   以後この判定の下にある platform ループが全部 continue ＝**どの足場にも乗れなくなる**。
+    //   velY<0 は「踏んだ跳ね返り・ジャンプ・バネ」でしか起きない＝すり抜けの意図が終わった合図。
+    if (gameState.recentlyDropped && (player.velY < 0 || player.y > gameState.dropFromY + 60 ||
         (player.onGround && player.y + player.height > gameState.dropFromY + 8))) {
         gameState.recentlyDropped = false;
     }

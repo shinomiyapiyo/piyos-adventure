@@ -180,14 +180,15 @@
         if (!adsAllowed()) return;
         AdMob.prepareInterstitial({ adId: adUnit('interstitial'), npa: true }) // npa=非パーソナライズ広告（トラッキングなし方針）
             .then(function () { interReady = true; })
-            .catch(function () { interReady = false; });
+            .catch(function (e) { interReady = false; adDiagNote('lastLoadFail', e); });
     }
     function prepareReward() {
         if (!AdMob) return;
-        if (!adsAllowed()) return;   // ⚠1.719: prepareInterstitial と同じ（1.655 の方針をロード側にも効かせる）
+        if (!adsAllowed()) { retryConsent(); return; }   // ⚠1.738: 同意取得に失敗していたら取り直す
+        adDiag.prepares++;
         AdMob.prepareRewardVideoAd({ adId: adUnit('reward'), npa: true }) // npa=非パーソナライズ広告（トラッキングなし方針）
             .then(function () { setRewardReady(true); })
-            .catch(function () { setRewardReady(false); scheduleRewardReload(); });
+            .catch(function (e) { setRewardReady(false); adDiagNote('lastLoadFail', e); scheduleRewardReload(); });
     }
 
     // リワードのコールバックを「1回だけ」実行（＝実際の報酬付与/復活/入金）。1.521で settleReward から改名し、
@@ -311,7 +312,44 @@
     //   isConsentFormAvailable が false のままで、フォームは一度も出ない（コードだけでは完結しない）。
     var UMP_DEBUG_EEA = false;   // ★実機で同意フローを確認する時だけ true（TEST_DEVICE_IDS の端末が EEA 扱いになる）
     var consentInfo = null;      // 最後に取得した AdmobConsentInfo
+    // ⚠**セッション中ずっと広告を止める掛け金にしない**（1.738・ユーザー実機報告「広告が全然反応せず
+    //   自社広告になる」）。requestConsentInfo が1回でも失敗/無応答（10秒）だと、旧実装は
+    //   consentFailed=true のまま二度と戻らず、**そのプレイ中は実広告のリクエストが一切飛ばない**
+    //   ＝毎回 自社紹介カードにフォールバックしていた。起動時にネットが遅い/一時的に不通なだけでも起きる。
+    //   ⇒ 失敗しても時刻だけ覚えておき、**次に広告が要るときに取り直す**（下の retryConsent）。
     var consentFailed = false;   // requestConsentInfo が例外/無応答だった（＝地域も同意状態も不明）
+    var consentFailedAt = 0;     // 失敗した時刻（再試行の間隔を空けるため）
+    var consentRetrying = false;
+    var CONSENT_RETRY_MS = 20000;
+    // 診断（画面には出さない）。⚠**ストア版に見える形のデバッグ表示は入れない**方針なので、
+    //   window.__adDiag に置くだけにして、テストモード時だけトーストで読める（下の adDiagToast）。
+    var adDiag = { consentFailed: false, lastLoadFail: null, lastShowFail: null, lastAllowed: null, prepares: 0 };
+    window.__adDiag = adDiag;
+    function adDiagNote(kind, err) {
+        var msg = '';
+        try { msg = (err && (err.message || err.code || err.error || JSON.stringify(err))) || ''; } catch (_) { msg = String(err); }
+        adDiag[kind] = { at: Date.now(), msg: String(msg).slice(0, 120) };
+        // テストモード（TEST_START_AFTER_R6=true）の時だけ、原因を画面で読めるようにする
+        try {
+            if (window.TEST_START_AFTER_R6 === true && typeof showRewardToast === 'function')
+                showRewardToast('AD ' + kind + ': ' + adDiag[kind].msg, 'linear-gradient(180deg,#ff8a8a,#c73838)', '#fff');
+        } catch (_) {}
+    }
+    // 同意の取り直し。⚠フォームは出さない（取得だけ）＝勝手にダイアログが出ないようにする
+    function retryConsent() {
+        if (!AdMob || typeof AdMob.requestConsentInfo !== 'function') return;
+        if (!consentFailed || consentRetrying) return;
+        if (Date.now() - consentFailedAt < CONSENT_RETRY_MS) return;
+        consentRetrying = true;
+        Promise.resolve(AdMob.requestConsentInfo({}))
+            .then(function (info) {
+                consentInfo = info || null;
+                consentFailed = false; adDiag.consentFailed = false;
+                if (adsAllowed()) { prepareInterstitial(); prepareReward(); }   // 取り戻せたら事前ロード再開
+            })
+            .catch(function (e) { consentFailedAt = Date.now(); adDiagNote('lastLoadFail', e); })
+            .then(function () { consentRetrying = false; }, function () { consentRetrying = false; });
+    }
     // 広告をリクエストしてよいか。canRequestAds が無い環境では status から保守的に判断する
     function adsAllowed() {
         // ⚠**問い合わせに失敗した時は出さない**（1.655）。プラグインは持っているのに応答が無い＝
@@ -361,10 +399,11 @@
                     });
                 }
             })
-            .catch(function () { consentFailed = true; /* 取得も表示も失敗＝広告は諦める。ゲームは続行 */ })
+            .catch(function (e) { consentFailed = true; consentFailedAt = Date.now(); adDiag.consentFailed = true; adDiagNote('lastLoadFail', e); })
             .then(finish, finish);
         // 保険: プラグインが応答しない端末でも広告初期化まで進める（同意不明＝広告は出さない）
-        setTimeout(function () { if (!settled) { settled = true; consentFailed = true; next(false); } }, 10000);
+        setTimeout(function () { if (!settled) { settled = true; consentFailed = true; consentFailedAt = Date.now();
+            adDiag.consentFailed = true; adDiagNote('lastLoadFail', 'consent timeout(10s)'); next(false); } }, 10000);
     }
 
     function initAds() {
@@ -418,7 +457,8 @@
                     // 復活/ボーナスのタップ時に未ロードだったら、ロード完了したこの瞬間に表示する
                     if (rewardWantShow) { rewardWantShow = false; presentReward(); }
                 });
-                AdMob.addListener(EV.rewFailLoad,   function () {
+                AdMob.addListener(EV.rewFailLoad,   function (err) {
+                    adDiagNote('lastLoadFail', err);     // ⚠理由を残す（1.738）＝在庫ゼロ/制限/通信の切り分け用
                     setRewardReady(false);
                     if (rewardWantShow) { rewardWantShow = false; finalizeReward(false, false); }
                     else { scheduleRewardReload(); }
@@ -426,7 +466,7 @@
                 AdMob.addListener(EV.interLoaded,   function () { interReady = true; });
                 AdMob.addListener(EV.interShowed,   function () { adOnScreen = true; });   // 1.597
                 AdMob.addListener(EV.interDismiss,  function () { adOnScreen = false; recoverGameAudio(); finishInterstitial(); });
-                AdMob.addListener(EV.interFailShow, function () { adOnScreen = false; finishInterstitial(); });
+                AdMob.addListener(EV.interFailShow, function (err) { adDiagNote('lastShowFail', err); adOnScreen = false; finishInterstitial(); });
                 // ⚠同意が得られていない（EEA/UKで拒否・取得失敗）なら**事前ロードしない**（1.655）。
                 //   リスナーだけは張っておく＝後から「プライバシー設定」で同意されたら prepareAdsNow() で開始できる。
                 //   報酬は自社紹介カードのbackstopで従来どおり出るのでプレイヤーの不利益にはならない。
