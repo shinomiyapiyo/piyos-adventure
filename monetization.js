@@ -522,6 +522,19 @@
         //   実広告が出せるならその方がよい（収益にもなる）。⚠打ち切り時は wasShown=false ＝必ず自社カードへ。
         rewardWantShow = true;
         prepareReward();
+        // ⚠**リクエストを出せない状態なら1秒も待たない**（1.739・ユーザー実機報告
+        //   「広告を見るボタンを押しても広告が流れず、しばらく無反応」）。
+        //   同意が取れていない等で prepareReward が要求を出さなかった場合、ロード完了の通知は
+        //   **永久に来ない**。それでも下のタイマーが動くので、**10秒間まったくの無反応**のあとに
+        //   自社カードが出ていた＝「押しても効かないボタン」に見えていた。
+        //   ⇒ 出せないと分かっているなら即フォールバック（報酬は自社カードで従来どおり出る）。
+        if (!AdMob || !adsAllowed()) { rewardWantShow = false; finalizeReward(false, false); return; }
+        // ⚠**待つ時は必ず「読み込み中」を出す**＝押しても何も起きない時間を作らない（1.739）。
+        //   実広告のロードは数秒かかることがあり、無言で待たせると壊れているのと区別がつかない。
+        try {
+            if (typeof showRewardToast === 'function' && typeof t === 'function')
+                showRewardToast(t('ad_loading'), 'linear-gradient(180deg,#8ad1ff,#3a7bd0)', '#fff');
+        } catch (_) {}
         setTimeout(function () { if (rewardWantShow) { rewardWantShow = false; finalizeReward(false, false); } }, REWARD_LOAD_WAIT_MS);
     }
 
