@@ -163,7 +163,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.744";
+                content: "Ver.1.745";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1087,7 +1087,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.744</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.745</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1241,6 +1241,9 @@
                 <button class="game-button" data-i18n="ranking_distance" onclick="showRankingByType('distance')" id="distanceRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_distance.png" class="ui-icon"> 距離</button>
                 <button class="game-button" data-i18n="ranking_kills" onclick="showRankingByType('enemyKills')" id="killsRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_kills.png" class="ui-icon"> 撃破</button>
                 <button class="game-button" data-i18n="ranking_level" onclick="showRankingByType('speedLevel')" id="levelRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_level.png" class="ui-icon"> レベル</button>
+                <!-- 連続コンボ（1.745）。maxCombo は 1.657 から DB へ送っていて、DB側の索引も既にある
+                     （REST の orderBy で 200 が返ることを実測して確認済み＝コンソール作業は不要）。 -->
+                <button class="game-button" data-i18n="ranking_combo" onclick="showRankingByType('maxCombo')" id="comboRankingBtn" style="font-size: 1.5vw; padding: 3px 8px; min-width: auto; margin: 2px; border-radius: 8px;"><img src="images/icon_combo_master.png" class="ui-icon"> コンボ</button>
             </div>
             <div id="rankingList" style="
                 background: rgba(0,0,32,0.5);
@@ -5688,9 +5691,30 @@ function showRankingByType(type) {
             list.innerHTML = '<div style="text-align:center;color:#fff;">' + escapeHtml(t('ranking_empty')) + '</div>';
             return;
         }
-        var rankings = Object.values(data).sort(function(a, b) { return (b[type] || 0) - (a[type] || 0); });
-        var titleKeys = { score: 'ranking_title_score', distance: 'ranking_title_distance', enemyKills: 'ranking_title_kills', speedLevel: 'ranking_title_level' };
-        var unitKeys  = { score: 'ranking_unit_score', distance: 'ranking_unit_distance', enemyKills: 'ranking_unit_kills', speedLevel: 'ranking_unit_level' };
+        // ⚠**値を持たない行を落とす**（1.745）。maxCombo は 1.657 から送り始めた項目なので、
+        //   それ以前の記録にはキーが無い。RTDB ではキーが無い子は「一番小さい」扱いで
+        //   limitToLast にも入ってくるため、そのまま出すと「0コンボ」の行が並んでしまう。
+        //   ⚠落としても取りこぼさない: 値を持つ行が20件未満なら limitToLast(20) にその全部が入り、
+        //     20件以上あれば返る20件はすべて値を持つ行になる＝どちらでも正しい上位が出る。
+        var rankings = Object.values(data).filter(function(e) { return (Number(e[type]) || 0) > 0; });
+        // 同点の順番を決める（1.745）。コンボは 3〜6 くらいに固まるので**同点が普通に起きる**。
+        // 決めておかないと表示のたびに順番が入れ替わって見える。距離 → 金額 → 先に出した方が上。
+        rankings.sort(function(a, b) {
+            var d = (Number(b[type]) || 0) - (Number(a[type]) || 0);
+            if (d) return d;
+            d = (Number(b.distance) || 0) - (Number(a.distance) || 0);
+            if (d) return d;
+            d = (Number(b.score) || 0) - (Number(a.score) || 0);
+            if (d) return d;
+            return (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0);
+        });
+        if (!rankings.length) {
+            list.innerHTML = '<div style="text-align:center;color:#fff;">'
+                + escapeHtml(t(type === 'maxCombo' ? 'ranking_combo_empty' : 'ranking_empty')).replace(/\n/g, '<br>') + '</div>';
+            return;
+        }
+        var titleKeys = { score: 'ranking_title_score', distance: 'ranking_title_distance', enemyKills: 'ranking_title_kills', speedLevel: 'ranking_title_level', maxCombo: 'ranking_title_combo' };
+        var unitKeys  = { score: 'ranking_unit_score', distance: 'ranking_unit_distance', enemyKills: 'ranking_unit_kills', speedLevel: 'ranking_unit_level', maxCombo: 'ranking_unit_combo' };
         var html = '<div style="text-align:center;color:#ffd700;font-weight:bold;margin-bottom:4px;font-size:1.8vw;">' + t(titleKeys[type]) + '</div>';
         var anyRevived = false; // 表示中に復活ランが1件でもあれば凡例を出す（1.523）
         var anyResumed = false; // 同上・しおり再開ラン（1.636）
@@ -5728,7 +5752,7 @@ function showRankingByType(type) {
 }
 
 function updateRankingButtons(activeType) {
-    var map = { score: 'scoreRankingBtn', distance: 'distanceRankingBtn', enemyKills: 'killsRankingBtn', speedLevel: 'levelRankingBtn' };
+    var map = { score: 'scoreRankingBtn', distance: 'distanceRankingBtn', enemyKills: 'killsRankingBtn', speedLevel: 'levelRankingBtn', maxCombo: 'comboRankingBtn' };
     for (var key in map) {
         var btn = document.getElementById(map[key]);
         if (!btn) continue;
@@ -6404,13 +6428,17 @@ function fetchAllRanks(scoreData) {
         { key: 'score',      label: t('rank_label_score'),    unit: t('ranking_unit_score') },
         { key: 'distance',   label: t('rank_label_distance'), unit: t('ranking_unit_distance') },
         { key: 'enemyKills', label: t('rank_label_kills'),    unit: t('rank_unit_kills') },
-        { key: 'speedLevel', label: t('rank_label_level'),    unit: '' }
+        { key: 'speedLevel', label: t('rank_label_level'),    unit: '' },
+        { key: 'maxCombo',   label: t('rank_label_combo'),   unit: t('ranking_unit_combo') }
     ];
     var queries = categories.map(function(cat) {
         return database.ref('scores').orderByChild(cat.key).once('value').then(function(snapshot) {
             var data = snapshot.val();
             if (!data) return { key: cat.key, label: cat.label, unit: cat.unit, rank: 1 };
-            var all = Object.values(data).map(function(e) { return e[cat.key] || 0; });
+            // ⚠**0（＝記録なし）は数に入れない**（1.745）。maxCombo は 1.657 から送り始めたので
+            //   それ以前の記録にはキーが無く、混ぜると「152人を抜いて3位」のような無意味な順位になる。
+            var all = Object.values(data).map(function(e) { return Number(e[cat.key]) || 0; })
+                .filter(function(v) { return v > 0; });
             all.sort(function(a, b) { return b - a; });
             var val = scoreData[cat.key] || 0;
             var rank = all.length + 1;
@@ -6672,15 +6700,21 @@ function checkHighScore(stats) {
     //   同じ関数の打ち切り分岐（下の setTimeout）は「圏外ではどのみち送信できない」として
     //   false を返しており、方針が真逆だった。そちらに揃える。
     if (!database) { return Promise.resolve(false); }
-    var categories = ['score', 'distance', 'enemyKills', 'speedLevel'];
+    var categories = ['score', 'distance', 'enemyKills', 'speedLevel', 'maxCombo'];
     var queries = categories.map(function(cat) {
         return database.ref('scores').orderByChild(cat).limitToLast(20).once('value').then(function(snapshot) {
             var data = snapshot.val();
+            // ⚠**その部門で0のランは、その部門の高得点にはならない**（1.745）。
+            //   maxCombo を足したのでこの一行が要る。従来の「まだ20件たまっていない部門は
+            //   誰でも入れる＝true」だけだと、**コンボ0のランでも毎回ハイスコア扱い**になり、
+            //   1.719 で直した「距離が何mでも毎ラン名前入力が出る」と同じことが起きる。
+            if ((Number(stats[cat]) || 0) <= 0) return false;
             if (!data) return true;
-            var entries = Object.values(data);
+            // 値を持つ行だけで見る（キーが無い古い記録は 0 扱いになり、min が常に0になってしまう）
+            var entries = Object.values(data).filter(function(e) { return (Number(e[cat]) || 0) > 0; });
             if (entries.length < 20) return true;
             var min = entries.reduce(function(m, e) {
-                var v = e[cat] || 0;
+                var v = Number(e[cat]) || 0;
                 return v < m ? v : m;
             }, Infinity);
             return stats[cat] > min;

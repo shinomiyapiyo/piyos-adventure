@@ -42,6 +42,7 @@ ja: {
     ranking_distance: _ic('icon_distance.png') + ' 距離',
     ranking_kills: _ic('icon_kills.png') + ' 撃破',
     ranking_level: _ic('icon_level.png') + ' レベル',
+    ranking_combo: _ic('icon_combo_master.png') + ' コンボ',   // 1.745
     ranking_loading: '読み込み中...',
     ranking_empty: 'まだランキングデータがありません',
     ranking_revived_legend: '↺ = 復活あり',
@@ -51,6 +52,8 @@ ja: {
     ranking_title_distance: _ic('icon_distance.png') + ' 距離ランキング',
     ranking_title_kills: _ic('icon_kills.png') + ' 撃破数ランキング',
     ranking_title_level: _ic('icon_level.png') + ' レベルランキング',
+    ranking_title_combo: _ic('icon_combo_master.png') + ' 連続コンボランキング',   // 1.745
+    ranking_combo_empty: 'まだ記録がありません\n敵を続けて倒すとコンボになります',
     ranking_report: '通報',
     ranking_report_cancel: 'キャンセル',
     ranking_report_hint: '通報する名前をタップ',
@@ -537,6 +540,7 @@ ja: {
     rank_label_distance: '距離',
     rank_label_kills: '撃破',
     rank_label_level: 'レベル',
+    rank_label_combo: 'コンボ',   // 1.745
     rank_unit_kills: '体',
     // ── 復活 ──
     revival_text: '復活！',
@@ -760,6 +764,7 @@ en: {
     ranking_distance: _ic('icon_distance.png') + ' Distance',
     ranking_kills: _ic('icon_kills.png') + ' Kills',
     ranking_level: _ic('icon_level.png') + ' Level',
+    ranking_combo: _ic('icon_combo_master.png') + ' Combo',   // 1.745
     ranking_loading: 'Loading...',
     ranking_empty: 'No ranking data yet',
     ranking_revived_legend: '↺ = Continued',
@@ -769,6 +774,8 @@ en: {
     ranking_title_distance: _ic('icon_distance.png') + ' Distance Ranking',
     ranking_title_kills: _ic('icon_kills.png') + ' Kills Ranking',
     ranking_title_level: _ic('icon_level.png') + ' Level Ranking',
+    ranking_title_combo: _ic('icon_combo_master.png') + ' Combo Ranking',   // 1.745
+    ranking_combo_empty: 'No records yet\nDefeat enemies in a row to build a combo',
     ranking_report: 'Report',
     ranking_report_cancel: 'Cancel',
     ranking_report_hint: 'Tap a name to report',
@@ -1219,6 +1226,7 @@ en: {
     rank_label_distance: 'Distance',
     rank_label_kills: 'Kills',
     rank_label_level: 'Level',
+    rank_label_combo: 'Combo',   // 1.745
     rank_unit_kills: '',
     // ── Revival ──
     revival_text: 'Revived!',
