@@ -515,6 +515,9 @@ var BACK_HANDLERS = [
     { isOpen: function() { return isScreenVisible('badgeScreen'); }, onBack: function() { hideBadgeScreen(); } },
     { isOpen: function() { return isScreenVisible('skinScreen'); }, onBack: function() { hideSkinScreen(); } },
     { isOpen: function() { return isScreenVisible('zukanScreen'); }, onBack: function() { hideZukanScreen(); } },
+    // ⚠**遊び方より先に閉じる**（1.743）。コントローラーのページは遊び方の上に重ねて開けるので、
+    //   順番を誤ると下の遊び方が先に閉じて、コントローラーのページだけが残る。
+    { isOpen: function() { return isScreenVisible('gamepadScreen'); }, onBack: function() { hideGamepadGuide(); } },
     { isOpen: function() { return isScreenVisible('guideScreen'); }, onBack: function() { hideGuide(); } },
     { isOpen: function() { return isScreenVisible('tutorialScreen'); }, onBack: function() { tutorialCancel(); } },
     { isOpen: function() { return isScreenVisible('settingsScreen'); }, onBack: function() { hideSettings(); } },

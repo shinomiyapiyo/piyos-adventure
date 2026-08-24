@@ -693,7 +693,8 @@ function bindTapDelegate(container, attrName, handler) {
         // ⚠**splashScreen を必ず入れる**（1.729）。スプラッシュ表示中は startScreen が display:none なので、
         //   入れていないと操作対象がゼロ＝「Please Tap から先に進めない」（ユーザー実機報告）。
         'splashScreen',
-        'nameInputScreen', 'houseAdScreen', 'tutorialClearScreen', 'guideScreen', 'tutorialScreen',
+        // ⚠gamepadScreen は guideScreen の**手前**（遊び方の上に重ねて開ける・1.743）
+        'nameInputScreen', 'houseAdScreen', 'tutorialClearScreen', 'gamepadScreen', 'guideScreen', 'tutorialScreen',
         'pauseSkinView',
         // ⚠**ポーズはショップより手前**（1.729）。ショップを開いたままポーズすると、順番を誤ると
         //   ショップ側が操作対象になり「A を押しても再開できない」（実測で発生）。
@@ -1221,7 +1222,7 @@ window.addEventListener('orientationchange', function() {
 document.addEventListener('touchmove', function(e) {
     // INPUT要素とオーバーレイ画面内のスクロールは許可
     if (e.target.tagName === 'INPUT') return;
-    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen, #titleMenuScreen, #gameModal, .transferOverlay, #houseAdScreen')) return;
+    if (e.target.closest('#nameInputScreen, #rankingScreen, #settingsScreen, #pauseScreen, #gameOverScreen, #stageShopScreen, #titleShopScreen, #guideScreen, #gamepadScreen, #achievementScreen, #badgeScreen, #missionScreen, #skinScreen, #zukanScreen, #titleMenuScreen, #gameModal, .transferOverlay, #houseAdScreen')) return;
     e.preventDefault();
 }, { passive: false });
 

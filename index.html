@@ -53,6 +53,45 @@
             -webkit-touch-callout: none;
         }
 
+        /* ─── コントローラーの あそびかた（1.743） ───
+           絵とラベルは **同じ縦横比の箱**に重ねる。SVG の viewBox を絵の実寸（900x611）に
+           合わせてあるので、拡大縮小しても文字と引き出し線が絶対にズレない。
+           ⚠バッジは絵の外へはみ出すので、SVG は overflow:visible／図の箱には余白を取る。 */
+        #gamepadContent .gp-cols {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 10px; align-items: start;
+        }
+        #gamepadContent .gp-figure { display: flex; justify-content: center; padding: 32px 44px 34px; }
+        /* 横に2列で並ぶ時だけ、絵を貼り付けたままにする。
+           ⚠一覧のほうが背が高いので、貼り付けないと下へ送った時に左半分が真っ白になる（実測）。
+             1列（縦持ち・狭い画面）では絵が上に居座って邪魔なので、広い時だけにする。 */
+        @media (min-width: 640px) {
+            #gamepadContent .gp-figure { position: sticky; top: 2px; }
+        }
+        #gamepadContent .gp-img { position: relative; width: 100%; max-width: 430px; }
+        #gamepadContent .gp-img img { display: block; width: 100%; height: auto; }
+        #gamepadContent .gp-over {
+            position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+            overflow: visible; pointer-events: none;
+        }
+        #gamepadContent .gp-row {
+            display: flex; align-items: flex-start; gap: 9px;
+            background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px; padding: 7px 9px; margin-bottom: 6px;
+        }
+        #gamepadContent .gp-chip {
+            flex: 0 0 auto; width: 27px; height: 27px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 15px; color: #231038;
+            border: 2px solid rgba(0,0,0,0.55); box-sizing: border-box;
+        }
+        #gamepadContent .gp-name { color: #ffd700; font-weight: 700; font-size: clamp(11px,2.1vw,15px); }
+        #gamepadContent .gp-desc { color: #ddd; font-size: clamp(10px,1.8vw,13px); line-height: 1.5; }
+        #gamepadContent .gp-note {
+            color: #c9c9e4; font-size: clamp(10px,1.8vw,13px); line-height: 1.5;
+            padding: 4px 2px 8px;
+        }
+
         /* ─── 物理コントローラーのカーソル（1.730） ───
            ⚠**絶対に @media(orientation: portrait) の中へ入れないこと。** 本作は横持ち専用なので
              縦向きのメディアクエリは実機で一度も適用されない＝カーソルが永久に見えない
@@ -124,7 +163,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.742";
+                content: "Ver.1.743";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1048,7 +1087,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.742</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.743</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1306,12 +1345,13 @@
                         -webkit-tap-highlight-color: transparent;">▶</button>
                 </div>
 
-                <!-- コントローラーの操作方法（1.731）。中身は「遊び方」の章として持っているので、
-                     ここからは その章まで飛ばすだけにする（説明を2か所に書いて食い違わせない） -->
+                <!-- コントローラーの操作方法。1.731 は「遊び方」の章へ飛ばすだけだったが、
+                     1.743 で**絵つきの専用ページ**にした（ユーザー要望）。
+                     ⚠説明の本体はこのページだけに置く＝遊び方側は案内の1行のみ（二重管理を作らない） -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
                     padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
                     <span data-i18n="settings_gamepad" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">コントローラー</span>
-                    <button id="gamepadGuideBtn" onclick="showGuide('gamepad')" style="
+                    <button id="gamepadGuideBtn" onclick="showGamepadGuide()" style="
                         min-width: 76px; min-height: 44px; padding: 8px 18px; border-radius: 22px; border: none;
                         font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
                         font-family: 'M PLUS Rounded 1c', sans-serif;
@@ -1473,6 +1513,46 @@
                 <!-- ▼スクロール のヒントは 1.663 で撤去。1.658 で「スクロールできる所には常にバーを出す」を
                      入れたので役目が重複しており、2列カードの上に重なって文章を隠していた。
                      JS 側（showGuide）はこの要素が無くても動くようにしてある。 -->
+            </div>
+            </div>
+        </div>
+
+        <!-- コントローラーの あそびかた（1.743・ユーザー要望で独立ページ化）
+             ⚠絵は images/gamepad_diagram.png（Gemini生成・文字とロゴは入っていない）。
+               A/B/X/Y の文字と番号バッジは**ここで重ねる**＝多言語にできるし、絵を差し替えても字は崩れない。
+               重ねる位置は絵に対する百分率で、実測値（tools/gemini-gamepad-guide.mjs のコメント参照）。 -->
+        <div id="gamepadScreen" class="hidden" style="
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            box-sizing: border-box;
+            background: linear-gradient(160deg, #1a0d32, #0d0520);
+            display: none; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 10000;
+            padding: 4px calc(env(safe-area-inset-right,0px) + 10px) 4px calc(env(safe-area-inset-left,0px) + 10px);
+            overflow: hidden;">
+            <div class="list-panel" style="height: 100%; display: flex; flex-direction: column;
+                background: linear-gradient(160deg, rgba(30,15,50,0.97), rgba(15,5,30,0.97));
+                border: 2px solid rgba(255,105,180,0.5); border-radius: 14px;
+                box-shadow: 0 6px 30px rgba(0,0,0,0.5), 0 0 40px rgba(255,105,180,0.12);
+                padding: 4px 12px; box-sizing: border-box;">
+            <div class="head-row" style="margin-bottom:4px;">
+                <span data-i18n="gp_title" style="color: #ffd700; font-size: clamp(14px,3.5vw,22px); font-weight: 800; white-space: nowrap;
+                    font-family: 'M PLUS Rounded 1c', sans-serif;
+                    text-shadow: 0 0 12px rgba(255,215,0,0.4), 0 2px 6px rgba(0,0,0,0.8);
+                    letter-spacing: 0.08em;">コントローラーの あそびかた</span>
+                <span class="head-spacer"></span>
+                <button class="game-button head-btn" onclick="closeGamepadGuide()" data-i18n="btn_back"
+                    style="font-size: clamp(11px,2.4vw,15px);">戻る</button>
+            </div>
+            <div id="gamepadContent" style="
+                width: 100%; flex: 1 1 auto; min-height: 0;
+                box-sizing: border-box;
+                overflow-y: auto; overflow-x: hidden;
+                color: #fff; font-family: 'M PLUS Rounded 1c', sans-serif;
+                -webkit-overflow-scrolling: touch;
+                touch-action: pan-y; overscroll-behavior: contain;
+                -webkit-text-size-adjust: 100%; text-size-adjust: 100%;">
             </div>
             </div>
         </div>
@@ -6112,6 +6192,15 @@ function showGuide(focusSection) {
         html += '<div id="guideCard_' + s + '" style="background:rgba(0,0,40,0.55);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:8px 10px;">' +
             '<div style="color:#ffd700;font-weight:bold;font-size:clamp(11px,2.2vw,16px);margin-bottom:4px;">' + t('guide_' + s + '_title') + '</div>' +
             '<div style="color:#ddd;font-size:clamp(10px,1.8vw,14px);white-space:pre-line;line-height:1.5;">' + escapeHtml(t('guide_' + s + '_body')) + '</div>' +
+            // ⚠1.743: コントローラーの説明は**専用ページが本体**（せってい → コントローラー）。
+            //   ここは案内1行＋そこへ飛ぶボタンだけにする＝同じ説明を2か所に置いて食い違わせない。
+            (s === 'gamepad'
+                ? '<button onclick="showGamepadGuide()" style="margin-top:7px;min-height:38px;padding:6px 14px;' +
+                  'border-radius:19px;border:none;cursor:pointer;font-weight:700;' +
+                  'font-family:\'M PLUS Rounded 1c\',sans-serif;font-size:clamp(11px,2vw,14px);' +
+                  'background:linear-gradient(180deg,#44bb77,#228855);color:#fff;' +
+                  '-webkit-tap-highlight-color:transparent;">' + escapeHtml(t('gp_open')) + '</button>'
+                : '') +
             '</div>';
     }
     var contentEl = document.getElementById('guideContent');
@@ -6134,6 +6223,105 @@ function showGuide(focusSection) {
             hint.style.opacity = atBottom ? '0' : '1';
         };
     }
+}
+
+// ─── コントローラーの あそびかた（1.743・ユーザー要望で独立ページに） ───
+// ⚠**説明の本体はここだけ**。遊び方(showGuide)側は このページへの案内1行しか持たない。
+//   1.731 は遊び方の1章に飛ばすだけだったが、絵つきにしたいという要望で独立させた。
+//
+// 重ね方: images/gamepad_diagram.png は **900x611・左右対称・正面**で作ってある
+//   （tools/gemini-gamepad-guide.mjs）。SVG の viewBox を絵の実寸に合わせるので、
+//   下の座標は**絵のピクセル**そのまま＝拡大縮小しても文字と線がズレない。
+// ⚠**絵を差し替えたら座標を測り直す**こと（グリッドを重ねて読むのが早い）。
+var GP_ART = { w: 900, h: 611 };
+// フェイスボタン（絵には文字が描かれていないので、ここで A/B/X/Y を乗せる）
+var GP_FACE = [
+    { ch: 'A', d: 'gp_d_a', x: 76.9, y: 44.2, color: '#7bc043' },
+    { ch: 'B', d: 'gp_d_b', x: 84.1, y: 32.7, color: '#e04747' },
+    { ch: 'X', d: 'gp_d_x', x: 69.9, y: 32.6, color: '#3d8fe8' },
+    { ch: 'Y', d: 'gp_d_y', x: 76.9, y: 22.3, color: '#f2c230' }
+];
+// 番号バッジ: b* = バッジを置く場所 / t* = 引き出し線の先（どのパーツを指すか）。単位はどれも%
+var GP_CALL = [
+    { n: 1, lbl: 'gp_lbl_stick',  d: 'gp_d_stick',  bx: -7, by: 20, tx: 17, ty: 30 },
+    { n: 2, lbl: 'gp_lbl_dpad',   d: 'gp_d_dpad',   bx: -7, by: 68, tx: 31, ty: 57 },
+    { n: 3, lbl: 'gp_lbl_l',      d: 'gp_d_l',      bx: 6,  by: -7, tx: 21, ty: 5.5 },
+    { n: 4, lbl: 'gp_lbl_r',      d: 'gp_d_r',      bx: 94, by: -7, tx: 77, ty: 5.5 },
+    { n: 5, lbl: 'gp_lbl_start',  d: 'gp_d_start',  bx: 46, by: -7, tx: 57, ty: 32.5 },
+    { n: 6, lbl: 'gp_lbl_rstick', d: 'gp_d_rstick', bx: 50, by: 92, tx: 63, ty: 57 }
+];
+
+function gpArtX(pct) { return (pct / 100 * GP_ART.w).toFixed(1); }
+function gpArtY(pct) { return (pct / 100 * GP_ART.h).toFixed(1); }
+
+function buildGamepadDiagram() {
+    var i, c, f, sv = '';
+    sv += '<svg class="gp-over" viewBox="0 0 ' + GP_ART.w + ' ' + GP_ART.h + '" xmlns="http://www.w3.org/2000/svg">';
+    // 引き出し線（先に描く＝バッジと文字の下に来る）
+    for (i = 0; i < GP_CALL.length; i++) {
+        c = GP_CALL[i];
+        sv += '<line x1="' + gpArtX(c.bx) + '" y1="' + gpArtY(c.by) + '" x2="' + gpArtX(c.tx) + '" y2="' + gpArtY(c.ty) + '"'
+            + ' stroke="#ff69b4" stroke-width="4" stroke-linecap="round" opacity="0.85"/>';
+        sv += '<circle cx="' + gpArtX(c.tx) + '" cy="' + gpArtY(c.ty) + '" r="7" fill="#ff69b4" opacity="0.9"/>';
+    }
+    // 番号バッジ
+    for (i = 0; i < GP_CALL.length; i++) {
+        c = GP_CALL[i];
+        sv += '<circle cx="' + gpArtX(c.bx) + '" cy="' + gpArtY(c.by) + '" r="26" fill="#ff69b4" stroke="#2a1030" stroke-width="4"/>';
+        sv += '<text x="' + gpArtX(c.bx) + '" y="' + gpArtY(c.by) + '" text-anchor="middle" dominant-baseline="central"'
+            + ' font-family="\'M PLUS Rounded 1c\', sans-serif" font-size="34" font-weight="900" fill="#2a1030">' + c.n + '</text>';
+    }
+    // A/B/X/Y の文字（絵には描かれていない＝ここで乗せる）
+    for (i = 0; i < GP_FACE.length; i++) {
+        f = GP_FACE[i];
+        sv += '<text x="' + gpArtX(f.x) + '" y="' + gpArtY(f.y) + '" text-anchor="middle" dominant-baseline="central"'
+            + ' font-family="\'M PLUS Rounded 1c\', sans-serif" font-size="30" font-weight="900" fill="#231038">' + f.ch + '</text>';
+    }
+    sv += '</svg>';
+    return '<div class="gp-figure"><div class="gp-img">'
+        + '<img src="images/gamepad_diagram.png" alt="" draggable="false">' + sv
+        + '</div></div>';
+}
+
+function showGamepadGuide() {
+    if (isInTransitionCooldown()) return;
+    markScreenTransition();
+    showScreenEl('gamepadScreen');
+    history.pushState({ screen: 'gamepad' }, '');
+    var i, c, f, rows = '';
+    // 番号のついたパーツ → そのあと A/B/X/Y（色のマルで見分ける）→ メニュー操作
+    for (i = 0; i < GP_CALL.length; i++) {
+        c = GP_CALL[i];
+        rows += '<div class="gp-row"><div class="gp-chip" style="background:#ff69b4;">' + c.n + '</div>'
+            + '<div><div class="gp-name">' + escapeHtml(t(c.lbl)) + '</div>'
+            + '<div class="gp-desc">' + escapeHtml(t(c.d)) + '</div></div></div>';
+    }
+    for (i = 0; i < GP_FACE.length; i++) {
+        f = GP_FACE[i];
+        rows += '<div class="gp-row"><div class="gp-chip" style="background:' + f.color + ';">' + f.ch + '</div>'
+            + '<div><div class="gp-name">' + f.ch + '</div>'
+            + '<div class="gp-desc">' + escapeHtml(t(f.d)) + '</div></div></div>';
+    }
+    rows += '<div class="gp-row"><div class="gp-chip" style="background:#b9b9d0;">&#9776;</div>'
+        + '<div><div class="gp-name">' + escapeHtml(t('gp_lbl_menu')) + '</div>'
+        + '<div class="gp-desc">' + escapeHtml(t('gp_d_menu')) + '</div></div></div>';
+
+    var el = document.getElementById('gamepadContent');
+    el.innerHTML = '<div class="gp-note">' + escapeHtml(t('gp_intro')) + '</div>'
+        + '<div class="gp-cols">' + buildGamepadDiagram() + '<div>' + rows + '</div></div>'
+        + '<div class="gp-note">' + escapeHtml(t('gp_ps_note')) + '</div>';
+    el.scrollTop = 0;
+}
+
+function hideGamepadGuide() {
+    markScreenTransition();
+    hideScreenEl('gamepadScreen');
+}
+
+// ボタンから閉じる：history.back()でpopstateハンドラに処理を委任（遊び方から開いた時は遊び方へ戻る）
+function closeGamepadGuide() {
+    if (isInTransitionCooldown()) return;
+    history.back();
 }
 
 function hideGuide() {
