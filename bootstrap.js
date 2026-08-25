@@ -39,6 +39,20 @@ function gameLoop(timestamp) {
     frameSteps = 0;
     while (accumulator >= FIXED_DT) {
         if (gameState.gameStarted && !gameState.gamePaused) {
+            // ── みきりの目（1.748）: 世界の歩みだけを 1/MIKIRI_SLOW_DIV に落とす ──
+            // ⚠**この固定ステップを間引くだけ**にする＝敵も弾もプレイヤーも演出も、まとめて同じ割合で
+            //   遅くなる。要素ごとに速度を掛けて回る方式だと**掛け忘れた物だけが速いまま**になり、
+            //   増えるたびに漏れる（本作は敵/弾/エッグ/ギミックが別々の更新を持っているので特に危ない）。
+            // ⚠**残り時間はここで、間引く前に減らす**＝実時間で数える。
+            //   間引かれた側で数えると3秒が12秒になる。
+            // ⚠距離は camera.x 由来なので実時間あたりの前進も 1/4 になる＝**稼ぎには使えない**
+            //   （ランキングは汚れない。使うほど距離は損をする＝切り抜けるための道具として筋が通る）。
+            if ((gameState.mikiriTimer || 0) > 0) {
+                gameState.mikiriTimer--;
+                gameState.mikiriStep = (gameState.mikiriStep || 0) + 1;
+                if (gameState.mikiriStep < MIKIRI_SLOW_DIV) { accumulator -= FIXED_DT; continue; }
+                gameState.mikiriStep = 0;
+            }
             frameSteps++;
             if (pipeRoomState.active) {
                 updatePipeRoom(); // 土管ボーナス部屋中は世界を止め、部屋だけ更新
@@ -645,7 +659,9 @@ function bindTapDelegate(container, attrName, handler) {
     // ⚠押しっぱなしを毎フレーム「押した瞬間」と誤認しないよう、前フレームの状態と比較する（prevBtn）。
     // ─────────────────────────────────────────────────────────────
     var GP_DEADZONE = 0.35;   // スティックの遊び。小さすぎるとドリフトで勝手に歩く（調整ノブ）
-    var GP = { A: 0, B: 1, X: 2, Y: 3, L1: 4, R1: 5, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 }; // W3C standard mapping
+    // ⚠L2/R2(6,7) は 1.748 まで未使用だった＝「みきりの目」に割り当てる（1.748）。
+    //   ⚠右スティックは軸なので押し込み判定が機種で揺れる。**トリガーは標準配置で必ずボタン**なので安全。
+    var GP = { A: 0, B: 1, X: 2, Y: 3, L1: 4, R1: 5, L2: 6, R2: 7, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 }; // W3C standard mapping
     var prevBtn = {};         // 前フレームで押されていたか（押した瞬間の検出用）
     var gpConnectedId = null; // 接続中のコントローラー名（重複トースト防止も兼ねる）
 
@@ -1220,6 +1236,13 @@ function bindTapDelegate(container, attrName, handler) {
         var yb = gpPressed(pad, GP.Y);
         if (yb && !prevBtn._y) { try { activateSpecialMove(); } catch (_) {} }
         prevBtn._y = yb;
+
+        // ── みきりの目: L2 / R2（1.748・ユーザー要望「コントローラーにも対応」） ──
+        // ⚠**どちらでも発動できる**ようにする（機種によって押しやすい方が違う。両方見ても害はない）。
+        // ⚠発動条件は activateMikiri が全部見ている（残り回数/発動中/部屋の中など）＝ここは押した瞬間だけ拾う。
+        var mk = gpPressed(pad, GP.L2) || gpPressed(pad, GP.R2);
+        if (mk && !prevBtn._mk) { try { activateMikiri(); } catch (_) {} }
+        prevBtn._mk = mk;
         gpApplySlotMark(true);
     }
     window.pollGamepad = pollGamepad;
@@ -1414,6 +1437,13 @@ function initialize() {
     if (specialBtnEl) {
         specialBtnEl.addEventListener('touchend', function(e) { e.preventDefault(); e.stopPropagation(); activateSpecialMove(); });
         specialBtnEl.addEventListener('click', function(e) { e.stopPropagation(); activateSpecialMove(); });
+    }
+
+    // みきりの目 発動ボタン（残りがある時のみ pointer-events:auto・1.748）
+    var mikiriBtnEl = document.getElementById('mikiriBtn');
+    if (mikiriBtnEl) {
+        mikiriBtnEl.addEventListener('touchend', function(e) { e.preventDefault(); e.stopPropagation(); activateMikiri(); });
+        mikiriBtnEl.addEventListener('click', function(e) { e.stopPropagation(); activateMikiri(); });
     }
 
     // ストアボタン（タイトル画面）

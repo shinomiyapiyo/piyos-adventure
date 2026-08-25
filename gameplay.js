@@ -4265,6 +4265,8 @@ function applyUpgrades() {
         gameState.speedMultiplier = 1.0;
         gameState.revivesLeft = 0;
         gameState.specialMoveLevel = 0;
+        gameState.mikiriMax = 0; gameState.mikiriLeft = 0;   // みきりの目も持ち込まない（1.748）
+        gameState.mikiriTimer = 0; gameState.mikiriStep = 0;
         updateStockUI();
         return;
     }
@@ -4279,6 +4281,11 @@ function applyUpgrades() {
     gameState.luckyCharm = (ups.lucky_charm || 0) > 0;
     // エッグマグネット: ゴールデンエッグを全画面から吸い寄せ(updatePowerUps冒頭)＝取り逃し防止
     gameState.eggMagnet = (ups.egg_magnet || 0) > 0;
+    // みきりの目（1.748）: **レベル＝1ランで使える回数**。効果時間と倍率はレベルで変えない。
+    // ⚠残り回数はここで満タンにする＝ラン開始のたびに戻る（持ち越さない）。
+    gameState.mikiriMax = ups.mikiri_eye || 0;
+    gameState.mikiriLeft = gameState.mikiriMax;
+    gameState.mikiriTimer = 0; gameState.mikiriStep = 0;
     var stockLv = ups.stock_expand || 0;
     stockState.maxSlots = 3 + stockLv;
     var magnetLv = ups.magnet_boost || 0;

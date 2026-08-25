@@ -163,7 +163,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.747";
+                content: "Ver.1.748";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -630,9 +630,11 @@
         body.is-paused #ui,
         body.is-paused #stockSlots,
         body.is-paused #specialMoveUI,
+        body.is-paused #mikiriUI,
         body.pause-skin-open #ui,
         body.pause-skin-open #stockSlots,
         body.pause-skin-open #specialMoveUI,
+        body.pause-skin-open #mikiriUI,
         /* チュートリアル再プレイ中の「スキップ」も隠す（1.696・監査で発見）。position:fixed / z-index:60 で
            ポーズ幕(z:20)より上にあり、全幅にした一覧の見出し行へ重なって**タップも通っていた**
            （2回押すとランが終わり、きせかえ一覧を開いたままタイトルへ飛ぶ）。 */
@@ -1087,7 +1089,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.747</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.748</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -2210,6 +2212,15 @@
             </div>
         </div>
 
+        <!-- みきりの目（1.748）: 発動ボタン＋残り回数。必殺技ゲージの真下＝上部中央に並べる。
+             ⚠デッドゾーン（画面中央下の安全領域）には触れない。pointer-events は使える時だけ auto。 -->
+        <div id="mikiriUI" style="display:none; position:absolute; top:calc(46px + env(safe-area-inset-top,0px)); left:50%; transform:translateX(-50%); z-index:150; flex-direction:column; align-items:center; pointer-events:none;">
+            <div id="mikiriBtn" style="display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.5); border:2px solid rgba(255,255,255,0.25); border-radius:22px; padding:3px 11px 3px 4px; pointer-events:none;">
+                <img src="images/icon_mikiri_eye.png" width="28" height="28" style="image-rendering:pixelated; flex-shrink:0;">
+                <span id="mikiriLeftText" style="color:#bfefff; font-weight:800; font-size:13px; text-shadow:0 1px 2px #000; font-family:'M PLUS Rounded 1c',sans-serif;">0</span>
+            </div>
+        </div>
+
         <!-- フッターコントロールバー -->
         <div id="controlBar">
             <div class="control-zone control-left" id="ctrlLeft">
@@ -3061,6 +3072,9 @@ function buildRunSave() {
         lives: gameState.lives, crystalLives: gameState.crystalLives || 0,
         enemyKills: gameState.enemyKills, coinsCollected: gameState.coinsCollected,
         maxCombo: gameState.maxCombo || 0,   // 1.656: ランの成績なので中断で失わせない（監査の教訓）
+        // みきりの目の残り回数（1.748）。⚠中断で満タンに戻ると「しおりで無限に使える」抜け道になる。
+        //   ⚠キーが無い古いしおりは undefined＝再開時に applyUpgrades が入れた満タンのままにする（実害なし）。
+        mikiriLeft: gameState.mikiriLeft || 0,
         bossKills: gameState.bossKills, specialUses: gameState.specialUses,
         specialGauge: gameState.specialGauge || 0,
         revivesLeft: gameState.revivesLeft || 0,
@@ -3182,6 +3196,11 @@ function applyRunSave(d) {
     gameState.lives = d.lives; gameState.crystalLives = d.crystalLives;
     gameState.enemyKills = d.enemyKills || 0; gameState.coinsCollected = d.coinsCollected || 0;
     gameState.maxCombo = d.maxCombo || 0;   // 1.656（旧セーブはキーが無いので0＝そのランの以降で埋まる）
+    // みきりの目（1.748）: 保存があればそれを、無ければ満タンのまま（古いしおり）。上限は今の所持レベル
+    if (typeof d.mikiriLeft === 'number') {
+        gameState.mikiriLeft = Math.max(0, Math.min(gameState.mikiriMax || 0, d.mikiriLeft | 0));
+    }
+    gameState.mikiriTimer = 0; gameState.mikiriStep = 0;
     gameState.bossKills = d.bossKills || 0; gameState.specialUses = d.specialUses || 0;
     gameState.specialGauge = d.specialGauge || 0; gameState.revivesLeft = d.revivesLeft || 0;
     gameState.noDmgMark = d.noDmgMark || 0; gameState.noDmgNext = d.noDmgNext || 500;
@@ -5588,6 +5607,9 @@ function resetGame() {
     gameState.specialGauge = 0;
     gameState.specialCutinTimer = 0;
     gameState.specialCutinActive = false;
+    // みきりの目（1.748）: 残り回数は applyUpgrades が満タンにする。ここでは発動中の状態だけ落とす
+    gameState.mikiriTimer = 0;
+    gameState.mikiriStep = 0;
     floatEffects = [];
     damageFlashTimer = 0;
     screenShake = { intensity: 0, timer: 0 };
@@ -6458,6 +6480,12 @@ function showGamepadGuide() {
             + '<div><div class="gp-name">' + f.ch + '</div>'
             + '<div class="gp-desc">' + escapeHtml(t(f.d)) + '</div></div></div>';
     }
+    // みきりの目（1.748）。⚠絵のトリガーは肩ボタンの奥で指し先を作れないので、
+    //   番号バッジは付けずアイコンだけの行にする（メニュー行と同じ扱い）。
+    rows += '<div class="gp-row"><div class="gp-chip" style="background:#8ad1ff; padding:0; overflow:hidden;">'
+        + '<img src="images/icon_mikiri_eye.png" width="21" height="21" style="image-rendering:pixelated;"></div>'
+        + '<div><div class="gp-name">' + escapeHtml(t('gp_lbl_mikiri')) + '</div>'
+        + '<div class="gp-desc">' + escapeHtml(t('gp_d_mikiri')) + '</div></div></div>';
     rows += '<div class="gp-row"><div class="gp-chip" style="background:#b9b9d0;">&#9776;</div>'
         + '<div><div class="gp-name">' + escapeHtml(t('gp_lbl_menu')) + '</div>'
         + '<div class="gp-desc">' + escapeHtml(t('gp_d_menu')) + '</div></div></div>';
@@ -7837,6 +7865,49 @@ function killEnemy(arr, index, e, score) {
     if (soundManager) soundManager.playKill();
 }
 
+// ─── みきりの目（1.748）: 発動 ───────────────────────────────
+// ⚠**門番は必殺技(activateSpecialMove)と同じ並びにする**。UI側で隠すだけにすると、
+//   将来ほかの入力経路（コントローラー/キーボード）から呼ばれた時に同じ事故が起きる。
+function activateMikiri() {
+    if ((gameState.mikiriMax || 0) <= 0) return;          // 未購入
+    if ((gameState.mikiriLeft || 0) <= 0) return;         // 使い切った
+    if ((gameState.mikiriTimer || 0) > 0) return;         // 発動中は重ねない
+    if (!gameState.gameStarted || gameState.gamePaused) return;
+    if (gameState.specialCutinTimer > 0) return;          // カットイン中は世界が止まっている
+    if (pipeRoomState.active) return;                     // ボーナス部屋（敵がいない＝浪費）
+    if (pipeRoomState.anim !== 'none') return;            // 土管の出入り演出中
+    if (typeof undergroundState !== 'undefined' && undergroundState.ending) return;
+    if (typeof groundReturnFade !== 'undefined' && groundReturnFade.phase) return;
+    gameState.mikiriLeft--;
+    gameState.mikiriTimer = MIKIRI_DURATION;
+    gameState.mikiriStep = 0;
+    if (soundManager) { try { soundManager.playConfirmSelect(); } catch (_) {} }
+    updateMikiriUI();
+}
+
+// HUDの更新（残り回数・押せるかどうかの見た目）
+function updateMikiriUI() {
+    var ui = document.getElementById('mikiriUI');
+    if (!ui) return;
+    var show = (gameState.mikiriMax || 0) > 0 && gameState.gameStarted && !gameState.gamePaused
+        && !pipeRoomState.active && pipeRoomState.anim === 'none'
+        && !(typeof undergroundState !== 'undefined' && undergroundState.ending);
+    ui.style.display = show ? 'flex' : 'none';
+    if (!show) return;
+    var txt = document.getElementById('mikiriLeftText');
+    if (txt) txt.textContent = String(gameState.mikiriLeft || 0);
+    var btn = document.getElementById('mikiriBtn');
+    // 使えるのは「残りがある」かつ「発動していない」時だけ
+    var ready = (gameState.mikiriLeft || 0) > 0 && (gameState.mikiriTimer || 0) <= 0;
+    if (btn && btn._ready !== ready) {
+        btn._ready = ready;
+        btn.style.pointerEvents = ready ? 'auto' : 'none';
+        btn.style.opacity = ready ? '1' : '0.45';
+        btn.style.boxShadow = ready ? '0 0 12px 3px rgba(120,220,255,0.75)' : 'none';
+        btn.style.borderColor = ready ? '#8ad1ff' : 'rgba(255,255,255,0.25)';
+    }
+}
+
 // ─── 必殺技: 発動・演出・効果 ───
 function activateSpecialMove() {
     if ((gameState.specialMoveLevel || 0) <= 0) return;
@@ -7988,6 +8059,7 @@ function drawSpecialCutin() {
 }
 
 function updateSpecialMoveUI() {
+    updateMikiriUI();   // みきりの目のHUDも同じ周期で面倒を見る（1.748）
     var ui = document.getElementById('specialMoveUI');
     if (!ui) return;
     // ⚠地底の一枚絵（真のエンディング）と地上復帰の白フェード中は出さない（1.696・監査で発見）。

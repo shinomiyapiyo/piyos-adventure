@@ -232,6 +232,15 @@ const SURF_CAM_DOWN_LERP = 0.12;              // 戻る時はゆっくり（着�
 //   ⚠上限そのものは実行時に GROUND_Y から出す（GROUND_Y は index.html 側で定義されるため）。
 const BOSS_CAM_FEET_MARGIN = 24;   // ボスの足元(地面の線)を画面下端からこのぶん上に必ず残す
 
+// ═══ みきりの目（1.748・ユーザー採用）═══
+// ラン中に数回だけ、数秒間**世界の歩みそのものを遅くする**。永続強化ではなく「ここぞ」の一手。
+// ⚠**固定ステップを間引く方式**にする（gameLoop 参照）＝敵も弾もプレイヤーも演出も、まとめて
+//   同じ割合で遅くなる。要素ごとに速度を掛けて回ると**掛け忘れた物だけが速いまま**になる。
+// ⚠距離は camera.x 由来なので、実時間あたりの前進も 1/4 になる＝**稼ぎには使えない**
+//   （ランキングを汚さない。むしろ使うと距離は損をする＝「切り抜けるための道具」で筋が通る）。
+const MIKIRI_DURATION = 180;   // 1回の持続（フレーム・約3秒）。⚠実時間で数える
+const MIKIRI_SLOW_DIV = 4;     // 世界の歩みを 1/4 に（土管タイムの PIPE_ASSIST_SLOW=0.25 と同じ体感）
+
 function isUndergroundRound(round) { return round > 0 && round % BOSS_CYCLE_ROUNDS === 0; }   // R7, R14, R21…
 function isScarecrowRound(round)  { return round > 0 && round % BOSS_CYCLE_ROUNDS === BOSS_CYCLE_ROUNDS - 1; } // R6, R13, R20…
 
@@ -3053,6 +3062,11 @@ var TITLE_SHOP_UPGRADES = [
       icon: '', iconImg: 'images/icon_ug_pass.png', maxLevel: 1, prices: [300000], effectDesc: ['地底モード'], effectDescEn: ['UG mode'] },
     { id: 'revival_feather', nameKey: 'tshop_revival_feather', descKey: 'tshop_revival_feather_desc',
       icon: '', iconImg: 'images/icon_revival_machine.png', maxLevel: 2, prices: [500000, 1000000], effectDesc: ['1回/ラン', '2回/ラン'], effectDescEn: ['1/run', '2/run'] },
+    // みきりの目（1.748・高額レーン第6弾／初の「強くならない」品）: 数秒だけ世界を1/4速にする。
+    // ⚠レベル＝**1ランで使える回数**（1→2→3）。効果時間や倍率はレベルで変えない
+    //   （強さが伸びると結局これまでと同じ"永続強化"になってしまうため・ユーザー決定）。
+    { id: 'mikiri_eye', nameKey: 'tshop_mikiri_eye', descKey: 'tshop_mikiri_eye_desc',
+      icon: '', iconImg: 'images/icon_mikiri_eye.png', maxLevel: 3, prices: [500000, 1000000, 2000000], effectDesc: ['1回/ラン', '2回/ラン', '3回/ラン'], effectDescEn: ['1/run', '2/run', '3/run'] },
     // クリスタルハート（1.505・高額レーン第1弾）: 青ハート+1/+2/+3。赤ハートより先に削れ、回復不可
     // （ラン開始時のみ補充）。タフネス（回復可能な赤+N）とは別レイヤー。消費は takeDamage/fallDeath。
     { id: 'crystal_heart', nameKey: 'tshop_crystal_heart', descKey: 'tshop_crystal_heart_desc',
@@ -3200,6 +3214,7 @@ var ZUKAN_ENTRIES = [
     { id: 'item:combo_master',    cat: 'item', nameKey: 'tshop_combo_master',    descKey: 'tshop_combo_master_desc',    img: 'images/icon_combo_master.png',    seenIf: function(gs){ return ((gs.upgrades || {}).combo_master || 0) > 0; } },
     { id: 'item:swift_feet',      cat: 'item', nameKey: 'tshop_swift_feet',      descKey: 'tshop_swift_feet_desc',      img: 'images/icon_swift_feet.png',      seenIf: function(gs){ return ((gs.upgrades || {}).swift_feet || 0) > 0; } },
     { id: 'item:revival_feather', cat: 'item', nameKey: 'tshop_revival_feather', descKey: 'tshop_revival_feather_desc', img: 'images/icon_revival_machine.png', seenIf: function(gs){ return ((gs.upgrades || {}).revival_feather || 0) > 0; } },
+    { id: 'item:mikiri_eye',      cat: 'item', nameKey: 'tshop_mikiri_eye',      descKey: 'tshop_mikiri_eye_desc',      img: 'images/icon_mikiri_eye.png',      seenIf: function(gs){ return ((gs.upgrades || {}).mikiri_eye || 0) > 0; } },
     { id: 'item:crystal_heart',   cat: 'item', nameKey: 'tshop_crystal_heart',   descKey: 'tshop_crystal_heart_desc',   img: 'images/icon_crystal_heart.png',   seenIf: function(gs){ return ((gs.upgrades || {}).crystal_heart || 0) > 0; } },
     { id: 'item:egg_magnet',      cat: 'item', nameKey: 'tshop_egg_magnet',      descKey: 'tshop_egg_magnet_desc',      img: 'images/icon_egg_magnet.png',      seenIf: function(gs){ return ((gs.upgrades || {}).egg_magnet || 0) > 0; } },
     { id: 'item:lucky_charm',     cat: 'item', nameKey: 'tshop_lucky_charm',     descKey: 'tshop_lucky_charm_desc',     img: 'images/icon_lucky_charm.png',     seenIf: function(gs){ return ((gs.upgrades || {}).lucky_charm || 0) > 0; } },
