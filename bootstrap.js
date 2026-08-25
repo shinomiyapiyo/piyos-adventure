@@ -47,7 +47,16 @@ function gameLoop(timestamp) {
             //   間引かれた側で数えると3秒が12秒になる。
             // ⚠距離は camera.x 由来なので実時間あたりの前進も 1/4 になる＝**稼ぎには使えない**
             //   （ランキングは汚れない。使うほど距離は損をする＝切り抜けるための道具として筋が通る）。
-            if ((gameState.mikiriTimer || 0) > 0) {
+            // ⚠**世界が動いている時だけ数える／遅くする**（1.749・点検で発見）。
+            //   下の分岐のうち「土管の部屋」「土管の出入り演出」「必殺技のカットイン」は
+            //   **世界を止めて演出だけ進める**場所なので、そこで数えると
+            //   **プレイヤーには避けようが無いのに残り時間だけ溶ける**（実測: 部屋の中で40F/40F 消費、
+            //   カットインは2.4倍に間延びしたうえ、明けた時にはもう効果が終わっていた）。
+            //   ポーズで止まるのと同じ考え方＝止まっている間は減らさない。
+            var _worldRunning = !pipeRoomState.active
+                && pipeRoomState.anim !== 'in' && pipeRoomState.anim !== 'outWorld'
+                && !(gameState.specialCutinTimer > 0);
+            if (_worldRunning && (gameState.mikiriTimer || 0) > 0) {
                 gameState.mikiriTimer--;
                 gameState.mikiriStep = (gameState.mikiriStep || 0) + 1;
                 if (gameState.mikiriStep < MIKIRI_SLOW_DIV) { accumulator -= FIXED_DT; continue; }
