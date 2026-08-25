@@ -16,6 +16,7 @@ const SKIP = new Set([
   'package.json', 'package-lock.json',
   'capacitor.config.json', 'capacitor.config.ts',
   '.gitignore', '.DS_Store', 'fix_boss_sprites.py',
+  '.nojekyll',   // GitHub Pages 用（Web配信のためのもの・アプリには要らない）。1.9の検問で発覚
   'スクショ用', 'HANDOFF.md', 'ROADMAP.md', 'SPEC.md',
   'resources', // @capacitor/assets のアイコン/スプラッシュ源泉（アプリ同梱不要）
   'wall', // PWA廃止ウォール（Web配信専用・ネイティブに同梱しない）
@@ -38,10 +39,27 @@ const skip = (name) => SKIP.has(name) || name.endsWith('.md') || name.endsWith('
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
+// ⚠**身に覚えのない物が混ざったら止める**（1.9）。denylist方式なので、直下に置いた物は
+//   除外リストに書かない限り**黙って配信物へ入る**。実害3回目でようやく入れた検問:
+//     1.487「スクショ用」フォルダ／1.608 xcarchive（配信サイズ3倍）／
+//     1.9 コマンドの打ち損じで出来た 97KB のゴミファイル（AABとiOSアーカイブの両方に混入）。
+//   ゲームが直下に置くのは **.js / index.html / images / sounds** だけ。それ以外が来たら
+//   「意図した追加なら ALLOW_ROOT か SKIP に足す」と言って**失敗させる**（警告だと見落とす）。
+const ALLOW_ROOT = new Set(['images', 'sounds', 'index.html']);
+const looksLikeGameFile = (name) => ALLOW_ROOT.has(name) || /\.js$/.test(name);
+
 let count = 0;
+const unexpected = [];
 for (const name of readdirSync(ROOT)) {
   if (skip(name)) continue;
+  if (!looksLikeGameFile(name)) { unexpected.push(name); continue; }
   cpSync(join(ROOT, name), join(OUT, name), { recursive: true });
   count++;
+}
+if (unexpected.length) {
+  console.error('\n✗ build-www: リポジトリ直下に見覚えのない物があります（配信物へ入れずに中断しました）:');
+  for (const n of unexpected) console.error(`    ${JSON.stringify(n)}`);
+  console.error('  → 消すか、意図した追加なら scripts/build-www.mjs の ALLOW_ROOT / SKIP に足してください。\n');
+  process.exit(1);
 }
 console.log(`build-www: copied ${count} entries into www/`);
