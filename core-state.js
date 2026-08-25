@@ -225,6 +225,12 @@ const SURF_CAM_UP_MAX    = GAME_HEIGHT / 2;   // 上へ追う上限＝半画面(
 const SURF_CAM_UP_MARGIN = 60;                // 画面上端からこのぶん余裕を残して追い始める
 const SURF_CAM_UP_LERP   = 0.35;              // 上がる時は速く追う（置いていかれない）
 const SURF_CAM_DOWN_LERP = 0.12;              // 戻る時はゆっくり（着地のたびに画面が跳ねない）
+// ⚠**ボス戦だけは上への追従を抑える**（1.747・ユーザー指示）。半画面(225px)まで追うと
+//   **地面ごと画面外へ出てボスの足元が見えなくなる**（実測: 地面は画面y=348 で、
+//   画面下端450までの余裕は102pxしかない＝カメラが-102を超えた時点で地面が消える）。
+//   足元が常に見える高さで止める＝ボスの位置取りが読めなくならない。
+//   ⚠上限そのものは実行時に GROUND_Y から出す（GROUND_Y は index.html 側で定義されるため）。
+const BOSS_CAM_FEET_MARGIN = 24;   // ボスの足元(地面の線)を画面下端からこのぶん上に必ず残す
 
 function isUndergroundRound(round) { return round > 0 && round % BOSS_CYCLE_ROUNDS === 0; }   // R7, R14, R21…
 function isScarecrowRound(round)  { return round > 0 && round % BOSS_CYCLE_ROUNDS === BOSS_CYCLE_ROUNDS - 1; } // R6, R13, R20…

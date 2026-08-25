@@ -163,7 +163,7 @@
                 box-sizing: border-box;
             }
             body::after {
-                content: "Ver.1.746";
+                content: "Ver.1.747";
                 position: fixed;
                 bottom: 8px; right: 10px;
                 color: rgba(255,255,255,0.5);
@@ -1087,7 +1087,7 @@
                     color: #fff; font-size: clamp(7px, 1.2vw, 12px);
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
                     font-weight: bold;">
-                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.746</span>
+                    <span style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 5px;">Ver.1.747</span>
                 </div>
 
                 <!-- クレジット：右下 -->
@@ -1364,6 +1364,23 @@
                 </div>
 
                 <!-- ずかんはタイトルメニューへ移設済み（1.434）。設定内の重複行は撤去（1.447） -->
+
+                <!-- なまえの とうろく（1.747・ユーザー要望）。登録しておくとハイスコア時の入力が要らなくなる。
+                     ⚠登録は任意＝未登録なら従来どおり毎回入力する。 -->
+                <div style="display: flex; justify-content: space-between; align-items: center;
+                    padding: 8px 12px; background: rgba(0,0,40,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;">
+                    <span data-i18n="settings_playername" style="color: #fff; font-size: clamp(13px, 2.8vw, 21px); font-weight: 700;">なまえ</span>
+                    <div style="display: flex; gap: 6px; align-items: center; min-width: 0;">
+                        <span id="settingsNameValue" style="color: #ffd700; font-weight: 700; font-size: clamp(11px, 2.2vw, 16px);
+                            max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+                        <button id="nameRegBtn" onclick="showNameRegister()" style="
+                            min-width: 60px; min-height: 36px; padding: 6px 12px; border-radius: 18px; border: none;
+                            font-size: clamp(12px, 2.4vw, 18px); font-weight: 700; cursor: pointer;
+                            font-family: 'M PLUS Rounded 1c', sans-serif;
+                            background: linear-gradient(180deg, #44bb77, #228855);
+                            color: #fff; -webkit-tap-highlight-color: transparent;">とうろく</button>
+                    </div>
+                </div>
 
                 <!-- データ引き継ぎ（機種変更/ブラウザ変更時のセーブ移行） -->
                 <div style="display: flex; justify-content: space-between; align-items: center;
@@ -2812,7 +2829,10 @@ var gameSettings = {
     zukan: { seen: {}, kills: {}, new: {}, claimed: {} }, // ずかん: seen[id]=1(発見済み)/kills[id]=撃破数/new[id]=1(未閲覧の新規=NEW!)/claimed[key]=1(コンプ報酬受取済み)
     pouchLevel: 0,                // まほうのポーチ所持数＝永続ストック枠の数（上から順に永続化）
     permaStock: [],               // 永続ストック枠のアイテムid配列（枠index順・''=未割当）
-    reportedNames: []             // 通報したランキング名（この端末では以後＊＊＊表示）。上限50件・古い順に削除
+    reportedNames: [],            // 通報したランキング名（この端末では以後＊＊＊表示）。上限50件・古い順に削除
+    // ⚠登録名（1.747）。''＝未登録＝これまでどおり毎回入力。
+    //   入っている値は**送信時と同じフィルタを通したもの**だけ（下の sanitizePlayerName / playerNameError）。
+    playerName: ''
 };
 (function loadSettings() {
     try {
@@ -2825,6 +2845,12 @@ var gameSettings = {
             if (typeof parsed.soundEnabled === 'boolean') gameSettings.soundEnabled = parsed.soundEnabled;
             if (parsed.language === 'ja' || parsed.language === 'en') gameSettings.language = parsed.language;
             if (typeof parsed.adFree === 'boolean') gameSettings.adFree = parsed.adFree;
+            // ⚠登録名は**読み込み時にもフィルタを通す**（1.747）。手で localStorage を書き換えられるし、
+            //   NGワードは後から増えるので、保存時に通っていても今も通るとは限らない。通らなければ未登録に戻す。
+            if (typeof parsed.playerName === 'string') {
+                var _pn = sanitizePlayerName(parsed.playerName);
+                gameSettings.playerName = playerNameError(_pn) ? '' : _pn;
+            }
             // ── ショップ関連 ──
             if (typeof parsed.savings === 'number') gameSettings.savings = parsed.savings;
             if (parsed.upgrades && typeof parsed.upgrades === 'object') gameSettings.upgrades = parsed.upgrades;
@@ -3333,6 +3359,85 @@ function showTransferExport() {
     row.appendChild(copyBtn); row.appendChild(closeBtn);
     ui.card.appendChild(row);
     if (soundManager) soundManager.playConfirmSelect();
+}
+
+// ─── なまえの とうろく（1.747・ユーザー要望）───────────────────────
+// 「登録しておけばハイスコアに乗るたびに名前を打たなくて済む」ための機能。登録するかどうかは自由。
+// ⚠**フィルタは送信側と同じものをそのまま使う**（sanitizePlayerName / playerNameError）＝
+//   登録経由で NGワードや長すぎる名前がランキングへ回り込む抜け道を作らない（ユーザー指示）。
+// ⚠幕は引き継ぎ画面と同じ .transferOverlay を使う。この class は
+//   BACK_HANDLERS（戻るキー）と GP_MODALS（コントローラー）に既に登録されているので、
+//   別クラスで作ると**戻るキーで閉じられない幕**になる（1.737 で踏んだのと同じ穴）。
+function showNameRegister() {
+    if (document.querySelector('.transferOverlay')) return;
+    var ui = buildTransferOverlay(t('name_reg_title'), t('name_reg_desc'));
+    var cur = registeredPlayerName();
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'nameRegInput';
+    input.maxLength = 10;                 // ⚠入力欄(playerNameInput)と同じ上限に揃える
+    input.value = cur;
+    input.placeholder = t('name_placeholder');
+    input.style.cssText = 'width:100%; box-sizing:border-box; border-radius:8px; padding:10px;' +
+        "font-family:'M PLUS Rounded 1c',sans-serif; font-size:clamp(13px,3vw,17px); text-align:center;" +
+        'background:rgba(255,255,255,0.10); color:#fff; border:1px solid rgba(255,255,255,0.3);';
+    ui.card.appendChild(input);
+
+    var err = document.createElement('div');
+    err.style.cssText = 'min-height:18px; margin-top:6px; text-align:center; color:#ff8a8a;' +
+        'font-size:clamp(10px,2.2vw,13px); font-weight:700;';
+    ui.card.appendChild(err);
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; justify-content:center; margin-top:6px; flex-wrap:wrap;';
+
+    var saveBtn = document.createElement('button');
+    saveBtn.textContent = t('name_reg_save');
+    saveBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#44bb77,#228855)');
+    saveBtn.onclick = function() {
+        var name = sanitizePlayerName(input.value);
+        var bad = playerNameError(name);          // ⚠送信時とまったく同じ判定
+        if (bad) {
+            err.textContent = t(bad);
+            if (soundManager) soundManager.playDamage();
+            return;
+        }
+        gameSettings.playerName = name;
+        saveSettings();
+        updateSettingsUI();
+        ui.overlay.remove();
+        if (soundManager) soundManager.playCoin();
+        showRewardToast(escapeHtml(t('name_reg_done')), 'linear-gradient(180deg,#9be27a,#3f9f3f)', '#0c3a0c');
+    };
+    row.appendChild(saveBtn);
+
+    // 登録済みの時だけ「けす」を出す（未登録の時に押せても意味が無い）
+    if (cur) {
+        var clearBtn = document.createElement('button');
+        clearBtn.textContent = t('name_reg_clear');
+        clearBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#c26b6b,#8d3535)');
+        clearBtn.onclick = function() {
+            gameSettings.playerName = '';
+            saveSettings();
+            updateSettingsUI();
+            ui.overlay.remove();
+            if (soundManager) soundManager.playCursorMove();
+            showRewardToast(escapeHtml(t('name_reg_cleared')), 'linear-gradient(180deg,#bbb,#777)', '#222');
+        };
+        row.appendChild(clearBtn);
+    }
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.textContent = t('name_reg_cancel');
+    cancelBtn.style.cssText = transferBtnStyle('linear-gradient(180deg,#888,#555)');
+    cancelBtn.onclick = function() { ui.overlay.remove(); };
+    row.appendChild(cancelBtn);
+
+    ui.card.appendChild(row);
+    if (soundManager) soundManager.playConfirmSelect();
+    // ⚠ネイティブ(iOS)では自動フォーカスしない＝名前入力画面と同じ理由（キーボードでビューポートが崩れる）
+    if (typeof isNativeApp !== 'function' || !isNativeApp()) { try { input.focus(); } catch (_) {} }
 }
 
 // （旧iPhone PWA移行ウォール[1.501 iosPwaWall]はPWA廃止に伴い削除 — 1.510。全OS対応の新ウォールは wall/index.html）
@@ -4375,6 +4480,27 @@ var NG_WORDS = [
     'pizzagate','truther','plandemic','great reset',
     'adrenochrome','crisis actor','false flag','globalist'
 ];
+
+// ─── 名前のフィルタ（1.747で1か所に集約）───────────────────────────
+// ⚠**送信・登録・読み込みの3か所が必ず同じ規則を通る**ようにするための関数。
+//   1.746まではフィルタが submitScore の中に直書きで、他所から同じ規則を使えなかった。
+//   ⚠規則そのものは変えていない（trim → 記号 <>&"' を除去 → 10文字で切る → 空/NGワードを弾く）。
+//     10文字は入力欄の maxlength と同じ。DBルールの上限は16文字。
+function sanitizePlayerName(raw) {
+    return String(raw == null ? '' : raw).trim().replace(/[<>&"']/g, '').substring(0, 10);
+}
+// 使えない名前ならその理由の i18n キー、使えるなら null を返す
+function playerNameError(name) {
+    if (!name) return 'name_empty';
+    if (containsNgWord(name)) return 'name_ng_word';
+    return null;
+}
+// 登録名を取り出す（1.747）。⚠**取り出す時にもフィルタを通す**＝NGワードが後から増えても、
+//   古い登録名がそのまますり抜けてランキングへ出ることがない。
+function registeredPlayerName() {
+    var n = sanitizePlayerName(gameSettings.playerName || '');
+    return playerNameError(n) ? '' : n;
+}
 
 /**
  * NGワードチェック
@@ -6366,6 +6492,15 @@ function closeGuide() {
 }
 
 function updateSettingsUI() {
+    // 登録名の表示（1.747）。未登録なら「みとうろく」＋ボタンは「とうろく」
+    var nv = document.getElementById('settingsNameValue');
+    var nb = document.getElementById('nameRegBtn');
+    if (nv && nb) {
+        var reg = registeredPlayerName();
+        nv.textContent = reg || t('name_reg_none');
+        nv.style.opacity = reg ? '1' : '0.55';
+        nb.textContent = reg ? t('name_reg_change') : t('name_reg_btn');
+    }
     var soundBtn = document.getElementById('soundToggleBtn');
     var jaBtn = document.getElementById('langJaBtn');
     var enBtn = document.getElementById('langEnBtn');
@@ -6505,15 +6640,39 @@ function acquireScoreRef() {
     return pendingScoreRef;
 }
 
+// 送信する1件を組み立てる（1.747で1か所に集約）。
+// ⚠**登録名・手入力・スキップ の3経路がまったく同じ形を送る**ようにするための関数。
+//   1.746までは submitScore と skipSubmit に同じ literal が2つあり、片方だけ直す事故が起きやすかった
+//   （実際 maxCombo のコメントが1.745の部門化後も「まだ部門にしない」のまま両方に残っていた）。
+// ⚠name は**呼ぶ側でフィルタを通しておくこと**（sanitizePlayerName / playerNameError）。
+//   スキップ時の「名無しのぴよ氏」だけは翻訳文をそのまま使うので16文字（DBルールの上限）で切る。
+function buildScoreData(name) {
+    return {
+        name: String(name),
+        score: Number(finalGameStats.score) || 0,
+        distance: Number(finalGameStats.distance) || 0,
+        enemyKills: Number(finalGameStats.enemyKills) || 0,
+        speedLevel: Math.min(9999, Number(finalGameStats.speedLevel) || 1), // 真の値を送信（旧ルール≤100で弾かれたら setScoreWithFallback が100で再送）
+        timestamp: Date.now(),
+        date: new Date().toLocaleDateString('ja-JP'),
+        revived: !!finalGameStats.revived, // 広告復活を使ったラン＝ランキングで↺表示（DBルールで任意bool・2026-07-24公開済）
+        resumed: !!finalGameStats.resumed,
+        // 最高コンボ（1.657で送信開始・1.745でランキングの部門になった）。
+        // DBルールは任意number(0〜9999)で 2026-07-29 に公開済＝送らない旧クライアントも従来どおり書き込める。
+        maxCombo: Math.min(9999, Math.max(0, Number(finalGameStats.maxCombo) || 0))
+    };
+}
+
 function submitScore() {
     // ⚠テスト専用: 12,000m スタートの記録がランキングに乗らないよう封じる（保険②）
     if (typeof TEST_START_AFTER_R6 !== 'undefined' && TEST_START_AFTER_R6) {
         showGameModal('⚠ TESTモード中はランキングに送信できません（core-state.js の TEST_START_AFTER_R6 を false に）');
         return;
     }
-    var name = document.getElementById('playerNameInput').value.trim().replace(/[<>&"']/g, '').substring(0, 10);
-    if (!name) { showGameModal(t('name_empty')); return; }
-    if (containsNgWord(name)) { showGameModal(t('name_ng_word')); return; }
+    // ⚠フィルタは登録側と共通（1.747）。規則は従来どおりで、置き場所だけ関数に移した。
+    var name = sanitizePlayerName(document.getElementById('playerNameInput').value);
+    var nameBad = playerNameError(name);
+    if (nameBad) { showGameModal(t(nameBad)); return; }
 
     var btn = document.getElementById('submitBtn');
     var st = document.getElementById('submitStatus');
@@ -6535,21 +6694,7 @@ function submitScore() {
         return;
     }
 
-    var scoreData = {
-        name: String(name),
-        score: Number(finalGameStats.score) || 0,
-        distance: Number(finalGameStats.distance) || 0,
-        enemyKills: Number(finalGameStats.enemyKills) || 0,
-        speedLevel: Math.min(9999, Number(finalGameStats.speedLevel) || 1), // 真の値を送信（旧ルール≤100で弾かれたら setScoreWithFallback が100で再送）
-        timestamp: Date.now(),
-        date: new Date().toLocaleDateString('ja-JP'),
-        revived: !!finalGameStats.revived, // 広告復活を使ったラン＝ランキングで↺表示（DBルールで任意bool・2026-07-24公開済）
-        resumed: !!finalGameStats.resumed,
-        // 最高コンボ（1.657）。⚠**ランキングの部門としてはまだ出さない**＝集計用に記録するだけ。
-        //   「コンボが距離と相関するか」を実データで確かめ、腕前の指標として成立するなら部門化する。
-        //   DBルールは任意number(0〜9999)で 2026-07-29 に公開済＝送らない旧クライアントも従来どおり書き込める。
-        maxCombo: Math.min(9999, Math.max(0, Number(finalGameStats.maxCombo) || 0))
-    };
+    var scoreData = buildScoreData(name);
 
     st.textContent = t('submit_sending');
 
@@ -6598,21 +6743,7 @@ function skipSubmit() {
     var st = document.getElementById('submitStatus');
     st.textContent = t('submit_btn_sending');
 
-    var scoreData = {
-        name: String(t('submit_skip_name')).substring(0, 16), // DBルール(name<=16)と同上限。enの'Anonymous Piyo'=14文字が10で切れないよう16（10だと"Anonymous "に欠ける）
-        score: Number(finalGameStats.score) || 0,
-        distance: Number(finalGameStats.distance) || 0,
-        enemyKills: Number(finalGameStats.enemyKills) || 0,
-        speedLevel: Math.min(9999, Number(finalGameStats.speedLevel) || 1), // 真の値を送信（旧ルール≤100で弾かれたら setScoreWithFallback が100で再送）
-        timestamp: Date.now(),
-        date: new Date().toLocaleDateString('ja-JP'),
-        revived: !!finalGameStats.revived, // 広告復活を使ったラン＝ランキングで↺表示（スキップ登録でも同じ扱い）
-        resumed: !!finalGameStats.resumed,
-        // 最高コンボ（1.657）。⚠**ランキングの部門としてはまだ出さない**＝集計用に記録するだけ。
-        //   「コンボが距離と相関するか」を実データで確かめ、腕前の指標として成立するなら部門化する。
-        //   DBルールは任意number(0〜9999)で 2026-07-29 に公開済＝送らない旧クライアントも従来どおり書き込める。
-        maxCombo: Math.min(9999, Math.max(0, Number(finalGameStats.maxCombo) || 0))
-    };
+    var scoreData = buildScoreData(String(t('submit_skip_name')).substring(0, 16));
 
     if (database) {
         setScoreWithFallback(acquireScoreRef(), scoreData).then(function() {   // 送信を打ち切った後にスキップしても同じキー
@@ -6639,6 +6770,35 @@ function skipSubmit() {
     }
 }
 
+// 登録名がある時は、名前入力の画面を出さずにそのまま記録する（1.747・ユーザー要望）。
+// ⚠**submitScore と同じ道具立てをそのまま使う**（buildScoreData / setScoreWithFallback /
+//   acquireScoreRef / fetchAllRanks）＝手入力と登録名で結果が食い違わない。
+// ⚠TESTモードでは送らない（submitScore / skipSubmit と同じ保険。ここに書き忘れると
+//   **登録名の人だけテスト記録が本番DBへ直行する**＝1.719 でスキップ側が実際にそうなっていた）。
+// ⚠画面が無いぶん**送っている最中に何も出ない時間ができる**ので、先にトーストを出しておく。
+function submitScoreWithRegisteredName(name) {
+    if (typeof TEST_START_AFTER_R6 !== 'undefined' && TEST_START_AFTER_R6) {
+        runPendingRunEndAction();
+        return;
+    }
+    if (!database) { runPendingRunEndAction(); return; }
+    try { showRewardToast(escapeHtml(t('name_reg_saving')), 'linear-gradient(180deg,#8ad1ff,#3a7bd0)', '#fff'); } catch (_) {}
+    var scoreData = buildScoreData(name);
+    setScoreWithFallback(acquireScoreRef(), scoreData).then(function() {
+        gameState.hasRecordedHighScore = true;
+        pendingScoreRef = null;
+        return fetchAllRanks(scoreData);
+    }).then(function(ranks) {
+        showGameModal(t('submit_success') + '\n' + buildRankMessage(name, ranks)).then(function() {
+            runPendingRunEndAction();
+        });
+    }).catch(function() {
+        // ⚠失敗しても遷移は止めない（プレイヤーの操作を飲み込まない＝1.572 と同じ方針）
+        try { showRewardToast(escapeHtml(t('submit_fail_status')), 'linear-gradient(180deg,#ff9a9a,#c23b3b)', '#fff'); } catch (_) {}
+        runPendingRunEndAction();
+    });
+}
+
 // ─── 復活ランキング記録方式（1.523・魂の共鳴v3.799から移植）───
 // 記録は「そのランが本当に終わったとき」に1回だけ。復活を選んだ場合はここを通らずプレイが続き、
 // 復活後の最終ゲームオーバー→リトライ/タイトルで初めて記録される（revived:true ＝ ↺付き）。
@@ -6650,8 +6810,12 @@ function finalizeRunAndThen(next) {
     // 通常プレイの記録と同じ土俵に置けない。⚠名前入力の窓ごと出さない＝「送れると思ったのに弾かれた」を作らない。
     if (undergroundMode.active) { next(); return; }
     checkHighScore(finalGameStats).then(function(isHigh) {
-        if (isHigh) { pendingRunEndAction = next; showNameInput(); } // 送信/スキップ完了後に next が走る
-        else next();                                                 // ランク外＝記録せずそのまま遷移
+        if (!isHigh) { next(); return; }                             // ランク外＝記録せずそのまま遷移
+        pendingRunEndAction = next;                                  // 送信/スキップ完了後に next が走る
+        // ⚠登録名があるなら名前入力を飛ばす（1.747）。無ければ従来どおり入力画面を出す。
+        var reg = registeredPlayerName();
+        if (reg) submitScoreWithRegisteredName(reg);
+        else showNameInput();
     }).catch(function() { next(); });                                // 判定に失敗しても遷移は止めない
 }
 function runPendingRunEndAction() {
@@ -6676,7 +6840,9 @@ function showNameInput() {
     document.getElementById('skipBtn').disabled = false;
 
     var input = document.getElementById('playerNameInput');
-    input.value = '';
+    // 登録名があれば初期値に入れておく（1.747）。⚠通常はここへ来ないが、
+    //   単独で名前入力を開いた場合でも打ち直しにならないように。
+    input.value = registeredPlayerName();
     // ネイティブ(iOS)では自動フォーカスしない: 画面遷移と同時にキーボードが開くとWKWebViewの
     // ビューポート復元が不安定になるため、入力欄タップ（ユーザー操作起点）で開かせる
     if (typeof isNativeApp !== 'function' || !isNativeApp()) input.focus();
@@ -8380,8 +8546,14 @@ function takeDamage() {
 function updateSurfaceCameraY() {
     var target = 0;
     if (gameState.gameStarted && !gameState.isRespawning) {
+        // ⚠**ボス戦（予告中も含む）は足元が見える高さで止める**（1.747・ユーザー指示）。
+        //   ここを半画面まで許すと地面ごと画面外へ出て、ボスの位置取りが読めなくなる。
+        var upMax = SURF_CAM_UP_MAX;
+        if (bossState.active || bossState.bossTriggered) {
+            upMax = Math.max(0, GAME_HEIGHT - GROUND_Y - BOSS_CAM_FEET_MARGIN);
+        }
         // player.y は頭の位置。画面上端から SURF_CAM_UP_MARGIN の余裕を残して追い始める
-        target = Math.min(0, Math.max(-SURF_CAM_UP_MAX, player.y - SURF_CAM_UP_MARGIN));
+        target = Math.min(0, Math.max(-upMax, player.y - SURF_CAM_UP_MARGIN));
     }
     var cy = gameState.camera.y;
     var k = (target < cy) ? SURF_CAM_UP_LERP : SURF_CAM_DOWN_LERP;
