@@ -7031,6 +7031,79 @@ function shareResult() {
     });
 }
 
+// ─── リトライ前の広告（1.750）───
+// リトライのたびに出していた**見返りゼロの全画面広告**を、「最後まで見ると次のランの軍資金がもらえる」枠に
+// 置き換える。中断の回数は1回も増えない（元から広告が出ていた場所）。
+// ⚠予告画面(#retryAdIntro)は**Googleの必須要件**＝報酬をはっきり示し、断る手段を出してから再生すること。
+//   プラグインは ad.present を呼ぶだけで予告を出さないので、ここで自前で出す。
+// ⚠広告が用意できていない時は**従来どおり通常インタースティシャル**へ落とす（今の収益の下限は割らない）。
+var RETRY_AD_BONUS = 2000;      // 視聴で入る「次のランの所持金」。⚠貯金ではなくラン限りにして経済を壊さない
+var RETRY_AD_INTRO_SEC = 3;     // 予告を出してから自動再生までの秒数（その間いつでもスキップできる）
+var retryAdIntroTimer = null;
+var retryAdIntroResolve = null; // 予告画面の決着関数（ボタンから呼ぶ・1回だけ効く）
+var retryAdBonusToken = -1;     // ボーナスを入れたランの runToken（二重付与よけ）
+
+// 「2,000円」の表記（英語は currency_unit が空＝数字だけ・game内の他の金額表示と同じ作法）
+function retryAdBonusText() { return RETRY_AD_BONUS.toLocaleString() + t('currency_unit'); }
+
+function hideRetryAdIntro() {
+    if (retryAdIntroTimer) { clearInterval(retryAdIntroTimer); retryAdIntroTimer = null; }
+    retryAdIntroResolve = null;
+    var el = document.getElementById('retryAdIntro');
+    if (el) { el.style.display = 'none'; el.classList.add('hidden'); }
+}
+
+// cb(accepted) を必ず1回だけ呼ぶ。⚠ここで詰まるとリトライが永久に再開しないので、
+//   要素が無い/例外が出た場合は「見る」に倒さず**素通り(false)**させる。
+function showRetryAdIntro(cb) {
+    var el = document.getElementById('retryAdIntro');
+    var body = document.getElementById('retryAdIntroBody');
+    var count = document.getElementById('retryAdIntroCount');
+    if (!el || !body || !count) { cb(false); return; }
+    var done = false;
+    function finish(accepted) {
+        if (done) return;
+        done = true;
+        hideRetryAdIntro();
+        cb(accepted);
+    }
+    retryAdIntroResolve = finish;
+    body.innerHTML = escapeHtml(t('retry_ad_intro_body', { amount: retryAdBonusText() })).replace(/\n/g, '<br>');
+    var left = RETRY_AD_INTRO_SEC;
+    count.textContent = t('retry_ad_intro_count', { sec: left });
+    el.classList.remove('hidden');
+    el.style.display = 'flex';
+    if (retryAdIntroTimer) clearInterval(retryAdIntroTimer);
+    retryAdIntroTimer = setInterval(function () {
+        left--;
+        if (left <= 0) { finish(true); return; }
+        count.textContent = t('retry_ad_intro_count', { sec: left });
+    }, 1000);
+}
+function retryAdIntroWatch() { if (retryAdIntroResolve) retryAdIntroResolve(true); }
+function retryAdIntroSkip()  { if (retryAdIntroResolve) retryAdIntroResolve(false); }
+
+// 視聴できた分の入金。⚠**そのランに1回だけ**（runToken で見張る）＝遅れて届いた報酬で二重に入らない。
+function grantRetryAdBonus() {
+    if (!gameState.gameStarted) return;                     // 走っているランが無い＝入れる先が無い
+    if (retryAdBonusToken === gameState.runToken) return;   // すでにこのランへ入れてある
+    retryAdBonusToken = gameState.runToken;
+    gameState.score += RETRY_AD_BONUS;
+    if (soundManager) soundManager.playItem();
+    // ⚠トーストは**ラン開始のヒント（「ストックは タップで つかえる！」等）と同時に出ると重なる**。
+    //   showRewardToast は積まずに同じ座標へ描くため、2枚が重なって読めなくなる（ブラウザ実測で確認）。
+    //   お金と効果音は即時＝手応えは失わない。文字だけヒントが消えてから出す。
+    var _bonusRun = gameState.runToken;
+    setTimeout(function () {
+        if (gameState.runToken !== _bonusRun || !gameState.gameStarted) return;   // 別のランへ持ち越さない
+        if (typeof showRewardToast === 'function')
+            showRewardToast(escapeHtml(t('retry_ad_bonus_ok', { amount: retryAdBonusText() })),
+                            'linear-gradient(180deg,#ffd76a,#d08a1c)', '#3a2500');
+    }, 2600);
+}
+// 広告が閉じた**後**に報酬イベントが届いた時の受け口（monetization.js から呼ばれる・1.750）
+window.onRetryAdRewardLate = grantRetryAdBonus;
+
 // リトライ/タイトルの押下＝「このランは終わり」の確定（1.523）。先にハイスコア判定・記録を済ませてから遷移する。
 // ⚠resetGame は記録の後に走る＝保存前にフラグが戻る事故を構造的に防ぐ。
 function retryGame() {
@@ -7040,18 +7113,29 @@ function retryGame() {
     //   ⚠undergroundMode.active は resetGame でしか落ちないので、この時点ではまだ立っている。
     var wasUgMode = undergroundMode.active;
     finalizeRunAndThen(function () {
-        // インタースティシャルはセッションの区切り（リトライ）で表示。広告が閉じてから再開する
+        // 広告はセッションの区切り（リトライ）で表示。広告が閉じてから再開する
         // （死亡毎の黒画面＆復活リワードとの競合を回避）。広告が無ければ即再開。
-        showAd('interstitial', function () {
+        function restart(bonus) {
             hideGameOverScreen();
             resetGame();
             // 失敗時はステージ1から（ユーザー決定・途中再開はしない）
             // ⚠1.717: startUndergroundMode は「しおりで中断中」だと弾いて false を返す。
             //   その時にここで何もしないと、hideGameOverScreen + resetGame の後で**真っ暗な画面**に落ちる。
             //   （地底モード中はしおりを作れない＝canSaveRun が false なので通常は起きないが、保険）
-            if (wasUgMode) { if (!startUndergroundMode()) showStartScreen(); }
+            if (wasUgMode) { if (!startUndergroundMode()) { showStartScreen(); return; } }
             else startGame();
-        });
+            if (bonus) grantRetryAdBonus();
+        }
+        // 1.750: リワードインタースティシャルが用意できている時だけ「見ると軍資金」の枠にする。
+        //   用意できていなければ従来どおり通常インタースティシャル（＝収益の下限を割らない）。
+        if (typeof window.isRetryRewardAdReady === 'function' && window.isRetryRewardAdReady()) {
+            showRetryAdIntro(function (accepted) {
+                if (!accepted) { restart(false); return; }
+                window.showRetryRewardAd(function (rewarded) { restart(rewarded); });
+            });
+            return;
+        }
+        showAd('interstitial', function () { restart(false); });
     });
 }
 

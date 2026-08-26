@@ -19,15 +19,20 @@
     // ★★ リリースビルドでは必ず false（本番の広告ユニットIDを使う）。開発中は true = Googleのテスト広告 ★★
     var AD_TEST = false;
 
-    // Google公式テスト広告ユニットID（iOS/Android共通で使用可）
+    // Google公式テスト広告ユニットID（⚠ここに並べているのは**iOS用**のテストユニット＝実機テストがiPhoneのため。
+    //   Androidで AD_TEST=true にする時は Android用のIDに差し替える必要がある）
     var TEST_IDS = {
         interstitial: 'ca-app-pub-3940256099942544/4411468910',
-        reward:       'ca-app-pub-3940256099942544/1712485313'
+        reward:       'ca-app-pub-3940256099942544/1712485313',
+        rewardInter:  'ca-app-pub-3940256099942544/6978759866'   // リワードインタースティシャル（1.750）
     };
     // 本番の広告ユニットID（プラットフォーム別・AdMobコンソールで発行済み）
+    // ⚠rewardInter＝リトライ前の「見ると軍資金がもらえる」枠（1.750で追加）。
+    //   Google はこのフォーマットに**予告画面（報酬の明示＋スキップ）を自前で出すこと**を義務づけている
+    //   （プラグインは ad.present を呼ぶだけ＝SDKは予告を出さない）。予告は gameplay.js の showRetryAdIntro。
     var PROD_IDS = {
-        ios:     { interstitial: 'ca-app-pub-4148293353679224/7011611961', reward: 'ca-app-pub-4148293353679224/3275426791' },
-        android: { interstitial: 'ca-app-pub-4148293353679224/8133121941', reward: 'ca-app-pub-4148293353679224/7418806070' }
+        ios:     { interstitial: 'ca-app-pub-4148293353679224/7011611961', reward: 'ca-app-pub-4148293353679224/3275426791', rewardInter: 'ca-app-pub-4148293353679224/4876410355' },
+        android: { interstitial: 'ca-app-pub-4148293353679224/8133121941', reward: 'ca-app-pub-4148293353679224/7418806070', rewardInter: 'ca-app-pub-4148293353679224/7377566133' }
     };
     function adUnit(kind) {
         if (AD_TEST) return TEST_IDS[kind];
@@ -46,10 +51,24 @@
         rewReward:     'onRewardedVideoAdReward',
         rewShowed:     'onRewardedVideoAdShowed',
         rewDismiss:    'onRewardedVideoAdDismissed',
-        rewFailShow:   'onRewardedVideoAdFailedToShow'
+        rewFailShow:   'onRewardedVideoAdFailedToShow',
+        riLoaded:      'onRewardedInterstitialAdLoaded',
+        riFailLoad:    'onRewardedInterstitialAdFailedToLoad',
+        riReward:      'onRewardedInterstitialAdReward',
+        riShowed:      'onRewardedInterstitialAdShowed',
+        riDismiss:     'onRewardedInterstitialAdDismissed',
+        riFailShow:    'onRewardedInterstitialAdFailedToShow'
     };
 
     var interReady = false, rewardReady = false;
+    // ─── リワードインタースティシャル（1.750）の状態。既存のリワードとは完全に別管理 ───
+    var riReady = false;             // 事前ロード済みか
+    var pendingRiDone = null;        // 閉じたら呼ぶ（リトライの順序制御）
+    var riRewarded = false;          // この視聴で報酬イベントを受け取ったか
+    var riWatchdog = null;           // 閉じイベントが返らない詰まりへの保険
+    var riRetryScheduled = false;    // ロード失敗後の再ロードが予約済みか
+    var riLateUntil = 0;             // この時刻までに遅れて報酬が届いたら後から入金する（Dismiss先着への保険）
+    var RI_LATE_GRACE_MS = 5000;
     var pendingReward = null;      // 視聴中リワードのcallback（1本のみ・解決で即null）
     var rewardWantShow = false;    // リワード未ロード時「ロード完了で表示」の予約
     var pendingInterDone = null;   // インタースティシャルを閉じたら呼ぶ（リトライの順序制御）
@@ -189,6 +208,70 @@
         AdMob.prepareRewardVideoAd({ adId: adUnit('reward'), npa: true }) // npa=非パーソナライズ広告（トラッキングなし方針）
             .then(function () { setRewardReady(true); })
             .catch(function (e) { setRewardReady(false); adDiagNote('lastLoadFail', e); scheduleRewardReload(); });
+    }
+
+    // ─── リワードインタースティシャル（1.750・リトライ前の「見ると軍資金」枠）───
+    // ⚠既存のリワード/インタースティシャルの状態機械には**一切触らない**。
+    //   ここが壊れても最悪「ボーナスが出ない」だけで、リトライは必ず再開する（finishRewardInterstitial が
+    //   Dismiss / FailShow / 例外 / 見張りタイマーのどこから来ても onDone を1回だけ実行する）。
+    function prepareRewardInterstitial() {
+        if (!AdMob || typeof AdMob.prepareRewardInterstitialAd !== 'function') return;
+        if (typeof gameSettings !== 'undefined' && gameSettings.adFree) return;
+        if (!adsAllowed()) return;                       // prepareInterstitial と同じ方針（1.719）
+        AdMob.prepareRewardInterstitialAd({ adId: adUnit('rewardInter'), npa: true })
+            .then(function () { riReady = true; })
+            .catch(function (e) { riReady = false; adDiagNote('lastLoadFail', e); scheduleRiReload(); });
+    }
+    function scheduleRiReload() {
+        if (riRetryScheduled || !AdMob) return;
+        riRetryScheduled = true;
+        setTimeout(function () { riRetryScheduled = false; if (!riReady && !pendingRiDone) prepareRewardInterstitial(); }, REWARD_RELOAD_DELAY_MS);
+    }
+    // 事前ロードを1箇所に集約（同意の取り直し / プライバシー設定の変更 / 初期化 の3経路から呼ばれる）
+    function prepareAllAds() { prepareInterstitial(); prepareReward(); prepareRewardInterstitial(); }
+
+    // 後始末。⚠onDone は必ず1回だけ。got=報酬イベントを受け取れたか
+    function finishRewardInterstitial() {
+        if (riWatchdog) { clearTimeout(riWatchdog); riWatchdog = null; }
+        riReady = false;
+        prepareRewardInterstitial();
+        var d = pendingRiDone; pendingRiDone = null;
+        var got = riRewarded;   // ⚠riRewarded は落とさない＝Dismissが先に来た時の遅れ報酬をここで判別する
+        if (d) d(got);
+        // ⚠報酬イベントは Dismiss より後に届くことがある（リワードで実証済み・1.603のコメント参照）。
+        //   ゲームは待たせずに再開させ、遅れて来たら onRetryAdRewardLate で後から入金する。
+        if (!got) {
+            riLateUntil = Date.now() + RI_LATE_GRACE_MS;
+        } else {
+            riLateUntil = 0;
+            riRewarded = false;
+        }
+    }
+    function armRiWatchdog() {
+        if (riWatchdog) clearTimeout(riWatchdog);
+        riWatchdog = setTimeout(function () {
+            riWatchdog = null;
+            if (!pendingRiDone) return;
+            if (adOnScreen) { armRiWatchdog(); return; }   // 表示中は勝手に進めない（インタースティシャルと同じ）
+            finishRewardInterstitial();
+        }, INTER_WATCHDOG_MS);
+    }
+    // 予告画面で「みる」を選んだ後に呼ぶ。onDone(rewarded) は広告が閉じた後（または出せなかった時）に1回。
+    function showRewardInterstitial(onDone) {
+        if (!riReady || !AdMob || typeof AdMob.showRewardInterstitialAd !== 'function') {
+            prepareRewardInterstitial();
+            if (onDone) onDone(false);
+            return;
+        }
+        riReady = false;
+        riRewarded = false;
+        riLateUntil = 0;
+        adOnScreen = false;               // Showed を受け取るまでは「未表示」
+        pendingRiDone = onDone || null;
+        armRiWatchdog();
+        AdMob.showRewardInterstitialAd().catch(function (e) {
+            adDiagNote('lastShowFail', e); adOnScreen = false; finishRewardInterstitial();
+        });
     }
 
     // リワードのコールバックを「1回だけ」実行（＝実際の報酬付与/復活/入金）。1.521で settleReward から改名し、
@@ -356,7 +439,7 @@
             .then(function (info) {
                 consentInfo = info || null;
                 consentFailed = false; adDiag.consentFailed = false;
-                if (adsAllowed()) { prepareInterstitial(); prepareReward(); }   // 取り戻せたら事前ロード再開
+                if (adsAllowed()) { prepareAllAds(); }   // 取り戻せたら事前ロード再開
             })
             .catch(function (e) { consentFailedAt = Date.now(); adDiagNote('lastLoadFail', e); })
             .then(function () { consentRetrying = false; }, function () { consentRetrying = false; });
@@ -385,7 +468,7 @@
             .then(function (info) {
                 if (info) consentInfo = info;
                 // 拒否→同意に変えた場合はここから事前ロードを開始する（再起動を待たせない）
-                if (adsAllowed()) { prepareInterstitial(); prepareReward(); }
+                if (adsAllowed()) { prepareAllAds(); }
                 if (done) done(true);
             })
             .catch(function () { if (done) done(false); });
@@ -478,10 +561,25 @@
                 AdMob.addListener(EV.interShowed,   function () { adOnScreen = true; });   // 1.597
                 AdMob.addListener(EV.interDismiss,  function () { adOnScreen = false; recoverGameAudio(); finishInterstitial(); });
                 AdMob.addListener(EV.interFailShow, function (err) { adDiagNote('lastShowFail', err); adOnScreen = false; finishInterstitial(); });
+                // ─── リワードインタースティシャル（1.750）───
+                AdMob.addListener(EV.riLoaded,      function () { riReady = true; });
+                AdMob.addListener(EV.riFailLoad,    function (err) { adDiagNote('lastLoadFail', err); riReady = false; scheduleRiReload(); });
+                AdMob.addListener(EV.riShowed,      function () { adOnScreen = true; });
+                AdMob.addListener(EV.riReward,      function () {
+                    riRewarded = true;
+                    // ⚠すでに閉じて再開した後に届いた＝**視聴自体は成立している**。後から入金する（リワードの
+                    //   lateReward と同じ考え方・1.603）。猶予を過ぎていたら黙って捨てる（別ランへの誤爆防止）。
+                    if (!pendingRiDone && riLateUntil && Date.now() <= riLateUntil) {
+                        riLateUntil = 0; riRewarded = false;
+                        if (typeof window.onRetryAdRewardLate === 'function') { try { window.onRetryAdRewardLate(); } catch (_) {} }
+                    }
+                });
+                AdMob.addListener(EV.riDismiss,     function () { adOnScreen = false; recoverGameAudio(); finishRewardInterstitial(); });
+                AdMob.addListener(EV.riFailShow,    function (err) { adDiagNote('lastShowFail', err); adOnScreen = false; finishRewardInterstitial(); });
                 // ⚠同意が得られていない（EEA/UKで拒否・取得失敗）なら**事前ロードしない**（1.655）。
                 //   リスナーだけは張っておく＝後から「プライバシー設定」で同意されたら prepareAdsNow() で開始できる。
                 //   報酬は自社紹介カードのbackstopで従来どおり出るのでプレイヤーの不利益にはならない。
-                if (adsOk) { prepareInterstitial(); prepareReward(); }
+                if (adsOk) { prepareAllAds(); }
             })
             .catch(function () {});
     }
@@ -549,6 +647,18 @@
         } catch (_) {}
         setTimeout(function () { if (rewardWantShow) { rewardWantShow = false; finalizeReward(false, false); } }, REWARD_LOAD_WAIT_MS);
     }
+
+    // リトライ前の広告が「今すぐ予告画面を出せる状態か」。false なら従来どおり通常インタースティシャル。
+    window.isRetryRewardAdReady = function () {
+        if (typeof gameSettings !== 'undefined' && gameSettings.adFree) return false;
+        return !!(AdMob && riReady && adsAllowed());
+    };
+    // 予告画面で「みる」を選んだ後に呼ぶ。onDone(rewarded) を必ず1回。
+    window.showRetryRewardAd = function (onDone) {
+        if (typeof gameSettings !== 'undefined' && gameSettings.adFree) { if (onDone) onDone(false); return; }
+        if (!AdMob) { if (onDone) onDone(false); return; }
+        showRewardInterstitial(onDone);
+    };
 
     window.showAd = function (type, callback) {
         if (typeof gameSettings !== 'undefined' && gameSettings.adFree) { if (callback) callback(true); return; }

@@ -470,6 +470,9 @@ function bindTapDelegate(container, attrName, handler) {
     bindTapButton(document.getElementById('toTitleBtn'), goToTitle, { guardTouchStart: true });
     bindTapButton(document.getElementById('shareBtn'), shareResult, { guardTouchStart: true });
     bindTapButton(document.getElementById('adReviveBtn'), adRevive, { guardTouchStart: true });
+    // リトライ前の広告予告（1.750）。⚠この2つのボタンは Google の必須要件（報酬の明示＋断る手段）
+    bindTapButton(document.getElementById('retryAdWatchBtn'), retryAdIntroWatch, { guardTouchStart: true });
+    bindTapButton(document.getElementById('retryAdSkipBtn'), retryAdIntroSkip, { guardTouchStart: true });
     // 広告の準備完了/失敗で「準備中」表示を自動更新（monetization.js から呼ばれる・A案）
     window.onRewardReadyChange = function() { if (typeof refreshRewardButtons === 'function') refreshRewardButtons(); };
     // （UPDATEボタンのバインドはPWA廃止に伴い撤去 — 1.510）
