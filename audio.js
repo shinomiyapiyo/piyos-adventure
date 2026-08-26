@@ -537,7 +537,12 @@ class SoundManager {
         if (this.ctx && this.ctx.state !== 'running') { try { this.ctx.resume(); } catch (_) {} }
         var b = this.currentBGM;
         if (!b || b.ended) return;
-        if (b.paused) { b.play().then(function(){}).catch(function(){}); return; }  // 通常の一時停止＝resume()と同じ
+        // ⚠1.751: play() の結果を控えるだけ（挙動は変えない）。実機で「広告のあと無音」の原因を
+        //   切り分けるのに、再生が**拒否されたのか**／**通ったのに音が出ないのか**の区別が要る。
+        //   読み出しは monetization.js の adAudioDiag()（TEST_AD_AUDIO_DIAG が true の時だけ）。
+        var self = this;
+        var note = function (r) { self.lastPlayResult = r; };
+        if (b.paused) { note('trying'); b.play().then(function(){ note('ok'); }).catch(function(e){ note((e && e.name) || 'err'); }); return; }  // 通常の一時停止＝resume()と同じ
         // ⚠ここから先は「要素は再生中のつもりなのに音が出ていない」疑いのケース。
         //   正常時に pause→play を挟むと毎回わずかに音が途切れるので、**再生位置が進んでいない**ことを
         //   確認してから張り直す（進んでいれば正常＝何もしない）。
@@ -549,7 +554,8 @@ class SoundManager {
                 var at = b.currentTime;                  // 曲の頭に戻すと違和感が出るので位置は保つ
                 b.pause();
                 b.currentTime = at;
-                b.play().then(function(){}).catch(function(){});
+                note('restitch');
+                b.play().then(function(){ note('ok(restitch)'); }).catch(function(e){ note((e && e.name) || 'err'); });
             } catch (_) {}
         }, 180);
     }

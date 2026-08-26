@@ -347,6 +347,55 @@
                 else if (typeof soundManager.resume === 'function') soundManager.resume();
             } catch (_) {}
         }, 250); // 広告のViewControllerが畳まれて音声セッションが戻るのを少し待つ
+        adAudioDiag();
+    }
+
+    // ⚠テスト専用（core-state.js の TEST_AD_AUDIO_DIAG が true の時だけ動く・1.751）。
+    //   「広告のあと BGM/SE が鳴らなくなる」の主因が **JS側か AVAudioSession（ネイティブ）か** を
+    //   実機で切り分けるための表示。Mac も Xcode も要らず、トーストをスクショするだけで済む。
+    //   ⚠**読むだけ**。音声の状態は一切書き換えない（play() もここからは呼ばない＝resumeHard の結果を見るだけ）。
+    //
+    //   出る文字列の読み方:
+    //     p=true                      … 単に止まっているだけ → JS側で直せる
+    //     p=false で t が変わらない    … 要素が固まっている → resumeHard() の対象・JS側で直せる
+    //     p=false で t が進んでいる    … **鳴っているつもりで音が出ていない＝ネイティブ層(AVAudioSession)で確定**
+    //     ctx=suspended               … 効果音(WebAudio)側だけの問題
+    //     play=NotAllowedError 等      … 再生が拒否されている（resumeHard が拾った例外名）
+    function adAudioDiag() {
+        if (window.TEST_AD_AUDIO_DIAG !== true) return;
+        // recoverGameAudio の 250ms 待ち＋resumeHard の 180ms 判定が終わってから測る
+        setTimeout(function () {
+            try {
+                var sm = (typeof soundManager !== 'undefined') ? soundManager : null;
+                var b = sm && sm.currentBGM;
+                var t0 = b ? b.currentTime : -1;
+                setTimeout(function () {
+                    try {
+                        var t1 = b ? b.currentTime : -1;
+                        var f2 = function (v) { return (typeof v === 'number') ? v.toFixed(2) : String(v); };
+                        var msg = 'AUDIO'
+                            + ' p=' + (b ? b.paused : 'noBGM')
+                            + ' t=' + f2(t0) + '→' + f2(t1)
+                            + ' vol=' + (b ? b.volume : '-')
+                            + ' mute=' + (b ? b.muted : '-')
+                            + ' ctx=' + ((sm && sm.ctx) ? sm.ctx.state : 'none')
+                            + ' snd=' + ((typeof gameSettings !== 'undefined' && gameSettings.soundEnabled) ? 'ON' : 'OFF')
+                            + ' play=' + ((sm && sm.lastPlayResult) || '-');
+                        // ⚠**10秒ほど出しっぱなしにする**（既定の2.2秒だと実機でスクショを撮る前に消える）。
+                        //   同じ key で出し直すと showRewardToast が寿命を張り直す仕様（1.696）を使う。
+                        if (typeof showRewardToast === 'function') {
+                            for (var i = 0; i < 5; i++) {
+                                (function (n) {
+                                    setTimeout(function () {
+                                        try { showRewardToast(msg, 'linear-gradient(180deg,#8ad1ff,#3a7bd0)', '#fff', 'adAudioDiag'); } catch (_) {}
+                                    }, n * 2000);
+                                })(i);
+                            }
+                        }
+                    } catch (_) {}
+                }, 300);   // 300ms あけて2回目＝currentTime が進んでいるか
+            } catch (_) {}
+        }, 700);
     }
 
     // Reward発火で報酬結果を記録するが、cbの実行は広告が閉じるまで待つ。Dismissが来ない稀な実装に

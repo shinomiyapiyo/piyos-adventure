@@ -72,7 +72,17 @@ function makeEnv(opts = {}) {
         onRetryAdRewardLate: () => { log.push('LATE_BONUS'); }
     };
     const gameSettings = { adFree: !!opts.adFree, language: 'ja', savings: 0, purchased: {}, tshopAdCooldown: 0 };
-    const soundManager = { playItem() {}, playDamage() {} };
+    const toasts = [];
+    // 音の状態は opts.audio で差し替えられる（AUDIO診断の検証用）
+    const bgm = opts.audio ? Object.assign({ paused: false, currentTime: 10, volume: 0.5, muted: false, ended: false }, opts.audio.bgm) : null;
+    const soundManager = {
+        playItem() {}, playDamage() {},
+        currentBGM: bgm,
+        ctx: opts.audio ? { state: opts.audio.ctxState || 'running' } : null,
+        lastPlayResult: opts.audio ? (opts.audio.lastPlayResult || 'ok') : null,
+        resumeHard() { if (opts.audio && opts.audio.advanceTimeOnResume && bgm) bgm.currentTime += 0.5; },
+        resume() {}
+    };
     const doc = {
         readyState: 'complete',
         addEventListener() {},
@@ -94,12 +104,12 @@ function makeEnv(opts = {}) {
     const FakeDate = { now: () => now };
     const api = fn(
         win, gameSettings, soundManager, setTimeoutV, clearTimeoutV, doc,
-        FakeDate, () => {}, (k) => k, () => {}, () => {}, () => {},
+        FakeDate, (html) => { toasts.push(String(html)); }, (k) => k, () => {}, () => {}, () => {},
         () => {}, () => {}, { runToken: 1, score: 0 }, { active: false }, {},
         (s) => s, { log() {}, warn() {}, error() {} }
     );
 
-    return { api, win, listeners, calls, advance, log, now: () => now, AdMob };
+    return { api, win, listeners, calls, advance, log, now: () => now, AdMob, toasts, bgm };
 }
 
 // ── シナリオ実行 ──
@@ -267,6 +277,51 @@ await scenario('⑪視聴後に次回ぶんを再ロード', (env) => {
     return { prepareBefore: before, prepareAfter: after, reloaded: after > before };
 });
 
+// A) AUDIO診断（TEST_AD_AUDIO_DIAG）: フラグOFFなら何も出ない
+await scenario('Ⓐ診断OFF＝何も出ない', (env) => {
+    ev(env, EV.riLoaded);
+    let count = 0;
+    env.api.showRetryRewardAd(() => { count++; });
+    ev(env, EV.riShowed); ev(env, EV.riReward); ev(env, EV.riDismiss);
+    env.advance(5000);
+    return { cbCount: count, toasts: env.toasts.length };
+}, { audio: {} });
+
+// B) 診断ON・正常（再生位置が進んでいる）
+await scenario('Ⓑ診断ON・正常（tが進む）', (env) => {
+    env.win.TEST_AD_AUDIO_DIAG = true;
+    ev(env, EV.riLoaded);
+    let count = 0;
+    env.api.showRetryRewardAd(() => { count++; });
+    ev(env, EV.riShowed); ev(env, EV.riReward); ev(env, EV.riDismiss);
+    env.advance(700);
+    env.bgm.currentTime = 10.3;      // 300ms のあいだに再生位置が進んだ
+    env.advance(1000);
+    return { cbCount: count, msg: env.toasts.filter(x => x.startsWith('AUDIO'))[0] };
+}, { audio: {} });
+
+// C) 診断ON・固着（paused=false なのに t が進まない＝ネイティブ層の疑い）
+await scenario('Ⓒ診断ON・固着（tが進まない）', (env) => {
+    env.win.TEST_AD_AUDIO_DIAG = true;
+    ev(env, EV.riLoaded);
+    let count = 0;
+    env.api.showRetryRewardAd(() => { count++; });
+    ev(env, EV.riShowed); ev(env, EV.riDismiss);
+    env.advance(3000);
+    return { cbCount: count, msg: env.toasts.filter(x => x.startsWith('AUDIO'))[0] };
+}, { audio: { ctxState: 'suspended', lastPlayResult: 'NotAllowedError', bgm: { paused: false, currentTime: 42.5 } } });
+
+// D) 診断ON・BGMが無い（タイトル画面など）でも落ちない
+await scenario('Ⓓ診断ON・BGMなし', (env) => {
+    env.win.TEST_AD_AUDIO_DIAG = true;
+    ev(env, EV.riLoaded);
+    let count = 0;
+    env.api.showRetryRewardAd(() => { count++; });
+    ev(env, EV.riShowed); ev(env, EV.riDismiss);
+    env.advance(3000);
+    return { cbCount: count, msg: env.toasts.filter(x => x.startsWith('AUDIO'))[0] || 'なし' };
+});
+
 // 12) 既存のインタースティシャルが壊れていないか（回帰）
 await scenario('⑫【回帰】通常インタースティシャル', (env) => {
     env.listeners['interstitialAdLoaded']({});
@@ -297,6 +352,7 @@ for (const r of results) {
     if ('cbCount' in r && r.cbCount !== 1) bad.push(`${r.name}: cbCount=${r.cbCount}（1でなければならない）`);
     if (r.first && r.first.cb !== 1) bad.push(`${r.name}: 1回目 cb=${r.first.cb}`);
     if (r.second && r.second.cb !== 1) bad.push(`${r.name}: 2回目 cb=${r.second.cb}`);
+    if (r.toasts !== undefined && r.toasts !== 0) bad.push(`${r.name}: フラグOFFなのに診断が${r.toasts}件出た`);
     if (r.showCalls !== undefined && r.showCalls > 1) bad.push(`${r.name}: showを${r.showCalls}回呼んでいる`);
     if (r.cbWhileOnScreen) bad.push(`${r.name}: 広告が画面に出ている間にコールバックが走った（1.597のバグ③の再発）`);
     if (r.reloaded === false) bad.push(`${r.name}: 次回ぶんが再ロードされていない`);
