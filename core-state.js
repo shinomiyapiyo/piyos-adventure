@@ -60,7 +60,7 @@ var TEST_START_AFTER_R6 = false;   // ⚠⚠**出荷前に必ず false へ戻す
 //   ⚠**表示を足すだけでゲームの挙動は一切変えない**（TEST_START_AFTER_R6 とは無関係・相乗りしない）。
 //   ⚠出荷（ストア提出）前に必ず false に戻すこと。false の間は関数ごと即 return する＝ストア版には出ない。
 //   読み方は monetization.js の adAudioDiag() のコメント参照。
-var TEST_AD_AUDIO_DIAG = false;   // ⚠**出荷前に必ず false へ戻す**
+var TEST_AD_AUDIO_DIAG = true;   // ⚠**出荷前に必ず false へ戻す**（いま実機調査のため true）
 // どこから始めるか:
 //   'r7'     … **R7開始の瞬間（12,000m）＝土管が出現するシーンから**（1.562でこちらを既定に）。
 //              開始1フレーム目に checkBossTrigger が土管を置くので、いきなり「せり上がり演出→もぐる→地底」。

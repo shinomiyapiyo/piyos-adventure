@@ -381,6 +381,8 @@
                             + ' ctx=' + ((sm && sm.ctx) ? sm.ctx.state : 'none')
                             + ' snd=' + ((typeof gameSettings !== 'undefined' && gameSettings.soundEnabled) ? 'ON' : 'OFF')
                             + ' play=' + ((sm && sm.lastPlayResult) || '-');
+                        // ⚠**測るのは今（広告直後）／出すのは後**。トーストは画面上部の同じ場所に描かれるので、
+                        //   リトライのボーナス通知（+2.6秒・1.750）と重なって両方読めなくなる。4秒待ってから出す。
                         // ⚠**10秒ほど出しっぱなしにする**（既定の2.2秒だと実機でスクショを撮る前に消える）。
                         //   同じ key で出し直すと showRewardToast が寿命を張り直す仕様（1.696）を使う。
                         if (typeof showRewardToast === 'function') {
@@ -388,7 +390,7 @@
                                 (function (n) {
                                     setTimeout(function () {
                                         try { showRewardToast(msg, 'linear-gradient(180deg,#8ad1ff,#3a7bd0)', '#fff', 'adAudioDiag'); } catch (_) {}
-                                    }, n * 2000);
+                                    }, 4000 + n * 2000);
                                 })(i);
                             }
                         }
