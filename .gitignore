@@ -1,5 +1,8 @@
 .DS_Store
-.claude/
+# ⚠`.claude/` ではなく `.claude/*` にしてある。ディレクトリ自体を無視すると、
+#   その中身は `!` で戻せない（gitの仕様）。スキル（＝手順書）だけは版管理したい。
+.claude/*
+!.claude/skills/
 
 # Capacitor / native
 node_modules/
